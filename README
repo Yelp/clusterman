@@ -1,14 +1,16 @@
 The "clusterman" Service
 =======================
 
-This repository contains a trivial service called `clusterman`.
-You can run it by doing something like
+Clusterman is an autoscaler for Mesos clusters that will also provide
+capabilities to simulate and predict how changes to autoscaling logic will
+impact the cost, performance, and resource utilization of the applications,
+allowing us to effectively optimize those metrics. This service will run the
+batches and tasks for metrics collection, autoscaling, and analysis.
+
+This is a batch/daemon only service. You can run batches by doing something like
 
     # Using paasta local-run
-    $ paasta local-run --cluster norcal-devc --instance main
-
-    # Or running natively to the host
-    $ PORT=<port> STATS_PORT=<stats_port> serviceinit.d/clusterman start-dev
+    $ paasta local-run --cluster norcal-devc --instance main --cmd 'exec dumb-init python {cmd}'
 
     # Note that you must ensure using the virtualenv from your service
     $ make virtualenv_run && source virtualenv_run/bin/activate

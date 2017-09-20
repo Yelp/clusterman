@@ -12,7 +12,7 @@ production: export VIRTUALENV_RUN_REQUIREMENTS = requirements.txt
 production: export VIRTUALENV_RUN_TARGET = virtualenv_run
 
 .PHONY: development
-development: virtualenv_run docker-venv install-hooks
+development: virtualenv_run install-hooks
 
 # `mm` will make development
 .PHONY: minimal
@@ -26,13 +26,9 @@ docs:
 test: clean-cache
 	tox
 
-.PHONY: acceptance
-acceptane: clean-cache
-	tox -e acceptance
-
 .PHONY: itest
-itest:
-	paasta local-run --service clusterman --cluster norcal-devc --instance main --healthcheck
+itest: cook-image
+	paasta local-run --service clusterman --cluster norcal-devc --instance main
 
 .PHONY: cook-image
 cook-image:
@@ -42,13 +38,6 @@ cook-image:
 .PHONY: install-hooks
 install-hooks: virtualenv_run
 	./virtualenv_run/bin/pre-commit install -f --install-hooks
-
-docker-venv: virtualenv_run
-	@# for yelp-compose dev-mode
-	virtualenv_run/bin/docker-run-passthrough --passthrough-host-pip-faster-cache \
-			--volume ./docker-venv:/code/virtualenv_run \
-			docker-dev.yelpcorp.com/xenial_pkgbuild:latest -- \
-			tox -e virtualenv_run-dev
 
 virtualenv_run: $(VIRTUALENV_RUN_REQUIREMENTS)
 	@# See https://confluence.yelpcorp.com/display/~asottile/GettingPythonOffLucid
@@ -67,7 +56,3 @@ clean:
 clean-cache:
 	find -name '*.pyc' -delete
 	find -name '__pycache__' -delete
-
-.PHONY: push-swagger-spec-to-registry
-push-swagger-spec-to-registry:
-	swagger post clusterman api_docs/swagger.json

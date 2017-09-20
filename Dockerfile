@@ -29,11 +29,9 @@ RUN     cd code && tox -e virtualenv_run
 COPY    . /code
 
 # Use yelp-compose (y/ycp) for acceptance testing
-COPY    yelp-compose.yaml /
 RUN     install -d --owner=nobody /code/logs
 
 # For sake of security, don't run your service as a privileged user
 USER    nobody
 WORKDIR /code
 ENV     BASEPATH=/code PATH=/code/virtualenv_run/bin:$PATH
-CMD     ["dumb-init", "python", "/code/serviceinit.d/clusterman", "start-no-daemon"]

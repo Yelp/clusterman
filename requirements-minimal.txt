@@ -1,7 +1,1 @@
-pyramid
-pyramid-distributed-context
-pyramid-swagger
-pyramid-uwsgi-metrics
-uwsgi
-yelp-pyramid
 yelp-servlib

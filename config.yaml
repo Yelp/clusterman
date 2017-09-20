@@ -26,10 +26,6 @@
 #
 
 module_config:
-    -   namespace: yelp_pyramid
-        config:
-            access_log_name: service_clusterman_requests
-            error_log_name: stream_service_clusterman_errors
     -   namespace: clog
         initialize: yelp_servlib.clog_util.initialize
         config:
