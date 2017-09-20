@@ -1,0 +1,45 @@
+{
+    "swagger": "2.0",
+    "produces": ["application/json"],
+    "info": {
+        "title": "clusterman",
+        "version": "1.0.0"
+    },
+    "paths": {
+        "/hello/{name}" : {
+            "get": {
+                "summary": "Say hello to a person",
+                "operationId": "hello",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "description": "The name of the person",
+                        "name": "name",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The request succeeded",
+                        "schema": {
+                            "$ref": "#/definitions/HelloResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "HelloResponse": {
+            "type": "object",
+            "description": "The hello response",
+            "properties": {
+                "message": {
+                    "description": "The message saying hello",
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

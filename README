@@ -1,0 +1,29 @@
+The "clusterman" Service
+=======================
+
+This repository contains a trivial service called `clusterman`.
+You can run it by doing something like
+
+    # Using paasta local-run
+    $ paasta local-run --cluster norcal-devc --instance main
+
+    # Or running natively to the host
+    $ PORT=<port> STATS_PORT=<stats_port> serviceinit.d/clusterman start-dev
+
+    # Note that you must ensure using the virtualenv from your service
+    $ make virtualenv_run && source virtualenv_run/bin/activate
+
+The documentation for this service should be available at:
+
+    http://servicedocs.yelpcorp.com/docs/clusterman/index.html
+
+
+How To Service
+==============
+
+Please read the update documentation to learn more about services at Yelp,
+best practices, and how to extend your service to do all the cool things
+you want to do with it:
+
+    https://confluence.yelpcorp.com/display/ENG/HowToService
+    http://servicedocs.yelpcorp.com/docs/tutorial_happyhour/index.html

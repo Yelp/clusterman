@@ -1,0 +1,14 @@
+#!/usr/bin/env python
+
+from yelp_servlib import serviceinitlib, uwsgi_serviceinit
+
+
+if __name__ == "__main__":
+    config = serviceinitlib.load_config(
+        SERVICE='clusterman',
+        PORT=8888,
+        STATS_PORT=8889,
+        NUM_WORKERS=4)
+
+    actions = uwsgi_serviceinit.get_default_uwsgi_actions()
+    serviceinitlib.run(config, actions)

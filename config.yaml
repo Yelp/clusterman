@@ -1,0 +1,38 @@
+#
+# Example configuration for services. This configuration file will be included
+# in the service repo and should only contain values that apply to all
+# environments (dev, stage, prod).
+#
+# If your configuration requires values which change in each environment see
+# config-env-dev.yaml.
+#
+#
+# Packages have their own configuration defined here as a list.
+#
+# Example 'module_config' entry:
+#
+# The staticconf namespaced used by the package, usually its name
+# -   namespace: yelp_package
+#
+# A config section for inline configuration
+#     config:
+#         key: value
+#
+# A filename of an external file which contains more configuration
+#     file: '/path/to/a/file'
+#
+# (optiona) initialize, a function which is called after loading the config
+#     initialize: 'package.module.initialize_func'
+#
+
+module_config:
+    -   namespace: yelp_pyramid
+        config:
+            access_log_name: service_clusterman_requests
+            error_log_name: stream_service_clusterman_errors
+    -   namespace: clog
+        initialize: yelp_servlib.clog_util.initialize
+        config:
+            log_stream_name: clusterman
+        file:
+            /nail/srv/configs/clog.yaml

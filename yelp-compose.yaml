@@ -1,0 +1,25 @@
+
+version: '2'
+
+services:
+    clusterman:
+        build: .
+        port: 8888
+        healthcheck: 'http://{ip_addr}:8888/status'
+        smartstack_namespaces: ['clusterman.main']
+        timeout_ready: 10
+        timeout_stop: 10
+        dev_mode:
+            enabled: false
+            volumes:
+                - '.:/code'
+                - './acceptance/logs:/code/logs'
+                - './docker-venv:/code/virtualenv_run'
+            command: dumb-init /code/virtualenv_run/bin/python /code/serviceinit.d/clusterman start-dev
+            user: '{uid}:{gid}'
+
+
+
+service_dependencies:
+    clogconfigs:
+        image: docker-dev.yelpcorp.com/clog-testing

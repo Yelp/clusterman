@@ -1,0 +1,10 @@
+coverage
+flake8
+pre-commit
+pytest
+requirements-tools
+mock
+sphinx
+webtest
+WSGIProxy2
+yelp-compose
