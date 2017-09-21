@@ -1,0 +1,16 @@
+.git
+.tox
+build
+
+# It is possible a user has their own virtualenv here,
+# but we don't want it to pollute the docker context because
+# it will get built inside.
+virtualenv_run
+venv
+
+# y/ycp
+.ycp_playground
+playground
+docker-venv
+.activate.sh
+.deactivate.sh

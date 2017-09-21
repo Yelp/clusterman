@@ -1,0 +1,7 @@
+coverage
+flake8
+pre-commit
+pytest
+requirements-tools
+mock
+sphinx

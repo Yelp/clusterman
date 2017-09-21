@@ -1,0 +1,17 @@
+#
+# Example environment specific configuration for services.
+#
+# This file is *Optional*. If your configuration does not change from one
+# environment to the other, you can remove this file.
+#
+# If you require environment configuration you will need up include this
+# file in the service configs repo for each environment. See
+# https://trac/wiki/RunbookServiceDeployment#Editinganddeployingconfigs
+#
+# The expected filename will be: clusterman.yaml
+#
+#
+# This file uses the same structure as config.yaml
+#
+
+module_env_config: []
