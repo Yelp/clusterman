@@ -1,4 +1,5 @@
 from collections import defaultdict
+from datetime import timedelta
 from heapq import heappop
 from heapq import heappush
 
@@ -6,6 +7,7 @@ import arrow
 from sortedcontainers import SortedDict
 
 from clusterman.math.piecewise import hour_transform
+from clusterman.math.piecewise import piecewise_breakpoint_generator
 from clusterman.math.piecewise import PiecewiseConstantFunction
 from clusterman.simulator.cluster import Cluster
 from clusterman.simulator.event import Event
@@ -33,7 +35,7 @@ class SimulationMetadata:
 
 
 class Simulator:
-    def __init__(self, metadata, start_time, end_time):
+    def __init__(self, metadata, start_time, end_time, billing_frequency=timedelta(hours=1), refund_outbid=True):
         """ Maintains all of the state for a clusterman simulation
 
         :param metadata: a SimulationMetadata object
@@ -44,8 +46,10 @@ class Simulator:
         self.cluster = Cluster()
         self.start_time = start_time
         self.current_time = start_time
+        self.billing_frequency = billing_frequency
+        self.refund_outbid = refund_outbid
         self.end_time = end_time
-        self.spot_prices = defaultdict(float)  # TODO not sure this is the best idea...
+        self.spot_prices = defaultdict(lambda: PiecewiseConstantFunction())
         self.cost_per_hour = PiecewiseConstantFunction()
         self.capacity = PiecewiseConstantFunction()
 
@@ -79,9 +83,71 @@ class Simulator:
                 self.current_time = evt.time
                 logger.event(evt)
                 evt.handle(self)
+
+        # charge any instances that haven't been terminated yet
+        for instance in self.cluster.instances.values():
+            instance.end_time = self.current_time
+            self.compute_instance_cost(instance)
+
         print('Simulation complete ({time}s)'.format(
             time=(self.metadata.sim_end - self.metadata.sim_start).total_seconds()
         ))
+
+    def compute_instance_cost(self, instance):
+        """ Adjust the cost-per-hour function to account for the specified instance
+
+        :param instance: an Instance object to compute costs for; the instance must have a start_time and end_time
+        """
+
+        # Charge for the price of the instance when it is launched
+        prices = self.spot_prices[instance.market]
+        curr_timestamp = instance.start_time
+        delta, last_billed_price = 0, prices.call(curr_timestamp)
+        self.cost_per_hour.add_delta(curr_timestamp, last_billed_price)
+
+        # Loop through all the breakpoints in the spot_prices function (in general this should be more efficient
+        # than looping through the billing times, as long as billing happens more frequently than price change
+        # events; this is expected to be the case for billing frequencies of ~1s)
+        for bp_timestamp in piecewise_breakpoint_generator(prices.breakpoints, instance.start_time, instance.end_time):
+
+            # if the breakpoint exceeds the next billing point, we need to charge for that billing point
+            # based on whatever the most recent breakpoint value before the billing point was (this is tracked
+            # in the delta variable).  Then, we need to advance the current time to the billing point immediately
+            # preceding (and not equal to) the breakpoint
+            if bp_timestamp >= curr_timestamp + self.billing_frequency:
+                self.cost_per_hour.add_delta(curr_timestamp + self.billing_frequency, delta)
+
+                # we assume that if the price change and the billing point occur simultaneously,
+                # that the instance is charged with the new price; so, we step the curr_timestep back
+                # so that this block will get triggered on the next time through the loop
+                jumps, remainder = divmod(bp_timestamp - curr_timestamp, self.billing_frequency)
+                if not remainder:
+                    jumps -= 1
+                curr_timestamp += jumps * self.billing_frequency
+                last_billed_price += delta
+
+            # piecewise_breakpoint_generator includes instance.end_time in the list of results, so that we can do
+            # one last price check (the above if block) before the instance gets terminated.  However, that means
+            # here we only want to update delta if the timestamp is a real breakpoint
+            if bp_timestamp in prices.breakpoints:
+                delta = prices.breakpoints[bp_timestamp] - last_billed_price
+
+        # TODO (CLUSTERMAN-22) right now there's no way to add spot instances so this check never gets invoked
+        # TODO (CLUSTERMAN-22) add some itests to make sure this is working correctly
+
+        # Determine whether or not to bill for the last billing period of the instance.  We charge for the last hour if
+        # any of the following conditions are met:
+        #   a) the instance is not a spot instance
+        #   b) self.refund_outbid is false, e.g. we have "new-style" AWS pricing
+        #   c) the instance bid price (when it was terminated) is greater than the current spot price
+        print(instance.bid_price, instance.end_time, prices.call(instance.end_time))
+        if not instance.spot or not self.refund_outbid or instance.bid_price > prices.call(instance.end_time):
+            curr_timestamp += self.billing_frequency
+        self.cost_per_hour.add_delta(curr_timestamp, -last_billed_price)
+
+    @property
+    def total_cost(self):
+        return self.cost_data().values()[0]
 
     def cost_data(self, start_time=None, end_time=None, step=None):
         """ Compute the cost for the cluster in the specified time range, grouped into chunks

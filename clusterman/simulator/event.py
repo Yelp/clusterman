@@ -1,7 +1,5 @@
 import itertools
 
-from clusterman.exceptions import SimulationError
-
 
 class Event(object):
     """ Base event class; does nothing """
@@ -43,62 +41,14 @@ class ModifyClusterCapacityEvent(Event):
 
     def handle(self, simulator):
         # add the instances to the cluster and compute costs for their first hour
-        old_capacity = simulator.cluster.cpu
-        added_instance_ids, removed_instance_ids = simulator.cluster.modify_capacity(
+        __, removed_instances = simulator.cluster.modify_capacity(
             self.instance_types,
             modify_time=self.time,
         )
-        simulator.capacity.modify_value(self.time, simulator.cluster.cpu - old_capacity)
+        simulator.capacity.add_breakpoint(self.time, simulator.cluster.cpu)
 
-        for id in removed_instance_ids:
-            instance = simulator.cluster.all_instances[id]
-
-            # TODO (CLUSTERMAN-22) right now there's no way to add spot instances so this check never gets invoked
-            # TODO (CLUSTERMAN-22) add some itests to make sure this is working correctly
-            if instance.spot and simulator.spot_prices[instance.market] > instance.bid_price:
-                simulator.cost_per_hour.modify_value(instance.bill_time, -instance.last_price)
-                instance.last_price = 0
-
-        simulator.add_event(ComputeClusterCostEvent(self.time, added_instance_ids))
-
-
-class ComputeClusterCostEvent(Event):
-    def __init__(self, time, instance_ids, msg=None):
-        """ Trigger this event whenever costs need to be recomputed
-        AWS charges new costs when an instance is launched and every hour thereafter
-
-        :param instance_ids: a list of ids to compute costs for
-        """
-        super().__init__(time, msg=msg)
-        self.instance_ids = list(instance_ids)
-
-    def handle(self, simulator):
-        price_delta = 0
-        active_instance_ids, inactive_instance_ids = [], []
-        for instance_id in self.instance_ids:
-            instance = simulator.cluster.all_instances[instance_id]
-
-            if instance.last_price is not None and self.time != instance.bill_time.shift(hours=1):
-                raise SimulationError(f'Instance charged at {self.time} which != {instance.bill_time.shift(hours=1)}')
-
-            if instance.active:
-                curr_price = simulator.spot_prices[instance.market]
-                price_delta += curr_price
-                if instance.last_price:
-                    price_delta -= instance.last_price
-                instance.last_price = curr_price
-                instance.bill_time = self.time
-                active_instance_ids.append(instance_id)
-            else:
-                price_delta -= instance.last_price
-                inactive_instance_ids.append(instance_id)
-        simulator.cost_per_hour.modify_value(self.time, price_delta)
-
-        # if there are still active instances, add a new event for 1 hour from now to compute their costs
-        if active_instance_ids:
-            simulator.add_event(ComputeClusterCostEvent(self.time.shift(hours=1), active_instance_ids))
-        # TODO (CLUSTERMAN-42) we should call prune_instances automatically
-        simulator.cluster.prune_instances(inactive_instance_ids)
+        for instance in removed_instances:
+            simulator.compute_instance_cost(instance)
 
 
 class SpotPriceChangeEvent(Event):
@@ -112,7 +62,7 @@ class SpotPriceChangeEvent(Event):
 
     def handle(self, simulator):
         for market, price in self.spot_prices.items():
-            simulator.spot_prices[market] = price
+            simulator.spot_prices[market].add_breakpoint(self.time, price)
 
 
 # Event priorities are used for secondary sorting of events; if event A and B are scheduled at the same
@@ -121,7 +71,4 @@ EVENT_PRIORITIES = {
     Event: 0,
     ModifyClusterCapacityEvent: 1,
     SpotPriceChangeEvent: 2,
-
-    # compute cluster cost after all other events for deterministic (?) pricing results
-    ComputeClusterCostEvent: 3,
 }

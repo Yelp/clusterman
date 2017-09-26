@@ -35,13 +35,14 @@ class TestMetricsWriter:
         mock_reader.side_effect = OSError('No such file or directory')
         write_metrics_to_compressed_json(mock_ts_1, 'foo')
         assert mock_confirm.call_count == 0
-        assert json.loads(mock_open.write.call_args[0][0], object_hook=TimeSeriesDecoder) == mock_ts_1
+        assert json.loads(mock_open.write.call_args[0][0], object_hook=TimeSeriesDecoder()) == mock_ts_1
 
     def test_write_append_to_existing_metrics(self, mock_reader, mock_confirm, mock_ts_1, mock_ts_2, mock_open):
         mock_reader.return_value = mock_ts_1
         write_metrics_to_compressed_json(mock_ts_2, 'foo')
         assert mock_confirm.call_count == 0
-        assert json.loads(mock_open.write.call_args[0][0], object_hook=TimeSeriesDecoder) == {**mock_ts_1, **mock_ts_2}
+        assert json.loads(mock_open.write.call_args[0][0], object_hook=TimeSeriesDecoder()) == \
+            {**mock_ts_1, **mock_ts_2}
 
     def test_overwrite_existing_metrics(self, mock_reader, mock_confirm, mock_ts_1, mock_ts_2, mock_open):
         mock_reader.return_value = {**mock_ts_1, **mock_ts_2}
@@ -50,4 +51,5 @@ class TestMetricsWriter:
         write_metrics_to_compressed_json(to_write, 'foo')
 
         assert mock_confirm.call_count == 1
-        assert json.loads(mock_open.write.call_args[0][0], object_hook=TimeSeriesDecoder) == {**to_write, **mock_ts_2}
+        assert json.loads(mock_open.write.call_args[0][0], object_hook=TimeSeriesDecoder()) == \
+            {**to_write, **mock_ts_2}

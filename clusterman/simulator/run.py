@@ -28,7 +28,7 @@ def main(args):
     metrics = {}
     if args.metrics_data_file:
         try:
-            metrics = read_metrics_from_compressed_json(args.metrics_data_file)
+            metrics = read_metrics_from_compressed_json(args.metrics_data_file, unix_timestamp=True)
         except OSError as e:
             logger.warn(f'{str(e)}: no metrics loaded')
 
@@ -37,8 +37,8 @@ def main(args):
     __, capacity = metrics_client.get_metric_values(
         'capacity|region=norcal-prod',
         METADATA,
-        args.start_time,
-        args.end_time,
+        args.start_time.timestamp,
+        args.end_time.timestamp,
     )
     for timestamp, data in capacity:
         market_data = {InstanceMarket(*market_str.split(',')): value for market_str, value in data.items()}

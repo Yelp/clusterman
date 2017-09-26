@@ -25,27 +25,35 @@ class TimeSeriesEncoder(json.JSONEncoder):
             return obj.strftime(FORMAT_STRING)
 
 
-def TimeSeriesDecoder(obj):
+class TimeSeriesDecoder:
     """ Decode time strings back into Arrow objects """
 
-    # If none of the object keys are in METRIC_TYPES, we're probably not at the highest-level
-    # object, so return and this function will get called again later.
-    if not set(obj) & METRIC_TYPES:
+    def __init__(self, unix_timestamp=False):
+        self.unix_timestamp = unix_timestamp
+
+    def __call__(self, obj):
+        # If none of the object keys are in METRIC_TYPES, we're probably not at the highest-level
+        # object, so return and this function will get called again later.
+        if not set(obj) & METRIC_TYPES:
+            return obj
+
+        def decode_timestamp(timestamp):
+            a = Arrow.strptime(timestamp, FORMAT_STRING)
+            return a.timestamp if self.unix_timestamp else a
+
+        for metric_type, metrics in obj.items():
+            for metric_name, timeseries in metrics.items():
+                obj[metric_type][metric_name] = [
+                    (decode_timestamp(timestamp), value)
+                    for timestamp, value in timeseries
+                ]
         return obj
 
-    for metric_type, metrics in obj.items():
-        for metric_name, timeseries in metrics.items():
-            obj[metric_type][metric_name] = [
-                (Arrow.strptime(timestamp, FORMAT_STRING), value)
-                for timestamp, value in timeseries
-            ]
-    return obj
 
-
-def read_metrics_from_compressed_json(filename):
+def read_metrics_from_compressed_json(filename, unix_timestamp=False):
     """ Read a metric timeseries from a gzipped JSON file """
     with gzip.open(filename) as f:
-        return json.load(f, object_hook=TimeSeriesDecoder)
+        return json.load(f, object_hook=TimeSeriesDecoder(unix_timestamp))
 
 
 def write_metrics_to_compressed_json(new_metrics, filename):

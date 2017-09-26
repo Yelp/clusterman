@@ -11,18 +11,34 @@ def hour_transform(td):
     return td.total_seconds() / 3600
 
 
+def piecewise_breakpoint_generator(breakpoints, start_time, end_time):
+    for x in breakpoints.irange(start_time, end_time):
+        yield x
+    yield end_time
+
+
 class PiecewiseConstantFunction:
-    """ Build a piecewise constant function by iteratively appending values to the trailing (right-hand) edge """
 
     def __init__(self, initial_value=0):
         """ Initialize the constant function to a particular value
 
         :param initial_value: the starting value for the function
         """
-        self._breakpoints = SortedDict()
+        self.breakpoints = SortedDict()
         self._initial_value = initial_value
 
-    def modify_value(self, xval, delta):
+    def add_breakpoint(self, xval, yval):
+        """ Add a breakpoint to the function and update the value
+
+        Let f(x) be the original function, and next_bp be the first breakpoint > xval; after calling
+        this method, the function will be modified to f'(x) = yval for x \in [xval, next_bp)
+
+        :param xval: the x-position of the breakpoint to add/modify
+        :param yval: the value to set the function to at xval
+        """
+        self.breakpoints[xval] = yval
+
+    def add_delta(self, xval, delta):
         """ Modify the function value for x >= xval
 
         Let f(x) be the original function; After calling this method,
@@ -31,11 +47,14 @@ class PiecewiseConstantFunction:
         :param xval: the x-position of the breakpoint to add/modify
         :param delta: the amount to shift the function value by at xval
         """
-        if xval not in self._breakpoints:
-            self._breakpoints[xval] = self.call(xval)
+        if delta == 0:
+            return
 
-        for x in self._breakpoints.irange(xval):
-            self._breakpoints[x] += delta
+        if xval not in self.breakpoints:
+            self.breakpoints[xval] = self.call(xval)
+
+        for x in self.breakpoints.irange(xval):
+            self.breakpoints[x] += delta
 
         self.values.cache_clear()
         self.integrals.cache_clear()
@@ -46,11 +65,11 @@ class PiecewiseConstantFunction:
         :param xval: the x-position to compute
         :returns: f(xval)
         """
-        if len(self._breakpoints) == 0 or xval < self._breakpoints.keys()[0]:
+        if len(self.breakpoints) == 0 or xval < self.breakpoints.keys()[0]:
             return self._initial_value
         else:
-            lower_index = self._breakpoints.bisect(xval) - 1
-            return self._breakpoints.values()[lower_index]
+            lower_index = self.breakpoints.bisect(xval) - 1
+            return self.breakpoints.values()[lower_index]
 
     def _breakpoint_info(self, index):
         """ Helper function for computing breakpoint information
@@ -62,11 +81,10 @@ class PiecewiseConstantFunction:
           * value is f(breakpoint), or f(last_breakpoint) if we're off the end
         """
         try:
-            breakpoint, value = self._breakpoints.peekitem(index)
+            breakpoint, value = self.breakpoints.peekitem(index)
         except IndexError:
             index = None
-            breakpoint, value = None, self._breakpoints.values()[-1]
-
+            breakpoint, value = None, self.breakpoints.values()[-1]
         return (index, breakpoint, value)
 
     @lru_cache(maxsize=_LRU_CACHE_SIZE)  # cache results of calls to this function
@@ -85,13 +103,13 @@ class PiecewiseConstantFunction:
         """
 
         step = step or (stop - start)
-        if len(self._breakpoints) == 0:
+        if len(self.breakpoints) == 0:
             num_values = int(math.ceil((stop - start) / step))
             return SortedDict([(start + step * i, self._initial_value) for i in range(num_values)])
 
         curr_xval = start
         curr_value = self.call(start)
-        next_index, next_breakpoint, next_value = self._breakpoint_info(self._breakpoints.bisect(start))
+        next_index, next_breakpoint, next_value = self._breakpoint_info(self.breakpoints.bisect(start))
 
         sequence = SortedDict()
         while curr_xval < stop:
@@ -117,7 +135,7 @@ class PiecewiseConstantFunction:
             each integral has a range of size `step`, and the key-value is the left endpoint of the chunk
         """
         step = step or (stop - start)
-        if len(self._breakpoints) == 0:
+        if len(self.breakpoints) == 0:
             # If there are no breakpoints, just split up the range into even widths and compute
             # (width * self._initial_value) for each chunk.
             step_width = transform(step)
@@ -136,7 +154,7 @@ class PiecewiseConstantFunction:
         # Set up starting loop parameters
         curr_xval = start
         curr_value = self.call(start)
-        next_index, next_breakpoint, next_value = self._breakpoint_info(self._breakpoints.bisect(start))
+        next_index, next_breakpoint, next_value = self._breakpoint_info(self.breakpoints.bisect(start))
 
         # Loop through the entire range and compute the integral of each chunk
         sequence = SortedDict()
@@ -170,7 +188,7 @@ class PiecewiseConstantFunction:
         return self.integrals(start, stop, (stop - start), transform).values()[0]
 
     def __str__(self):
-        ret = f'{self._initial_value}, x < {self._breakpoints.keys()[0]}\n'
-        for xval, yval in self._breakpoints.items():
+        ret = f'{self._initial_value}, x < {self.breakpoints.keys()[0]}\n'
+        for xval, yval in self.breakpoints.items():
             ret += f'{yval}, x >= {xval}\n'
         return ret

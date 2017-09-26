@@ -13,15 +13,10 @@ def sorteddict_values_assert(sdict, values):
     assert list(sdict.values()) == values
 
 
-@pytest.fixture
-def fn():
-    return PiecewiseConstantFunction(1)
-
-
 def test_construct_function(fn):
-    fn.modify_value(2, 2)
-    fn.modify_value(3, 1)
-    fn.modify_value(1, -3)
+    fn.add_delta(2, 2)
+    fn.add_delta(3, 1)
+    fn.add_delta(1, -3)
 
     assert fn.call(0) == 1
     assert fn.call(1) == -2
@@ -39,15 +34,15 @@ def test_values_no_points_2(fn):
 
 
 def test_values_one_point(fn):
-    fn.modify_value(2.5, 1)
-    fn.modify_value(15, 1)
+    fn.add_delta(2.5, 1)
+    fn.add_delta(15, 1)
     sorteddict_values_assert(fn.values(0, 10.5, 1), [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2])
     sorteddict_values_assert(fn.values(0, 11, 1), [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2])
 
 
 def test_values_two_points(fn):
-    fn.modify_value(2.5, 1)
-    fn.modify_value(5, 1)
+    fn.add_delta(2.5, 1)
+    fn.add_delta(5, 1)
     sorteddict_values_assert(fn.values(0, 10.5, 1), [1, 1, 1, 2, 2, 3, 3, 3, 3, 3, 3])
     sorteddict_values_assert(fn.values(0, 11, 1), [1, 1, 1, 2, 2, 3, 3, 3, 3, 3, 3])
 
@@ -61,33 +56,33 @@ def test_integrals_whole_range(fn):
 
 
 def test_integrals_one_point(fn):
-    fn.modify_value(2, 2)
-    fn.modify_value(15, 2)
+    fn.add_delta(2, 2)
+    fn.add_delta(15, 2)
     sorteddict_values_assert(fn.integrals(0, 10.5, 1), [1, 1, 3, 3, 3, 3, 3, 3, 3, 3, 1.5])
     sorteddict_values_assert(fn.integrals(0, 11, 1), [1, 1, 3, 3, 3, 3, 3, 3, 3, 3, 3])
     sorteddict_values_assert(fn.integrals(0.5, 11, 1), [1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 1.5])
 
 
 def test_integrals_two_point(fn):
-    fn.modify_value(2, 2)
-    fn.modify_value(10.25, -2)
+    fn.add_delta(2, 2)
+    fn.add_delta(10.25, -2)
     sorteddict_values_assert(fn.integrals(0, 10.5, 1), [1, 1, 3, 3, 3, 3, 3, 3, 3, 3, 1])
     sorteddict_values_assert(fn.integrals(0, 11, 1), [1, 1, 3, 3, 3, 3, 3, 3, 3, 3, 1.5])
     sorteddict_values_assert(fn.integrals(0.5, 11, 1), [1, 2, 3, 3, 3, 3, 3, 3, 3, 2.5, 0.5])
 
 
 def test_integrals_multi_points(fn):
-    fn.modify_value(1.5, 2)
-    fn.modify_value(2, -1)
-    fn.modify_value(3, -1)
-    fn.modify_value(4, 2)
-    fn.modify_value(7, -1)
+    fn.add_delta(1.5, 2)
+    fn.add_delta(2, -1)
+    fn.add_delta(3, -1)
+    fn.add_delta(4, 2)
+    fn.add_delta(7, -1)
     sorteddict_values_assert(fn.integrals(0, 10.5, 3), [5, 7, 7, 3])
 
 
 def test_integrals_with_timedeltas(fn):
     for i in range(10):
-        fn.modify_value(arrow.get(i * 60), 1)
+        fn.add_delta(arrow.get(i * 60), 1)
     x = fn.integrals(arrow.get(0), arrow.get(10 * 60), timedelta(seconds=60), transform=hour_transform)
     sorteddict_values_assert(x, pytest.approx([60 / 3600 * i for i in range(2, 12)]))
 
@@ -101,7 +96,7 @@ def test_constant_integral(initial_value):
 @pytest.mark.parametrize('xval,result', ((0, 2), (1, 1)))
 def test_one_step_integral(xval, result):
     fn = PiecewiseConstantFunction()
-    fn.modify_value(xval, 1)
+    fn.add_delta(xval, 1)
     assert fn.integral(0, 2) == result
     assert fn.integral(3, 4) == 1
     assert fn.integral(-2, -1) == 0
@@ -109,16 +104,16 @@ def test_one_step_integral(xval, result):
 
 def test_one_step_integral_two_changes():
     fn = PiecewiseConstantFunction()
-    fn.modify_value(1, 10)
-    fn.modify_value(1, -5)
+    fn.add_delta(1, 10)
+    fn.add_delta(1, -5)
     assert fn.integral(0, 2) == 5
 
 
 def test_multistep_integral(fn):
-    fn.modify_value(1, 19)
-    fn.modify_value(2, -10)
-    fn.modify_value(2, 5)
-    fn.modify_value(3, -10)
+    fn.add_delta(1, 19)
+    fn.add_delta(2, -10)
+    fn.add_delta(2, 5)
+    fn.add_delta(3, -10)
     sorteddict_values_assert(fn.integrals(0, 4, 4), [41])
     assert fn.integral(0, 4) == 41
     assert fn.integral(2, 3) == 15
@@ -140,7 +135,7 @@ def test_cache_invalidated(fn):
     fn.values = lru_cache()(inside_values_func)
     fn.values(0, 10, 1)
     fn.values(0, 10, 1)
-    fn.modify_value(2, 2)
+    fn.add_delta(2, 2)
     fn.values(0, 10, 1)
     fn.values(0, 10, 1)
     assert inside_values_func.call_count == 2
