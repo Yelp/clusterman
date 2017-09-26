@@ -1,8 +1,10 @@
 arrow==0.10.0
 boto==2.48.0
 contextdecorator==0.10.0
+future==0.16.0
 iso8601==0.1.11
 jsonschema==2.6.0
+parsedatetime==2.4
 ply==3.10
 PyStaticConfiguration==0.10.3
 pysubnettree==0.26
@@ -12,6 +14,6 @@ PyYAML==3.12
 simplejson==3.11.1
 six==1.10.0
 thriftpy==0.3.9
-yelp-clog==2.9.0
+yelp-clog==2.10.0
 yelp-lib==13.1.2
 yelp-servlib==5.6.0
