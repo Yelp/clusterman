@@ -3,12 +3,13 @@ import mock
 import pytest
 
 from clusterman.simulator.event import Event
+from clusterman.simulator.simulator import SimulationMetadata
 from clusterman.simulator.simulator import Simulator
 
 
 @pytest.fixture
 def simulator():
-    return Simulator(arrow.get(0), arrow.get(60))
+    return Simulator(SimulationMetadata('testing', 'test-tag'), arrow.get(0), arrow.get(60))
 
 
 @mock.patch('clusterman.simulator.simulator.get_clusterman_logger')

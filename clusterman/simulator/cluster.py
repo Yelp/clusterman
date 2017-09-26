@@ -20,36 +20,32 @@ class Cluster:
         self._instance_ids_by_market = defaultdict(list)
         self.ebs_storage = 0
 
-    def add_instances(self, instances_by_market, launch_time):
-        """ Add instances from the specified market(s) to the cluster
+    def modify_capacity(self, instances_by_market, modify_time):
+        """ Modify the capacity of the cluster to match a specified state
 
-        :param instances_by_market: a dict from InstanceMarket -> num; instances to add grouped by market
-        :param launch_time: arrow object corresponding to the instance launch time
+        :param instances_by_market: a dict from InstanceMarket -> num, representing the desired number of
+            instances in each specified market; unspecified markets are left unchanged
+        :param modify_time: arrow object corresponding to the instance launch or termination time
         :returns: list of ids (integers) of the added instances
         """
         added_instances = []
         for market, num in instances_by_market.items():
-            instances = [Instance(market, launch_time) for i in range(num)]
-            self._instance_ids_by_market[market].extend([instance.id for instance in instances])
-            added_instances.extend(instances)
+            market_size = len(self._instance_ids_by_market[market])
+            delta = int(num - market_size)
+
+            if delta > 0:
+                instances = [Instance(market, modify_time) for i in range(delta)]
+                self._instance_ids_by_market[market].extend([instance.id for instance in instances])
+                added_instances.extend(instances)
+
+            if delta < 0:
+                to_del = abs(delta)
+                for id in self._instance_ids_by_market[market][:to_del]:
+                    del self.instances[id]
+                del self._instance_ids_by_market[market][:to_del]
 
         self.instances.update({instance.id: instance for instance in added_instances})
         return [instance.id for instance in added_instances]
-
-    def terminate_instances_by_market(self, instances_by_market):
-        """ Remove instances from the specified market(s) from the cluster
-
-        :param instances_by_market: a dict from InstanceMarket -> num; instances to remove grouped by market
-        :raises ValueError: if more instances are requested than exist in a market
-        """
-        for market, num in instances_by_market.items():
-            market_size = len(self._instance_ids_by_market[market])
-            if num > market_size:
-                raise ValueError(f'Tried to remove {num} instances but {market} only has {market_size}')
-
-            for id in self._instance_ids_by_market[market][:num]:
-                del self.instances[id]
-            del self._instance_ids_by_market[market][:num]
 
     @property
     def ids(self):

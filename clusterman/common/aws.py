@@ -74,6 +74,9 @@ EC2_INSTANCE_TYPES = {
 }
 
 EC2_AZS = [
+    'us-west-1a',
+    'us-west-1b',
+    'us-west-1c',
     'us-west-2a',
     'us-west-2b',
     'us-west-2c',

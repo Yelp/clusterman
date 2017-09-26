@@ -1,4 +1,3 @@
-import json
 from datetime import datetime
 
 import arrow
@@ -6,22 +5,25 @@ import colorlog
 import parsedatetime
 
 
-class DataPoint:
-    def __init__(self, timestamp, value):
-        self.timestamp = timestamp
-        self.value = value
+def ask_for_confirmation(prompt='Are you sure? ', default=True):
+    """ Display a prompt asking for confirmation from the user before continuing; accepts any form of "yes"/"no"
 
+    :param prompt: the prompt to display before accepting input
+    :param default: the default value if CR pressed with no input
+    :returns: True if "yes", False if "no"
+    """
+    yes, no = ('Y', 'n') if default else ('y', 'N')
+    prompt += f'[{yes}/{no}] '
 
-class DataPointEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, DataPoint):
-            return [str(obj.timestamp), obj.value]
-
-
-def timeseries_decoder(obj):
-    if '__data__' in obj:
-        return [(parse_time_string(pt[0]), float(pt[1])) for pt in obj['__data__']]
-    return obj
+    while True:
+        ans = input(prompt).lower().strip()
+        if not ans:
+            return default
+        elif not ('yes'.startswith(ans) or 'no'.startswith(ans)):
+            print('Please enter yes or no.')
+            continue
+        else:
+            return 'yes'.startswith(ans)
 
 
 def get_clusterman_logger(name):
@@ -48,7 +50,7 @@ def parse_time_string(time_str, tz='US/Pacific'):
         t = arrow.get(time_str)
         # If the input string didn't specify a timezone, fill in the default
         if len(time_str.split('+')) == 1:
-            t.replace(tzinfo=tz)
+            t = t.replace(tzinfo=tz)
     except arrow.parser.ParserError:
         cal = parsedatetime.Calendar()
         parse_result = cal.parse(time_str)
@@ -59,6 +61,12 @@ def parse_time_string(time_str, tz='US/Pacific'):
 
 
 def parse_time_interval_seconds(time_str):
+    """ Convert a given time interval (e.g. '5m') into the number of seconds in that interval
+
+    :param time_str: the string to parse
+    :returns: the number of seconds in the interval
+    :raises ValueError: if the string could not be parsed
+    """
     cal = parsedatetime.Calendar()
     parse_result = cal.parseDT(time_str, sourceTime=datetime.min)
     if parse_result[1] == 0:

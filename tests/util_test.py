@@ -1,0 +1,47 @@
+import arrow
+import mock
+import pytest
+
+from clusterman.util import ask_for_confirmation
+from clusterman.util import parse_time_interval_seconds
+from clusterman.util import parse_time_string
+
+
+@pytest.mark.parametrize('inp,response', [('\n', True), ('\n', False), ('yE', True), ('n', False)])
+def test_ask_for_confirmation(inp, response):
+    with mock.patch('builtins.input', side_effect=inp):
+        assert ask_for_confirmation(default=response) == response
+
+
+def test_ask_for_confirmation_invalid_input():
+    with mock.patch('builtins.input', side_effect=['asdf', 'yes']) as mock_input:
+        assert ask_for_confirmation() is True
+        assert mock_input.call_count == 2
+
+
+def test_parse_time_string_without_tz():
+    t = parse_time_string('2017-08-01 00:00', tz='US/Eastern')
+    assert t.timestamp == 1501560000
+
+
+def test_parse_time_string_with_tz():
+    # Ignore the tz argument here and use the '+04:00' in the string
+    t = parse_time_string('2017-08-01T00:00:00+04:00', tz='US/Eastern')
+    assert t.timestamp == 1501531200
+
+
+def test_parse_time_string_non_arrow():
+    t = parse_time_string('one hour ago', tz='US/Eastern')
+
+    # This has potential to be a little flaky so there's a little wiggle room here
+    actual_timestamp = arrow.now().replace(tzinfo='US/Eastern').shift(hours=-1).timestamp
+    assert abs(actual_timestamp - t.timestamp) <= 1
+
+
+def test_parse_time_interval_seconds():
+    assert parse_time_interval_seconds('5m') == 60 * 5
+
+
+def test_parse_time_interval_seconds_invalid():
+    with pytest.raises(ValueError):
+        parse_time_interval_seconds('asdf')

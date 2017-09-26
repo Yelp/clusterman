@@ -1,13 +1,11 @@
-import gzip
-import json
 import random
 import time
+from collections import defaultdict
 
 import yaml
 
-from clusterman.args import subcommand_parser
-from clusterman.util import DataPoint
-from clusterman.util import DataPointEncoder
+from clusterman.args import subparser
+from clusterman.simulator.metrics import write_metrics_to_compressed_json
 from clusterman.util import parse_time_interval_seconds
 from clusterman.util import parse_time_string
 
@@ -74,9 +72,8 @@ def load_experimental_design(inputfile):
     with open(inputfile) as f:
         design = yaml.load(f.read(), Loader=yaml.CLoader)
 
-    metrics = {}
+    metrics = defaultdict(list)
     for metric_name, config in design.items():
-        metrics[metric_name] = {'__data__': []}
         start_time = parse_time_string(config['start_time'])
         end_time = parse_time_string(config['end_time'])
         next_time_func = get_frequency_function(config['frequency'])
@@ -84,16 +81,10 @@ def load_experimental_design(inputfile):
 
         current_time = start_time
         while current_time < end_time:
-            metrics[metric_name]['__data__'].append(DataPoint(current_time, values_func()))
+            metrics[metric_name].append((current_time, values_func()))
             current_time = next_time_func(current_time)
 
     return metrics
-
-
-def write_metrics_data(metrics, outputfile):
-    """ Write the generated metric values to a compressed (gzip'd) JSON file """
-    with gzip.open(outputfile, 'w') as f:
-        f.write(json.dumps(metrics, cls=DataPointEncoder).encode())
 
 
 def main(args):
@@ -104,22 +95,24 @@ def main(args):
     random.seed(args.seed)
 
     metrics_data = load_experimental_design(args.input)
-    write_metrics_data(metrics_data, args.output)
+    write_metrics_to_compressed_json(metrics_data, args.output)
 
 
-@subcommand_parser('generate-data', 'generate data for a simulation based on an experimental design', main)
-def add_generate_data_parser(gen_data_parser):  # pragma: no coveer
-    gen_data_parser.add_argument(
+@subparser('generate-data', 'generate data for a simulation based on an experimental design', main)
+def add_generate_data_parser(subparser, required_named_args, optional_named_args):  # pragma: no coveer
+    required_named_args.add_argument(
         '-i', '--input',
         required=True,
+        metavar='filename',
         help='experimental design .yaml file',
     )
-    gen_data_parser.add_argument(
+    required_named_args.add_argument(
         '-o', '--output',
         default='metrics.json.gz',
+        metavar='filename',
         help='output file for generated data',
     )
-    gen_data_parser.add_argument(
+    optional_named_args.add_argument(
         '--seed',
         default=None,
         help='seed value for the random number generator',

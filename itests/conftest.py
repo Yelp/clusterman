@@ -2,6 +2,8 @@ import arrow
 import pytest
 
 from clusterman.common.aws import InstanceMarket
+from clusterman.run import setup_logging
+from clusterman.simulator.simulator import SimulationMetadata
 from clusterman.simulator.simulator import Simulator
 
 
@@ -17,22 +19,23 @@ def end_time(start_time):
 
 @pytest.fixture
 def simulator(start_time, end_time):
-    return Simulator(start_time, end_time)
+    setup_logging()
+    return Simulator(SimulationMetadata('Testing', 'test-tag'), start_time, end_time)
 
 
 @pytest.fixture
-def instance_a():
-    return {InstanceMarket('c3.8xlarge', 'us-west-2a'): 1}
+def market_a():
+    return InstanceMarket('c3.8xlarge', 'us-west-2a')
 
 
 @pytest.fixture
-def instance_b():
-    return {InstanceMarket('c3.8xlarge', 'us-west-2b'): 1}
+def market_b():
+    return InstanceMarket('c3.8xlarge', 'us-west-2b')
 
 
 @pytest.fixture
-def spot_prices():
+def spot_prices(market_a, market_b):
     return {
-        InstanceMarket('c3.8xlarge', 'us-west-2a'): 1.0,
-        InstanceMarket('c3.8xlarge', 'us-west-2b'): 0.5,
+        market_a: 1.0,
+        market_b: 0.5,
     }

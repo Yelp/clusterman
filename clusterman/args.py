@@ -7,7 +7,7 @@ from pkg_resources import get_distribution
 from clusterman.util import get_clusterman_logger
 
 
-def subcommand_parser(command, help, entrypoint):  # pragma: no cover
+def subparser(command, help, entrypoint):  # pragma: no cover
     """ Function decorator to simplify adding arguments to subcommands
 
     :param command: name of the subcommand to add
@@ -16,16 +16,58 @@ def subcommand_parser(command, help, entrypoint):  # pragma: no cover
     """
     def decorator(add_args):
         def wrapper(subparser):
-            subcommand_parser = subparser.add_parser(command, help=help, formatter_class=help_formatter)
-            add_args(subcommand_parser)
-            subcommand_parser.set_defaults(entrypoint=entrypoint)
+            subparser = subparser.add_parser(command, formatter_class=help_formatter, add_help=False)
+            required_named_args = subparser.add_argument_group('required arguments')
+            optional_named_args = subparser.add_argument_group('optional arguments')
+            add_args(subparser, required_named_args, optional_named_args)
+            optional_named_args.add_argument('-h', '--help', action='help', help='show this message and exit')
+            subparser.set_defaults(entrypoint=entrypoint)
         return wrapper
     return decorator
 
 
+def add_start_end_args(parser, start_help, end_help):  # pragma: no cover
+    """ Add --start-time and --end-time args to a parser
+
+    :param start_help: help string for --start-time
+    :param end_help: help string for --end-time
+    """
+    parser.add_argument(
+        '--start-time',
+        metavar='timestamp',
+        default='-1h',
+        help=f'{start_help} (try "yesterday", "-5m", "3 months ago"; use quotes)',
+    )
+    parser.add_argument(
+        '--end-time',
+        metavar='timestamp',
+        default='now',
+        help=f'{end_help} (try "yesterday", "-5m", "3 months ago"; use quotes)',
+    )
+
+
 def help_formatter(prog):  # pragma: no cover
     """Formatter for the argument parser help strings"""
-    return argparse.ArgumentDefaultsHelpFormatter(prog, max_help_position=30, width=100)
+    return argparse.ArgumentDefaultsHelpFormatter(prog, max_help_position=35, width=100)
+
+
+def _get_validated_args(parser):
+    args = parser.parse_args()
+    logging.getLogger().setLevel(getattr(logging, args.log_level.upper()))
+    logger = get_clusterman_logger(__name__)
+
+    if args.subcommand is None:
+        logger.error('missing subcommand')
+        parser.print_help()
+        sys.exit(1)
+
+    # Every subcommand must specify an entry point, accessed here by args.entrypoint
+    # (protip) use the subparser decorator to set this up for you
+    if not hasattr(args, 'entrypoint'):
+        logger.critical(f'error: missing entrypoint for {args.subcommand}')
+        sys.exit(1)
+
+    return args
 
 
 def parse_args(description):  # pragma: no cover
@@ -36,6 +78,7 @@ def parse_args(description):  # pragma: no cover
     """
     from clusterman.simulator.run import add_simulate_parser
     from clusterman.tools.generate_data import add_generate_data_parser
+    from clusterman.tools.backfill import add_backfill_parser
 
     root_parser = argparse.ArgumentParser(description=description, formatter_class=help_formatter)
     root_parser.add_argument(
@@ -54,20 +97,7 @@ def parse_args(description):  # pragma: no cover
 
     add_simulate_parser(subparser)
     add_generate_data_parser(subparser)
+    add_backfill_parser(subparser)
 
-    args = root_parser.parse_args()
-    logging.getLogger().setLevel(getattr(logging, args.log_level.upper()))
-    logger = get_clusterman_logger(__name__)
-
-    if args.subcommand is None:
-        logger.error('missing subcommand')
-        root_parser.print_help()
-        sys.exit(1)
-
-    # Every subcommand must specify an entry point, accessed here by args.entrypoint
-    # (protip) use the subcommand_parser decorator to set this up for you
-    if not hasattr(args, 'entrypoint'):
-        logger.critical(f'error: missing entrypoint for {args.subcommand}')
-        sys.exit(1)
-
+    args = _get_validated_args(root_parser)
     return args
