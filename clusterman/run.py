@@ -1,6 +1,9 @@
 import logging
 
+import staticconf
+
 from clusterman.args import parse_args
+from clusterman.aws.markets import PRIVATE_AWS_CONFIG
 
 
 def setup_logging():
@@ -16,6 +19,7 @@ def setup_logging():
 def main():
     setup_logging()
     args = parse_args('Mesos cluster scaling and management')
+    staticconf.YamlConfiguration(args.private_aws_config, PRIVATE_AWS_CONFIG)
     args.entrypoint(args)
 
 

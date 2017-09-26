@@ -41,7 +41,7 @@ class ModifyClusterCapacityEvent(Event):
 
     def handle(self, simulator):
         # add the instances to the cluster and compute costs for their first hour
-        __, removed_instances = simulator.cluster.modify_capacity(
+        __, removed_instances = simulator.cluster.modify_size(
             self.instance_types,
             modify_time=self.time,
         )
@@ -51,18 +51,18 @@ class ModifyClusterCapacityEvent(Event):
             simulator.compute_instance_cost(instance)
 
 
-class SpotPriceChangeEvent(Event):
-    def __init__(self, time, spot_prices, msg=None):
-        """ Trigger this event whenever spot prices change
+class InstancePriceChangeEvent(Event):
+    def __init__(self, time, prices, msg=None):
+        """ Trigger this event whenever instance prices change
 
-        :param spot_prices: a dict of InstanceMarket -> float indicating the new spot prices
+        :param prices: a dict of InstanceMarket -> float indicating the new instance prices
         """
         super().__init__(time, msg=msg)
-        self.spot_prices = dict(spot_prices)
+        self.prices = dict(prices)
 
     def handle(self, simulator):
-        for market, price in self.spot_prices.items():
-            simulator.spot_prices[market].add_breakpoint(self.time, price)
+        for market, price in self.prices.items():
+            simulator.instance_prices[market].add_breakpoint(self.time, price)
 
 
 # Event priorities are used for secondary sorting of events; if event A and B are scheduled at the same
@@ -70,5 +70,5 @@ class SpotPriceChangeEvent(Event):
 EVENT_PRIORITIES = {
     Event: 0,
     ModifyClusterCapacityEvent: 1,
-    SpotPriceChangeEvent: 2,
+    InstancePriceChangeEvent: 2,
 }

@@ -1,13 +1,9 @@
-import logging
-
 import pytest
 
 from clusterman.aws.markets import InstanceMarket
+from clusterman.simulator.event import InstancePriceChangeEvent
 from clusterman.simulator.event import ModifyClusterCapacityEvent
-from clusterman.simulator.event import SpotPriceChangeEvent
-
-
-logging.getLogger().setLevel(logging.DEBUG)
+# >>>>>>> added spot fleet object:itests/aws_price_computations_test.py
 
 
 def test_one_instance_constant_price(start_time, simulator, spot_prices, market_a):
@@ -17,10 +13,10 @@ def test_one_instance_constant_price(start_time, simulator, spot_prices, market_
     Outcome: The cluster costs $2.00 total
     """
     simulator.add_event(ModifyClusterCapacityEvent(start_time, {market_a: 1}))
-    simulator.add_event(SpotPriceChangeEvent(start_time, spot_prices))
+    simulator.add_event(InstancePriceChangeEvent(start_time, spot_prices))
     simulator.run()
 
-    assert simulator.cost_data().values()[0] == pytest.approx(2.0)
+    assert simulator.total_cost == pytest.approx(2.0)
 
 
 def test_one_instance_price_change(start_time, simulator, spot_prices, market_a):
@@ -30,12 +26,12 @@ def test_one_instance_price_change(start_time, simulator, spot_prices, market_a)
     Outcome: The cluster costs $3.00 total
     """
     simulator.add_event(ModifyClusterCapacityEvent(start_time, {market_a: 1}))
-    simulator.add_event(SpotPriceChangeEvent(start_time, spot_prices))
+    simulator.add_event(InstancePriceChangeEvent(start_time, spot_prices))
     spot_prices[InstanceMarket('c3.8xlarge', 'us-west-2a')] = 2.0
-    simulator.add_event(SpotPriceChangeEvent(start_time.shift(minutes=30), spot_prices))
+    simulator.add_event(InstancePriceChangeEvent(start_time.shift(minutes=30), spot_prices))
     simulator.run()
 
-    assert simulator.cost_data().values()[0] == pytest.approx(3.0)
+    assert simulator.total_cost == pytest.approx(3.0)
 
 
 def test_two_instances_same_market_same_time(start_time, simulator, spot_prices, market_a):
@@ -46,11 +42,11 @@ def test_two_instances_same_market_same_time(start_time, simulator, spot_prices,
         (for simplicity and accuracy, the cost after the end of the simulation is ignored)
     """
     simulator.add_event(ModifyClusterCapacityEvent(start_time, {market_a: 2}))
-    simulator.add_event(SpotPriceChangeEvent(start_time, spot_prices))
-    simulator.add_event(SpotPriceChangeEvent(start_time.shift(minutes=20), {market_a: 2.0}))
+    simulator.add_event(InstancePriceChangeEvent(start_time, spot_prices))
+    simulator.add_event(InstancePriceChangeEvent(start_time.shift(minutes=20), {market_a: 2.0}))
     simulator.run()
 
-    assert simulator.cost_data().values()[0] == pytest.approx(6.0)
+    assert simulator.total_cost == pytest.approx(6.0)
 
 
 def test_two_instances_same_market_different_times(start_time, simulator, spot_prices, market_a):
@@ -62,12 +58,12 @@ def test_two_instances_same_market_different_times(start_time, simulator, spot_p
         (for simplicity and accuracy, the cost after the end of the simulation is ignored)
     """
     simulator.add_event(ModifyClusterCapacityEvent(start_time, {market_a: 1}))
-    simulator.add_event(SpotPriceChangeEvent(start_time, spot_prices))
-    simulator.add_event(SpotPriceChangeEvent(start_time.shift(minutes=20), {market_a: 2}))
+    simulator.add_event(InstancePriceChangeEvent(start_time, spot_prices))
+    simulator.add_event(InstancePriceChangeEvent(start_time.shift(minutes=20), {market_a: 2}))
     simulator.add_event(ModifyClusterCapacityEvent(start_time.shift(minutes=30), {market_a: 2}))
     simulator.run()
 
-    assert simulator.cost_data().values()[0] == pytest.approx(6.0)
+    assert simulator.total_cost == pytest.approx(6.0)
 
 
 def test_two_instances_different_markets_different_times(start_time, simulator, spot_prices, market_a, market_b):
@@ -79,13 +75,13 @@ def test_two_instances_different_markets_different_times(start_time, simulator, 
         (for simplicity and accuracy, the cost after the end of the simulation is ignored)
     """
     simulator.add_event(ModifyClusterCapacityEvent(start_time, {market_a: 1}))
-    simulator.add_event(SpotPriceChangeEvent(start_time, spot_prices))
-    simulator.add_event(SpotPriceChangeEvent(start_time.shift(minutes=20), {market_a: 2.0}))
+    simulator.add_event(InstancePriceChangeEvent(start_time, spot_prices))
+    simulator.add_event(InstancePriceChangeEvent(start_time.shift(minutes=20), {market_a: 2.0}))
     simulator.add_event(ModifyClusterCapacityEvent(start_time.shift(minutes=30), {market_b: 1}))
-    simulator.add_event(SpotPriceChangeEvent(start_time.shift(minutes=75), {market_b: 0.75}))
+    simulator.add_event(InstancePriceChangeEvent(start_time.shift(minutes=75), {market_b: 0.75}))
     simulator.run()
 
-    assert simulator.cost_data().values()[0] == pytest.approx(3.875)
+    assert simulator.total_cost == pytest.approx(3.875)
 
 
 def test_remove_instance(start_time, simulator, spot_prices, market_a, market_b):
@@ -96,11 +92,11 @@ def test_remove_instance(start_time, simulator, spot_prices, market_a, market_b)
     Outcome: The cluster costs $3.50 total (inst_a: $1.00 + $2.00, inst_b: $0.50)
     """
     simulator.add_event(ModifyClusterCapacityEvent(start_time, {market_a: 1}))
-    simulator.add_event(SpotPriceChangeEvent(start_time, spot_prices))
-    simulator.add_event(SpotPriceChangeEvent(start_time.shift(minutes=30), {market_a: 2.0}))
+    simulator.add_event(InstancePriceChangeEvent(start_time, spot_prices))
+    simulator.add_event(InstancePriceChangeEvent(start_time.shift(minutes=30), {market_a: 2.0}))
     simulator.add_event(ModifyClusterCapacityEvent(start_time.shift(minutes=35), {market_b: 1}))
-    simulator.add_event(SpotPriceChangeEvent(start_time.shift(minutes=75), {market_b: 0.75}))
+    simulator.add_event(InstancePriceChangeEvent(start_time.shift(minutes=75), {market_b: 0.75}))
     simulator.add_event(ModifyClusterCapacityEvent(start_time.shift(minutes=90), {market_b: 0}))
     simulator.run()
 
-    assert simulator.cost_data().values()[0] == pytest.approx(3.5)
+    assert simulator.total_cost == pytest.approx(3.5)
