@@ -1,0 +1,29 @@
+
+spot_prices_c3.8xlarge_us-west-2a: &spot_prices
+
+    # If no timezone is specified, generator will use YST
+    start_time: "2017-08-01T08:00:00Z"
+    end_time: "2017-08-01T09:00:00Z"
+
+    frequency:
+        distribution: expovariate
+        params:
+            lambd: 0.0033333   # Assume prices change on average every five minutes
+
+    values:
+        distribution: uniform
+        params:
+            a: 0
+            b: 1
+
+spot_prices_c3.8xlarge_us-west-2b: *spot_prices
+spot_prices_c3.8xlarge_us-west-2c: *spot_prices
+
+seagull_runs:
+    start_time: "2017-08-01T08:00:00Z"
+    end_time: "2017-08-01T09:00:00Z"
+    frequency:
+        distribution: expovariate
+        params:
+            lambd: 0.0041666 # 15 seagull runs per hour
+    values: 1

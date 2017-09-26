@@ -6,8 +6,13 @@ InstanceResources = namedtuple('InstanceResources', ['cpu', 'mem', 'disk'])
 class InstanceMarket(namedtuple('InstanceMarket', ['instance', 'az'])):
     __slots__ = ()
 
+    def __new__(cls, instance, az):
+        if instance not in EC2_INSTANCE_TYPES or az not in EC2_AZS:
+            raise ValueError(f'Invalid AWS market specified: <{instance}, {az}>')
+        return super().__new__(cls, instance, az)
+
     def __str__(self):
-        return '<{instance}, {az}>'.format(instance=self.instance, az=self.az)
+        return f'<{self.instance}, {self.az}>'
 
 
 EC2_INSTANCE_TYPES = {
@@ -77,7 +82,3 @@ EC2_AZS = [
 
 def get_instance_resources(market):
     return EC2_INSTANCE_TYPES[market.instance]
-
-
-def is_valid_market(market):
-    return market.instance in EC2_INSTANCE_TYPES and market.az in EC2_AZS

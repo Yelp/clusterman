@@ -2,7 +2,6 @@ import itertools
 from collections import defaultdict
 
 from clusterman.common.aws import get_instance_resources
-from clusterman.common.aws import is_valid_market
 
 
 class Instance:
@@ -26,14 +25,10 @@ class Cluster:
 
         :param instances_by_market: a dict from InstanceMarket -> num; instances to add grouped by market
         :param launch_time: arrow object corresponding to the instance launch time
-        :raises KeyError: if the InstanceMarket is unsupported
         :returns: list of ids (integers) of the added instances
         """
         added_instances = []
         for market, num in instances_by_market.items():
-            if not is_valid_market(market):
-                raise KeyError(f'{market} is not a supported EC2 market')
-
             instances = [Instance(market, launch_time) for i in range(num)]
             self._instance_ids_by_market[market].extend([instance.id for instance in instances])
             added_instances.extend(instances)
@@ -45,12 +40,9 @@ class Cluster:
         """ Remove instances from the specified market(s) from the cluster
 
         :param instances_by_market: a dict from InstanceMarket -> num; instances to remove grouped by market
-        :raises KeyError: if the InstanceMarket is unsupported
         :raises ValueError: if more instances are requested than exist in a market
         """
         for market, num in instances_by_market.items():
-            if not is_valid_market(market):
-                raise KeyError(f'{market} is not a supported EC2 market')
             market_size = len(self._instance_ids_by_market[market])
             if num > market_size:
                 raise ValueError(f'Tried to remove {num} instances but {market} only has {market_size}')

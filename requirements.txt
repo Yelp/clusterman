@@ -1,5 +1,6 @@
 arrow==0.10.0
 boto==2.48.0
+colorlog==3.1.0
 contextdecorator==0.10.0
 future==0.16.0
 iso8601==0.1.11

@@ -1,3 +1,5 @@
 arrow
+colorlog
 parsedatetime
+PyYAML
 yelp-servlib

@@ -5,3 +5,4 @@ pytest
 requirements-tools
 mock
 sphinx
+sphinx-rtd-theme

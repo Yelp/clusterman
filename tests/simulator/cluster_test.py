@@ -16,17 +16,27 @@ def cluster():
     return cluster
 
 
-@mock.patch('clusterman.simulator.cluster.is_valid_market')
-class TestModifyCluster:
-    def test_invalid_market(self, is_valid_market, cluster):
-        is_valid_market.return_value = False
-        with pytest.raises(KeyError):
-            cluster.add_instances({InstanceMarket('foo', 'bar'): 4}, launch_time=42)
+@pytest.yield_fixture
+def fake_markets():
+    with mock.patch('clusterman.common.aws.EC2_INSTANCE_TYPES') as mock_instance_types, \
+            mock.patch('clusterman.common.aws.EC2_AZS') as mock_azs:
+        mock_instance_types.__contains__.return_value = True
+        mock_azs.__contains__.return_value = True
+        yield
 
-    def test_remove_too_many_hosts(self, is_valid_market, cluster):
-        is_valid_market.return_value = True
-        with pytest.raises(ValueError):
-            cluster.terminate_instances_by_market({InstanceMarket('foo', 'bar'): 2})
+
+def test_valid_market(fake_markets):
+    InstanceMarket('foo', 'bar')
+
+
+def test_invalid_market():
+    with pytest.raises(ValueError):
+        InstanceMarket('foo', 'bar')
+
+
+def test_remove_too_many_hosts(fake_markets, cluster):
+    with pytest.raises(ValueError):
+        cluster.terminate_instances_by_market({InstanceMarket('foo', 'bar'): 2})
 
 
 def test_cpu_mem_disk(cluster):
