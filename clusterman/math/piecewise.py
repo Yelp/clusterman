@@ -16,30 +16,20 @@ class PiecewiseConstantFunction:
         self._breakpoints = SortedDict()
         self._initial_value = initial_value
 
-    def modify_last_value(self, xval, delta):
+    def modify_value(self, xval, delta):
         """ Modify the function value for x >= xval
 
-        Let x' be the current last breakpoint of the function, and f(x') be the value of the function
-        at that point.  Then, if
-         * xval == x': set the value of the function at x' to be f(x') + delta
-         * xval > x':  add a new breakpoint to the function at xval, such that f(xval) = f(x') + delta
-         * xval < x':  raise an error (modifying the function before the last breakpoint is prohibited)
+        Let f(x) be the original function; After calling this method,
+        the function will be modified to f'(x) = f(x) + delta for all x >= xval
 
         :param xval: the x-position of the breakpoint to add/modify
         :param delta: the amount to shift the function value by at xval
-        :raises KeyError: if xval < x'
         """
-        if len(self._breakpoints) == 0:
-            self._breakpoints[xval] = delta + self._initial_value
-            return
+        if xval not in self._breakpoints:
+            self._breakpoints[xval] = self.call(xval)
 
-        last_xval, last_value = self._breakpoints.peekitem()
-        if xval < last_xval:
-            raise KeyError(f'Cannot set value at {xval} (less than {last_xval})')
-        elif xval == last_xval:
-            self._breakpoints[xval] += delta
-        else:
-            self._breakpoints[xval] = last_value + delta
+        for x in self._breakpoints.irange(xval):
+            self._breakpoints[x] += delta
 
     def call(self, xval):
         """ Compute the output of the function at a point

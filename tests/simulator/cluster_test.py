@@ -2,6 +2,7 @@ import mock
 import pytest
 
 from clusterman.common.aws import InstanceMarket
+from clusterman.exceptions import SimulationError
 from clusterman.simulator.cluster import Cluster
 
 
@@ -35,8 +36,23 @@ def test_invalid_market():
         InstanceMarket('foo', 'bar')
 
 
+def test_modify_cluster_capacity(cluster):
+    added_instance_ids, removed_instance_ids = cluster.modify_capacity({
+        InstanceMarket('m4.4xlarge', 'us-west-2a'): 1,
+        InstanceMarket('i2.8xlarge', 'us-west-2a'): 4,
+    }, modify_time=76)
+    assert len(added_instance_ids) == 2
+    assert len(removed_instance_ids) == 3
+    assert len(cluster.all_instances) - len(cluster.active_instances) == 3
+
+
+def test_prune_active_instances_fails(cluster):
+    with pytest.raises(SimulationError):
+        cluster.prune_instances(cluster.active_instances.keys())
+
+
 def test_cpu_mem_disk(cluster):
-    assert len(cluster.instances) == 7
+    assert len(cluster) == 7
     assert cluster.cpu == 160
     assert cluster.mem == 988
     assert cluster.disk == 22200
@@ -48,7 +64,7 @@ def test_remove_instances(cluster):
         InstanceMarket('i2.8xlarge', 'us-west-2a'): 1,
     }, modify_time=42)
 
-    assert len(cluster.instances) == 3
+    assert len(cluster) == 3
     assert cluster.cpu == 80
     assert cluster.mem == 552
     assert cluster.disk == 15800

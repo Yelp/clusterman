@@ -72,13 +72,15 @@ class Simulator:
 
     def run(self):
         """ Run the simulation until the end, processing each event in the queue one-at-a-time in priority order """
+        print('Starting simulation')
         with self.metadata:
             while self.event_queue:
                 evt = heappop(self.event_queue)
                 self.current_time = evt.time
                 logger.event(evt)
                 evt.handle(self)
-        print(self.metadata)
+        print('Simulation complete ({time}s)'.format(time=(self.metadata.sim_start -
+                                                           self.metadata.sim_end).total_seconds()))
 
     def cost(self, start_time=None, end_time=None):
         """ Compute the cost for the in the specified time range
