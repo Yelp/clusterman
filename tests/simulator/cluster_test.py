@@ -8,10 +8,10 @@ from clusterman.simulator.cluster import Cluster
 @pytest.fixture
 def cluster():
     cluster = Cluster()
-    cluster.modify_capacity({
-        InstanceMarket('m4.4xlarge', 'us-west-2a'): 4,
-        InstanceMarket('i2.8xlarge', 'us-west-2a'): 2,
-        InstanceMarket('i2.8xlarge', 'us-west-2b'): 1,
+    cluster.modify_size({
+        InstanceMarket('m4.4xlarge', 'fake-az-1'): 4,
+        InstanceMarket('i2.8xlarge', 'fake-az-1'): 2,
+        InstanceMarket('i2.8xlarge', 'fake-az-2'): 1,
     }, modify_time=42)
     cluster.ebs_storage += 3000
     return cluster
@@ -36,13 +36,13 @@ def test_invalid_market():
 
 
 def test_modify_cluster_capacity(cluster):
-    added_instances, removed_instances = cluster.modify_capacity({
-        InstanceMarket('m4.4xlarge', 'us-west-2a'): 1,
-        InstanceMarket('i2.8xlarge', 'us-west-2a'): 4,
+    added_instances, removed_instances = cluster.modify_size({
+        InstanceMarket('m4.4xlarge', 'fake-az-1'): 1,
+        InstanceMarket('i2.8xlarge', 'fake-az-1'): 4,
     }, modify_time=76)
     assert len(added_instances) == 2
     assert len(removed_instances) == 3
-    assert len(cluster.instances) == 6
+    assert len(cluster) == 6
 
 
 def test_cpu_mem_disk(cluster):
@@ -53,9 +53,9 @@ def test_cpu_mem_disk(cluster):
 
 
 def test_remove_instances(cluster):
-    cluster.modify_capacity({
-        InstanceMarket('m4.4xlarge', 'us-west-2a'): 1,
-        InstanceMarket('i2.8xlarge', 'us-west-2a'): 1,
+    cluster.modify_size({
+        InstanceMarket('m4.4xlarge', 'fake-az-1'): 1,
+        InstanceMarket('i2.8xlarge', 'fake-az-1'): 1,
     }, modify_time=42)
 
     assert len(cluster) == 3

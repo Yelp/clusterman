@@ -29,7 +29,7 @@ class Cluster:
     def __len__(self):
         return len(self._instances)
 
-    def modify_capacity(self, instances_by_market, modify_time):
+    def modify_size(self, instances_by_market, modify_time):
         """ Modify the capacity of the cluster to match a specified state
 
         :param instances_by_market: a dict from InstanceMarket -> num, representing the desired number of
@@ -39,8 +39,7 @@ class Cluster:
         """
         added_instances, removed_instances = [], []
         for market, num in instances_by_market.items():
-            market_size = len(self._instance_ids_by_market[market])
-            delta = int(num - market_size)
+            delta = int(num - self.market_size(market))
 
             if delta > 0:
                 instances = [Instance(market, modify_time) for i in range(delta)]
@@ -57,6 +56,9 @@ class Cluster:
 
         self._instances.update({instance.id: instance for instance in added_instances})
         return added_instances, removed_instances
+
+    def market_size(self, market):
+        return len(self._instance_ids_by_market[market])
 
     @property
     def instances(self):

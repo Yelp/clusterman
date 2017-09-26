@@ -18,7 +18,7 @@ def simulator():
 
 @pytest.fixture(params=[arrow.get(1820), arrow.get(3599), arrow.get(10000)])
 def mock_instance(request):
-    market = InstanceMarket('m4.4xlarge', 'us-west-2a')
+    market = InstanceMarket('m4.4xlarge', 'fake-az-1')
     instance = Instance(market, arrow.get(0))
     instance.end_time = request.param
     return instance
@@ -32,7 +32,7 @@ def test_add_event_outside(mock_logger, simulator, evt_time):
 
 
 def test_compute_instance_cost_no_breakpoints(simulator, mock_instance, fn):
-    simulator.spot_prices[mock_instance.market] = fn
+    simulator.instance_prices[mock_instance.market] = fn
     simulator.compute_instance_cost(mock_instance)
     assert simulator.total_cost == 1
 
@@ -40,7 +40,7 @@ def test_compute_instance_cost_no_breakpoints(simulator, mock_instance, fn):
 @pytest.mark.parametrize('bp_time', (arrow.get(-1), arrow.get(1800), arrow.get(5000)))
 def test_compute_instance_cost_one_breakpoint(simulator, mock_instance, fn, bp_time):
     fn.add_breakpoint(bp_time, 3)
-    simulator.spot_prices[mock_instance.market] = fn
+    simulator.instance_prices[mock_instance.market] = fn
     simulator.compute_instance_cost(mock_instance)
     assert simulator.total_cost == fn.call(arrow.get(0))
 
@@ -58,7 +58,7 @@ def test_compute_instance_cost_multi_breakpoints(simulator, mock_instance, fn, e
         fn.add_breakpoint(arrow.get(-100), 2)
     if late_bp:
         fn.add_breakpoint(arrow.get(7000), 2.5)
-    simulator.spot_prices[mock_instance.market] = fn
+    simulator.instance_prices[mock_instance.market] = fn
     simulator.billing_frequency = timedelta(minutes=30)
     simulator.compute_instance_cost(mock_instance)
     assert simulator.total_cost == fn.call(arrow.get(0)) / 2 + fn.call(arrow.get(1800)) / 2
@@ -67,7 +67,7 @@ def test_compute_instance_cost_multi_breakpoints(simulator, mock_instance, fn, e
 def test_compute_instance_cost_long_breakpoint_gap(simulator, mock_instance, fn):
     fn.add_breakpoint(arrow.get(400), 3)
     fn.add_breakpoint(arrow.get(3000), 5)
-    simulator.spot_prices[mock_instance.market] = fn
+    simulator.instance_prices[mock_instance.market] = fn
     simulator.billing_frequency = timedelta(minutes=5)
     simulator.compute_instance_cost(mock_instance)
     assert simulator.total_cost == (
@@ -75,14 +75,13 @@ def test_compute_instance_cost_long_breakpoint_gap(simulator, mock_instance, fn)
         if mock_instance.end_time < arrow.get(3000)
         else 3
     )
-    print(simulator.cost_per_hour)
 
 
 @pytest.mark.parametrize('refund', [True, False])
 def test_compute_instance_cost_outbid(simulator, mock_instance, fn, refund):
     fn.add_breakpoint(mock_instance.end_time.shift(minutes=-1), 3)
     mock_instance.bid_price = 2
-    simulator.spot_prices[mock_instance.market] = fn
+    simulator.instance_prices[mock_instance.market] = fn
     simulator.billing_frequency = timedelta(minutes=30)
     simulator.refund_outbid = refund
     simulator.compute_instance_cost(mock_instance)
@@ -93,7 +92,7 @@ def test_compute_instance_cost_outbid(simulator, mock_instance, fn, refund):
 def test_compute_instance_cost_outbid_refund_irrelevant(simulator, mock_instance, fn, refund):
     fn.add_breakpoint(mock_instance.end_time.shift(minutes=1), 3)
     mock_instance.bid_price = 2
-    simulator.spot_prices[mock_instance.market] = fn
+    simulator.instance_prices[mock_instance.market] = fn
     simulator.billing_frequency = timedelta(minutes=30)
     simulator.refund_outbid = refund
     simulator.compute_instance_cost(mock_instance)

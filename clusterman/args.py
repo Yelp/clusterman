@@ -85,6 +85,12 @@ def parse_args(description):  # pragma: no cover
         choices=['debug', 'info', 'warning', 'error', 'critical'],
     )
     root_parser.add_argument(
+        '--private-aws-config',
+        metavar='filename',
+        default='.aws-private.yaml',
+        help='YAML file for private AWS config values',
+    )
+    root_parser.add_argument(
         '-v', '--version',
         action='version',
         version='clusterman ' + __version__
