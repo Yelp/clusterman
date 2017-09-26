@@ -3,6 +3,7 @@ import json
 import sys
 
 from arrow import Arrow
+from clusterman_metrics.util.constants import METRIC_TYPES
 
 from clusterman.util import ask_for_confirmation
 from clusterman.util import get_clusterman_logger
@@ -26,10 +27,19 @@ class TimeSeriesEncoder(json.JSONEncoder):
 
 def TimeSeriesDecoder(obj):
     """ Decode time strings back into Arrow objects """
-    dec_obj = {}
-    for name, timeseries in obj.items():
-        dec_obj[name] = [(Arrow.strptime(timestamp, FORMAT_STRING), float(value)) for timestamp, value in timeseries]
-    return dec_obj
+
+    # If none of the object keys are in METRIC_TYPES, we're probably not at the highest-level
+    # object, so return and this function will get called again later.
+    if not set(obj) & METRIC_TYPES:
+        return obj
+
+    for metric_type, metrics in obj.items():
+        for metric_name, timeseries in metrics.items():
+            obj[metric_type][metric_name] = [
+                (Arrow.strptime(timestamp, FORMAT_STRING), value)
+                for timestamp, value in timeseries
+            ]
+    return obj
 
 
 def read_metrics_from_compressed_json(filename):
@@ -53,16 +63,20 @@ def write_metrics_to_compressed_json(new_metrics, filename):
     except OSError as e:
         metrics = {}
 
-    for metric_name, values in new_metrics.items():
-        if metric_name in metrics:
-            if not ask_for_confirmation(
-                f'This will overwrite existing data for {metric_name}. Do you want to proceed?',
-                default=False,
-            ):
-                logger.error('User aborted metrics write operation; exiting.')
-                sys.exit(1)
+    for metric_type in new_metrics:
+        for metric_name, values in new_metrics[metric_type].items():
+            if metric_type not in metrics:
+                metrics[metric_type] = {}
 
-        metrics[metric_name] = values
+            if metric_name in metrics[metric_type]:
+                if not ask_for_confirmation(
+                    f'This will overwrite existing data for {metric_name}. Do you want to proceed?',
+                    default=False,
+                ):
+                    logger.error('User aborted metrics write operation; exiting.')
+                    sys.exit(1)
+
+            metrics[metric_type][metric_name] = values
 
     with gzip.open(filename, 'w') as f:
         f.write(json.dumps(metrics, cls=TimeSeriesEncoder).encode())

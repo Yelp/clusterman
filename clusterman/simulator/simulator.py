@@ -1,13 +1,12 @@
 from collections import defaultdict
-from datetime import timedelta
 from heapq import heappop
 from heapq import heappush
 
 import arrow
+from sortedcontainers import SortedDict
 
 from clusterman.math.piecewise import hour_transform
 from clusterman.math.piecewise import PiecewiseConstantFunction
-from clusterman.reports.cost import make_cost_report
 from clusterman.simulator.cluster import Cluster
 from clusterman.simulator.event import Event
 from clusterman.util import get_clusterman_logger
@@ -48,6 +47,7 @@ class Simulator:
         self.end_time = end_time
         self.spot_prices = defaultdict(float)  # TODO not sure this is the best idea...
         self.cost_per_hour = PiecewiseConstantFunction()
+        self.capacity = PiecewiseConstantFunction()
 
         # The event queue holds all of the simulation events, ordered by time
         self.event_queue = []
@@ -72,36 +72,55 @@ class Simulator:
 
     def run(self):
         """ Run the simulation until the end, processing each event in the queue one-at-a-time in priority order """
-        print('Starting simulation')
+        print(f'Starting simulation from {self.start_time} to {self.end_time}')
         with self.metadata:
             while self.event_queue:
                 evt = heappop(self.event_queue)
                 self.current_time = evt.time
                 logger.event(evt)
                 evt.handle(self)
-        print('Simulation complete ({time}s)'.format(time=(self.metadata.sim_start -
-                                                           self.metadata.sim_end).total_seconds()))
+        print('Simulation complete ({time}s)'.format(
+            time=(self.metadata.sim_end - self.metadata.sim_start).total_seconds()
+        ))
 
-    def cost(self, start_time=None, end_time=None):
-        """ Compute the cost for the in the specified time range
+    def cost_data(self, start_time=None, end_time=None, step=None):
+        """ Compute the cost for the cluster in the specified time range, grouped into chunks
 
         :param start_time: the lower bound of the range (if None, use simulation start time)
         :param end_time: the upper bound of the range (if None, use simulation end time)
-        :returns: the total cost for the cluster in the specified time range
+        :param step: the width of time for each chunk
+        :returns: a list of costs for the cluster from start_time to end_time
         """
         start_time = start_time or self.start_time
         end_time = end_time or self.end_time
-        return self.cost_per_hour.integral(start_time, end_time, transform=hour_transform)
+        return self.cost_per_hour.integrals(start_time, end_time, step, transform=hour_transform)
 
-    def make_report(self):
-        """ Generate a report about the cluster usage and cost """
-        print('Analyzing simulation data')
-        cost_data = self.cost_per_hour.integrals(
-            self.start_time,
-            self.end_time,
-            timedelta(seconds=60),
-            transform=hour_transform,
-        )
-        print('Generating cost report')
-        fig = make_cost_report(self.metadata, cost_data, self.start_time, self.end_time)
-        fig.savefig('test.pdf')
+    def capacity_data(self, start_time=None, end_time=None, step=None):
+        """ Compute the capacity for the cluster in the specified time range, grouped into chunks
+
+        :param start_time: the lower bound of the range (if None, use simulation start time)
+        :param end_time: the upper bound of the range (if None, use simulation end time)
+        :param step: the width of time for each chunk
+        :returns: a list of capacities for the cluster from start_time to end_time
+        """
+        start_time = start_time or self.start_time
+        end_time = end_time or self.end_time
+        return self.capacity.values(start_time, end_time, step)
+
+    def cost_per_cpu_data(self, start_time=None, end_time=None, step=None):
+        """ Compute the cost per CPU for the cluster in the specified time range, grouped into chunks
+
+        :param start_time: the lower bound of the range (if None, use simulation start time)
+        :param end_time: the upper bound of the range (if None, use simulation end time)
+        :param step: the width of time for each chunk
+        :returns: a list of costs per CPU for the cluster from start_time to end_time
+        """
+        start_time = start_time or self.start_time
+        end_time = end_time or self.end_time
+        cost_data = self.cost_data(start_time, end_time, step)
+        capacity_data = self.capacity_data(start_time, end_time, step)
+        return SortedDict([
+            (timestamp, cost / capacity)
+            for ((timestamp, cost), capacity) in zip(cost_data.items(), capacity_data.values())
+            if capacity != 0
+        ])

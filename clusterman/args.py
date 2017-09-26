@@ -78,7 +78,6 @@ def parse_args(description):  # pragma: no cover
     """
     from clusterman.simulator.run import add_simulate_parser
     from clusterman.tools.generate_data import add_generate_data_parser
-    from clusterman.tools.backfill import add_backfill_parser
 
     root_parser = argparse.ArgumentParser(description=description, formatter_class=help_formatter)
     root_parser.add_argument(
@@ -97,7 +96,6 @@ def parse_args(description):  # pragma: no cover
 
     add_simulate_parser(subparser)
     add_generate_data_parser(subparser)
-    add_backfill_parser(subparser)
 
     args = _get_validated_args(root_parser)
     return args

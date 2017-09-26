@@ -1,6 +1,8 @@
 from datetime import timedelta
+from functools import lru_cache
 
 import arrow
+import mock
 import pytest
 
 from clusterman.math.piecewise import hour_transform
@@ -28,6 +30,28 @@ def test_construct_function(fn):
     assert fn.call(4) == 1
 
 
+def test_values_no_points_1(fn):
+    sorteddict_values_assert(fn.values(0, 10.5, 1), [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
+
+
+def test_values_no_points_2(fn):
+    sorteddict_values_assert(fn.values(0, 11, 1), [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
+
+
+def test_values_one_point(fn):
+    fn.modify_value(2.5, 1)
+    fn.modify_value(15, 1)
+    sorteddict_values_assert(fn.values(0, 10.5, 1), [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2])
+    sorteddict_values_assert(fn.values(0, 11, 1), [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2])
+
+
+def test_values_two_points(fn):
+    fn.modify_value(2.5, 1)
+    fn.modify_value(5, 1)
+    sorteddict_values_assert(fn.values(0, 10.5, 1), [1, 1, 1, 2, 2, 3, 3, 3, 3, 3, 3])
+    sorteddict_values_assert(fn.values(0, 11, 1), [1, 1, 1, 2, 2, 3, 3, 3, 3, 3, 3])
+
+
 def test_integrals_no_points(fn):
     sorteddict_values_assert(fn.integrals(0, 10.5, 1), [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.5])
 
@@ -37,9 +61,10 @@ def test_integrals_whole_range(fn):
 
 
 def test_integrals_one_point(fn):
-    fn = PiecewiseConstantFunction(1)
     fn.modify_value(2, 2)
+    fn.modify_value(15, 2)
     sorteddict_values_assert(fn.integrals(0, 10.5, 1), [1, 1, 3, 3, 3, 3, 3, 3, 3, 3, 1.5])
+    sorteddict_values_assert(fn.integrals(0, 11, 1), [1, 1, 3, 3, 3, 3, 3, 3, 3, 3, 3])
     sorteddict_values_assert(fn.integrals(0.5, 11, 1), [1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 1.5])
 
 
@@ -47,6 +72,7 @@ def test_integrals_two_point(fn):
     fn.modify_value(2, 2)
     fn.modify_value(10.25, -2)
     sorteddict_values_assert(fn.integrals(0, 10.5, 1), [1, 1, 3, 3, 3, 3, 3, 3, 3, 3, 1])
+    sorteddict_values_assert(fn.integrals(0, 11, 1), [1, 1, 3, 3, 3, 3, 3, 3, 3, 3, 1.5])
     sorteddict_values_assert(fn.integrals(0.5, 11, 1), [1, 2, 3, 3, 3, 3, 3, 3, 3, 2.5, 0.5])
 
 
@@ -96,3 +122,25 @@ def test_multistep_integral(fn):
     sorteddict_values_assert(fn.integrals(0, 4, 4), [41])
     assert fn.integral(0, 4) == 41
     assert fn.integral(2, 3) == 15
+
+
+def test_cache(fn):
+    inside_values_func = mock.Mock()
+    fn.values = lru_cache()(inside_values_func)
+    fn.values(0, 10, 1)
+    fn.values(0, 10, 1)
+    fn.values(0, 10, 1)
+    fn.values(0, 10, 1)
+    fn.values(0, 10, 1)
+    assert inside_values_func.call_count == 1
+
+
+def test_cache_invalidated(fn):
+    inside_values_func = mock.Mock()
+    fn.values = lru_cache()(inside_values_func)
+    fn.values(0, 10, 1)
+    fn.values(0, 10, 1)
+    fn.modify_value(2, 2)
+    fn.values(0, 10, 1)
+    fn.values(0, 10, 1)
+    assert inside_values_func.call_count == 2

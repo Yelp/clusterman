@@ -20,7 +20,7 @@ def test_one_instance_constant_price(start_time, simulator, spot_prices, market_
     simulator.add_event(SpotPriceChangeEvent(start_time, spot_prices))
     simulator.run()
 
-    assert simulator.cost() == pytest.approx(2.0)
+    assert simulator.cost_data().values()[0] == pytest.approx(2.0)
 
 
 def test_one_instance_price_change(start_time, simulator, spot_prices, market_a):
@@ -35,7 +35,7 @@ def test_one_instance_price_change(start_time, simulator, spot_prices, market_a)
     simulator.add_event(SpotPriceChangeEvent(start_time.shift(minutes=30), spot_prices))
     simulator.run()
 
-    assert simulator.cost() == pytest.approx(3.0)
+    assert simulator.cost_data().values()[0] == pytest.approx(3.0)
 
 
 def test_two_instances_same_market_same_time(start_time, simulator, spot_prices, market_a):
@@ -50,7 +50,7 @@ def test_two_instances_same_market_same_time(start_time, simulator, spot_prices,
     simulator.add_event(SpotPriceChangeEvent(start_time.shift(minutes=20), {market_a: 2.0}))
     simulator.run()
 
-    assert simulator.cost() == pytest.approx(6.0)
+    assert simulator.cost_data().values()[0] == pytest.approx(6.0)
 
 
 def test_two_instances_same_market_different_times(start_time, simulator, spot_prices, market_a):
@@ -67,7 +67,7 @@ def test_two_instances_same_market_different_times(start_time, simulator, spot_p
     simulator.add_event(ModifyClusterCapacityEvent(start_time.shift(minutes=30), {market_a: 2}))
     simulator.run()
 
-    assert simulator.cost() == pytest.approx(6.0)
+    assert simulator.cost_data().values()[0] == pytest.approx(6.0)
 
 
 def test_two_instances_different_markets_different_times(start_time, simulator, spot_prices, market_a, market_b):
@@ -85,7 +85,7 @@ def test_two_instances_different_markets_different_times(start_time, simulator, 
     simulator.add_event(SpotPriceChangeEvent(start_time.shift(minutes=75), {market_b: 0.75}))
     simulator.run()
 
-    assert simulator.cost() == pytest.approx(3.875)
+    assert simulator.cost_data().values()[0] == pytest.approx(3.875)
 
 
 def test_remove_instance(start_time, simulator, spot_prices, market_a, market_b):
@@ -103,4 +103,4 @@ def test_remove_instance(start_time, simulator, spot_prices, market_a, market_b)
     simulator.add_event(ModifyClusterCapacityEvent(start_time.shift(minutes=90), {market_b: 0}))
     simulator.run()
 
-    assert simulator.cost() == pytest.approx(3.5)
+    assert simulator.cost_data().values()[0] == pytest.approx(3.5)

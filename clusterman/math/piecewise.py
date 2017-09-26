@@ -1,4 +1,10 @@
+import math
+from functools import lru_cache
+
 from sortedcontainers import SortedDict
+
+
+_LRU_CACHE_SIZE = 5
 
 
 def hour_transform(td):
@@ -31,6 +37,9 @@ class PiecewiseConstantFunction:
         for x in self._breakpoints.irange(xval):
             self._breakpoints[x] += delta
 
+        self.values.cache_clear()
+        self.integrals.cache_clear()
+
     def call(self, xval):
         """ Compute the output of the function at a point
 
@@ -53,15 +62,50 @@ class PiecewiseConstantFunction:
           * value is f(breakpoint), or f(last_breakpoint) if we're off the end
         """
         try:
-            breakpoint = self._breakpoints.keys()[index]
-            value = self._breakpoints.values()[index]
+            breakpoint, value = self._breakpoints.peekitem(index)
         except IndexError:
             index = None
-            breakpoint = None
-            value = self._breakpoints.values()[-1]
+            breakpoint, value = None, self._breakpoints.values()[-1]
 
         return (index, breakpoint, value)
 
+    @lru_cache(maxsize=_LRU_CACHE_SIZE)  # cache results of calls to this function
+    def values(self, start, stop, step):
+        """ Compute a sequence of values of the function
+
+        This is more efficient than [self.call(xval) for xval in range(start, stop, step)] because each self.call(..)
+        takes O(log n) time due to the binary tree structure of self._breakpoints.  This method can compute the range
+        of values in linear time in the range, which is significantly faster for large value ranges.
+
+        :param start: lower bound of value sequence
+        :param stop: upper bound of value sequence
+        :param step: width between points in the sequence
+        :returns: a SortedDict of the values of the function between start and stop, with the x-distance between
+            each data-point equal to `step`; like normal "range" functions the right endpoint is not included
+        """
+
+        step = step or (stop - start)
+        if len(self._breakpoints) == 0:
+            num_values = int(math.ceil((stop - start) / step))
+            return SortedDict([(start + step * i, self._initial_value) for i in range(num_values)])
+
+        curr_xval = start
+        curr_value = self.call(start)
+        next_index, next_breakpoint, next_value = self._breakpoint_info(self._breakpoints.bisect(start))
+
+        sequence = SortedDict()
+        while curr_xval < stop:
+            sequence[curr_xval] = curr_value
+
+            next_xval = min(stop, curr_xval + step)
+            while next_breakpoint and next_xval >= next_breakpoint:
+                curr_value = next_value
+                next_index, next_breakpoint, next_value = self._breakpoint_info(next_index + 1)
+            curr_xval = next_xval
+
+        return sequence
+
+    @lru_cache(maxsize=_LRU_CACHE_SIZE)  # cache results of calls to this function
     def integrals(self, start, stop, step, transform=lambda x: x):
         """ Compute a sequence of integrals of the function
 
@@ -72,6 +116,7 @@ class PiecewiseConstantFunction:
         :returns: a SortedDict of the numeric integral values of the function between start and stop;
             each integral has a range of size `step`, and the key-value is the left endpoint of the chunk
         """
+        step = step or (stop - start)
         if len(self._breakpoints) == 0:
             # If there are no breakpoints, just split up the range into even widths and compute
             # (width * self._initial_value) for each chunk.

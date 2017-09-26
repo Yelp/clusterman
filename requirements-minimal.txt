@@ -1,4 +1,5 @@
 arrow
+clusterman-metrics
 colorlog
 matplotlib
 numpy

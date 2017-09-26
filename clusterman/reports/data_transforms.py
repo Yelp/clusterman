@@ -8,9 +8,11 @@ def transform_heatmap_data(data, months, tz):
     :param data: a SortedDict mapping from timestamp -> value
     :param months: a list of (mstart, mend) tuples for grouping the output data
     :param tz: what timezone the output data should be interpreted as
-    :returns: a dict of month -> [<x-data>, <y-data>, <values>] lists
+    :returns: a dict of month -> [<x-data>, <y-data>, <values>] lists, as well as the p5/p95 values
+        (the p5/p95 values are used to set the min/max color range of the heatmap)
     """
     data_by_month = {}
+    min_val, max_val = float('inf'), float('-inf')
     for mstart, mend in months:
         mstart_index = data.bisect_left(mstart)
         mend_index = data.bisect_right(mend)
@@ -23,24 +25,29 @@ def transform_heatmap_data(data, months, tz):
             data.keys()[i].to(tz).replace(hour=0, minute=0, second=0, microsecond=0).datetime,
             data.values()[i],
         ) for i in range(mstart_index, mend_index)]
+        p5, p95 = np.percentile([data.values()[i] for i in range(mstart_index, mend_index)], [5, 95])
+        min_val = min(min_val, p5)
+        max_val = max(max_val, p95)
         data_by_month[mstart] = zip(*aggregated_monthly_data)
-    return data_by_month
+    return data_by_month, min_val, max_val
 
 
-def transform_trend_data(data, months, trend_type):
+def transform_trend_data(data, months, trend_rollup):
     """ Transform input data into (x,y) values aggregated over each day of the month
 
     :param data: a SortedDict mapping from timestamp -> value
     :param months: a list of (mstart, mend) tuples for grouping the output data
-    :param trend_type: how to aggregate the data; supported values are
-        * mean: take the average and interquartile range of the daily data
-        * sum: sum the daily data (no range values)
+    :param trend_rollup: a function accepting a list of data points to aggregate data per-day;
+        this function should return a tuple q1, q2, q3, where the points defined by the q2's describe the
+        solid line of the trend plot, and points in the range [q1, q3] are filled in on the trend plot.
+        (many trend_rollups will want to return the mean and interquartile range, hence the variable names; however,
+        this interpretation is not required)
     :returns: a dict of month -> [<day-of-month>, <lower-range>, <aggregated-value>, <upper-range>] lists,
-        as well as the min/max aggregated values
+        as well as the min/max aggregated values for the trend rollup
+        (the min/max values sets the range for the trend plot)
     """
     data_by_month = {}
-    min_val = 0
-    max_val = 0
+    min_val, max_val = 0, 0  # min_val sets the minimum y-value of the plot axis, which should always be 0 or less
     for mstart, mend in months:
         aggregated_daily_data = []
 
@@ -52,16 +59,10 @@ def transform_trend_data(data, months, trend_type):
             if not day_slice:  # if there's no data for a given day, np.percentile will fail
                 continue
 
-            if trend_type == 'mean':
-                q1, q2, q3 = np.percentile(day_slice, (25, 50, 75))
-                min_val = min(min_val, q1)
-                max_val = max(max_val, q3)
-            elif trend_type == 'sum':
-                q1, q2, q3 = None, np.sum(day_slice), None
-                min_val = min(min_val, q2)
-                max_val = max(max_val, q2)
-
+            q1, q2, q3 = trend_rollup(day_slice)
+            min_val = min(v for v in (min_val, q1, q2, q3) if v is not None)
+            max_val = max(v for v in (max_val, q2, q2, q3) if v is not None)
             aggregated_daily_data.append((dstart.day, q1, q2, q3))
 
-        data_by_month[mstart] = list(zip(*aggregated_daily_data))
+        data_by_month[mstart] = zip(*aggregated_daily_data)
     return data_by_month, min_val, max_val

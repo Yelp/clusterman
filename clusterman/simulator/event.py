@@ -43,10 +43,12 @@ class ModifyClusterCapacityEvent(Event):
 
     def handle(self, simulator):
         # add the instances to the cluster and compute costs for their first hour
+        old_capacity = simulator.cluster.cpu
         added_instance_ids, removed_instance_ids = simulator.cluster.modify_capacity(
             self.instance_types,
             modify_time=self.time,
         )
+        simulator.capacity.modify_value(self.time, simulator.cluster.cpu - old_capacity)
 
         for id in removed_instance_ids:
             instance = simulator.cluster.all_instances[id]

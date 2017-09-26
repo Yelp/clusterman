@@ -57,32 +57,35 @@ def load_experimental_design(inputfile):
     """ Generate metric timeseries data from an experimental design .yaml file
 
     The format of this file should be:
-    metric_name:
-      start_time: XXXX
-      end_time: YYYY
-      frequency: <frequency specification>
-      values: <values specification>
+    metric_type:
+      metric_name:
+        start_time: XXXX
+        end_time: YYYY
+        frequency: <frequency specification>
+        values: <values specification>
 
     This will generate a set of metric values between XXXX and YYYY, with the interarrival
     time between events meeting the frequency specification and the metric values corresponding
     to the values specification
 
-    :returns: a dictionary of metric_name -> timeseries data, that is, a list of (time, value) tuples
+    :returns: a dictionary of metric_type -> (metric_name -> timeseries data)
     """
     with open(inputfile) as f:
         design = yaml.load(f.read(), Loader=yaml.CLoader)
 
-    metrics = defaultdict(list)
-    for metric_name, config in design.items():
-        start_time = parse_time_string(config['start_time'])
-        end_time = parse_time_string(config['end_time'])
-        next_time_func = get_frequency_function(config['frequency'])
-        values_func = get_values_function(config['values'])
+    metrics = {}
+    for metric_type, metric_design in design.items():
+        metrics[metric_type] = defaultdict(list)
+        for metric_name, config in metric_design.items():
+            start_time = parse_time_string(config['start_time'])
+            end_time = parse_time_string(config['end_time'])
+            next_time_func = get_frequency_function(config['frequency'])
+            values_func = get_values_function(config['values'])
 
-        current_time = start_time
-        while current_time < end_time:
-            metrics[metric_name].append((current_time, values_func()))
-            current_time = next_time_func(current_time)
+            current_time = start_time
+            while current_time < end_time:
+                metrics[metric_type][metric_name].append((current_time, values_func()))
+                current_time = next_time_func(current_time)
 
     return metrics
 
