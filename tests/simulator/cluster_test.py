@@ -1,7 +1,7 @@
 import mock
 import pytest
 
-from clusterman.common.aws import InstanceMarket
+from clusterman.aws.markets import InstanceMarket
 from clusterman.simulator.cluster import Cluster
 
 
@@ -19,8 +19,8 @@ def cluster():
 
 @pytest.yield_fixture
 def fake_markets():
-    with mock.patch('clusterman.common.aws.EC2_INSTANCE_TYPES') as mock_instance_types, \
-            mock.patch('clusterman.common.aws.EC2_AZS') as mock_azs:
+    with mock.patch('clusterman.aws.markets.EC2_INSTANCE_TYPES') as mock_instance_types, \
+            mock.patch('clusterman.aws.markets.EC2_AZS') as mock_azs:
         mock_instance_types.__contains__.return_value = True
         mock_azs.__contains__.return_value = True
         yield
