@@ -4,6 +4,9 @@ import yaml
 from clusterman.exceptions import MesosRoleManagerError
 
 
+MESOS_CACHE_TTL = 10
+
+
 class MesosRoleManager:
     def __init__(self, name, services_file, master_service_label):
         self.name = name

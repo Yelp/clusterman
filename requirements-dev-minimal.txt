@@ -4,5 +4,6 @@ pre-commit
 pytest
 requirements-tools
 mock
+moto
 sphinx
 sphinx-rtd-theme
