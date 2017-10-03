@@ -5,6 +5,7 @@ matplotlib
 numpy
 parsedatetime
 PyYAML
+requests
 sortedcontainers
 signalfx
 yelp-servlib

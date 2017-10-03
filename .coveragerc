@@ -1,13 +1,7 @@
 [run]
 branch = True
 source =
-    .
-omit =
-    virtualenv_run/*
-    /usr/*
-    setup.py
-    # Don't complain if non-runnable code isn't run
-    */__main__.py
+    clusterman
 
 [report]
 exclude_lines =
