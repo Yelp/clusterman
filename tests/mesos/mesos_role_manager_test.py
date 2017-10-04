@@ -8,7 +8,7 @@ from clusterman.mesos.mesos_role_manager import MesosRoleManager
 @pytest.fixture
 def mock_mesos_role_manager():
     with mock.patch('builtins.open', mock.mock_open(read_data="{'mesos-master': {'host': 'foo', 'port': 1234}}")):
-        return MesosRoleManager('baz', 'dummy-file.yaml', 'mesos-master')
+        return MesosRoleManager('baz', 1, 100, 'dummy-file.yaml', 'mesos-master')
 
 
 def test_mesos_role_manager_init(mock_mesos_role_manager):
@@ -22,7 +22,7 @@ class TestAgentGenerator:
         mock_post.return_value.ok = False
         mock_post.return_value.text = 'dummy error'
         with pytest.raises(MesosRoleManagerError):
-            for a in mock_mesos_role_manager._agents():
+            for a in mock_mesos_role_manager._agents:
                 print(a)
 
     def test_agent_generator_filter_roles(self, mock_post, mock_mesos_role_manager):
@@ -52,6 +52,6 @@ class TestAgentGenerator:
                 ]
             }
         }
-        agents = list(mock_mesos_role_manager._agents())
+        agents = list(mock_mesos_role_manager._agents)
         assert len(agents) == 1
         assert agents[0]['agent_info']['hostname'] == 'im-in-the-role.yelpcorp.com'

@@ -5,6 +5,7 @@ from cachetools.func import ttl_cache
 
 from clusterman.aws.client import ec2
 from clusterman.aws.client import ec2_describe_instances
+from clusterman.aws.client import s3
 from clusterman.aws.markets import get_instance_market
 from clusterman.exceptions import ResourceGroupError
 from clusterman.mesos.constants import CACHE_TTL
@@ -13,6 +14,23 @@ from clusterman.mesos.mesos_role_resource_group import protect_unowned_instances
 from clusterman.util import get_clusterman_logger
 
 logger = get_clusterman_logger(__name__)
+
+
+def load_spot_fleets_from_s3(bucket, superregion, pool=None):
+    object_list = s3.list_objects_v2(Bucket=bucket, Prefix=superregion)
+    spot_fleets = []
+    for obj_metadata in object_list['Contents']:
+        obj = s3.get_object(Bucket=bucket, Key=obj_metadata['Key'])
+        sfr_metadata = json.load(obj['Body'])
+        for resource_key, resource in sfr_metadata['cluster_autoscaling_resources'].items():
+            if not resource_key.startswith('aws_spot_fleet_request'):
+                continue
+            if pool and resource['pool'] != pool:
+                continue
+
+            spot_fleets.append(SpotFleetResourceGroup(resource['id']))
+
+    return spot_fleets
 
 
 class SpotFleetResourceGroup(MesosRoleResourceGroup):
