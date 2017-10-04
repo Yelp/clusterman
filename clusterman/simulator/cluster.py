@@ -1,7 +1,7 @@
 import itertools
 from collections import defaultdict
 
-from clusterman.common.aws import get_instance_resources
+from clusterman.aws.markets import get_instance_resources
 
 
 class Instance:

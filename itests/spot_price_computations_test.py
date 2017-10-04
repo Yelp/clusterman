@@ -2,7 +2,7 @@ import logging
 
 import pytest
 
-from clusterman.common.aws import InstanceMarket
+from clusterman.aws.markets import InstanceMarket
 from clusterman.simulator.event import ModifyClusterCapacityEvent
 from clusterman.simulator.event import SpotPriceChangeEvent
 

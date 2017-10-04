@@ -4,7 +4,7 @@ from clusterman_metrics.util.constants import METADATA
 
 from clusterman.args import add_start_end_args
 from clusterman.args import subparser
-from clusterman.common.aws import InstanceMarket
+from clusterman.aws.markets import InstanceMarket
 from clusterman.reports.report_types import REPORT_TYPES
 from clusterman.reports.reports import make_report
 from clusterman.simulator.event import ModifyClusterCapacityEvent

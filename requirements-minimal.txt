@@ -1,4 +1,5 @@
 arrow
+boto3
 clusterman-metrics
 colorlog
 matplotlib
@@ -8,4 +9,5 @@ PyYAML
 requests
 sortedcontainers
 signalfx
+yelp-batch
 yelp-servlib
