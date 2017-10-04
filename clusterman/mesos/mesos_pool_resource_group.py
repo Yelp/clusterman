@@ -9,7 +9,13 @@ logger = get_clusterman_logger(__name__)
 
 
 def protect_unowned_instances(func):
-    # Make sure that we only operate on instances that are a part of this resource group
+    """ A decorator that protects instances that are not owned by a particular ResourceGroup from being modified
+
+    It is assumed that the decorated function takes a list of instance IDs as its first argument; this list
+    is modified before the decorated function is called to strip out any unowned instances.  In this case a warning
+    is logged.
+    """
+
     def wrapper(self, instance_ids, *args, **kwargs):
         resource_group_instances = list(set(instance_ids) & set(self.instances))
         invalid_instances = set(instance_ids) - set(self.instances)
@@ -21,34 +27,64 @@ def protect_unowned_instances(func):
 
 class MesosPoolResourceGroup(metaclass=ABCMeta):
 
-    @abstractmethod
-    def market_weight(self, market):
-        pass
+    def market_weight(self, market):  # pragma: no cover
+        """ Return the weighted capacity assigned to a particular EC2 market by this resource group
+
+        The weighted capacity is a SpotFleet concept but for consistency we assume other resource group types will also
+        have weights assigned to them; this will allow the MesosPool to operate on a variety of different resource types
+
+        :param market: the InstanceMarket to get the weighted capacity for
+        :returns: the weighted capacity of the market (defaults to 1 unless overridden)
+        """
+        return 1
 
     @abstractmethod
-    def modify_target_capacity(self, new_target_capacity, should_terminate):
+    def modify_target_capacity(self, new_target_capacity, should_terminate):  # pragma: no cover
+        """ Modify the target capacity for the resource group
+
+        :param new_target_capacity: the (weighted) new target capacity for the resource group
+        :param should_terminate: boolean indicating whether to terminate instances if the
+            new target capacity is less than the current capacity
+        """
         pass
 
     @abstractmethod
-    def terminate_instances_by_id(self, instance_ids):
+    def terminate_instances_by_id(self, instance_ids):  # pragma: no cover
+        """ Terminate instances in this resource group
+
+        Subclasses should _always_ decorate this method with the @protect_unowned_instances decorator to prevent
+        termination of instances that do not belong to this ResourceGroup
+
+        :param instance_ids: a list of instance IDs to terminate
+        """
         pass
 
     @abstractproperty
-    def id(self):
+    def id(self):  # pragma: no cover
+        """ A unique identifier for this ResourceGroup """
         pass
 
     @abstractproperty
-    def instances(self):
+    def instances(self):  # pragma: no cover
+        """ The list of instances belonging to this ResourceGroup """
         pass
 
     @abstractproperty
-    def market_capacities(self):
+    def market_capacities(self):  # pragma: no cover
+        """ A dictionary of InstanceMarket -> total (weighted) capacity values """
         pass
 
     @abstractproperty
-    def target_capacity(self):
+    def target_capacity(self):  # pragma: no cover
+        """ The target (or desired) weighted capacity for this ResourceGroup
+
+        Note that the actual weighted capacity in the ResourceGroup may be smaller or larger than the
+        target capacity, depending on the state of the ResourceGroup, available instance types, and
+        previous operations
+        """
         pass
 
     @abstractproperty
-    def status(self):
+    def status(self):  # pragma: no cover
+        """ The status of the ResourceGroup (e.g., running, modifying, terminated, etc.) """
         pass
