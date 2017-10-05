@@ -4,7 +4,7 @@ import boto3
 
 from clusterman.util import get_clusterman_logger
 
-_BOTO_CREDENTIALS_FILE = '/etc/boto_cfg/seagull-spotfleet.json'
+_BOTO_CREDENTIALS_FILE = '/etc/boto_cfg/clusterman.json'
 _session = None
 logger = get_clusterman_logger(__name__)
 
@@ -19,8 +19,7 @@ def _init_session():
             creds['aws_access_key_id'] = creds.pop('accessKeyId')
             creds['aws_secret_access_key'] = creds.pop('secretAccessKey')
             creds['region_name'] = creds.pop('region')
-            # _session = boto3.session.Session(**creds)  TODO (CLUSTERMAN-59)
-            _session = boto3.session.Session()
+            _session = boto3.session.Session(**creds)
 
 
 class _BotoForwarder(type):

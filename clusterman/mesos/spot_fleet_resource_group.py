@@ -28,12 +28,6 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
         return self.market_weights[market]
 
     def modify_target_capacity(self, new_capacity, should_terminate=False):
-        """Increase or decrease the (weighted) spot fleet target capacity
-
-        :param new_capacity: the new desired capacity of the fleet, in resource units
-        :param should_terminate: set to True to terminate instances when scaling down
-
-        """
         termination_policy = 'Default' if should_terminate else 'NoTermination'
         response = ec2.modify_spot_fleet_request(
             SpotFleetRequestId=self.sfr_id,
@@ -42,19 +36,16 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
         )
         if not response['Return']:
             raise ResourceGroupError("Could not change size of spot fleet: {resp}".format(
-                resp=json.dumps(response['ResponseMetadata']),
+                resp=json.dumps(response),
             ))
 
     @protect_unowned_instances
     def terminate_instances_by_id(self, instance_ids, batch_size=500):
-        """Terminate instances in the spot fleet
-
-        :param instance_ids_to_kill: a list of instances to terminate
-        """
         if not instance_ids:
             logger.warn('No instances to terminate')
             return [], 0
 
+        original_fulfilled_capacity = self.fulfilled_capacity
         instance_weights = {
             instance['InstanceId']: self.market_weights[get_instance_market(instance)]
             for instance in ec2_describe_instances(instance_ids)
@@ -70,7 +61,7 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
             logger.warn(f'Some instances were not terminated: {missing_instances}')
 
         terminated_weight = sum(instance_weights[i] for i in terminated_instance_ids)
-        self.modify_target_capacity(self.target_capacity - terminated_weight)
+        self.modify_target_capacity(original_fulfilled_capacity - terminated_weight)
 
         logger.info(f'Terminated weight: {terminated_weight}; instances: {terminated_instance_ids}')
         return terminated_instance_ids, terminated_weight
@@ -82,16 +73,11 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
     @property
     @ttl_cache(ttl=MESOS_CACHE_TTL)
     def instances(self):
-        # TODO manually paginating until https://github.com/boto/botocore/pull/1286 is accepted into botocore
-        next_token = ''
-        instance_ids = []
-        while True:
-            instances = ec2.describe_spot_fleet_instances(SpotFleetRequestId=self.sfr_id, NextToken=next_token)
-            instance_ids.extend([i['InstanceId'] for i in instances['ActiveInstances']])
-            next_token = instances.get('NextToken', '')
-            if not next_token:
-                break
-        return instance_ids
+        return [
+            instance['InstanceId']
+            for page in ec2.get_paginator('describe_spot_fleet_instances').paginate(SpotFleetRequestId=self.sfr_id)
+            for instance in page['ActiveInstances']
+        ]
 
     @property
     def market_capacities(self):
@@ -117,6 +103,7 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
         fleet_configuration = ec2.describe_spot_fleet_requests(SpotFleetRequestIds=[self.sfr_id])
         return fleet_configuration['SpotFleetRequestConfigs'][0]
 
+    @property
     @ttl_cache(ttl=MESOS_CACHE_TTL)
     def _instances_by_market(self):
         instance_dict = defaultdict(list)

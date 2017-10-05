@@ -90,8 +90,5 @@ def get_instance_resources(market):
 
 
 def get_instance_market(aws_instance_object):
-    if 'Placement' in aws_instance_object:
-        az = aws_instance_object['Placement']['AvailabilityZone']
-    else:
-        az = ec2.describe_subnets(SubnetIds=[aws_instance_object['SubnetId']])['Subnets'][0]['AvailabilityZone']
+    az = ec2.describe_subnets(SubnetIds=[aws_instance_object['SubnetId']])['Subnets'][0]['AvailabilityZone']
     return InstanceMarket(aws_instance_object['InstanceType'], az)

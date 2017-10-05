@@ -15,10 +15,10 @@ Jinja2==2.9.6
 MarkupSafe==1.0
 mccabe==0.6.1
 mock==2.0.0
-moto==1.1.21
+moto==1.1.22
 nodeenv==1.1.4
 pbr==3.1.1
-pre-commit==1.1.2
+pre-commit==1.2.0
 py==1.4.34
 pyaml==17.8.0
 pycodestyle==2.3.1
