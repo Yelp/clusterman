@@ -25,7 +25,7 @@ def protect_unowned_instances(func):
     return wrapper
 
 
-class MesosPoolResourceGroup(metaclass=ABCMeta):
+class MesosRoleResourceGroup(metaclass=ABCMeta):
 
     def market_weight(self, market):  # pragma: no cover
         """ Return the weighted capacity assigned to a particular EC2 market by this resource group
@@ -80,8 +80,13 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
 
         Note that the actual weighted capacity in the ResourceGroup may be smaller or larger than the
         target capacity, depending on the state of the ResourceGroup, available instance types, and
-        previous operations
+        previous operations; use self.fulfilled_capacity to get the actual capacity
         """
+        pass
+
+    @abstractproperty
+    def fulfilled_capacity(self):  # pragma: no cover
+        """ The actual weighted capacity for this ResourceGroup """
         pass
 
     @abstractproperty

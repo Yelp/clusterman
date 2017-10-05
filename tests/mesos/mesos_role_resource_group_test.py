@@ -1,8 +1,8 @@
-from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
-from clusterman.mesos.mesos_pool_resource_group import protect_unowned_instances
+from clusterman.mesos.mesos_role_resource_group import MesosRoleResourceGroup
+from clusterman.mesos.mesos_role_resource_group import protect_unowned_instances
 
 
-class DummyResourceGroup(MesosPoolResourceGroup):
+class DummyResourceGroup(MesosRoleResourceGroup):
     def market_weight(self, market):
         pass
 
@@ -27,6 +27,10 @@ class DummyResourceGroup(MesosPoolResourceGroup):
 
     @property
     def target_capacity(self):
+        pass
+
+    @property
+    def fulfilled_capacity(self):
         pass
 
     @property

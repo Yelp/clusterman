@@ -3,5 +3,5 @@ class ClustermanError(Exception):
     pass
 
 
-class MesosPoolError(ClustermanError):
+class MesosRoleManagerError(ClustermanError):
     pass
