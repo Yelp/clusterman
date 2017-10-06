@@ -1,6 +1,6 @@
 import arrow
-from clusterman_metrics.simulation_client import ClustermanMetricsSimulationClient
-from clusterman_metrics.util.constants import METADATA
+from clusterman_metrics import ClustermanMetricsSimulationClient
+from clusterman_metrics import METADATA
 
 from clusterman.args import add_start_end_args
 from clusterman.args import subparser
