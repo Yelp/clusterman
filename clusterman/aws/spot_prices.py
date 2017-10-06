@@ -1,5 +1,5 @@
 import arrow
-from clusterman_metrics.util.meteorite import generate_key_with_dimensions
+from clusterman_metrics import generate_key_with_dimensions
 
 
 def spot_price_generator(ec2_client, start_time, end_time):

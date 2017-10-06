@@ -3,8 +3,8 @@ import json
 import arrow
 import mock
 import pytest
-from clusterman_metrics.util.constants import APP_METRICS
-from clusterman_metrics.util.constants import SYSTEM_METRICS
+from clusterman_metrics import APP_METRICS
+from clusterman_metrics import SYSTEM_METRICS
 
 from clusterman.simulator.metrics import TimeSeriesDecoder
 from clusterman.simulator.metrics import write_metrics_to_compressed_json

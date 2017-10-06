@@ -8,7 +8,7 @@ import mock
 import pytest
 import simplejson as json
 import staticconf.testing
-from clusterman_metrics.util.constants import METADATA
+from clusterman_metrics import METADATA
 
 from clusterman.batch.spot_price_collector import SpotPriceCollector
 

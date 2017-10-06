@@ -4,8 +4,8 @@ import time
 import arrow
 import boto3
 import staticconf
-from clusterman_metrics.boto_client import ClustermanMetricsBotoClient
-from clusterman_metrics.util.constants import METADATA
+from clusterman_metrics import ClustermanMetricsBotoClient
+from clusterman_metrics import METADATA
 from yelp_batch.batch import batch_command_line_arguments
 from yelp_batch.batch import batch_configure
 from yelp_batch.batch import batch_context

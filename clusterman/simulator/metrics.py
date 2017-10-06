@@ -3,7 +3,7 @@ import json
 import sys
 
 from arrow import Arrow
-from clusterman_metrics.util.constants import METRIC_TYPES
+from clusterman_metrics import METRIC_TYPES
 
 from clusterman.util import ask_for_confirmation
 from clusterman.util import get_clusterman_logger
