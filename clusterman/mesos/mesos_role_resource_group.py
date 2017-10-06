@@ -26,6 +26,12 @@ def protect_unowned_instances(func):
 
 
 class MesosRoleResourceGroup(metaclass=ABCMeta):
+    """
+    The MesosRoleResourceGroup is an abstract object codifying the interface that objects belonging to a Mesos
+    cluster are expected to adhere to.  In general, a "ResourceGroup" object should represent a collection of machines
+    that are a part of a Mesos cluster, and should have an API for adding and removing hosts from the ResourceGroup,
+    as well as querying the state of the resource group.
+    """
 
     def market_weight(self, market):  # pragma: no cover
         """ Return the weighted capacity assigned to a particular EC2 market by this resource group
@@ -71,7 +77,7 @@ class MesosRoleResourceGroup(metaclass=ABCMeta):
 
     @abstractproperty
     def market_capacities(self):  # pragma: no cover
-        """ A dictionary of InstanceMarket -> total (weighted) capacity values """
+        """ A dictionary of InstanceMarket -> total (fulfilled) capacity values """
         pass
 
     @abstractproperty
