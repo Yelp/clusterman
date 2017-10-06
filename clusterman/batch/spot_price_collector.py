@@ -23,14 +23,13 @@ class SpotPriceCollector(BatchDaemon):
     def parse_args(self, parser):
         arg_group = parser.add_argument_group('SpotPriceCollector options')
         arg_group.add_argument(
+            'aws_region_name',
+            help='AWS region to collect prices for.',
+        )
+        arg_group.add_argument(
             '--env-config-path',
             default='/nail/srv/configs/clusterman.yaml',
             help='Path to custom app configuration. Default is %(default)s',
-        )
-        arg_group.add_argument(
-            '--aws-region-name',
-            default=None,
-            help='AWS region to collect prices for.',
         )
         arg_group.add_argument(
             '--start-time',
@@ -47,7 +46,7 @@ class SpotPriceCollector(BatchDaemon):
         # Any keys in the env_config will override defaults in config.yaml.
         config_util.load_default_config('config.yaml', self.options.env_config_path)
 
-        self.region = self.options.aws_region_name or staticconf.read_string('dynamodb.region_name')
+        self.region = self.options.aws_region_name
         self.last_time_called = self.options.start_time
         self.run_interval = staticconf.read_int('spot_prices.run_interval_seconds')
         self.dedupe_interval = staticconf.read_int('spot_prices.dedupe_interval_seconds')

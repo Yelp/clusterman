@@ -24,9 +24,6 @@ def mock_config():
         'aws': {
             'access_key_file': '/etc/secrets',
         },
-        'dynamodb': {
-            'region_name': 'us-test-2',
-        },
         'spot_prices': {
             'run_interval_seconds': 120,
             'dedupe_interval_seconds': 60,
@@ -47,24 +44,28 @@ def mock_boto_cfg():
 
 
 @pytest.fixture
-def default_options(batch):
-    parser = argparse.ArgumentParser()
-    batch.parse_args(parser)
-    return parser.parse_args([])
+def required_args():
+    return ['us-test-2']
 
 
-def test_start_time_parsing(batch):
+@pytest.fixture
+def default_options(batch, required_args):
     parser = argparse.ArgumentParser()
     batch.parse_args(parser)
-    args = parser.parse_args(['--start-time', '2017-09-12T12:11:23'])
+    return parser.parse_args(required_args)
+
+
+def test_start_time_parsing(batch, required_args):
+    parser = argparse.ArgumentParser()
+    batch.parse_args(parser)
+    args_list = required_args + ['--start-time', '2017-09-12T12:11:23']
+    args = parser.parse_args(args_list)
     assert args.start_time == datetime.datetime(2017, 9, 12, 12, 11, 23, tzinfo=datetime.timezone.utc)
 
 
 @mock.patch('arrow.utcnow')
 def test_start_time_default(mock_now, batch):
-    parser = argparse.ArgumentParser()
-    batch.parse_args(parser)
-    args = parser.parse_args([])
+    args = default_options(batch, required_args())
     assert args.start_time == mock_now.return_value
 
 

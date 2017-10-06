@@ -14,8 +14,8 @@ def spot_price_generator(ec2_client, start_time, end_time):
     end_time = end_time.to('utc')
 
     results = ec2_client.get_paginator('describe_spot_price_history').paginate(
-        StartTime=start_time,
-        EndTime=end_time,
+        StartTime=start_time.datetime,
+        EndTime=end_time.datetime,
         ProductDescriptions=['Linux/UNIX (Amazon VPC)'],
     )
     for result in results:
