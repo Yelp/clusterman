@@ -1,6 +1,6 @@
 arrow
 boto3
-clusterman-metrics
+clusterman-metrics>=0.8.0
 colorlog
 matplotlib
 numpy

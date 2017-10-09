@@ -1,6 +1,7 @@
 import arrow
 from clusterman_metrics import ClustermanMetricsSimulationClient
 from clusterman_metrics import METADATA
+from yelp_servlib import config_util
 
 from clusterman.args import add_start_end_args
 from clusterman.args import subparser
@@ -20,6 +21,7 @@ logger = get_clusterman_logger(__name__)
 
 
 def main(args):
+    config_util.load_default_config('config.yaml')
     args.start_time = parse_time_string(args.start_time)
     args.end_time = parse_time_string(args.end_time)
 

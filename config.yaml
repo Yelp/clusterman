@@ -32,7 +32,8 @@ module_config:
             log_stream_name: clusterman
         file:
             /nail/srv/configs/clog.yaml
+    -   namespace: clusterman_metrics
+        file: /nail/srv/configs/clusterman_metrics.yaml
 
 aws:
-    # TODO(CLUSTERMAN-59): need real credentials, these don't work
-    access_key_file: /etc/boto_cfg/seagull-spotfleet.json
+    access_key_file: /etc/boto_cfg/clusterman.json
