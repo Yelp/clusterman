@@ -58,8 +58,10 @@ def main(args):
             simulator.add_event(SpotPriceChangeEvent(arrow.get(timestamp), {market: float(price)}))
 
     simulator.run()
-    for report in args.reports:
-        make_report(report, simulator, args.start_time, args.end_time)
+
+    if args.reports is not None:
+        for report in args.reports:
+            make_report(report, simulator, args.start_time, args.end_time)
     print('The total cost for the cluster is {cost}'.format(cost=simulator.cost_data().values()[0]))
 
 
