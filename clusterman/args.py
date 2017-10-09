@@ -2,8 +2,7 @@ import argparse
 import logging
 import sys
 
-from pkg_resources import get_distribution
-
+from clusterman import __version__
 from clusterman.util import get_clusterman_logger
 
 
@@ -88,7 +87,7 @@ def parse_args(description):  # pragma: no cover
     root_parser.add_argument(
         '-v', '--version',
         action='version',
-        version='clusterman ' + get_distribution('clusterman').version,
+        version='clusterman ' + __version__
     )
 
     subparser = root_parser.add_subparsers(help='accepted commands')
