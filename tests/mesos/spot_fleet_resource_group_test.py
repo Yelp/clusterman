@@ -53,6 +53,9 @@ def mock_spot_fleet_resource_group(mock_subnet):
     return SpotFleetResourceGroup(sfr_response['SpotFleetRequestId'])
 
 
+# NOTE: These tests are fairly brittle, as it depends on the implementation of modify_spot_fleet_request
+# inside moto.  So if moto's implementation changes, these tests could break.  However, I still think
+# these tests cover important functionality, and I can't think of a way to make them less brittle.
 def test_fulfilled_capacity(mock_spot_fleet_resource_group):
     assert mock_spot_fleet_resource_group.fulfilled_capacity == 11
 
@@ -109,7 +112,7 @@ def test_terminate_some_instances_missing(mock_logger, mock_spot_fleet_resource_
 
         assert len(instances) == 3
         assert weight == 6
-        assert mock_logger.warn.call_count == 1
+        assert mock_logger.warn.call_count == 2
 
 
 @mock.patch('clusterman.mesos.spot_fleet_resource_group.logger')

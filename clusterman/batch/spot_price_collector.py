@@ -55,6 +55,7 @@ class SpotPriceCollector(BatchDaemon):
     def set_up_clients(self):
         with open(staticconf.read_string('aws.access_key_file')) as boto_cfg_file:
             boto_cfg = json.load(boto_cfg_file)
+        # TODO (CLUSTERMAN-88) use the ec2 client from clusterman.aws.client
         self.ec2_client = boto3.client(
             'ec2',
             aws_access_key_id=boto_cfg['accessKeyId'],

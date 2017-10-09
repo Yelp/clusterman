@@ -19,7 +19,7 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
 
     def __init__(self, sfr_id):
         self.sfr_id = sfr_id
-        self.market_weights = {
+        self.market_weights = {  # Can't change WeightedCapacity of SFRs, so cache them here for frequent access
             get_instance_market(spec): spec['WeightedCapacity']
             for spec in self._configuration['SpotFleetRequestConfig']['LaunchSpecifications']
         }
@@ -45,20 +45,27 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
             logger.warn('No instances to terminate')
             return [], 0
 
+        # Store the state of the spot fleet before we do anything
         original_fulfilled_capacity = self.fulfilled_capacity
         instance_weights = {
             instance['InstanceId']: self.market_weights[get_instance_market(instance)]
             for instance in ec2_describe_instances(instance_ids)
         }
 
+        # AWS API recommends not terminating more than 1000 instances at a time, and to
+        # terminate larger numbers in batches
         terminated_instance_ids = []
         for batch in range(0, len(instance_ids), batch_size):
             response = ec2.terminate_instances(InstanceIds=instance_ids[batch:batch + batch_size])
             terminated_instance_ids.extend([instance['InstanceId'] for instance in response['TerminatingInstances']])
 
+        # It's possible that not every instance is terminated.  The most likely cause for this
+        # is that AWS terminated the instance inbetween getting its status and the terminate_instances
+        # request.  This is probably fine but let's log a warning just in case.
         if sorted(terminated_instance_ids) != sorted(instance_ids):
             missing_instances = list(set(instance_ids) - set(terminated_instance_ids))
-            logger.warn(f'Some instances were not terminated: {missing_instances}')
+            logger.warn('Some instances could not be terminated; they were probably killed previously')
+            logger.warn(f'Missing instances: {missing_instances}')
 
         terminated_weight = sum(instance_weights[i] for i in terminated_instance_ids)
         self.modify_target_capacity(original_fulfilled_capacity - terminated_weight)
@@ -73,6 +80,7 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
     @property
     @ttl_cache(ttl=MESOS_CACHE_TTL)
     def instances(self):
+        """ Responses from this API call are cached to prevent hitting any AWS request limits """
         return [
             instance['InstanceId']
             for page in ec2.get_paginator('describe_spot_fleet_instances').paginate(SpotFleetRequestId=self.sfr_id)
@@ -99,13 +107,16 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
         return self._configuration['SpotFleetRequestState']
 
     @property
+    @ttl_cache(ttl=MESOS_CACHE_TTL)
     def _configuration(self):
+        """ Responses from this API call are cached to prevent hitting any AWS request limits """
         fleet_configuration = ec2.describe_spot_fleet_requests(SpotFleetRequestIds=[self.sfr_id])
         return fleet_configuration['SpotFleetRequestConfigs'][0]
 
     @property
     @ttl_cache(ttl=MESOS_CACHE_TTL)
     def _instances_by_market(self):
+        """ Responses from this API call are cached to prevent hitting any AWS request limits """
         instance_dict = defaultdict(list)
         for instance in ec2_describe_instances(self.instances):
             instance_dict[get_instance_market(instance)].append(instance)
