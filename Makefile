@@ -45,11 +45,38 @@ virtualenv_run: $(VIRTUALENV_RUN_REQUIREMENTS)
 	@# for more information (e.g., using pip-custom-platform, tox virtualenv build, etc)
 	tox -e $(VIRTUALENV_RUN_TARGET)
 
+# debian package info
+PACKAGE_VERSION=$(shell python setup.py --version)
+SYSTEM_PKG_NAME=clusterman
+PYTHON_PKG_NAME=$(shell python setup.py --name)
+
+.PHONY: changelog
+changelog:
+	if [ ! -f debian/changelog ]; then \
+		dch -v ${PACKAGE_VERSION} --create --package=$(SYSTEM_PKG_NAME) -D trusty -u low ${ARGS}; \
+	else \
+		dch -v ${PACKAGE_VERSION} -D trusty -u low ${ARGS}; \
+	fi
+	git add debian/changelog
+
+dist: development
+	ln -sf yelp_package/dist ./dist
+
+itest_%: dist
+	make -C yelp_package $@
+
+package: itest_trusty itest_xenial
+
+tag:
+	git tag v${PACKAGE_VERSION}
+
+
 .PHONY: clean
 clean:
 	rm -rf docs/build
 	rm -rf virtualenv_run/
 	rm -rf .tox
+	unlink dist
 	find . -name '*.pyc' -delete
 	find . -name '__pycache__' -delete
 
