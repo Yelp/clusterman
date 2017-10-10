@@ -43,14 +43,22 @@ def get_frequency_function(frequency_conf):
            {'distribution': <function_name>, 'params': <distribution_parameters>}
 
        where function_name is a function from random, and distribution_parameters is the
-       kwargs for the distribution function
+       kwargs for the distribution function.
+       To ensure timestamp won't be duplicated, we use 1 second shift as the minimal interval.
     """
     if isinstance(frequency_conf, str):
         f = parse_time_interval_seconds(frequency_conf)
         return lambda current_time: current_time.shift(seconds=f)
     else:
         gen_func = getattr(random, frequency_conf['distribution'])
-        return lambda current_time: current_time.shift(seconds=int(gen_func(**frequency_conf['params'])))
+        return lambda current_time: current_time.shift(seconds=int(gen_func(**frequency_conf['params'])) + 1)
+
+
+def get_markets_and_values(dict_keys, values_func):
+    """ Randomly choose N unique elements from dict_keys, where 1<= N <= len(dict_keys)
+        For each selected elements, assign a value from value_func and return
+    """
+    return {k: values_func() for k in random.sample(dict_keys, random.randint(1, len(dict_keys)))}
 
 
 def load_experimental_design(inputfile):
@@ -61,6 +69,7 @@ def load_experimental_design(inputfile):
       metric_name:
         start_time: XXXX
         end_time: YYYY
+        dict_keys: <AWS market specifiction> (optional)
         frequency: <frequency specification>
         values: <values specification>
 
@@ -84,7 +93,11 @@ def load_experimental_design(inputfile):
 
             current_time = start_time
             while current_time < end_time:
-                metrics[metric_type][metric_name].append((current_time, values_func()))
+                if 'dict_keys' in config:
+                    metrics[metric_type][metric_name].append(
+                        (current_time, get_markets_and_values(config['dict_keys'], values_func)))
+                else:
+                    metrics[metric_type][metric_name].append((current_time, values_func()))
                 current_time = next_time_func(current_time)
 
     return metrics
