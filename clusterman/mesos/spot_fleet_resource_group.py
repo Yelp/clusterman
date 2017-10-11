@@ -62,10 +62,10 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
         # It's possible that not every instance is terminated.  The most likely cause for this
         # is that AWS terminated the instance inbetween getting its status and the terminate_instances
         # request.  This is probably fine but let's log a warning just in case.
-        if sorted(terminated_instance_ids) != sorted(instance_ids):
-            missing_instances = list(set(instance_ids) - set(terminated_instance_ids))
+        missing_instances = set(instance_ids) - set(terminated_instance_ids)
+        if missing_instances:
             logger.warn('Some instances could not be terminated; they were probably killed previously')
-            logger.warn(f'Missing instances: {missing_instances}')
+            logger.warn(f'Missing instances: {list(missing_instances)}')
 
         terminated_weight = sum(instance_weights[i] for i in terminated_instance_ids)
         self.modify_target_capacity(original_fulfilled_capacity - terminated_weight)

@@ -1,10 +1,10 @@
 import json
 
 import boto3
+import staticconf
 
 from clusterman.util import get_clusterman_logger
 
-_BOTO_CREDENTIALS_FILE = '/etc/boto_cfg/clusterman.json'
 _session = None
 logger = get_clusterman_logger(__name__)
 
@@ -12,17 +12,22 @@ logger = get_clusterman_logger(__name__)
 def _init_session():
     global _session
 
-    logger.debug(f'initializing AWS client from {_BOTO_CREDENTIALS_FILE}')
+    boto_creds_file = staticconf.read_string('aws.access_key_file')
+    logger.debug(f'initializing AWS client from {boto_creds_file}')
     if not _session:
-        with open(_BOTO_CREDENTIALS_FILE) as f:
+        with open(boto_creds_file) as f:
             creds = json.load(f)
-            creds['aws_access_key_id'] = creds.pop('accessKeyId')
-            creds['aws_secret_access_key'] = creds.pop('secretAccessKey')
-            creds['region_name'] = creds.pop('region')
-            _session = boto3.session.Session(**creds)
+
+        _session = boto3.session.Session(
+            aws_access_key_id=creds['accessKeyId'],
+            aws_secret_access_key=creds['secretAccessKey'],
+            region_name=staticconf.read_string('aws.region')
+        )
 
 
 class _BotoForwarder(type):
+    _client = None
+
     def __new__(cls, name, parents, dct):
         global _session
         cls._session = _session
@@ -32,7 +37,9 @@ class _BotoForwarder(type):
         global _session
         if _session is None:
             _init_session()
-        return getattr(_session.client(cls.client), key)
+        if cls._client is None:
+            cls._client = _session.client(cls.client)
+        return getattr(cls._client, key)
 
 
 class s3(metaclass=_BotoForwarder):
