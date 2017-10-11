@@ -46,18 +46,33 @@ virtualenv_run: $(VIRTUALENV_RUN_REQUIREMENTS)
 	tox -e $(VIRTUALENV_RUN_TARGET)
 
 # debian package info
-PACKAGE_VERSION=$(shell python setup.py --version)
 SYSTEM_PKG_NAME=clusterman
 PYTHON_PKG_NAME=$(shell python setup.py --name)
 
 .PHONY: changelog
-changelog:
-	if [ ! -f debian/changelog ]; then \
-		dch -v ${PACKAGE_VERSION} --create --package=$(SYSTEM_PKG_NAME) -D trusty -u low ${ARGS}; \
+version-bump:
+	@ set -e; \
+	OLD_PACKAGE_VERSION=$$(python setup.py --version); \
+	if [ -z ${EDITOR} ]; then \
+		echo "EDITOR environment variable not set, please set and try again"; \
+		false; \
+	fi; \
+	${EDITOR} ${PYTHON_PKG_NAME}/__init__.py; \
+	PACKAGE_VERSION=$$(python setup.py --version); \
+	if [ "$${OLD_PACKAGE_VERSION}" = "$${PACKAGE_VERSION}" ]; then \
+		echo "package version unchanged; aborting"; \
+		false; \
+	else if [ ! -f debian/changelog ]; then \
+		dch -v $${PACKAGE_VERSION} --create --package=$(SYSTEM_PKG_NAME) -D trusty -u low ${ARGS}; \
 	else \
-		dch -v ${PACKAGE_VERSION} -D trusty -u low ${ARGS}; \
-	fi
-	git add debian/changelog
+		dch -v $${PACKAGE_VERSION} -D trusty -u low ${ARGS}; \
+	fi; fi; \
+	git add debian/changelog ${PYTHON_PKG_NAME}/__init__.py; \
+	set +e; git commit -m "Bump to version $${PACKAGE_VERSION}"; \
+	if [ $$? ]; then git commit -a -m "Bump to version $${PACKAGE_VERSION}"; fi; \
+	if [ $$? ]; then git tag "v$${PACKAGE_VERSION}"; fi
+
+
 
 dist: development
 	ln -sf yelp_package/dist ./dist
@@ -65,11 +80,8 @@ dist: development
 itest_%: dist
 	make -C yelp_package $@
 
+.PHONY:
 package: itest_trusty itest_xenial
-
-tag:
-	git tag v${PACKAGE_VERSION}
-
 
 .PHONY: clean
 clean:
