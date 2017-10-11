@@ -1,0 +1,53 @@
+clusterman (0.4.2) trusty; urgency=low
+
+  * mesos pool resource group interface added
+
+ -- David Morrison <drmorr@yelp.com>  Fri, 6 Oct 2017 15:58:13 -0700
+
+clusterman (0.4.1) trusty; urgency=low
+
+  * import publicly accessible objects from clusterman_metrics directly
+
+ -- Chien-An Lai <chl@yelp.com>  Fri, 6 Oct 2017 15:44:43 -0700
+
+clusterman (0.4.0) trusty; urgency=low
+
+  * updated code to work with new AWS pricing model
+
+ -- David Morrison <drmorr@yelp.com>  Fri, 22 Sep 2017 17:57:56 -0700
+
+clusterman (0.3.0) trusty; urgency=low
+
+  * use the SimulationClient for fake cluster capacity data
+
+ -- David Morrison <drmorr@yelp.com>  Wed, 20 Sep 2017 11:34:34 -0700
+
+clusterman (0.2.1) trusty; urgency=low
+
+  * modifications to revoke charges when AWS terminates instances
+
+ -- David Morrison <drmorr@yelp.com>  Tue, 12 Sep 2017 12:14:31 -0700
+
+clusterman (0.2.0) trusty; urgency=low
+
+  * initial SignalFX backfill code
+
+ -- David Morrison <drmorr@yelp.com>  Thu, 17 Aug 2017 14:28:10 -0700
+
+clusterman (0.1.0) trusty; urgency=low
+
+  * generate and load fake data
+
+ -- David Morrison <drmorr@yelp.com>  Thu, 03 Aug 2017 16:04:59 -0700
+
+clusterman (0.0.2) trusty; urgency=low
+
+  * simulate command for spot pricing
+
+ -- David Morrison <drmorr@yelp.com>  Mon, 31 Jul 2017 14:33:47 -0700
+
+clusterman (0.0.1) trusty; urgency=low
+
+  * Initial release.
+
+ -- David Morrison <drmorr@yelp.com>  Mon, 10 Jul 2017 12:22:29 -0700
