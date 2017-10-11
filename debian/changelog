@@ -1,3 +1,15 @@
+clusterman (0.4.4) trusty; urgency=low
+
+  * reinstated debian package code
+
+ -- David Morrison <drmorr@yelp.com>  Wed, 11 Oct 2017 14:53:53 -0700
+
+clusterman (0.4.3) trusty; urgency=low
+
+  * report generation flag bugfix
+
+ -- Chien-An Lai <chl@yelp.com>  Fri, 9 Oct 2017 16:43:57 -0700
+
 clusterman (0.4.2) trusty; urgency=low
 
   * mesos pool resource group interface added
