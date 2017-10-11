@@ -1,4 +1,5 @@
-DOCKER_TAG ?= clusterman-dev-$(USER)
+PKG_NAME=clusterman
+DOCKER_TAG ?= ${PKG_NAME}-dev-$(USER)
 VIRTUALENV_RUN_TARGET = virtualenv_run-dev
 VIRTUALENV_RUN_REQUIREMENTS = requirements.txt requirements-dev.txt
 
@@ -28,7 +29,8 @@ test: clean-cache
 
 .PHONY: itest
 itest: cook-image
-	paasta local-run --service clusterman --cluster norcal-devc --instance main
+	paasta local-run --service ${PKG_NAME} --cluster norcal-prod --instance spot_prices \
+		--cmd "python -m clusterman.batch.spot_price_collector --help"
 
 .PHONY: cook-image
 cook-image:
@@ -40,39 +42,33 @@ install-hooks: virtualenv_run
 	./virtualenv_run/bin/pre-commit install -f --install-hooks
 
 virtualenv_run: $(VIRTUALENV_RUN_REQUIREMENTS)
-	@# See https://confluence.yelpcorp.com/display/~asottile/GettingPythonOffLucid
-	@# and https://migration-status.dev.yelp.com/metric/ToxNonLucid
-	@# for more information (e.g., using pip-custom-platform, tox virtualenv build, etc)
 	tox -e $(VIRTUALENV_RUN_TARGET)
 
-# debian package info
-SYSTEM_PKG_NAME=clusterman
-PYTHON_PKG_NAME=$(shell python setup.py --name)
-
-.PHONY: changelog
-version-bump:
-	@ set -e; \
-	OLD_PACKAGE_VERSION=$$(python setup.py --version); \
+.PHONY: version-bump
+version-bump: test itest package
+	@set -e; \
 	if [ -z ${EDITOR} ]; then \
 		echo "EDITOR environment variable not set, please set and try again"; \
 		false; \
 	fi; \
-	${EDITOR} ${PYTHON_PKG_NAME}/__init__.py; \
+	OLD_PACKAGE_VERSION=$$(python setup.py --version); \
+	${EDITOR} ${PKG_NAME}/__init__.py; \
 	PACKAGE_VERSION=$$(python setup.py --version); \
 	if [ "$${OLD_PACKAGE_VERSION}" = "$${PACKAGE_VERSION}" ]; then \
 		echo "package version unchanged; aborting"; \
 		false; \
-	else if [ ! -f debian/changelog ]; then \
-		dch -v $${PACKAGE_VERSION} --create --package=$(SYSTEM_PKG_NAME) -D trusty -u low ${ARGS}; \
+	elif [ ! -f debian/changelog ]; then \
+		dch -v $${PACKAGE_VERSION} --create --package=$(PKG_NAME) -D trusty -u low ${ARGS}; \
 	else \
 		dch -v $${PACKAGE_VERSION} -D trusty -u low ${ARGS}; \
-	fi; fi; \
-	git add debian/changelog ${PYTHON_PKG_NAME}/__init__.py; \
+	fi; \
+	git add debian/changelog ${PKG_NAME}/__init__.py; \
 	set +e; git commit -m "Bump to version $${PACKAGE_VERSION}"; \
-	if [ $$? ]; then git commit -a -m "Bump to version $${PACKAGE_VERSION}"; fi; \
-	if [ $$? ]; then git tag "v$${PACKAGE_VERSION}"; fi
-
-
+	if [ $$? -ne 0 ]; then \
+		git add debian/changelog ${PKG_NAME}/__init__.py; \
+		git commit -m "Bump to version $${PACKAGE_VERSION}"; \
+	fi; \
+	if [ $$? -eq 0 ]; then git tag "v$${PACKAGE_VERSION}"; fi
 
 dist: development
 	ln -sf yelp_package/dist ./dist
