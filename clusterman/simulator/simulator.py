@@ -140,7 +140,6 @@ class Simulator:
         #   a) the instance is not a spot instance
         #   b) self.refund_outbid is false, e.g. we have "new-style" AWS pricing
         #   c) the instance bid price (when it was terminated) is greater than the current spot price
-        print(instance.bid_price, instance.end_time, prices.call(instance.end_time))
         if not instance.spot or not self.refund_outbid or instance.bid_price > prices.call(instance.end_time):
             curr_timestamp += self.billing_frequency
         self.cost_per_hour.add_delta(curr_timestamp, -last_billed_price)
