@@ -1,5 +1,6 @@
 import mock
 import pytest
+import staticconf.testing
 from moto import mock_ec2
 
 from clusterman.aws.client import ec2
@@ -13,6 +14,27 @@ def setup_ec2():
     mock_ec2_obj.start()
     yield
     mock_ec2_obj.stop()
+
+
+@pytest.fixture(autouse=True)
+def mock_config():
+    mock_config = {
+        'aws': {
+            'access_key_file': '/etc/secrets',
+            'region': 'us-west-2',
+        },
+    }
+    with staticconf.testing.MockConfiguration(mock_config):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def mock_aws_client_setup():
+    with mock.patch(
+        'clusterman.aws.client.open',
+        mock.mock_open(read_data='{"accessKeyId": "id", "secretAccessKey": "key"}')
+    ):
+        yield
 
 
 @pytest.fixture
