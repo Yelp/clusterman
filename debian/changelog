@@ -1,3 +1,9 @@
+clusterman (0.4.5) trusty; urgency=low
+
+  * make tools/generate-data be able to generate capacity data
+
+ -- Chien-An Lai <chl@yelp.com>  Thu, 12 Oct 2017 13:11:10 -0700
+
 clusterman (0.4.4) trusty; urgency=low
 
   * reinstated debian package code
