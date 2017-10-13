@@ -70,7 +70,10 @@ def test_instances_by_market():
     ([(MARKETS[2], 7), (MARKETS[1], 5), (MARKETS[0], 1)], {MARKETS[1]: 3.0, MARKETS[2]: 3.0}),
     # MARKETS[0] residual goes negative because of overflow
     ([(MARKETS[1], 9), (MARKETS[2], 7), (MARKETS[0], 1), (MARKETS[3], 3)],
-        {MARKETS[1]: 6.0, MARKETS[2]: 3.0, MARKETS[3]: 4.0}),
+        {MARKETS[1]: 6.0, MARKETS[2]: 3.0, MARKETS[3]: 3.0}),
+    # MARKET[0] residual is negative, MERKET[1] residual goes negative because of overflow
+    ([(MARKETS[0], -6), (MARKETS[1], 1), (MARKETS[2], 3), (MARKETS[3], 6)],
+        {MARKETS[2]: 1.0, MARKETS[3]: 2.0}),
 ])
 def test_get_new_market_counts(residuals, result, spot_fleet, spot_prices):
     spot_fleet.modify_size({MARKETS[0]: 1, MARKETS[1]: 1}, 0)
@@ -92,7 +95,7 @@ def test_compute_market_residuals_existing_fleet(spot_fleet, spot_prices, test_i
     target_capacity = 20
     spot_fleet.modify_size(test_instances_by_market, 0)
     residuals = spot_fleet._compute_market_residuals(target_capacity, test_instances_by_market.keys(), spot_prices)
-    assert residuals == [(MARKETS[0], 4), (MARKETS[3], 3), (MARKETS[1], 3)]
+    assert residuals == [(MARKETS[3], 3), (MARKETS[1], 3), (MARKETS[0], 4)]
 
 
 def test_total_market_weight(spot_fleet_request_config, spot_fleet, test_instances_by_market):

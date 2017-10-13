@@ -42,7 +42,7 @@ class SpotFleet(Cluster):
                     {
                         'InstanceType': AWS EC2 instance type name,
                         'SubnetId': Subnet the instance should be launched in (should map to a region in common/aws.py),
-                        'SpotPrice': How much to bid in this market,
+                        'SpotPrice': How much, in terms of price per unit capacity, to bid in this market,
                         'WeightedCapacity': How much to weight instances in this market by when calculating capacity
                     },
                     ...
@@ -97,11 +97,14 @@ class SpotFleet(Cluster):
         new_market_counts = {}
 
         for i, (market, residual) in enumerate(residuals):
-            # We never terminate instances here, so ignore negative residuals after overflow correction
-            residual -= residual_correction
-            if residual <= 0:
+            # We never terminate instances here, so we just update the correction here
+            remaining_markets = len(residuals) - (i + 1)
+            if residual < residual_correction:
+                if remaining_markets > 0:
+                    residual_correction += (residual_correction - residual) / remaining_markets
                 continue
 
+            residual -= residual_correction
             weight = self._instance_types[market].weight
             instance_num, remainder = divmod(residual, weight)
 
@@ -112,13 +115,11 @@ class SpotFleet(Cluster):
                 overflow = (instance_num * weight) - residual
 
                 # Evenly divide the overflow among the remaining markets
-                remaining_markets = len(residuals) - (i + 1)
                 if remaining_markets > 0:
                     residual_correction += overflow / remaining_markets
 
             if instance_num != 0:
                 new_market_counts[market] = instance_num + self.market_size(market)
-
         return new_market_counts
 
     def _compute_market_residuals(self, target_capacity, markets, spot_prices):
@@ -139,7 +140,7 @@ class SpotFleet(Cluster):
 
         def residual_sort_key(value_tuple):
             market, residual = value_tuple
-            return (-residual, spot_prices[market])
+            return (residual, spot_prices[market])
 
         return sorted(
             [(market, residual(market)) for market in markets if residual(market) > 0],
@@ -163,7 +164,7 @@ class SpotFleet(Cluster):
         ]
 
     @property
-    def capacity(self):
+    def fulfilled_capacity(self):
         """ The current actual capacity of the spot fleet
 
         Note that the actual capacity may be greater than the target capacity if instance weights do not evenly divide
