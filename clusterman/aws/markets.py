@@ -85,6 +85,7 @@ EC2_INSTANCE_TYPES = {
 }
 
 EC2_AZS = [
+    None,
     'us-west-1a',
     'us-west-1b',
     'us-west-1c',
@@ -99,5 +100,8 @@ def get_instance_resources(market):
 
 
 def get_instance_market(aws_instance_object):
-    az = ec2.describe_subnets(SubnetIds=[aws_instance_object['SubnetId']])['Subnets'][0]['AvailabilityZone']
+    try:
+        az = ec2.describe_subnets(SubnetIds=[aws_instance_object['SubnetId']])['Subnets'][0]['AvailabilityZone']
+    except KeyError:
+        az = None
     return InstanceMarket(aws_instance_object['InstanceType'], az)

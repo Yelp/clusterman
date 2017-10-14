@@ -7,6 +7,7 @@ cachetools==2.0.1
 certifi==2017.7.27.1
 chardet==3.0.4
 clusterman-metrics==0.8.2
+colorama==0.3.9
 colorlog==3.1.0
 contextdecorator==0.10.0
 contextlib2==0.5.5

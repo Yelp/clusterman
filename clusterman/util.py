@@ -4,6 +4,8 @@ import arrow
 import colorlog
 import parsedatetime
 import staticconf
+from colorama import Fore
+from colorama import Style
 from yelp_servlib.config_util import load_default_config
 
 
@@ -26,6 +28,16 @@ def ask_for_confirmation(prompt='Are you sure? ', default=True):
             continue
         else:
             return 'yes'.startswith(ans)
+
+
+def colored_status(status, active, changing, inactive):
+    if status in active:
+        color_str = Fore.GREEN
+    elif status in changing:
+        color_str = Fore.BLUE
+    elif status in inactive:
+        color_str = Fore.RED
+    return color_str + status + Style.RESET_ALL
 
 
 def get_clusterman_logger(name):

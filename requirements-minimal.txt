@@ -5,6 +5,7 @@ boto3
 cachetools
 clusterman-metrics>=0.8.0
 colorlog
+colorama
 matplotlib
 numpy
 parsedatetime

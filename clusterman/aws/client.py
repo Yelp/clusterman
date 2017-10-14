@@ -53,7 +53,7 @@ class ec2(metaclass=_BotoForwarder):
 def ec2_describe_instances(instance_ids=None, filters=None):
 
     instance_ids = instance_ids or []
-    filters = [] if not filters else [{'Name': name, 'Values': values} for name, values in filters.items()]
+    filters = filters or []
 
     instance_paginator = ec2.get_paginator('describe_instances')
     for page in instance_paginator.paginate(InstanceIds=instance_ids, Filters=filters):
