@@ -29,7 +29,7 @@ def mock_spot_price_batch_config():
 
 
 @pytest.fixture
-def default_options(batch, args=None):
+def batch_arg_parser(batch, args=None):
     args = args or []
     parser = argparse.ArgumentParser()
     batch.parse_args(parser)
@@ -37,18 +37,18 @@ def default_options(batch, args=None):
 
 
 def test_start_time_parsing(batch):
-    args = default_options(batch, ['--start-time', '2017-09-12T12:11:23'])
+    args = batch_arg_parser(batch, ['--start-time', '2017-09-12T12:11:23'])
     assert args.start_time == datetime.datetime(2017, 9, 12, 12, 11, 23, tzinfo=datetime.timezone.utc)
 
 
 @mock.patch('arrow.utcnow')
 def test_start_time_default(mock_now, batch):
-    args = default_options(batch)
+    args = batch_arg_parser(batch)
     assert args.start_time == mock_now.return_value
 
 
 def test_configure_initial_default(batch, mock_spot_price_batch_config):
-    batch.options = default_options(batch, ['--aws-region', 'us-test-2'])
+    batch.options = batch_arg_parser(batch, ['--aws-region', 'us-test-2'])
     with mock.patch('clusterman.batch.spot_price_collector.setup_config'):
         batch.configure_initial()
 
@@ -58,8 +58,8 @@ def test_configure_initial_default(batch, mock_spot_price_batch_config):
     assert batch.dedupe_interval == 60
 
 
-def test_configure_initial_with_options(batch, mock_spot_price_batch_config, default_options):
-    batch.options = default_options  # just to set up options object, will override
+def test_configure_initial_with_options(batch, mock_spot_price_batch_config, batch_arg_parser):
+    batch.options = batch_arg_parser  # just to set up options object, will override
     batch.options.env_config_path = 'custom.yaml'
     batch.options.start_time = arrow.get(2017, 9, 1, 1, 1, 0)
     batch.options.aws_region = 'us-other-1'

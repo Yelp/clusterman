@@ -49,7 +49,7 @@ def add_region_arg(parser):  # pragma: no cover
     """ Add an --aws-region argument to a parser """
     parser.add_argument(
         '--aws-region',
-        help='Path to clusterman configuration file',
+        help='AWS region to operate in',
     )
 
 
@@ -58,7 +58,7 @@ def add_env_config_path_arg(parser):  # pragma: no cover
     parser.add_argument(
         '--env-config-path',
         default='/nail/srv/configs/clusterman.yaml',
-        help='Path to custom app configuration.',
+        help='Path to clusterman configuration file',
     )
 
 
