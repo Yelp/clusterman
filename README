@@ -49,7 +49,7 @@ How to run tests
     $ make test
 
     # For paasta service tests:
-    paasta local-run --cluster norcal-devc --instance main --cmd '<Your testing command>'
+    paasta local-run --cluster norcal-devc --instance testing --cmd '<Your testing command>'
 
 
 How To Release a new version
