@@ -53,3 +53,42 @@ def mock_config():
 def mock_aws_client_setup():
     with mock_open('/etc/secrets', '{"accessKeyId": "foo", "secretAccessKey": "bar"}'):
         yield
+
+
+@pytest.fixture
+def mock_agents_dict():
+    return {
+        'get_agents': {
+            'agents': [
+                {
+                    'agent_info': {
+                        'attributes': [
+                            {'name': 'blah', 'scalar': {'value': 10}},
+                            {'name': 'role', 'text': {'value': 'asdf'}},
+                        ],
+                        'hostname': 'not-in-the-role.yelpcorp.com',
+                    }
+                },
+                {
+                    'agent_info': {
+                        'hostname': 'asdf.yelpcorp.com',
+                        'allocated_resources': [{'name': 'mem', 'scalar': {'value': 10}}],
+                    }
+                },
+                {
+                    'agent_info': {
+                        'attributes': [
+                            {'name': 'blah', 'scalar': {'value': 10}},
+                            {'name': 'role', 'text': {'value': 'baz'}},
+                            {'name': 'ssss', 'text': {'value': 'hjkl'}},
+                        ],
+                        'hostname': 'im-in-the-role.yelpcorp.com',
+                        'allocated_resources': [
+                            {'name': 'mem', 'scalar': {'value': 20}},
+                            {'name': 'cpus', 'scalar': {'value': 10}},
+                        ],
+                    }
+                },
+            ]
+        }
+    }

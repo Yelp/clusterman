@@ -31,13 +31,14 @@ def ask_for_confirmation(prompt='Are you sure? ', default=True):
 
 
 def colored_status(status, active, changing, inactive):
+    color_str = ''
     if status in active:
         color_str = Fore.GREEN
     elif status in changing:
         color_str = Fore.BLUE
     elif status in inactive:
         color_str = Fore.RED
-    return color_str + status + Style.RESET_ALL
+    return (color_str + status + Style.RESET_ALL if color_str else status)
 
 
 def get_clusterman_logger(name):

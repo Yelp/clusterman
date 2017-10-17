@@ -1,7 +1,7 @@
 import json
 from collections import defaultdict
 
-from cachetools.func import ttl_cache
+from cached_property import timed_cached_property
 
 from clusterman.aws.client import ec2
 from clusterman.aws.client import ec2_describe_instances
@@ -56,6 +56,7 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
             raise ResourceGroupError("Could not change size of spot fleet: {resp}".format(
                 resp=json.dumps(response),
             ))
+        self._invalidate_cache()
 
     @protect_unowned_instances
     def terminate_instances_by_id(self, instance_ids, batch_size=500):
@@ -100,17 +101,16 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
         # for them in the target_capacity change.  Note that if there is some other reason why the instances
         # weren't terminated, they could still be floating around, as in case (1) in the race condition
         # discussion above
-        self.modify_target_capacity(original_fulfilled_capacity - capacity_to_terminate)
+        self.modify_target_capacity(original_fulfilled_capacity - capacity_to_terminate)  # invalidates the cache
 
         logger.info(f'{self.id} terminated weight: {capacity_to_terminate}; instances: {terminated_instance_ids}')
-        return terminated_instance_ids, capacity_to_terminate
+        return terminated_instance_ids
 
     @property
     def id(self):
         return self.sfr_id
 
-    @property
-    @ttl_cache(ttl=CACHE_TTL)
+    @timed_cached_property(ttl=CACHE_TTL)
     def instances(self):
         """ Responses from this API call are cached to prevent hitting any AWS request limits """
         return [
@@ -139,18 +139,23 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
     def status(self):
         return self._configuration['SpotFleetRequestState']
 
-    @property
-    @ttl_cache(ttl=CACHE_TTL)
+    @timed_cached_property(ttl=CACHE_TTL)
     def _configuration(self):
         """ Responses from this API call are cached to prevent hitting any AWS request limits """
         fleet_configuration = ec2.describe_spot_fleet_requests(SpotFleetRequestIds=[self.sfr_id])
         return fleet_configuration['SpotFleetRequestConfigs'][0]
 
-    @property
-    @ttl_cache(ttl=CACHE_TTL)
+    @timed_cached_property(ttl=CACHE_TTL)
     def _instances_by_market(self):
         """ Responses from this API call are cached to prevent hitting any AWS request limits """
         instance_dict = defaultdict(list)
         for instance in ec2_describe_instances(self.instances):
             instance_dict[get_instance_market(instance)].append(instance)
         return instance_dict
+
+    def _invalidate_cache(self):
+        for cached_property in ('instances', '_configuration', '_instances_by_market'):
+            try:
+                del self.__dict__[cached_property]
+            except KeyError:
+                continue

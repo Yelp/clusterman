@@ -1,1 +1,1 @@
-CACHE_TTL = 10
+CACHE_TTL = 30

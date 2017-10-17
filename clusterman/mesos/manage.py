@@ -7,8 +7,8 @@ def main(args):
         raise NotImplementedError('Cluster recycling is not yet supported')
     manager = MesosRoleManager(args.role, args.role_config_path)
     print(f'Modifying target capacity from {manager.target_capacity} to {args.target_capacity}')
-    new_target_capacity = manager.modify_target_capacity(args.target_capacity)
-    print(f'Operation complete.  New target capacity set to {new_target_capacity}')
+    manager.modify_target_capacity(args.target_capacity)
+    print(f'Operation complete.  New target capacity set to {manager.target_capacity}')
 
 
 @subparser('manage', 'check the status of a Mesos cluster', main)

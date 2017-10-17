@@ -1,8 +1,11 @@
 import arrow
 import mock
 import pytest
+from colorama import Fore
+from colorama import Style
 
 from clusterman.util import ask_for_confirmation
+from clusterman.util import colored_status
 from clusterman.util import parse_time_interval_seconds
 from clusterman.util import parse_time_string
 
@@ -17,6 +20,13 @@ def test_ask_for_confirmation_invalid_input():
     with mock.patch('builtins.input', side_effect=['asdf', 'yes']) as mock_input:
         assert ask_for_confirmation() is True
         assert mock_input.call_count == 2
+
+
+def test_colored_status():
+    assert colored_status('foo', ('foo', 'bar'), ('baz', 'asdf'), ('hjkl',)) == Fore.GREEN + 'foo' + Style.RESET_ALL
+    assert colored_status('baz', ('foo', 'bar'), ('baz', 'asdf'), ('hjkl',)) == Fore.BLUE + 'baz' + Style.RESET_ALL
+    assert colored_status('hjkl', ('foo', 'bar'), ('baz', 'asdf'), ('hjkl',)) == Fore.RED + 'hjkl' + Style.RESET_ALL
+    assert colored_status('qwerty', ('foo', 'bar'), ('baz', 'asdf'), ('hjkl',)) == 'qwerty'
 
 
 def test_parse_time_string_without_tz():

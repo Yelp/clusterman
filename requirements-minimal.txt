@@ -3,6 +3,7 @@ arrow
 botocore==1.7.25.post1
 boto3
 cachetools
+cached-property
 clusterman-metrics>=0.8.0
 colorlog
 colorama

@@ -1,11 +1,15 @@
 
-class ClustermanError(Exception):
+class ClustermanException(Exception):
     pass
 
 
-class MesosRoleManagerError(ClustermanError):
+class MesosRoleManagerError(ClustermanException):
     pass
 
 
-class ResourceGroupError(ClustermanError):
+class MarketProtectedException(ClustermanException):
+    pass
+
+
+class ResourceGroupError(ClustermanException):
     pass
