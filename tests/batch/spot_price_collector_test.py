@@ -19,9 +19,11 @@ def batch():
 @pytest.fixture
 def mock_spot_price_batch_config():
     mock_config = {
-        'spot_prices': {
-            'run_interval_seconds': 120,
-            'dedupe_interval_seconds': 60,
+        'batches': {
+            'spot_prices': {
+                'run_interval_seconds': 120,
+                'dedupe_interval_seconds': 60,
+            }
         }
     }
     with staticconf.testing.MockConfiguration(mock_config):
