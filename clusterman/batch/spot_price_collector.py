@@ -41,8 +41,8 @@ class SpotPriceCollector(BatchDaemon):
 
         self.region = self.options.aws_region
         self.last_time_called = self.options.start_time
-        self.run_interval = staticconf.read_int('spot_prices.run_interval_seconds')
-        self.dedupe_interval = staticconf.read_int('spot_prices.dedupe_interval_seconds')
+        self.run_interval = staticconf.read_int('batches.spot_prices.run_interval_seconds')
+        self.dedupe_interval = staticconf.read_int('batches.spot_prices.dedupe_interval_seconds')
 
     @batch_context
     def get_writer(self):
