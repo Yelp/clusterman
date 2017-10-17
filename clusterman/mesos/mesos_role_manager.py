@@ -12,7 +12,7 @@ from clusterman.aws.markets import get_instance_market
 from clusterman.exceptions import MarketProtectedException
 from clusterman.exceptions import MesosRoleManagerError
 from clusterman.exceptions import ResourceGroupProtectedException
-from clusterman.mesos.constants import CACHE_TTL
+from clusterman.mesos.constants import CACHE_TTL_SECONDS
 from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_s3
 from clusterman.mesos.util import allocated_cpu_resources
 from clusterman.mesos.util import find_largest_capacity_market
@@ -269,7 +269,7 @@ class MesosRoleManager:
     def fulfilled_capacity(self):
         return sum(group.fulfilled_capacity for group in self.resource_groups)
 
-    @timed_cached_property(ttl=CACHE_TTL)
+    @timed_cached_property(ttl=CACHE_TTL_SECONDS)
     def _agents(self):
         response = requests.post(
             self.api_endpoint,
