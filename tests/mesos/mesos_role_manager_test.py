@@ -1,38 +1,37 @@
 import mock
 import pytest
-import staticconf.testing
+import yaml
 from moto import mock_ec2
 
 from clusterman.aws.client import ec2
 from clusterman.exceptions import MarketProtectedException
 from clusterman.exceptions import MesosRoleManagerError
 from clusterman.exceptions import ResourceGroupProtectedException
+from clusterman.mesos.mesos_role_manager import DEFAULT_ROLE_CONFIG
+from clusterman.mesos.mesos_role_manager import get_roles_in_cluster
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
-from clusterman.mesos.mesos_role_manager import NAMESPACE
 from clusterman.mesos.mesos_role_manager import SERVICES_FILE
-from tests.mesos.conftest import mock_open
+from tests.conftest import mock_open
 
 
 @pytest.fixture
-def mock_config_file():
-    mock_config = {
+def mock_role_config():
+    return {
         'defaults': {
             'min_capacity': 3,
             'max_capacity': 345,
         },
         'mesos': {
-            'master_discovery': 'the.mesos.master',
-            'resource_groups': {
-                's3': {
-                    'bucket': 'dummy-bucket',
-                    'prefix': 'nowhere',
+            'mesos-test': {
+                'resource_groups': {
+                    's3': {
+                        'bucket': 'dummy-bucket',
+                        'prefix': 'nowhere',
+                    }
                 }
             }
         }
     }
-
-    with staticconf.testing.MockConfiguration(mock_config, namespace=NAMESPACE):
-        yield
 
 
 @pytest.fixture
@@ -50,19 +49,48 @@ def mock_resource_groups():
 
 
 @pytest.fixture
-def mock_role_manager(mock_config_file, mock_resource_groups):
-    with mock.patch('clusterman.mesos.mesos_role_manager.staticconf.YamlConfiguration'), \
-            mock_open(SERVICES_FILE, 'the.mesos.master:\n  host: foo\n  port: 1234'), \
+def mock_role_manager(mock_role_config, mock_resource_groups):
+    role_config_file = DEFAULT_ROLE_CONFIG.format(name='baz')
+    with mock_open(role_config_file, yaml.dump(mock_role_config)), \
+            mock_open(SERVICES_FILE, 'the.mesos.leader:\n  host: foo\n  port: 1234'), \
             mock.patch('clusterman.mesos.mesos_role_manager.load_spot_fleets_from_s3') as mock_load:
         mock_load.return_value = []
-        manager = MesosRoleManager('baz', 'dummy-file.yaml')
+        manager = MesosRoleManager('baz', 'mesos-test')
         manager.resource_groups = mock_resource_groups
+
         return manager
 
 
 def test_mesos_role_manager_init(mock_role_manager):
     assert mock_role_manager.name == 'baz'
     assert mock_role_manager.api_endpoint == 'http://foo:1234/api/v1'
+
+
+@pytest.mark.parametrize('cluster,roles', [
+    ('cluster-A', ['role-1', 'role-2']),
+    ('cluster-B', ['role-2']),
+    ('cluster-C', []),
+])
+@mock.patch('os.listdir')
+def test_get_roles_in_cluster(mock_ls, cluster, roles):
+    mock_ls.return_value = ['role-1', 'role-2']
+    with mock_open(
+        DEFAULT_ROLE_CONFIG.format(name='role-1'),
+        contents=yaml.dump({
+            'mesos': {
+                'cluster-A': {},
+            }
+        }),
+    ), mock_open(
+        DEFAULT_ROLE_CONFIG.format(name='role-2'),
+        contents=yaml.dump({
+            'mesos': {
+                'cluster-A': {},
+                'cluster-B': {},
+            }
+        }),
+    ):
+        assert roles == get_roles_in_cluster(cluster)
 
 
 def test_modify_target_capacity_no_resource_groups(mock_role_manager):
@@ -300,17 +328,96 @@ def test_idle_agents_by_market(mock_role_manager):
 
 
 @mock.patch('clusterman.mesos.mesos_role_manager.requests.post')
-class TestAgentGenerator:
-    def test_agent_generator_error(self, mock_post, mock_role_manager):
+class TestAgentListing:
+    def test_agent_list_error(self, mock_post, mock_role_manager):
         mock_post.return_value.ok = False
         mock_post.return_value.text = 'dummy error'
         with pytest.raises(MesosRoleManagerError):
-            for a in mock_role_manager._agents:
-                print(a)
+            mock_role_manager._agents
 
-    def test_agent_generator_filter_roles(self, mock_post, mock_agents_dict, mock_role_manager):
+    def test_filter_roles(self, mock_post, mock_agents_dict, mock_role_manager):
         mock_post.return_value.ok = True
         mock_post.return_value.json.return_value = mock_agents_dict
-        agents = list(mock_role_manager._agents)
+        agents = mock_role_manager._agents
         assert len(agents) == 1
         assert agents[0]['agent_info']['hostname'] == 'im-in-the-role.yelpcorp.com'
+
+        # Multiple calls should have the same result.
+        assert agents == mock_role_manager._agents
+        assert mock_post.call_count == 2  # cache expires immediately in tests
+
+
+class TestResources:
+    @pytest.fixture
+    def mock_agents(self, mock_role_manager):
+        with mock.patch(
+            'clusterman.mesos.mesos_role_manager.MesosRoleManager._agents',
+            new_callable=mock.PropertyMock
+        ) as mock_agents:
+            mock_agents.return_value = [
+                {
+                    'agent_info': {
+                        'id': {'value': 'idle'},
+                    },
+                    'total_resources': [
+                        {'name': 'cpus', 'scalar': {'value': 4}, 'type': 'SCALAR'},
+                        {'name': 'gpus', 'scalar': {'value': 2}, 'type': 'SCALAR'},
+                    ],
+                },
+                {
+                    'agent_info': {
+                        'id': {'value': 'no-gpus'},
+                    },
+                    'total_resources': [
+                        {'name': 'cpus', 'scalar': {'value': 8}, 'type': 'SCALAR'},
+                    ],
+                    'allocated_resources': [
+                        {'name': 'cpus', 'scalar': {'value': 1.5}, 'type': 'SCALAR'},
+                    ],
+                },
+                {
+                    'agent_info': {
+                        'id': {'value': 'gpus-1'},
+                    },
+                    'total_resources': [
+                        {'name': 'gpus', 'scalar': {'value': 2}, 'type': 'SCALAR'},
+                    ],
+                    'allocated_resources': [
+                        {'name': 'gpus', 'scalar': {'value': 1}, 'type': 'SCALAR'},
+                    ],
+                },
+                {
+                    'agent_info': {
+                        'id': {'value': 'gpus-2'},
+                    },
+                    'total_resources': [
+                        {'name': 'gpus', 'scalar': {'value': 4}, 'type': 'SCALAR'},
+                    ],
+                    'allocated_resources': [
+                        {'name': 'gpus', 'scalar': {'value': 0.2}, 'type': 'SCALAR'},
+                    ],
+                },
+            ]
+            yield mock_role_manager
+
+    @pytest.mark.parametrize('resource_name,expected', [
+        ('cpus', {'idle': 0, 'no-gpus': 1.5, 'gpus-1': 0, 'gpus-2': 0}),
+        ('gpus', {'idle': 0, 'no-gpus': 0, 'gpus-1': 1, 'gpus-2': 0.2}),
+    ])
+    def test_utilization(self, mock_agents, resource_name, expected):
+        assert mock_agents.get_resource_utilization(resource_name) == expected
+
+    @pytest.mark.parametrize('resource_name,expected', [
+        ('cpus', 12),
+        ('gpus', 8),
+    ])
+    def test_total_cpus(self, mock_agents, resource_name, expected):
+        assert mock_agents.get_total_resources(resource_name) == expected
+
+    @pytest.mark.parametrize('resource_name,expected', [
+        ('mem', 0),
+        ('cpus', 0.125),
+        ('gpus', 0.15),
+    ])
+    def test_average_utilization(self, mock_agents, resource_name, expected):
+        assert mock_agents.get_average_resource_utilization(resource_name) == expected

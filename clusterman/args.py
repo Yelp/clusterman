@@ -53,6 +53,15 @@ def add_region_arg(parser):  # pragma: no cover
     )
 
 
+def add_cluster_arg(parser, required=False):  # pragma: no cover
+    """ Add --cluster argument to a parser """
+    parser.add_argument(
+        '--cluster',
+        required=required,
+        help='Name of Mesos cluster to operate on',
+    )
+
+
 def add_env_config_path_arg(parser):  # pragma: no cover
     """ Add a --env-config-path argument to a parser """
     parser.add_argument(
@@ -98,7 +107,6 @@ def parse_args(description):  # pragma: no cover
     from clusterman.tools.generate_data import add_generate_data_parser
 
     root_parser = argparse.ArgumentParser(description=description, formatter_class=help_formatter)
-    add_region_arg(root_parser)
     add_env_config_path_arg(root_parser)
     root_parser.add_argument(
         '--log-level',

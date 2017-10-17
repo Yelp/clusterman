@@ -1,3 +1,4 @@
+import os
 import socket
 from collections import defaultdict
 
@@ -16,25 +17,48 @@ from clusterman.mesos.constants import CACHE_TTL_SECONDS
 from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_s3
 from clusterman.mesos.util import allocated_cpu_resources
 from clusterman.mesos.util import find_largest_capacity_market
+from clusterman.mesos.util import get_resource_value
 from clusterman.util import get_clusterman_logger
 
 
-DEFAULT_ROLE_CONFIG = '/nail/srv/configs/clusterman-roles/{name}/config.yaml'
+ROLE_CONFIG_DIR = '/nail/srv/configs/clusterman-roles'
+DEFAULT_ROLE_CONFIG = ROLE_CONFIG_DIR + '/{name}/config.yaml'
 SERVICES_FILE = '/nail/etc/services/services.yaml'
 NAMESPACE = 'role_config'
 logger = get_clusterman_logger(__name__)
 
 
+def get_roles_in_cluster(cluster_name):
+    all_roles = os.listdir(ROLE_CONFIG_DIR)
+    cluster_roles = []
+    for role in all_roles:
+        role_file = DEFAULT_ROLE_CONFIG.format(name=role)
+        with open(role_file) as f:
+            config = yaml.load(f)
+            if cluster_name in config['mesos']:
+                cluster_roles.append(role)
+    return cluster_roles
+
+
+def load_configs_for_cluster(cluster_name, role_config_file):
+    with open(role_config_file) as f:
+        all_configs = yaml.load(f)
+    staticconf.DictConfiguration(all_configs['mesos'][cluster_name], namespace=NAMESPACE)
+    del all_configs['mesos']
+    staticconf.DictConfiguration(all_configs, namespace=NAMESPACE)
+
+
 class MesosRoleManager:
-    def __init__(self, name, role_config_file=None):
+    def __init__(self, name, cluster):
         self.name = name
-        role_config_file = role_config_file or DEFAULT_ROLE_CONFIG.format(name=self.name)
-        staticconf.YamlConfiguration(role_config_file, namespace=NAMESPACE)
+        self.cluster = cluster
+        role_config_file = DEFAULT_ROLE_CONFIG.format(name=self.name)
+        load_configs_for_cluster(self.cluster, role_config_file)
 
         self.min_capacity = staticconf.read_int('defaults.min_capacity', namespace=NAMESPACE)
         self.max_capacity = staticconf.read_int('defaults.max_capacity', namespace=NAMESPACE)
 
-        mesos_master_discovery_label = staticconf.read_string('mesos.master_discovery', namespace=NAMESPACE)
+        mesos_master_discovery_label = staticconf.read_string(f'mesos_clusters.{cluster}.leader_service')
         with open(SERVICES_FILE) as f:
             services = yaml.load(f)
         self.api_endpoint = 'http://{host}:{port}/api/v1'.format(
@@ -43,8 +67,8 @@ class MesosRoleManager:
         )
 
         self.resource_groups = load_spot_fleets_from_s3(
-            staticconf.read_string('mesos.resource_groups.s3.bucket', namespace=NAMESPACE),
-            staticconf.read_string('mesos.resource_groups.s3.prefix', namespace=NAMESPACE),
+            staticconf.read_string('resource_groups.s3.bucket', namespace=NAMESPACE),
+            staticconf.read_string('resource_groups.s3.prefix', namespace=NAMESPACE),
             role=self.name,
         )
 
@@ -269,12 +293,12 @@ class MesosRoleManager:
     def fulfilled_capacity(self):
         return sum(group.fulfilled_capacity for group in self.resource_groups)
 
-    @timed_cached_property(ttl=CACHE_TTL_SECONDS)
+    @timed_cached_property(CACHE_TTL_SECONDS)
     def _agents(self):
         response = requests.post(
             self.api_endpoint,
-            data='{"type": "GET_AGENTS"}',
-            headers={'user-agent': 'clusterman', 'Content-Type': 'application/json'},
+            json={'type': 'GET_AGENTS'},
+            headers={'user-agent': 'clusterman'},
         )
         if not response.ok:
             raise MesosRoleManagerError(f'Could not get instances from Mesos master:\n{response.text}')
@@ -286,3 +310,39 @@ class MesosRoleManager:
                     agents.append(agent)
                     break  # once we've generated a valid agent, don't need to loop through the rest of its attrs
         return agents
+
+    def get_resource_utilization(self, resource_name):
+        """Get the current amount of the given resource in use on each agent with this Mesos role.
+
+        :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
+        :returns dict of agent_id -> float of resource utilization
+        """
+        resource_util = defaultdict(float)
+        for agent in self._agents:
+            agent_id = agent['agent_info']['id']['value']
+            value = get_resource_value(agent.get('allocated_resources', []), resource_name)
+            resource_util[agent_id] = value
+        return resource_util
+
+    def get_total_resources(self, resource_name):
+        """Get the total amount of the given resource for this Mesos role.
+
+        :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
+        :returns float
+        """
+        total = 0
+        for agent in self._agents:
+            total += get_resource_value(agent['total_resources'], resource_name)
+        return total
+
+    def get_average_resource_utilization(self, resource_name):
+        """Get the overall proportion of the given resource that is in use.
+
+        :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
+        :returns float
+        """
+        total = self.get_total_resources(resource_name)
+        if total == 0:
+            return 0
+        used = sum(self.get_resource_utilization(resource_name).values())
+        return used / total

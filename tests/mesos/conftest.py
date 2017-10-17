@@ -1,32 +1,8 @@
-import io
-from contextlib import contextmanager
-
-import mock
 import pytest
 import staticconf.testing
 from moto import mock_ec2
 
-
-@contextmanager
-def mock_open(filename, contents=None):
-    """ This function modified from 'Revolution blahg':
-    https://mapleoin.github.io/perma/mocking-python-file-open
-
-    It is licensed under a Creative Commons Attribution 3.0 license
-    (http://creativecommons.org/licenses/by/3.0/)
-    """
-    def mock_file(*args, **kwargs):
-        if args[0] == filename:
-            return io.StringIO(contents)
-        else:
-            mocked_file.stop()
-            open_file = open(*args, **kwargs)
-            mocked_file.start()
-            return open_file
-    mocked_file = mock.patch('builtins.open', mock_file)
-    mocked_file.start()
-    yield
-    mocked_file.stop()
+from tests.conftest import mock_open
 
 
 @pytest.fixture(autouse=True)
@@ -37,14 +13,26 @@ def setup_ec2():
     mock_ec2_obj.stop()
 
 
+def cluster_configs():
+    return {
+        'mesos_clusters': {
+            'mesos-test': {
+                'leader_service': 'the.mesos.leader',
+                'aws_region': 'us-test-3',
+            },
+        },
+    }
+
+
 @pytest.fixture(autouse=True)
-def mock_aws_config():
-    mock_config = {
+def mock_service_config():
+    mock_config = cluster_configs()
+    mock_config.update({
         'aws': {
             'access_key_file': '/etc/secrets',
             'region': 'us-west-2',
         },
-    }
+    })
     with staticconf.testing.MockConfiguration(mock_config):
         yield
 
@@ -63,8 +51,8 @@ def mock_agents_dict():
                 {
                     'agent_info': {
                         'attributes': [
-                            {'name': 'blah', 'scalar': {'value': 10}},
-                            {'name': 'role', 'text': {'value': 'asdf'}},
+                            {'name': 'blah', 'scalar': {'value': 10}, 'type': 'SCALAR'},
+                            {'name': 'role', 'text': {'value': 'asdf'}, 'type': 'TEXT'},
                         ],
                         'hostname': 'not-in-the-role.yelpcorp.com',
                     }
@@ -72,20 +60,20 @@ def mock_agents_dict():
                 {
                     'agent_info': {
                         'hostname': 'asdf.yelpcorp.com',
-                        'allocated_resources': [{'name': 'mem', 'scalar': {'value': 10}}],
+                        'allocated_resources': [{'name': 'mem', 'scalar': {'value': 10}, 'type': 'SCALAR'}],
                     }
                 },
                 {
                     'agent_info': {
                         'attributes': [
-                            {'name': 'blah', 'scalar': {'value': 10}},
-                            {'name': 'role', 'text': {'value': 'baz'}},
-                            {'name': 'ssss', 'text': {'value': 'hjkl'}},
+                            {'name': 'blah', 'scalar': {'value': 10}, 'type': 'SCALAR'},
+                            {'name': 'role', 'text': {'value': 'baz'}, 'type': 'TEXT'},
+                            {'name': 'ssss', 'text': {'value': 'hjkl'}, 'type': 'TEXT'},
                         ],
                         'hostname': 'im-in-the-role.yelpcorp.com',
                         'allocated_resources': [
-                            {'name': 'mem', 'scalar': {'value': 20}},
-                            {'name': 'cpus', 'scalar': {'value': 10}},
+                            {'name': 'mem', 'scalar': {'value': 20}, 'type': 'SCALAR'},
+                            {'name': 'cpus', 'scalar': {'value': 10}, 'type': 'SCALAR'},
                         ],
                     }
                 },

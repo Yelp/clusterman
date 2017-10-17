@@ -1,3 +1,6 @@
+import io
+from contextlib import contextmanager
+
 import mock
 import pytest
 
@@ -18,6 +21,28 @@ def pytest_configure(config):
 def pytest_unconfigure(config):
     """ remove the TTL patch """
     _ttl_patch.__exit__()
+
+
+@contextmanager
+def mock_open(filename, contents=None):
+    """ This function modified from 'Revolution blahg':
+    https://mapleoin.github.io/perma/mocking-python-file-open
+
+    It is licensed under a Creative Commons Attribution 3.0 license
+    (http://creativecommons.org/licenses/by/3.0/)
+    """
+    def mock_file(*args, **kwargs):
+        if args[0] == filename:
+            return io.StringIO(contents)
+        else:
+            mocked_file.stop()
+            open_file = open(*args, **kwargs)
+            mocked_file.start()
+            return open_file
+    mocked_file = mock.patch('builtins.open', mock_file)
+    mocked_file.start()
+    yield
+    mocked_file.stop()
 
 
 @pytest.fixture
