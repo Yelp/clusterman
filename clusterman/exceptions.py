@@ -5,3 +5,7 @@ class ClustermanError(Exception):
 
 class MesosRoleManagerError(ClustermanError):
     pass
+
+
+class ResourceGroupError(ClustermanError):
+    pass

@@ -33,20 +33,20 @@ def mock_price_object(instance_type, az, time, price):
 def test_spot_price_generator():
     start_time = arrow.get(2017, 1, 3, 12, 0, 20)
     end_time = arrow.get(2017, 1, 3, 14, 3, 20)
-    mock_client = mock.MagicMock()
-    mock_client.get_paginator.return_value.paginate.return_value = iter([
-        {'SpotPriceHistory': [
-            mock_price_object('m3.xlarge', 'fake-az-2b', datetime.datetime(2017, 1, 3, 12, 2, 22), '0.1'),
-            mock_price_object('c3.xlarge', 'fake-az-2a', datetime.datetime(2017, 1, 3, 12, 1, 40), '0.8'),
-        ]},
-        {'SpotPriceHistory': [
-            mock_price_object('m3.xlarge', 'fake-az-2b', datetime.datetime(2017, 1, 3, 12, 0, 22), '0.1'),
-            # Should ignore this last one
-            mock_price_object('c3.xlarge', 'fake-az-2a', datetime.datetime(2017, 1, 3, 12, 0, 4), '0.8'),
-        ]},
-    ])
-    prices = spot_prices.spot_price_generator(mock_client, start_time, end_time)
-    result_list = list(prices)
+    with mock.patch('clusterman.aws.spot_prices.ec2') as mock_client:
+        mock_client.get_paginator.return_value.paginate.return_value = iter([
+            {'SpotPriceHistory': [
+                mock_price_object('m3.xlarge', 'fake-az-2b', datetime.datetime(2017, 1, 3, 12, 2, 22), '0.1'),
+                mock_price_object('c3.xlarge', 'fake-az-2a', datetime.datetime(2017, 1, 3, 12, 1, 40), '0.8'),
+            ]},
+            {'SpotPriceHistory': [
+                mock_price_object('m3.xlarge', 'fake-az-2b', datetime.datetime(2017, 1, 3, 12, 0, 22), '0.1'),
+                # Should ignore this last one
+                mock_price_object('c3.xlarge', 'fake-az-2a', datetime.datetime(2017, 1, 3, 12, 0, 4), '0.8'),
+            ]},
+        ])
+        prices = spot_prices.spot_price_generator(start_time, end_time)
+        result_list = list(prices)
 
     # Last price was before the start time, so ignore it.
     assert result_list == [
