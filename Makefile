@@ -29,7 +29,7 @@ test: clean-cache
 
 .PHONY: itest
 itest: cook-image
-	paasta local-run --service ${PKG_NAME} --cluster norcal-prod --instance spot_prices \
+	paasta local-run --service ${PKG_NAME} --cluster norcal-devc --instance testing \
 		--cmd "python -m clusterman.batch.spot_price_collector --help"
 
 .PHONY: cook-image

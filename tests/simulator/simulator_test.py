@@ -18,7 +18,7 @@ def simulator():
 
 @pytest.fixture(params=[arrow.get(1820), arrow.get(3599), arrow.get(10000)])
 def mock_instance(request):
-    market = InstanceMarket('m4.4xlarge', 'fake-az-1')
+    market = InstanceMarket('m4.4xlarge', 'us-west-1a')
     instance = Instance(market, arrow.get(0))
     instance.end_time = request.param
     return instance

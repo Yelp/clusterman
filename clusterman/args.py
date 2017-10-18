@@ -45,6 +45,23 @@ def add_start_end_args(parser, start_help, end_help):  # pragma: no cover
     )
 
 
+def add_region_arg(parser):  # pragma: no cover
+    """ Add an --aws-region argument to a parser """
+    parser.add_argument(
+        '--aws-region',
+        help='AWS region to operate in',
+    )
+
+
+def add_env_config_path_arg(parser):  # pragma: no cover
+    """ Add a --env-config-path argument to a parser """
+    parser.add_argument(
+        '--env-config-path',
+        default='/nail/srv/configs/clusterman.yaml',
+        help='Path to clusterman configuration file',
+    )
+
+
 def help_formatter(prog):  # pragma: no cover
     """Formatter for the argument parser help strings"""
     return argparse.ArgumentDefaultsHelpFormatter(prog, max_help_position=35, width=100)
@@ -79,6 +96,8 @@ def parse_args(description):  # pragma: no cover
     from clusterman.tools.generate_data import add_generate_data_parser
 
     root_parser = argparse.ArgumentParser(description=description, formatter_class=help_formatter)
+    add_region_arg(root_parser)
+    add_env_config_path_arg(root_parser)
     root_parser.add_argument(
         '--log-level',
         default='warning',

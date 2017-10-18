@@ -3,6 +3,8 @@ from datetime import datetime
 import arrow
 import colorlog
 import parsedatetime
+import staticconf
+from yelp_servlib.config_util import load_default_config
 
 
 def ask_for_confirmation(prompt='Are you sure? ', default=True):
@@ -72,3 +74,9 @@ def parse_time_interval_seconds(time_str):
     if parse_result[1] == 0:
         raise ValueError('Could not understand time {time}'.format(time=time_str))
     return (parse_result[0] - datetime.min).total_seconds()
+
+
+def setup_config(args):
+    load_default_config(args.env_config_path)
+    if args.aws_region:
+        staticconf.DictConfiguration({'aws': {'region': args.aws_region}})

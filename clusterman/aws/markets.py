@@ -2,6 +2,8 @@ from collections import namedtuple
 
 import staticconf
 
+from clusterman.aws.client import ec2
+
 InstanceResources = namedtuple('InstanceResources', ['cpu', 'mem', 'disk'])
 PRIVATE_AWS_CONFIG = 'private-aws-config'
 
@@ -94,3 +96,8 @@ EC2_AZS = [
 
 def get_instance_resources(market):
     return EC2_INSTANCE_TYPES[market.instance]
+
+
+def get_instance_market(aws_instance_object):
+    az = ec2.describe_subnets(SubnetIds=[aws_instance_object['SubnetId']])['Subnets'][0]['AvailabilityZone']
+    return InstanceMarket(aws_instance_object['InstanceType'], az)

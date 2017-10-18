@@ -4,12 +4,11 @@ import pytest
 from clusterman.aws.markets import InstanceMarket
 from clusterman.simulator.spot_fleet import SpotFleet
 
-
 MARKETS = [
-    InstanceMarket('c3.4xlarge', 'fake-az-1'),
-    InstanceMarket('c3.4xlarge', 'fake-az-2'),
-    InstanceMarket('i2.8xlarge', 'fake-az-2'),
-    InstanceMarket('m4.4xlarge', 'fake-az-3'),
+    InstanceMarket('c3.4xlarge', 'us-west-1a'),
+    InstanceMarket('c3.4xlarge', 'us-west-1b'),
+    InstanceMarket('i2.8xlarge', 'us-west-2a'),
+    InstanceMarket('m4.4xlarge', 'us-west-2b'),
 ]
 
 
@@ -22,25 +21,25 @@ def spot_fleet_request_config():
                 'InstanceType': 'c3.4xlarge',
                 'SpotPrice': 1.01,
                 'WeightedCapacity': 1,
-                'SubnetId': 'foo',
+                'SubnetId': 'us-west-1a',
             },
             {
                 'InstanceType': 'c3.4xlarge',
                 'SpotPrice': 1.01,
                 'WeightedCapacity': 2,
-                'SubnetId': 'bar',
+                'SubnetId': 'us-west-1b',
             },
             {
                 'InstanceType': 'i2.8xlarge',
                 'SpotPrice': 0.27,
                 'WeightedCapacity': 3,
-                'SubnetId': 'bar',
+                'SubnetId': 'us-west-2a',
             },
             {
                 'InstanceType': 'm4.4xlarge',
                 'SpotPrice': 0.42,
                 'WeightedCapacity': 0.5,
-                'SubnetId': 'baz',
+                'SubnetId': 'us-west-2b',
             },
         ],
     }
@@ -51,9 +50,15 @@ def spot_prices():
     return {MARKETS[0]: 0.5, MARKETS[1]: 2.5, MARKETS[2]: 0.1, MARKETS[3]: 0.5}
 
 
+def get_fake_instance_market(spec):
+    return InstanceMarket(spec['InstanceType'], spec['SubnetId'])
+
+
 @pytest.fixture
 def spot_fleet(spot_fleet_request_config):
-    return SpotFleet(spot_fleet_request_config)
+    with mock.patch('clusterman.simulator.spot_fleet.get_instance_market', side_effect=get_fake_instance_market):
+        s = SpotFleet(spot_fleet_request_config)
+    return s
 
 
 @pytest.fixture
@@ -71,7 +76,7 @@ def test_instances_by_market():
     # MARKETS[0] residual goes negative because of overflow
     ([(MARKETS[1], 9), (MARKETS[2], 7), (MARKETS[0], 1), (MARKETS[3], 3)],
         {MARKETS[1]: 6.0, MARKETS[2]: 3.0, MARKETS[3]: 3.0}),
-    # MARKET[0] residual is negative, MERKET[1] residual goes negative because of overflow
+    # MARKET[0] residual is negative, MARKET[1] residual goes negative because of overflow
     ([(MARKETS[0], -6), (MARKETS[1], 1), (MARKETS[2], 3), (MARKETS[3], 6)],
         {MARKETS[2]: 1.0, MARKETS[3]: 2.0}),
 ])
@@ -95,7 +100,7 @@ def test_compute_market_residuals_existing_fleet(spot_fleet, spot_prices, test_i
     target_capacity = 20
     spot_fleet.modify_size(test_instances_by_market, 0)
     residuals = spot_fleet._compute_market_residuals(target_capacity, test_instances_by_market.keys(), spot_prices)
-    assert residuals == [(MARKETS[3], 3), (MARKETS[1], 3), (MARKETS[0], 4)]
+    assert residuals == [(MARKETS[2], -4), (MARKETS[3], 3), (MARKETS[1], 3), (MARKETS[0], 4)]
 
 
 def test_total_market_weight(spot_fleet_request_config, spot_fleet, test_instances_by_market):
