@@ -1,7 +1,7 @@
 from collections import namedtuple
 from functools import lru_cache
 
-from clusterman.aws.markets import InstanceMarket
+from clusterman.aws.markets import get_instance_market
 from clusterman.simulator.cluster import Cluster
 
 SpotMarketConfig = namedtuple('SpotMarketConfig', ['bid_price', 'weight'])
@@ -25,7 +25,7 @@ class SpotFleet(Cluster):
     1. Find all available markets (where an available market is defined as one in which the current price is no greater
        than the bid price in that market)
     2. Compute the residual capacity needed to bring each available market up to the same capacity
-    3. Starting with the market having the largest residual capacity, assign enouch instances to the available markets
+    3. Starting with the market having the smallest residual capacity, assign enough instances to the available markets
        to "cover" their residual capacity.
        a. Since instance weights may not evenly divide the residual capacity, there may be some overflow in a market.
           Any overflow is subtracted evenly from each of the remaining markets to ensure that we don't allocate too many
@@ -53,7 +53,7 @@ class SpotFleet(Cluster):
         self._instance_types = {}
         for spec in config['LaunchSpecifications']:
             bid_price = spec['SpotPrice'] * spec['WeightedCapacity']
-            market = InstanceMarket(spec['InstanceType'], spec['SubnetId'])
+            market = get_instance_market(spec)
             self._instance_types[market] = SpotMarketConfig(bid_price, spec['WeightedCapacity'])
 
         self.target_capacity = 0
@@ -97,8 +97,9 @@ class SpotFleet(Cluster):
         new_market_counts = {}
 
         for i, (market, residual) in enumerate(residuals):
-            # We never terminate instances here, so we just update the correction here
             remaining_markets = len(residuals) - (i + 1)
+            # The residual might be negative or less than correction. When this happens, we just update the correction here.
+            # Sorting residual in ascending order ensures correction has been updated by negative residuals first.
             if residual < residual_correction:
                 if remaining_markets > 0:
                     residual_correction += (residual_correction - residual) / remaining_markets
@@ -129,7 +130,7 @@ class SpotFleet(Cluster):
         :param target_capacity: the desired total capacity of the fleet
         :param markets: a list of available markets
         :param spot_prices: the current spot market prices
-        :returns: a list of (market, residual) tuples, sorted first by largest capacity and next by lowest spot price
+        :returns: a list of (market, residual) tuples, sorted first by lowest capacity and next by lowest spot price
         """
         target_capacity_per_market = target_capacity / len(markets)
 
@@ -143,7 +144,7 @@ class SpotFleet(Cluster):
             return (residual, spot_prices[market])
 
         return sorted(
-            [(market, residual(market)) for market in markets if residual(market) > 0],
+            [(market, residual(market)) for market in markets],
             key=residual_sort_key,
         )
 

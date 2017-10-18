@@ -1,8 +1,10 @@
 import arrow
 from clusterman_metrics import generate_key_with_dimensions
 
+from clusterman.aws.client import ec2
 
-def spot_price_generator(ec2_client, start_time, end_time):
+
+def spot_price_generator(start_time, end_time):
     """
     Generator for all spot prices changes that occurred between the start and end times.
 
@@ -13,7 +15,7 @@ def spot_price_generator(ec2_client, start_time, end_time):
     start_time = start_time.to('utc')
     end_time = end_time.to('utc')
 
-    results = ec2_client.get_paginator('describe_spot_price_history').paginate(
+    results = ec2.get_paginator('describe_spot_price_history').paginate(
         StartTime=start_time.datetime,
         EndTime=end_time.datetime,
         ProductDescriptions=['Linux/UNIX (Amazon VPC)'],

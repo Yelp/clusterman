@@ -3,7 +3,6 @@ import pytest
 from clusterman.aws.markets import InstanceMarket
 from clusterman.simulator.event import InstancePriceChangeEvent
 from clusterman.simulator.event import ModifyClusterCapacityEvent
-# >>>>>>> added spot fleet object:itests/aws_price_computations_test.py
 
 
 def test_one_instance_constant_price(start_time, simulator, spot_prices, market_a):
