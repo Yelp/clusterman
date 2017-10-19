@@ -81,12 +81,12 @@ package: itest_trusty itest_xenial
 
 .PHONY: clean
 clean:
-	rm -rf docs/build
-	rm -rf virtualenv_run/
-	rm -rf .tox
-	unlink dist
-	find . -name '*.pyc' -delete
-	find . -name '__pycache__' -delete
+	-rm -rf docs/build
+	-rm -rf virtualenv_run/
+	-rm -rf .tox
+	-unlink dist
+	-find . -name '*.pyc' -delete
+	-find . -name '__pycache__' -delete
 
 clean-cache:
 	find -name '*.pyc' -delete

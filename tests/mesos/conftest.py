@@ -38,7 +38,7 @@ def setup_ec2():
 
 
 @pytest.fixture(autouse=True)
-def mock_config():
+def mock_aws_config():
     mock_config = {
         'aws': {
             'access_key_file': '/etc/secrets',

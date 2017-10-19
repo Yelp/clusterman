@@ -17,6 +17,7 @@ def mock_subnet():
     return ec2.create_subnet(
         CidrBlock='10.0.0.0/24',
         VpcId=vpc_response['Vpc']['VpcId'],
+        AvailabilityZone='us-west-2a'
     )
 
 
@@ -65,6 +66,14 @@ def mock_sfr_bucket():
         'cluster_autoscaling_resources': {
             'aws_spot_fleet_request': {
                 'id': 'sfr-2',
+                'pool': 'my-role'
+            }
+        }
+    }).encode())
+    s3.put_object(Bucket='fake-clusterman-sfrs', Key='fake-region/sfr-3.json', Body=json.dumps({
+        'cluster_autoscaling_resources': {
+            'aws_spot_fleet_request': {
+                'id': 'sfr-3',
                 'pool': 'not-my-role'
             }
         }
@@ -75,8 +84,9 @@ def test_load_spot_fleets_from_s3(mock_sfr_bucket):
     with mock.patch('clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup.__init__') as mock_init:
         mock_init.return_value = None
         sfrgs = load_spot_fleets_from_s3('fake-clusterman-sfrs', 'fake-region', 'my-role')
-        assert len(sfrgs) == 1
-        assert mock_init.call_args[0][0] == 'sfr-1'
+        assert len(sfrgs) == 2
+        assert mock_init.call_args_list[0][0][0] == 'sfr-1'
+        assert mock_init.call_args_list[1][0][0] == 'sfr-2'
 
 
 # NOTE: These tests are fairly brittle, as it depends on the implementation of modify_spot_fleet_request
