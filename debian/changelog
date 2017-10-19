@@ -1,3 +1,9 @@
+clusterman (0.4.6) trusty; urgency=low
+
+  * make SpotFleet object be able to modify capacity upwards
+
+ -- Chien-An Lai <chl@yelp.com>  Thu, 19 Oct 2017 13:35:40 -0700
+
 clusterman (0.4.5) trusty; urgency=low
 
   * make tools/generate-data be able to generate capacity data
