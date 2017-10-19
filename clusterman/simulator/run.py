@@ -7,8 +7,8 @@ from clusterman.args import subparser
 from clusterman.aws.markets import InstanceMarket
 from clusterman.reports.report_types import REPORT_TYPES
 from clusterman.reports.reports import make_report
+from clusterman.simulator.event import InstancePriceChangeEvent
 from clusterman.simulator.event import ModifyClusterCapacityEvent
-from clusterman.simulator.event import SpotPriceChangeEvent
 from clusterman.simulator.metrics import read_metrics_from_compressed_json
 from clusterman.simulator.simulator import SimulationMetadata
 from clusterman.simulator.simulator import Simulator
@@ -53,7 +53,7 @@ def main(args):
             args.end_time.timestamp,
         )
         for timestamp, price in market_prices:
-            simulator.add_event(SpotPriceChangeEvent(arrow.get(timestamp), {market: float(price)}))
+            simulator.add_event(InstancePriceChangeEvent(arrow.get(timestamp), {market: float(price)}))
 
     simulator.run()
 

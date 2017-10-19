@@ -1,17 +1,26 @@
 from collections import namedtuple
 
+import staticconf
+
 from clusterman.aws.client import ec2
 
 InstanceResources = namedtuple('InstanceResources', ['cpu', 'mem', 'disk'])
+PRIVATE_AWS_CONFIG = 'private-aws-config'
 
 
 class InstanceMarket(namedtuple('InstanceMarket', ['instance', 'az'])):
     __slots__ = ()
 
-    def __new__(cls, instance, az):
-        if instance not in EC2_INSTANCE_TYPES or az not in EC2_AZS:
-            raise ValueError(f'Invalid AWS market specified: <{instance}, {az}>')
-        return super().__new__(cls, instance, az)
+    def __new__(cls, instance, subnet_or_az):
+        try:
+            az = staticconf.read(f'subnet.{subnet_or_az}', namespace=PRIVATE_AWS_CONFIG)
+        except staticconf.errors.ConfigurationError:
+            az = subnet_or_az
+
+        if (instance in EC2_INSTANCE_TYPES and az in EC2_AZS):
+            return super().__new__(cls, instance, az)
+        else:
+            raise ValueError(f'Invalid AWS market specified: <{instance}, {az}> (choices from {EC2_AZS})')
 
     def __str__(self):
         return f'<{self.instance}, {self.az}>'

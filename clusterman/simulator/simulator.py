@@ -49,7 +49,7 @@ class Simulator:
         self.billing_frequency = billing_frequency
         self.refund_outbid = refund_outbid
         self.end_time = end_time
-        self.spot_prices = defaultdict(lambda: PiecewiseConstantFunction())
+        self.instance_prices = defaultdict(lambda: PiecewiseConstantFunction())
         self.cost_per_hour = PiecewiseConstantFunction()
         self.capacity = PiecewiseConstantFunction()
 
@@ -100,12 +100,12 @@ class Simulator:
         """
 
         # Charge for the price of the instance when it is launched
-        prices = self.spot_prices[instance.market]
+        prices = self.instance_prices[instance.market]
         curr_timestamp = instance.start_time
         delta, last_billed_price = 0, prices.call(curr_timestamp)
         self.cost_per_hour.add_delta(curr_timestamp, last_billed_price)
 
-        # Loop through all the breakpoints in the spot_prices function (in general this should be more efficient
+        # Loop through all the breakpoints in the instance_prices function (in general this should be more efficient
         # than looping through the billing times, as long as billing happens more frequently than price change
         # events; this is expected to be the case for billing frequencies of ~1s)
         for bp_timestamp in piecewise_breakpoint_generator(prices.breakpoints, instance.start_time, instance.end_time):
@@ -132,9 +132,7 @@ class Simulator:
             if bp_timestamp in prices.breakpoints:
                 delta = prices.breakpoints[bp_timestamp] - last_billed_price
 
-        # TODO (CLUSTERMAN-22) right now there's no way to add spot instances so this check never gets invoked
-        # TODO (CLUSTERMAN-22) add some itests to make sure this is working correctly
-
+        # TODO (CLUSTERMAN-54) add some itests to make sure this is working correctly
         # Determine whether or not to bill for the last billing period of the instance.  We charge for the last hour if
         # any of the following conditions are met:
         #   a) the instance is not a spot instance

@@ -1,3 +1,5 @@
+import logging
+
 import arrow
 import pytest
 
@@ -5,6 +7,11 @@ from clusterman.aws.markets import InstanceMarket
 from clusterman.run import setup_logging
 from clusterman.simulator.simulator import SimulationMetadata
 from clusterman.simulator.simulator import Simulator
+
+
+@pytest.fixture(scope='session', autouse=True)
+def logging_info():
+    logging.getLogger().setLevel(logging.DEBUG)
 
 
 @pytest.fixture
