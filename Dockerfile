@@ -31,6 +31,9 @@ COPY    . /code
 # Use yelp-compose (y/ycp) for acceptance testing
 RUN     install -d --owner=nobody /code/logs
 
+# Create /nail/run to store the batch PID file
+RUN     mkdir -p /nail/run && chown -R nobody /nail/run
+
 # For sake of security, don't run your service as a privileged user
 USER    nobody
 WORKDIR /code
