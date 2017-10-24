@@ -1,40 +1,14 @@
+import json
+
 import mock
 import pytest
-import staticconf.testing
-from moto import mock_ec2
+from moto import mock_s3
 
 from clusterman.aws.client import ec2
+from clusterman.aws.client import s3
 from clusterman.aws.markets import InstanceMarket
+from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_s3
 from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
-
-
-@pytest.fixture(autouse=True)
-def setup_ec2():
-    mock_ec2_obj = mock_ec2()
-    mock_ec2_obj.start()
-    yield
-    mock_ec2_obj.stop()
-
-
-@pytest.fixture(autouse=True)
-def mock_config():
-    mock_config = {
-        'aws': {
-            'access_key_file': '/etc/secrets',
-            'region': 'us-west-2',
-        },
-    }
-    with staticconf.testing.MockConfiguration(mock_config):
-        yield
-
-
-@pytest.fixture(autouse=True)
-def mock_aws_client_setup():
-    with mock.patch(
-        'clusterman.aws.client.open',
-        mock.mock_open(read_data='{"accessKeyId": "id", "secretAccessKey": "key"}')
-    ):
-        yield
 
 
 @pytest.fixture
@@ -43,6 +17,7 @@ def mock_subnet():
     return ec2.create_subnet(
         CidrBlock='10.0.0.0/24',
         VpcId=vpc_response['Vpc']['VpcId'],
+        AvailabilityZone='us-west-2a'
     )
 
 
@@ -73,6 +48,45 @@ def mock_spot_fleet_resource_group(mock_subnet):
         },
     )
     return SpotFleetResourceGroup(sfr_response['SpotFleetRequestId'])
+
+
+@mock_s3
+@pytest.fixture
+def mock_sfr_bucket():
+    s3.create_bucket(Bucket='fake-clusterman-sfrs')
+    s3.put_object(Bucket='fake-clusterman-sfrs', Key='fake-region/sfr-1.json', Body=json.dumps({
+        'cluster_autoscaling_resources': {
+            'aws_spot_fleet_request': {
+                'id': 'sfr-1',
+                'pool': 'my-role'
+            }
+        }
+    }).encode())
+    s3.put_object(Bucket='fake-clusterman-sfrs', Key='fake-region/sfr-2.json', Body=json.dumps({
+        'cluster_autoscaling_resources': {
+            'aws_spot_fleet_request': {
+                'id': 'sfr-2',
+                'pool': 'my-role'
+            }
+        }
+    }).encode())
+    s3.put_object(Bucket='fake-clusterman-sfrs', Key='fake-region/sfr-3.json', Body=json.dumps({
+        'cluster_autoscaling_resources': {
+            'aws_spot_fleet_request': {
+                'id': 'sfr-3',
+                'pool': 'not-my-role'
+            }
+        }
+    }).encode())
+
+
+def test_load_spot_fleets_from_s3(mock_sfr_bucket):
+    with mock.patch('clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup.__init__') as mock_init:
+        mock_init.return_value = None
+        sfrgs = load_spot_fleets_from_s3('fake-clusterman-sfrs', 'fake-region', 'my-role')
+        assert len(sfrgs) == 2
+        assert mock_init.call_args_list[0][0][0] == 'sfr-1'
+        assert mock_init.call_args_list[1][0][0] == 'sfr-2'
 
 
 # NOTE: These tests are fairly brittle, as it depends on the implementation of modify_spot_fleet_request
@@ -109,7 +123,6 @@ def test_terminate_all_instances_by_id(mock_spot_fleet_resource_group):
 
 
 def test_terminate_all_instances_by_id_small_batch(mock_spot_fleet_resource_group):
-    # First make sure the terminate_instances method is called the right number of times
     with mock.patch(
         'clusterman.mesos.spot_fleet_resource_group.ec2.terminate_instances',
         wraps=ec2.terminate_instances,
@@ -132,7 +145,6 @@ def test_terminate_some_instances_missing(mock_logger, mock_spot_fleet_resource_
             mock_spot_fleet_resource_group.instances)
 
         assert len(instances) == 3
-        assert weight == 11
         assert mock_logger.warn.call_count == 2
 
 

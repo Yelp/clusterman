@@ -92,6 +92,8 @@ def parse_args(description):  # pragma: no cover
     :param description: a string descripting the tool
     :returns: a namedtuple of the parsed command-line options with their values
     """
+    from clusterman.mesos.manage import add_mesos_manager_parser
+    from clusterman.mesos.status import add_mesos_status_parser
     from clusterman.simulator.run import add_simulate_parser
     from clusterman.tools.generate_data import add_generate_data_parser
 
@@ -118,8 +120,10 @@ def parse_args(description):  # pragma: no cover
     subparser = root_parser.add_subparsers(help='accepted commands')
     subparser.dest = 'subcommand'
 
-    add_simulate_parser(subparser)
     add_generate_data_parser(subparser)
+    add_mesos_manager_parser(subparser)
+    add_simulate_parser(subparser)
+    add_mesos_status_parser(subparser)
 
     args = _get_validated_args(root_parser)
     return args

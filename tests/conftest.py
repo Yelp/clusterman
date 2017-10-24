@@ -8,9 +8,10 @@ _ttl_patch = None
 
 
 def pytest_configure(config):
-    """ patch the CACHE_TTL to prevent tests from failing; needs to happen before modules loaded """
+    """ patch the CACHE_TTL to prevent tests from failing (TTL caches expire immediately);
+    needs to happen before test modules are loaded """
     global _ttl_patch
-    _ttl_patch = mock.patch('clusterman.mesos.constants.CACHE_TTL', 0)
+    _ttl_patch = mock.patch('clusterman.mesos.constants.CACHE_TTL', -1)
     _ttl_patch.__enter__()
 
 

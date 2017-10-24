@@ -50,9 +50,13 @@ class ec2(metaclass=_BotoForwarder):
     client = 'ec2'
 
 
-def ec2_describe_instances(instance_ids):
+def ec2_describe_instances(instance_ids=None, filters=None):
+
+    instance_ids = instance_ids or []
+    filters = filters or []
+
     instance_paginator = ec2.get_paginator('describe_instances')
-    for page in instance_paginator.paginate(InstanceIds=instance_ids):
+    for page in instance_paginator.paginate(InstanceIds=instance_ids, Filters=filters):
         for reservation in page['Reservations']:
             for i in reservation['Instances']:
                 yield i

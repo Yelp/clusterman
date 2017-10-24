@@ -1,10 +1,11 @@
 import json
 from collections import defaultdict
 
-from cachetools.func import ttl_cache
+from cached_property import timed_cached_property
 
 from clusterman.aws.client import ec2
 from clusterman.aws.client import ec2_describe_instances
+from clusterman.aws.client import s3
 from clusterman.aws.markets import get_instance_market
 from clusterman.exceptions import ResourceGroupError
 from clusterman.mesos.constants import CACHE_TTL
@@ -13,6 +14,23 @@ from clusterman.mesos.mesos_role_resource_group import protect_unowned_instances
 from clusterman.util import get_clusterman_logger
 
 logger = get_clusterman_logger(__name__)
+
+
+def load_spot_fleets_from_s3(bucket, prefix, role=None):
+    object_list = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
+    spot_fleets = []
+    for obj_metadata in object_list['Contents']:
+        obj = s3.get_object(Bucket=bucket, Key=obj_metadata['Key'])
+        sfr_metadata = json.load(obj['Body'])
+        for resource_key, resource in sfr_metadata['cluster_autoscaling_resources'].items():
+            if not resource_key.startswith('aws_spot_fleet_request'):
+                continue
+            if role and resource['pool'] != role:  # NOTE the SFR metadata uploaded to S3 uses pool where we mean role
+                continue
+
+            spot_fleets.append(SpotFleetResourceGroup(resource['id']))
+
+    return spot_fleets
 
 
 class SpotFleetResourceGroup(MesosRoleResourceGroup):
@@ -91,8 +109,7 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
     def id(self):
         return self.sfr_id
 
-    @property
-    @ttl_cache(ttl=CACHE_TTL)
+    @timed_cached_property(ttl=CACHE_TTL)
     def instances(self):
         """ Responses from this API call are cached to prevent hitting any AWS request limits """
         return [
@@ -121,15 +138,13 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
     def status(self):
         return self._configuration['SpotFleetRequestState']
 
-    @property
-    @ttl_cache(ttl=CACHE_TTL)
+    @timed_cached_property(ttl=CACHE_TTL)
     def _configuration(self):
         """ Responses from this API call are cached to prevent hitting any AWS request limits """
         fleet_configuration = ec2.describe_spot_fleet_requests(SpotFleetRequestIds=[self.sfr_id])
         return fleet_configuration['SpotFleetRequestConfigs'][0]
 
-    @property
-    @ttl_cache(ttl=CACHE_TTL)
+    @timed_cached_property(ttl=CACHE_TTL)
     def _instances_by_market(self):
         """ Responses from this API call are cached to prevent hitting any AWS request limits """
         instance_dict = defaultdict(list)
