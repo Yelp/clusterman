@@ -9,6 +9,7 @@ from clusterman.exceptions import MesosRoleManagerError
 from clusterman.exceptions import ResourceGroupProtectedException
 from clusterman.mesos.mesos_role_manager import DEFAULT_ROLE_CONFIG
 from clusterman.mesos.mesos_role_manager import get_roles_in_cluster
+from clusterman.mesos.constants import ROLE_NAMESPACE
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.mesos.mesos_role_manager import SERVICES_FILE
 from tests.conftest import mock_open
@@ -33,7 +34,6 @@ def mock_role_config():
         }
     }
 
-
 @pytest.fixture
 def mock_resource_groups():
     return [
@@ -55,14 +55,14 @@ def mock_role_manager(mock_role_config, mock_resource_groups):
             mock_open(SERVICES_FILE, 'the.mesos.leader:\n  host: foo\n  port: 1234'), \
             mock.patch('clusterman.mesos.mesos_role_manager.load_spot_fleets_from_s3') as mock_load:
         mock_load.return_value = []
-        manager = MesosRoleManager('baz', 'mesos-test')
+        manager = MesosRoleManager('mesos-test', 'baz')
         manager.resource_groups = mock_resource_groups
 
         return manager
 
 
 def test_mesos_role_manager_init(mock_role_manager):
-    assert mock_role_manager.name == 'baz'
+    assert mock_role_manager.role == 'baz'
     assert mock_role_manager.api_endpoint == 'http://foo:1234/api/v1'
 
 

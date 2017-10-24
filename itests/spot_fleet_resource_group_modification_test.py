@@ -32,12 +32,12 @@ def mock_sfrs(setup_ec2):
 
 @pytest.fixture
 def mock_manager(mock_service_config, mock_aws_client_setup, mock_sfrs):
-    role_config_file = DEFAULT_ROLE_CONFIG.format(name='my-role')
+    role_config_file = DEFAULT_ROLE_CONFIG.format(name='baz')
     with mock_open(role_config_file, yaml.dump(mock_role_config())), \
             mock_open(SERVICES_FILE, 'the.mesos.leader:\n  host: foo\n  port: 1234'), \
             mock.patch('clusterman.mesos.mesos_role_manager.load_spot_fleets_from_s3') as mock_load:
         mock_load.return_value = mock_sfrs
-        return MesosRoleManager('my-role', 'mesos-test')
+        return MesosRoleManager('mesos-test', 'baz')
 
 
 def test_target_capacity(mock_manager):
