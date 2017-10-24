@@ -1,8 +1,12 @@
+import arrow
 import mock
 import pytest
 
 from clusterman.aws.markets import InstanceMarket
+from clusterman.simulator.simulator import SimulationMetadata
+from clusterman.simulator.simulator import Simulator
 from clusterman.simulator.spot_fleet import SpotFleet
+
 
 MARKETS = [
     InstanceMarket('c3.4xlarge', 'us-west-1a'),
@@ -10,6 +14,11 @@ MARKETS = [
     InstanceMarket('i2.8xlarge', 'us-west-2a'),
     InstanceMarket('m4.4xlarge', 'us-west-2b'),
 ]
+
+
+@pytest.fixture
+def simulator():
+    return Simulator(SimulationMetadata('testing', 'test-tag'), arrow.get(0), arrow.get(3600))
 
 
 @pytest.fixture
@@ -55,9 +64,10 @@ def get_fake_instance_market(spec):
 
 
 @pytest.fixture
-def spot_fleet(spot_fleet_request_config):
+def spot_fleet(spot_fleet_request_config, simulator, spot_prices):
     with mock.patch('clusterman.simulator.spot_fleet.get_instance_market', side_effect=get_fake_instance_market):
-        s = SpotFleet(spot_fleet_request_config)
+        s = SpotFleet(spot_fleet_request_config, simulator)
+    s.simulator.instance_prices = spot_prices
     return s
 
 
@@ -80,38 +90,74 @@ def test_instances_by_market():
     ([(MARKETS[0], -6), (MARKETS[1], 1), (MARKETS[2], 3), (MARKETS[3], 6)],
         {MARKETS[2]: 1.0, MARKETS[3]: 2.0}),
 ])
-def test_get_new_market_counts(residuals, result, spot_fleet, spot_prices):
-    spot_fleet.modify_size({MARKETS[0]: 1, MARKETS[1]: 1}, 0)
+def test_get_new_market_counts(residuals, result, spot_fleet):
+    spot_fleet.modify_size({MARKETS[0]: 1, MARKETS[1]: 1})
     spot_fleet._find_available_markets = mock.Mock()
     spot_fleet._compute_market_residuals = mock.Mock(return_value=residuals)
-    assert spot_fleet._get_new_market_counts(10, spot_prices) == result
+    assert spot_fleet._get_new_market_counts(10) == result
 
 
-def test_compute_market_residuals_new_fleet(spot_fleet, spot_prices, test_instances_by_market):
+def test_compute_market_residuals_new_fleet(spot_fleet, test_instances_by_market):
     target_capacity = 10
-    residuals = spot_fleet._compute_market_residuals(target_capacity, test_instances_by_market.keys(), spot_prices)
+    residuals = spot_fleet._compute_market_residuals(target_capacity, test_instances_by_market.keys())
     assert residuals == list(zip(
-        sorted(list(test_instances_by_market.keys()), key=lambda x: spot_prices[x]),
+        sorted(list(test_instances_by_market.keys()), key=lambda x: spot_fleet.simulator.instance_prices[x]),
         [target_capacity / len(test_instances_by_market)] * len(test_instances_by_market)
     ))
 
 
-def test_compute_market_residuals_existing_fleet(spot_fleet, spot_prices, test_instances_by_market):
+def test_compute_market_residuals_existing_fleet(spot_fleet, test_instances_by_market):
     target_capacity = 20
-    spot_fleet.modify_size(test_instances_by_market, 0)
-    residuals = spot_fleet._compute_market_residuals(target_capacity, test_instances_by_market.keys(), spot_prices)
+    spot_fleet.modify_size(test_instances_by_market)
+    residuals = spot_fleet._compute_market_residuals(target_capacity, test_instances_by_market.keys())
     assert residuals == [(MARKETS[2], -4), (MARKETS[3], 3), (MARKETS[1], 3), (MARKETS[0], 4)]
 
 
 def test_total_market_weight(spot_fleet_request_config, spot_fleet, test_instances_by_market):
-    spot_fleet.modify_size(test_instances_by_market, 0)
+    spot_fleet.modify_size(test_instances_by_market)
     for i, (market, instance_count) in enumerate(test_instances_by_market.items()):
         assert spot_fleet._total_market_weight(market) == \
             instance_count * spot_fleet_request_config['LaunchSpecifications'][i]['WeightedCapacity']
 
 
-def test_find_available_markets(spot_fleet, spot_prices):
-    available_markets = spot_fleet._find_available_markets(spot_prices)
+def test_find_available_markets(spot_fleet):
+    available_markets = spot_fleet._find_available_markets()
     assert len(available_markets) == 2
     assert MARKETS[0] in available_markets
     assert MARKETS[2] in available_markets
+
+
+def test_terminate_instance(spot_fleet, test_instances_by_market):
+    # The instance after the split point (inclusive itself) will be terminated
+    split_point = 2
+    added_instances, __ = spot_fleet.modify_size(test_instances_by_market)
+    terminate_instances_ids = (instance.id for instance in added_instances[split_point:])
+    spot_fleet.terminate_instances(terminate_instances_ids)
+    remain_instances = spot_fleet.instances
+    assert len(remain_instances) == split_point
+    for instance in added_instances[:split_point]:
+        assert instance.id in remain_instances
+
+
+def test_modify_spot_fleet_request(spot_fleet):
+    spot_fleet.modify_spot_fleet_request(10)
+    capacity = spot_fleet.target_capacity
+    set1 = set(spot_fleet.instances.keys())
+    spot_fleet.modify_spot_fleet_request(capacity * 2)
+    set2 = set(spot_fleet.instances.keys())
+    # Because of FIFO strategy, this should remove all instances in set1
+    spot_fleet.modify_spot_fleet_request(spot_fleet.target_capacity - capacity)
+    set3 = set(spot_fleet.instances.keys())
+    assert set3 == (set2 - set1)
+
+
+def test_downsize_capacity_by_small_weight(spot_fleet):
+    spot_fleet.simulator.current_time.shift(seconds=+100)
+    spot_fleet.modify_size({MARKETS[1]: 1, MARKETS[2]: 3})
+    spot_fleet.simulator.current_time.shift(seconds=+50)
+    spot_fleet.modify_size({MARKETS[0]: 1})
+    spot_fleet.target_capacity = 12
+    # This should removed the last one instance to meet capacity requirement
+    spot_fleet.modify_spot_fleet_request(11)
+    assert spot_fleet.target_capacity == 11
+    assert spot_fleet.market_size(MARKETS[0]) == 0
