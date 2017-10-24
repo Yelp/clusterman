@@ -1,3 +1,11 @@
+clusterman (0.5.0) trusty; urgency=low
+
+  * added clusterman manage command-line tool
+  * added clusterman status command-line tool
+  * mesos role manager to interact with AWS clusters
+
+ -- David Morrison <drmorr@yelp.com>  Tue, 24 Oct 2017 16:58:33 -0700
+
 clusterman (0.4.6) trusty; urgency=low
 
   * make SpotFleet object be able to modify capacity upwards
