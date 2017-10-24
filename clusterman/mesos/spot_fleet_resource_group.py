@@ -56,7 +56,6 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
             raise ResourceGroupError("Could not change size of spot fleet: {resp}".format(
                 resp=json.dumps(response),
             ))
-        self._invalidate_cache()
 
     @protect_unowned_instances
     def terminate_instances_by_id(self, instance_ids, batch_size=500):
@@ -101,10 +100,10 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
         # for them in the target_capacity change.  Note that if there is some other reason why the instances
         # weren't terminated, they could still be floating around, as in case (1) in the race condition
         # discussion above
-        self.modify_target_capacity(original_fulfilled_capacity - capacity_to_terminate)  # invalidates the cache
+        self.modify_target_capacity(original_fulfilled_capacity - capacity_to_terminate)
 
         logger.info(f'{self.id} terminated weight: {capacity_to_terminate}; instances: {terminated_instance_ids}')
-        return terminated_instance_ids
+        return terminated_instance_ids, capacity_to_terminate
 
     @property
     def id(self):
@@ -152,10 +151,3 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
         for instance in ec2_describe_instances(self.instances):
             instance_dict[get_instance_market(instance)].append(instance)
         return instance_dict
-
-    def _invalidate_cache(self):
-        for cached_property in ('instances', '_configuration', '_instances_by_market'):
-            try:
-                del self.__dict__[cached_property]
-            except KeyError:
-                continue

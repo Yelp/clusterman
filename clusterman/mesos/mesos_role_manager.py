@@ -63,9 +63,11 @@ class MesosRoleManager:
 
         # We have different scaling behavior based on whether we're increasing or decreasing the cluster size
         if new_target_capacity > self.target_capacity:
-            self._increase_capacity(new_target_capacity)
+            return self._increase_capacity(new_target_capacity)
         elif new_target_capacity < self.target_capacity:
-            self._decrease_capacity(new_target_capacity)
+            return self._decrease_capacity(new_target_capacity)
+        else:
+            return self.target_capacity
 
     def _constrain_target_capacity(self, target_capacity):
         """ Ensure that the desired target capacity is within the specified bounds for the cluster """
@@ -92,6 +94,7 @@ class MesosRoleManager:
                                         '({self.target_capacity}, {self.max_capacity}]')
         for i, target in self._compute_new_resource_group_targets(new_target_capacity):
             self.resource_groups[i].modify_target_capacity(target)
+        return new_target_capacity
 
     def _decrease_capacity(self, new_target_capacity):
         """ Decrease the capacity in the cluster; we only remove idle instances (i.e., instances that have
@@ -119,7 +122,8 @@ class MesosRoleManager:
 
         # Iterate through all of the idle agents and mark one at a time for removal; we remove an arbitrary idle
         # instance from the available market with the largest weight
-        curr_capacity, marked_instances = self.fulfilled_capacity, defaultdict(list)
+        initial_capacity = self.fulfilled_capacity
+        curr_capacity, marked_instances = initial_capacity, defaultdict(list)
         while curr_capacity > new_target_capacity:
             market_to_shrink, available_capacity = find_largest_capacity_market(idle_market_capacities)
             # It's possible too many agents have allocated resources, so we conservatively do not kill any running jobs
@@ -149,14 +153,17 @@ class MesosRoleManager:
             curr_capacity -= weight
 
         # Terminate the marked instances; it's possible that not all instances will be terminated
-        all_terminated_instances = []
+        all_terminated_instances, total_terminated_weight = [], 0
         for group, instances in marked_instances.items():
-            terminated_instances = group.terminate_instances_by_id(instances)
+            terminated_instances, terminated_weight = group.terminate_instances_by_id(instances)
             all_terminated_instances.extend(terminated_instances)
+            total_terminated_weight += terminated_weight
 
-        if self.target_capacity != new_target_capacity:
-            logger.warn(f'New target capacity is {self.target_capacity} instead of requested {new_target_capacity}')
+        actual_new_target_capacity = initial_capacity - total_terminated_weight
+        if actual_new_target_capacity != new_target_capacity:
+            logger.warn(f'New target capacity is {actual_new_target_capacity} instead of {new_target_capacity}')
         logger.info(f'The following instances have been terminated: {all_terminated_instances}')
+        return actual_new_target_capacity
 
     def _compute_new_resource_group_targets(self, new_target_capacity):
         """ Compute a balanced distribution of target capacities for the resource groups in the cluster

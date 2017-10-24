@@ -10,8 +10,8 @@ def main(args):
     ask_for_confirmation(
         f'Modifying target capacity from {manager.target_capacity} to {args.target_capacity}.  Proceed? '
     )
-    manager.modify_target_capacity(args.target_capacity)
-    print(f'Operation complete.  New target capacity set to {manager.target_capacity}')
+    new_target_capacity = manager.modify_target_capacity(args.target_capacity)
+    print(f'Operation complete.  New target capacity set to {new_target_capacity}')
 
 
 @subparser('manage', 'check the status of a Mesos cluster', main)

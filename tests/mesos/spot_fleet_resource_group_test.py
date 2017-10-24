@@ -141,7 +141,7 @@ def test_terminate_some_instances_missing(mock_logger, mock_spot_fleet_resource_
                 {'InstanceId': i} for i in mock_spot_fleet_resource_group.instances[:3]
             ]
         }
-        instances = mock_spot_fleet_resource_group.terminate_instances_by_id(
+        instances, weight = mock_spot_fleet_resource_group.terminate_instances_by_id(
             mock_spot_fleet_resource_group.instances)
 
         assert len(instances) == 3
