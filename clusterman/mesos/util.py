@@ -8,10 +8,10 @@ def allocated_cpu_resources(agent):
     return 0
 
 
-def find_largest_capacity_market(markets, threshold=float('inf')):
+def find_largest_capacity_market(markets):
     try:
         return max(
-            ((m, c) for m, c in markets.items() if c <= threshold),
+            ((m, c) for m, c in markets.items()),
             key=lambda mc: (mc[1], random.random()),
         )
     except ValueError:

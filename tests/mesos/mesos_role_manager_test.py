@@ -40,9 +40,9 @@ def mock_resource_groups():
     return [
         mock.Mock(
             id=f'sfr-{i}',
-            instances=f'i-{i}',
+            instances=[f'i-{i}'],
             target_capacity=i * 2,
-            fulfilled_capacity=i,
+            fulfilled_capacity=i * 6,
             market_capacities={'market-1': i, 'market-2': i * 2, 'market-3': i * 3},
         )
         for i in range(7)
@@ -107,7 +107,7 @@ class TestDecreaseCapacity:
     def test_decrease_capacity_no_idle_instances(self, mock_idle_agents_by_market, mock_get_market_capacities,
                                                  mock_mark_instance_for_removal, mock_find_largest_capacity_market,
                                                  mock_logger, mock_role_manager):
-        mock_idle_agents_by_market.return_value = {'market-1': ['agent-1', 'agent-2'], 'market-2': ['agent-3']}
+        mock_idle_agents_by_market.return_value = {}
         mock_find_largest_capacity_market.return_value = (None, 0)
         mock_role_manager._decrease_capacity(90)
         assert mock_find_largest_capacity_market.call_count == 1
@@ -151,7 +151,7 @@ class TestDecreaseCapacity:
 
 
 def test_compute_new_resource_group_targets_no_unfilled_capacity(mock_role_manager):
-    assert mock_role_manager._compute_new_resource_group_targets(0) == [
+    assert mock_role_manager._compute_new_resource_group_targets(mock_role_manager.target_capacity) == [
         [i, group.target_capacity]
         for i, group in enumerate(mock_role_manager.resource_groups)
     ]
@@ -162,7 +162,7 @@ def test_compute_new_resource_group_targets_all_equal(mock_role_manager):
         group.target_capacity = 10
 
     num_groups = len(mock_role_manager.resource_groups)
-    assert mock_role_manager._compute_new_resource_group_targets(5 * num_groups) == [[i, 15] for i in range(num_groups)]
+    assert mock_role_manager._compute_new_resource_group_targets(105) == [[i, 15] for i in range(num_groups)]
 
 
 def test_compute_new_resource_group_targets_all_equal_with_remainder(mock_role_manager):
@@ -170,21 +170,39 @@ def test_compute_new_resource_group_targets_all_equal_with_remainder(mock_role_m
         group.target_capacity = 10
 
     num_groups = len(mock_role_manager.resource_groups)
-    assert mock_role_manager._compute_new_resource_group_targets(5 * num_groups + 2) == [
+    assert mock_role_manager._compute_new_resource_group_targets(107) == [
         [i, 16 if i < 2 else 15] for i in range(num_groups)
     ]
 
 
 def test_compute_new_resource_group_targets_uneven(mock_role_manager):
     num_groups = len(mock_role_manager.resource_groups)
-    assert mock_role_manager._compute_new_resource_group_targets(262) == [
+    assert mock_role_manager._compute_new_resource_group_targets(304) == [
         [i, 44 if i < 3 else 43] for i in range(num_groups)
     ]
 
 
 def test_compute_new_resource_group_targets_above_delta(mock_role_manager):
-    assert mock_role_manager._compute_new_resource_group_targets(10) == [
+    assert mock_role_manager._compute_new_resource_group_targets(52) == [
         [0, 6], [1, 5], [2, 5], [3, 6], [4, 8], [5, 10], [6, 12]
+    ]
+
+
+def test_compute_new_resource_group_targets_above_delta_equal(mock_role_manager):
+    for group in mock_role_manager.resource_groups[3:]:
+        group.target_capacity = 20
+
+    assert mock_role_manager._compute_new_resource_group_targets(90) == [
+        [0, 3], [1, 3], [2, 4], [3, 20], [4, 20], [5, 20], [6, 20]
+    ]
+
+
+def test_compute_new_resource_group_targets_above_delta_equal_2(mock_role_manager):
+    for group in mock_role_manager.resource_groups[3:]:
+        group.target_capacity = 20
+
+    assert mock_role_manager._compute_new_resource_group_targets(145) == [
+        [0, 21], [1, 21], [2, 21], [3, 21], [4, 21], [5, 20], [6, 20]
     ]
 
 
@@ -212,7 +230,7 @@ def test_mark_instance_for_removal_invalid_instance(mock_find_resource_group, mo
 def test_mark_instance_for_removal_capacity_low(mock_find_resource_group, mock_role_manager):
     mock_find_resource_group.return_value.market_weight.return_value = 1000
     with pytest.raises(MarketProtectedException):
-        mock_role_manager._mark_instance_for_removal({'market-1': ['asdf']}, {}, 'market-1', 1001)
+        mock_role_manager._mark_instance_for_removal({'market-1': ['asdf']}, {}, 'market-1', 1)
 
 
 @mock.patch('clusterman.mesos.mesos_role_manager.MesosRoleManager._find_resource_group')
@@ -260,7 +278,7 @@ def test_target_capacity(mock_role_manager):
 
 
 def test_fulfilled_capacity(mock_role_manager):
-    assert mock_role_manager.fulfilled_capacity == sum(i for i in range(7))
+    assert mock_role_manager.fulfilled_capacity == sum(i * 6 for i in range(7))
 
 
 @mock_ec2

@@ -44,15 +44,15 @@ def test_target_capacity(mock_manager):
 def test_scale_up(mock_manager, mock_sfrs):
     mock_manager.max_capacity = 101
     mock_manager.modify_target_capacity(53)
-    assert [rg.target_capacity for rg in mock_manager.resource_groups] == [11, 11, 11, 10, 10]
+    assert {rg.target_capacity for rg in mock_manager.resource_groups} == {11, 11, 11, 10, 10}
 
     ec2.modify_spot_fleet_request(SpotFleetRequestId=mock_sfrs[0].id, TargetCapacity=13)
     mock_manager.modify_target_capacity(76)
-    assert [rg.target_capacity for rg in mock_manager.resource_groups] == [16, 15, 15, 15, 15]
+    assert {rg.target_capacity for rg in mock_manager.resource_groups} == {16, 15, 15, 15, 15}
 
     ec2.modify_spot_fleet_request(SpotFleetRequestId=mock_sfrs[3].id, TargetCapacity=30)
     mock_manager.modify_target_capacity(1000)
-    assert [rg.target_capacity for rg in mock_manager.resource_groups] == [18, 18, 18, 30, 17]
+    assert {rg.target_capacity for rg in mock_manager.resource_groups} == {18, 18, 18, 30, 17}
 
 
 # TODO (CLUSTERMAN-97) the scale_down itests need some efficiency improvements in moto before it's feasible

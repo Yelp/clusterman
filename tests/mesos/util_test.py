@@ -19,9 +19,5 @@ def test_find_largest_capacity_market_no_threshold(mock_market_capacities):
     assert find_largest_capacity_market(mock_market_capacities) == ('market-1', 1000)
 
 
-def test_find_largest_capacity_market_threshold(mock_market_capacities):
-    assert find_largest_capacity_market(mock_market_capacities, threshold=10) == ('market-2', 5)
-
-
 def test_find_largest_capacity_empty_list(mock_market_capacities):
-    assert find_largest_capacity_market(mock_market_capacities, threshold=1) == (None, 0)
+    assert find_largest_capacity_market({}) == (None, 0)

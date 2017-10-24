@@ -10,6 +10,8 @@ def print_status(manager, verbose):
     print(f'Current status for the {manager.name} cluster:\n')
     print('Resource groups:')
     for group in manager.resource_groups:
+        # TODO (CLUSTERMAN-100) These are just the status responses for spot fleets; this probably won't
+        # extend to other types of resource groups, so we should figure out what to do about that.
         status_str = colored_status(
             group.status,
             active=('active',),

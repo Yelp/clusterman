@@ -5,6 +5,7 @@ import requests
 import staticconf
 import yaml
 from cached_property import timed_cached_property
+from sortedcontainers import SortedList
 
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import get_instance_market
@@ -89,8 +90,7 @@ class MesosRoleManager:
         if not self.target_capacity < new_target_capacity <= self.max_capacity:
             raise MesosRoleManagerError(f'{new_target_capacity} is not in range '
                                         '({self.target_capacity}, {self.max_capacity}]')
-        unfilled_capacity = new_target_capacity - self.target_capacity
-        for i, target in self._compute_new_resource_group_targets(unfilled_capacity):
+        for i, target in self._compute_new_resource_group_targets(new_target_capacity):
             self.resource_groups[i].modify_target_capacity(target)
 
     def _decrease_capacity(self, new_target_capacity):
@@ -121,10 +121,7 @@ class MesosRoleManager:
         # instance from the available market with the largest weight
         curr_capacity, marked_instances = self.fulfilled_capacity, defaultdict(list)
         while curr_capacity > new_target_capacity:
-            market_to_shrink, available_capacity = find_largest_capacity_market(
-                idle_market_capacities,
-                threshold=curr_capacity - new_target_capacity,
-            )
+            market_to_shrink, available_capacity = find_largest_capacity_market(idle_market_capacities)
             # It's possible too many agents have allocated resources, so we conservatively do not kill any running jobs
             if available_capacity == 0:
                 logger.warn('No idle instances left to remove; aborting')
@@ -136,7 +133,8 @@ class MesosRoleManager:
             #  3) The resource group the instance belongs to can't be reduced further
             # In each of the cases, the instance has been removed from consideration and we jump to the next iteration
             try:
-                weight = self._mark_instance_for_removal(idle_agents, marked_instances, market_to_shrink, curr_capacity)
+                rem_capacity = curr_capacity - new_target_capacity
+                weight = self._mark_instance_for_removal(idle_agents, marked_instances, market_to_shrink, rem_capacity)
             except MesosRoleManagerError as err:
                 logger.warn(err)
                 continue
@@ -160,46 +158,41 @@ class MesosRoleManager:
             logger.warn(f'New target capacity is {self.target_capacity} instead of requested {new_target_capacity}')
         logger.info(f'The following instances have been terminated: {all_terminated_instances}')
 
-    def _compute_new_resource_group_targets(self, unfilled_capacity):
+    def _compute_new_resource_group_targets(self, new_target_capacity):
         """ Compute a balanced distribution of target capacities for the resource groups in the cluster
 
-        :param unfilled_capacity: the additional capacity we need to distribute
+        :param new_target_capacity: the desired new target capacity that needs to be distributed
         :returns: A (sorted) list of (resource group index, target_capacity) pairs
         """
-        new_targets = [[i, group.target_capacity] for i, group in enumerate(self.resource_groups)]
+        new_targets = SortedList(
+            [[i, group.target_capacity] for i, group in enumerate(self.resource_groups)],
+            key=lambda x: (x[1], x[0]),
+        )
+        if new_target_capacity == self.target_capacity:
+            return new_targets
 
-        # Each iteration of the loop increases the target capacity of the resource group(s) with the lowest target
-        # capacity to match the next-lowest target capacity.  This continues until all of the unfilled_capacity has
-        # been distributed.
-        for i in range(len(self.resource_groups)):
-            if unfilled_capacity == 0:
+        num_groups_to_increase = len(self.resource_groups)
+        while True:
+            # If any resource groups are currently above the new target "uniform" capacity, we need to recompute
+            # the target while taking into account the over-supplied resource groups.  We never decrease the
+            # capacity of a resource group here, so we just find the first index is above the desired target
+            # and remove those from consideration.  We have to repeat this multiple times, as new resource
+            # groups could be over the new "uniform" capacity after we've subtracted the overage value
+            capacity_per_group, remainder = divmod(new_target_capacity, num_groups_to_increase)
+            pos = new_targets.bisect([len(self.resource_groups), capacity_per_group])
+            overage = sum(new_targets[i][1] for i in range(pos, num_groups_to_increase))
+
+            if overage == 0:
+                for i in range(num_groups_to_increase):
+                    new_targets[i][1] = capacity_per_group + (1 if i < remainder else 0)
                 break
 
-            # We sort resource groups first by target capacity, and then by index (sorting by index isn't strictly
-            # necessary but it makes book-keeping and testing a little bit easier).  This operation is safe to do here
-            # because our loop invariant is that all resource groups less than the current position have the same
-            # target capacity
-            new_targets.sort(key=lambda x: (x[1], x[0]))
-            try:
-                desired_delta = new_targets[i + 1][1] - new_targets[i][1]
-            except IndexError:
-                # If we've reached the end of the list of resource groups and still have unfilled capacity, we need to
-                # distribute that evenly among the resource groups
-                desired_delta = unfilled_capacity
+            new_target_capacity -= overage
+            num_groups_to_increase = pos
 
-            if desired_delta > 0:
-                # Make sure we have enough unfilled capacity to bring up all of the resource groups to the next
-                # desired capacity.  If we do not, then we just distribute the rest of the unfilled capacity
-                # among these resource groups.
-                increase_per_group, remainder = divmod(min((i + 1) * desired_delta, unfilled_capacity), (i + 1))
-                for j in range(i + 1):
-                    delta = increase_per_group + (1 if j < remainder else 0)
-                    new_targets[j][1] += delta
-                    unfilled_capacity -= delta
-        # Return the list of target_capacities, now sorted in order of increasing index
-        return sorted(new_targets)
+        return new_targets
 
-    def _mark_instance_for_removal(self, idle_agents, marked_instances, instance_market, curr_capacity):
+    def _mark_instance_for_removal(self, idle_agents, marked_instances, instance_market, rem_capacity):
         """ Attempt to mark an instance for removal from the cluster
 
         :param idle_agents: a mapping from market -> idle agents in that market
@@ -222,7 +215,7 @@ class MesosRoleManager:
         instance_weight = instance_group.market_weight(instance_market)
 
         # Make sure the instance we try to remove will not violate cluster bounds
-        if curr_capacity - instance_weight < self.min_capacity:
+        if instance_weight > rem_capacity:
             raise MarketProtectedException
         # Make sure we don't remove all instances from a resource group
         if len(marked_instances[instance_group]) == len(instance_group.instances) - 1:
