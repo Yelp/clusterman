@@ -32,7 +32,7 @@ class Autoscaler:
         logger.info(f'Initializing autoscaler engine for {self.role} in {self.cluster}...')
         self.config = staticconf.NamespaceReaders(ROLE_NAMESPACE.format(role=self.role))
         logger.info('Connecting to Mesos')
-        self.mesos_manager = MesosRoleManager(self.cluster, self.role)
+        self.mesos_role_manager = MesosRoleManager(self.cluster, self.role)
         logger.info('Loading autoscaling signals')
         self.signals = self._load_signals()
         logger.info('Initialization complete')
@@ -43,11 +43,11 @@ class Autoscaler:
         :param dry_run: Don't actually modify the fleet size, just print what would happen
         """
 
-        new_target_capacity = self.mesos_manager.target_capacity + self.compute_cluster_delta()
+        new_target_capacity = self.mesos_role_manager.target_capacity + self._compute_cluster_delta()
         if dry_run:
             logger.warn('This is a dry run: cluster size will not change.')
         else:
-            self.mesos_manager.modify_target_capacity(new_target_capacity)
+            self.mesos_role_manager.modify_target_capacity(new_target_capacity)
 
     def _load_signals(self):
         active_signals = defaultdict(list)
@@ -65,11 +65,11 @@ class Autoscaler:
             try:
                 signal = signal_init(self.cluster, self.role, signal_config)
             except KeyError as e:
-                logger.warn(f'Could not load signal {signal_name}, missing config value {e.args[0]}; ignoring')
+                logger.warn(f'Could not load signal {signal_name}, missing config value; ignoring ({e})')
                 continue
 
             logger.info('Registering signal {signal_name} (priority {signal.priority})')
-            active_signals[signal_config['priority']].append(signal)
+            active_signals[signal.priority].append(signal)
 
         return active_signals
 
@@ -92,14 +92,14 @@ class Autoscaler:
     def _constrain_cluster_delta(self, delta):
         if delta > 0:
             return min(
-                self.config.get_int('defaults.max_capacity') - self.mesos_manager.target_capacity,
-                self.config.get_int('defaults.max_weight_to_add'),
+                self.config.read_int('defaults.max_capacity') - self.mesos_role_manager.target_capacity,
+                self.config.read_int('defaults.max_weight_to_add'),
                 delta,
             )
         elif delta < 0:
             return max(
-                self.config.get_int('defaults.min_capacity') - self.mesos_manager.target_capacity,
-                -self.config.get_int('defaults.max_weight_to_remove'),
+                self.config.read_int('defaults.min_capacity') - self.mesos_role_manager.target_capacity,
+                -self.config.read_int('defaults.max_weight_to_remove'),
                 delta,
             )
         else:
