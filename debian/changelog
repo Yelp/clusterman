@@ -1,3 +1,11 @@
+clusterman (0.6.0) trusty; urgency=low
+
+  * clusterman manage/status require --cluster argument
+  * removed custom role config option for manage/status
+  * clusterman simulate uses --cluster
+
+ -- Qui Nguyen <qui@yelp.com>  Thu, 26 Oct 2017 13:40:41 -0700
+
 clusterman (0.5.0) trusty; urgency=low
 
   * added clusterman manage command-line tool
