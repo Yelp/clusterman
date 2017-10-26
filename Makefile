@@ -22,6 +22,7 @@ minimal: development
 .PHONY: docs
 docs:
 	tox -e docs
+	cd docs/build/html && python -m http.server
 
 .PHONY: test
 test: clean-cache
