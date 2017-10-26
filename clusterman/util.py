@@ -92,6 +92,6 @@ def parse_time_interval_seconds(time_str):
 def setup_config(args):
     load_default_config(args.env_config_path)
     # If a cluster is specified, the CLI should operate on that AWS region.
-    if args.cluster:
+    if getattr(args, 'cluster', None):
         cluster_region = staticconf.read_string('mesos_clusters.{cluster}.aws_region'.format(cluster=args.cluster))
         staticconf.DictConfiguration({'aws': {'region': cluster_region}})
