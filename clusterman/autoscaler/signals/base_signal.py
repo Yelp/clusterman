@@ -38,6 +38,7 @@ class BaseSignal(metaclass=ABCMeta):
 
     @property
     def active(self):
+        """ Once a signal has activated, reset it so that future evaluations don't accidentally trigger """
         ret = self._active
         self._active = False
         return ret

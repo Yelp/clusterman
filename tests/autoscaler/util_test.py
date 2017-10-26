@@ -7,7 +7,7 @@ from clusterman.exceptions import MetricsError
 
 @mock.patch('clusterman.autoscaler.util.ClustermanMetricsBotoClient', autospec=True)
 def test_get_average_cpu_util(mock_metrics_client):
-    mock_metrics_client.return_value.get_metric_values.return_value = [
+    mock_metrics_client.return_value.get_metric_values.return_value = 'asdf', [
         [0, 0.8],
         [2, 0.1],
         [3, 0.3],
@@ -21,6 +21,6 @@ def test_get_average_cpu_util(mock_metrics_client):
 
 @mock.patch('clusterman.autoscaler.util.ClustermanMetricsBotoClient', autospec=True)
 def test_get_average_cpu_util_no_data(mock_metrics_client):
-    mock_metrics_client.return_value.get_metric_values.return_value = []
+    mock_metrics_client.return_value.get_metric_values.return_value = 'asdf', []
     with pytest.raises(MetricsError):
         get_average_cpu_util('fake', 'baz', 10)
