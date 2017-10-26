@@ -1,11 +1,23 @@
 import random
 
+from clusterman.exceptions import MesosRoleManagerError
 
-def allocated_cpu_resources(agent):
-    for resource in agent['agent_info'].get('allocated_resources', []):
-        if resource['name'] == 'cpus':
+
+def get_resource_value(resources, resource_name):
+    """Helper to get the value of the given resource, from a list of resources returned by Mesos."""
+    for resource in resources:
+        if resource['name'] == resource_name:
+            if resource['type'] != "SCALAR":
+                raise MesosRoleManagerError('Only scalar resource types are supported.')
             return resource['scalar']['value']
     return 0
+
+
+def allocated_cpu_resources(agent):
+    return get_resource_value(
+        agent['agent_info'].get('allocated_resources', []),
+        'cpus'
+    )
 
 
 def find_largest_capacity_market(markets):

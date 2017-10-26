@@ -1,3 +1,4 @@
+from clusterman.args import add_cluster_arg
 from clusterman.args import subparser
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import get_instance_market
@@ -7,7 +8,7 @@ from clusterman.util import colored_status
 
 def print_status(manager, verbose):
     print('\n')
-    print(f'Current status for the {manager.name} cluster:\n')
+    print(f'Current status for the {manager.name} role in the {manager.cluster} cluster:\n')
     print('Resource groups:')
     for group in manager.resource_groups:
         # TODO (CLUSTERMAN-100) These are just the status responses for spot fleets; this probably won't
@@ -35,12 +36,12 @@ def print_status(manager, verbose):
                     instance_ip = None
                 print(f'\t - {instance_id} {market} ({instance_ip}): {instance_status_str}')
     print('\n')
-    print(f'Total cluster capacity: {manager.fulfilled_capacity} units out of {manager.target_capacity}')
+    print(f'Total capacity: {manager.fulfilled_capacity} units out of {manager.target_capacity}')
     print('\n')
 
 
 def main(args):
-    manager = MesosRoleManager(args.role, args.role_config_path)
+    manager = MesosRoleManager(args.role, args.cluster)
     print_status(manager, args.verbose)
 
 
@@ -51,10 +52,7 @@ def add_mesos_status_parser(subparser, required_named_args, optional_named_args)
         required=True,
         help='Mesos role to query the status for',
     )
-    optional_named_args.add_argument(
-        '--role-config-path',
-        help='Location of role-specific configuration files',
-    )
+    add_cluster_arg(required_named_args, required=True)
     optional_named_args.add_argument(
         '-v', '--verbose',
         action='store_true',

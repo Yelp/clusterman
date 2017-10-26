@@ -1,7 +1,9 @@
 import arrow
+import staticconf
 from clusterman_metrics import ClustermanMetricsSimulationClient
 from clusterman_metrics import METADATA
 
+from clusterman.args import add_cluster_arg
 from clusterman.args import add_start_end_args
 from clusterman.args import subparser
 from clusterman.aws.markets import InstanceMarket
@@ -23,7 +25,7 @@ def main(args):
     args.start_time = parse_time_string(args.start_time)
     args.end_time = parse_time_string(args.end_time)
 
-    simulator = Simulator(SimulationMetadata(args.cluster_name, 'testing'), args.start_time, args.end_time)
+    simulator = Simulator(SimulationMetadata(args.cluster, 'testing'), args.start_time, args.end_time)
 
     metrics = {}
     if args.metrics_data_file:
@@ -32,7 +34,8 @@ def main(args):
         except OSError as e:
             logger.warn(f'{str(e)}: no metrics loaded')
 
-    metrics_client = ClustermanMetricsSimulationClient(metrics)
+    region_name = staticconf.read_string(f'mesos_clusters.{args.cluster}.aws_region')
+    metrics_client = ClustermanMetricsSimulationClient(metrics, region_name=region_name)
     markets = set()
     __, capacity = metrics_client.get_metric_values(
         'capacity|region=norcal-prod',
@@ -70,16 +73,12 @@ def add_simulate_parser(subparser, required_named_args, optional_named_args):  #
         'simulation start time',
         'simulation end time',
     )
+    add_cluster_arg(required_named_args, required=True)
     optional_named_args.add_argument(
         '--reports',
         nargs='+',
         choices=REPORT_TYPES.keys(),
         help='type(s) of reports to generate from the simulation',
-    )
-    optional_named_args.add_argument(
-        '--cluster-name',
-        default='cluster',
-        help='name of the cluster to simulate',
     )
     optional_named_args.add_argument(
         '--metrics-data-file',

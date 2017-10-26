@@ -8,7 +8,7 @@ from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.client import s3
 from clusterman.aws.markets import get_instance_market
 from clusterman.exceptions import ResourceGroupError
-from clusterman.mesos.constants import CACHE_TTL
+from clusterman.mesos.constants import CACHE_TTL_SECONDS
 from clusterman.mesos.mesos_role_resource_group import MesosRoleResourceGroup
 from clusterman.mesos.mesos_role_resource_group import protect_unowned_instances
 from clusterman.util import get_clusterman_logger
@@ -109,7 +109,7 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
     def id(self):
         return self.sfr_id
 
-    @timed_cached_property(ttl=CACHE_TTL)
+    @timed_cached_property(ttl=CACHE_TTL_SECONDS)
     def instances(self):
         """ Responses from this API call are cached to prevent hitting any AWS request limits """
         return [
@@ -138,13 +138,13 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
     def status(self):
         return self._configuration['SpotFleetRequestState']
 
-    @timed_cached_property(ttl=CACHE_TTL)
+    @timed_cached_property(ttl=CACHE_TTL_SECONDS)
     def _configuration(self):
         """ Responses from this API call are cached to prevent hitting any AWS request limits """
         fleet_configuration = ec2.describe_spot_fleet_requests(SpotFleetRequestIds=[self.sfr_id])
         return fleet_configuration['SpotFleetRequestConfigs'][0]
 
-    @timed_cached_property(ttl=CACHE_TTL)
+    @timed_cached_property(ttl=CACHE_TTL_SECONDS)
     def _instances_by_market(self):
         """ Responses from this API call are cached to prevent hitting any AWS request limits """
         instance_dict = defaultdict(list)

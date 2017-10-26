@@ -2,22 +2,24 @@ from collections import defaultdict
 
 import mock
 import pytest
+import yaml
 
 from clusterman.aws.client import ec2
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import get_instance_market
+from clusterman.mesos.mesos_role_manager import DEFAULT_ROLE_CONFIG
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.mesos.mesos_role_manager import SERVICES_FILE
+from tests.conftest import mock_open
 from tests.mesos.conftest import mock_aws_client_setup
-from tests.mesos.conftest import mock_aws_config
-from tests.mesos.conftest import mock_open
+from tests.mesos.conftest import mock_service_config
 from tests.mesos.conftest import setup_ec2
-from tests.mesos.mesos_role_manager_test import mock_config_file
+from tests.mesos.mesos_role_manager_test import mock_role_config
 from tests.mesos.spot_fleet_resource_group_test import mock_spot_fleet_resource_group
 from tests.mesos.spot_fleet_resource_group_test import mock_subnet
 
 
-pytest.mark.usefixtures(mock_aws_client_setup, mock_aws_config, mock_config_file, setup_ec2)
+pytest.mark.usefixtures(mock_aws_client_setup, mock_service_config, setup_ec2)
 
 
 @pytest.fixture
@@ -29,12 +31,13 @@ def mock_sfrs(setup_ec2):
 
 
 @pytest.fixture
-def mock_manager(mock_aws_config, mock_aws_client_setup, mock_config_file, mock_sfrs):
-    with mock.patch('clusterman.mesos.mesos_role_manager.staticconf.YamlConfiguration'), \
-            mock_open(SERVICES_FILE, 'the.mesos.master:\n  host: foo\n  port: 1234'), \
+def mock_manager(mock_service_config, mock_aws_client_setup, mock_sfrs):
+    role_config_file = DEFAULT_ROLE_CONFIG.format(name='my-role')
+    with mock_open(role_config_file, yaml.dump(mock_role_config())), \
+            mock_open(SERVICES_FILE, 'the.mesos.leader:\n  host: foo\n  port: 1234'), \
             mock.patch('clusterman.mesos.mesos_role_manager.load_spot_fleets_from_s3') as mock_load:
         mock_load.return_value = mock_sfrs
-        return MesosRoleManager('my-role')
+        return MesosRoleManager('my-role', 'mesos-test')
 
 
 def test_target_capacity(mock_manager):
