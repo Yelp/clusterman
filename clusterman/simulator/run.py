@@ -38,7 +38,7 @@ def main(args):
     metrics_client = ClustermanMetricsSimulationClient(metrics, region_name=region_name)
     markets = set()
     __, capacity = metrics_client.get_metric_values(
-        'capacity|region=norcal-prod',
+        'capacity|cluster=norcal-prod',
         METADATA,
         args.start_time.timestamp,
         args.end_time.timestamp,

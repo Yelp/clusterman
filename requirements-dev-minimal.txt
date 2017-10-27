@@ -1,5 +1,6 @@
 coverage
 flake8
+livereload
 pre-commit
 pytest
 requirements-tools

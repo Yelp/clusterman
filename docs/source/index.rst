@@ -8,10 +8,18 @@ Welcome to clusterman's documentation!
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: User Guide
 
+   metrics
    simulator
    tools
+
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Developing Clusterman
+
+   dev/metric_schemas.rst
 
 
 
