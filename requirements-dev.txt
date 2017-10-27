@@ -18,7 +18,7 @@ mock==2.0.0
 moto==1.1.22
 nodeenv==1.1.4
 pbr==3.1.1
-pre-commit==1.2.0
+pre-commit==1.3.0
 py==1.4.34
 pyaml==17.8.0
 pycodestyle==2.3.1
