@@ -1,3 +1,9 @@
+clusterman (0.6.1) trusty; urgency=low
+
+  * Bugfix with --cluster argument
+
+ -- Qui Nguyen <qui@yelp.com>  Fri, 27 Oct 2017 08:29:23 -0700
+
 clusterman (0.6.0) trusty; urgency=low
 
   * clusterman manage/status require --cluster argument
