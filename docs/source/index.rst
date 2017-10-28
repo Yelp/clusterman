@@ -10,6 +10,8 @@ Welcome to clusterman's documentation!
    :maxdepth: 2
    :caption: User Guide
 
+   configuration
+   manage
    metrics
    simulator
    tools
@@ -20,6 +22,7 @@ Welcome to clusterman's documentation!
    :caption: Developing Clusterman
 
    dev/metric_schemas.rst
+   dev/mesos_role_manager.rst
 
 
 

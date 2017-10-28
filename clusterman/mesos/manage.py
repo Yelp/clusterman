@@ -31,5 +31,6 @@ def add_mesos_manager_parser(subparser, required_named_args, optional_named_args
     )
     optional_named_args.add_argument(
         '--recycle',
+        action='store_true',
         help='Tear down the existing cluster and create a new one',
     )

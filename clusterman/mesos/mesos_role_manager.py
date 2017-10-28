@@ -22,6 +22,7 @@ from clusterman.mesos.util import get_resource_value
 from clusterman.util import get_clusterman_logger
 
 
+# TODO (CLUSTERMAN-112) these should be customizable
 ROLE_CONFIG_DIR = '/nail/srv/configs/clusterman-roles'
 DEFAULT_ROLE_CONFIG = ROLE_CONFIG_DIR + '/{role}/config.yaml'
 SERVICES_FILE = '/nail/etc/services/services.yaml'
@@ -82,7 +83,18 @@ class MesosRoleManager:
         instances are diversified in the cluster
 
         :param new_target_capacity: the desired target capacity for the cluster
-            NOTE: the final cluster state may not exactly match the desired capacity, but it should never be less
+
+        .. note:: The cluster's :attr:`fulfilled_capacity` may not exactly match the desired capacity, but it will never
+           be under the :attr:`target_capacity` (for example, if there is no combination of instances that evenly sum to
+           the desired target capacity, the final fulfilled capacity will be slightly above the target capacity)
+
+        .. note:: There is a disparity between capacity increases and capacity decreases; in particular,
+           increases in capacity are based off the cluster's :attr:`target_capacity`, but decreases in capacity are
+           based on the cluster's :attr:`fulfilled_capacity`.  This is because the list of idle agents is drawn from the
+           fulfilled capacity, so we cannot make decisions based on just the target capacity alone.  It also leads to
+           some potential unpleasant race conditions, depending on how the fulfilled capacity changes between the
+           idle_agents computation and the actual cluster modification calls.  The code has been architected (as best
+           as possible) to minimize effects from this disparity
         """
         if not self.resource_groups:
             raise MesosRoleManagerError('No resource groups available')
@@ -94,6 +106,42 @@ class MesosRoleManager:
         if new_target_capacity <= orig_target_capacity:
             self.prune_excess_fulfilled_capacity(new_target_capacity)
         return new_target_capacity
+
+    def get_resource_utilization(self, resource_name):
+        """Get the current amount of the given resource in use on each agent with this Mesos role.
+
+        :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
+        :returns: dict of agent_id -> float of resource utilization
+        """
+        resource_util = defaultdict(float)
+        for agent in self._agents:
+            agent_id = agent['agent_info']['id']['value']
+            value = get_resource_value(agent.get('allocated_resources', []), resource_name)
+            resource_util[agent_id] = value
+        return resource_util
+
+    def get_total_resources(self, resource_name):
+        """Get the total amount of the given resource for this Mesos role.
+
+        :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
+        :returns: float
+        """
+        total = 0
+        for agent in self._agents:
+            total += get_resource_value(agent['total_resources'], resource_name)
+        return total
+
+    def get_average_resource_utilization(self, resource_name):
+        """Get the overall proportion of the given resource that is in use.
+
+        :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
+        :returns: float
+        """
+        total = self.get_total_resources(resource_name)
+        if total == 0:
+            return 0
+        used = sum(self.get_resource_utilization(resource_name).values())
+        return used / total
 
     def _constrain_target_capacity(self, target_capacity):
         """ Ensure that the desired target capacity is within the specified bounds for the cluster """
@@ -269,10 +317,18 @@ class MesosRoleManager:
 
     @property
     def target_capacity(self):
+        """ The target capacity is the *desired* weighted capacity for the given Mesos cluster role.  There is no
+        guarantee that the actual capacity will equal the target capacity.
+        """
         return sum(group.target_capacity for group in self.resource_groups)
 
     @property
     def fulfilled_capacity(self):
+        """ The fulfilled capacity is the *actual* weighted capacity for the given Mesos cluster role at a particular
+        point in time.  This may be equal to, above, or below the :attr:`target_capacity`, depending on the availability
+        and state of AWS at the time.  In general, once the cluster has reached equilibrium, the fulfilled capacity will
+        be greater than or equal to the target capacity.
+        """
         return sum(group.fulfilled_capacity for group in self.resource_groups)
 
     @timed_cached_property(CACHE_TTL_SECONDS)
@@ -292,39 +348,3 @@ class MesosRoleManager:
                     agents.append(agent)
                     break  # once we've generated a valid agent, don't need to loop through the rest of its attrs
         return agents
-
-    def get_resource_utilization(self, resource_name):
-        """Get the current amount of the given resource in use on each agent with this Mesos role.
-
-        :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
-        :returns dict of agent_id -> float of resource utilization
-        """
-        resource_util = defaultdict(float)
-        for agent in self._agents:
-            agent_id = agent['agent_info']['id']['value']
-            value = get_resource_value(agent.get('allocated_resources', []), resource_name)
-            resource_util[agent_id] = value
-        return resource_util
-
-    def get_total_resources(self, resource_name):
-        """Get the total amount of the given resource for this Mesos role.
-
-        :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
-        :returns float
-        """
-        total = 0
-        for agent in self._agents:
-            total += get_resource_value(agent['total_resources'], resource_name)
-        return total
-
-    def get_average_resource_utilization(self, resource_name):
-        """Get the overall proportion of the given resource that is in use.
-
-        :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
-        :returns float
-        """
-        total = self.get_total_resources(resource_name)
-        if total == 0:
-            return 0
-        used = sum(self.get_resource_utilization(resource_name).values())
-        return used / total
