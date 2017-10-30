@@ -1,4 +1,5 @@
 from collections import namedtuple
+from functools import lru_cache
 
 import staticconf
 
@@ -101,7 +102,12 @@ def get_instance_resources(market):
 
 def get_instance_market(aws_instance_object):
     try:
-        az = ec2.describe_subnets(SubnetIds=[aws_instance_object['SubnetId']])['Subnets'][0]['AvailabilityZone']
+        az = subnet_to_az(aws_instance_object['SubnetId'])
     except KeyError:
         az = None
     return InstanceMarket(aws_instance_object['InstanceType'], az)
+
+
+@lru_cache(maxsize=32)
+def subnet_to_az(subnet_id):
+    return ec2.describe_subnets(SubnetIds=[subnet_id])['Subnets'][0]['AvailabilityZone']
