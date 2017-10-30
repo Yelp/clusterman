@@ -43,7 +43,7 @@ class Simulator:
         :param end_time: an arrow object indicating the end of the simulation
         """
         self.metadata = metadata
-        self.cluster = Cluster()
+        self.cluster = Cluster(self)
         self.start_time = start_time
         self.current_time = start_time
         self.billing_frequency = billing_frequency

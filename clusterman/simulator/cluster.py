@@ -21,7 +21,8 @@ class Instance:
 
 
 class Cluster:
-    def __init__(self):
+    def __init__(self, simulator):
+        self.simulator = simulator
         self._instances = {}
         self._instance_ids_by_market = defaultdict(list)
         self.ebs_storage = 0
@@ -29,12 +30,11 @@ class Cluster:
     def __len__(self):
         return len(self._instances)
 
-    def modify_size(self, instances_by_market, modify_time):
+    def modify_size(self, instances_by_market):
         """ Modify the capacity of the cluster to match a specified state
 
         :param instances_by_market: a dict from InstanceMarket -> num, representing the desired number of
             instances in each specified market; unspecified markets are left unchanged
-        :param modify_time: arrow object corresponding to the instance launch or termination time
         :returns: a tuple (added_instances, removed_instances)
         """
         added_instances, removed_instances = [], []
@@ -42,20 +42,31 @@ class Cluster:
             delta = int(num - self.market_size(market))
 
             if delta > 0:
-                instances = [Instance(market, modify_time) for i in range(delta)]
+                instances = [Instance(market, self.simulator.current_time) for i in range(delta)]
                 self._instance_ids_by_market[market].extend([instance.id for instance in instances])
                 added_instances.extend(instances)
 
             if delta < 0:
                 to_del = abs(delta)
                 for id in self._instance_ids_by_market[market][:to_del]:
-                    self._instances[id].end_time = modify_time
+                    self._instances[id].end_time = self.simulator.current_time
                     removed_instances.append(self._instances[id])
                     del self._instances[id]
                 del self._instance_ids_by_market[market][:to_del]
 
         self._instances.update({instance.id: instance for instance in added_instances})
         return added_instances, removed_instances
+
+    def terminate_instances_by_ids(self, ids):
+        """ Terminate instance in the ids list
+
+        :param ids: a list of IDs to be terminated
+        """
+        for terminate_id in ids:
+            self._instances[terminate_id].end_time = self.simulator.current_time
+            market = self._instances[terminate_id].market
+            del self._instances[terminate_id]
+            self._instance_ids_by_market[market].remove(terminate_id)
 
     def market_size(self, market):
         return len(self._instance_ids_by_market[market])

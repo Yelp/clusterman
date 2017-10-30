@@ -33,7 +33,7 @@ class SpotFleet(Cluster):
        b. If two markets have the same residual capacity, we fill the market with the cheaper spot price first.
     """
 
-    def __init__(self, config):
+    def __init__(self, config, simulator):
         """
         :param config: a configuration dictionary that follows the SFR launch configuration schema.  Not all values
             needed for the SFR config are required here.  Specifically, we require the following elements:
@@ -49,7 +49,7 @@ class SpotFleet(Cluster):
                 ]
             }
         """
-        super().__init__()
+        super().__init__(simulator)
         self._instance_types = {}
         for spec in config['LaunchSpecifications']:
             bid_price = spec['SpotPrice'] * spec['WeightedCapacity']
@@ -61,37 +61,54 @@ class SpotFleet(Cluster):
         if self.allocation_strategy != 'diversified':
             raise NotImplementedError(f'{self.allocation_strategy} not supported')
 
-    def modify_spot_fleet_request(self, target_capacity, spot_prices):
+    def modify_spot_fleet_request(self, target_capacity, terminate_excess_capacity=True):
         """ Modify the requested capacity for a particular spot fleet
 
         :param target_capacity: desired capacity after this operation
-        :param spot_prices: dictionary of current spot market prices
+        :param terminate_excess_capacity: indicate if we should kill instances to meet target capacity
         """
-        if self.target_capacity > target_capacity:
-            raise NotImplementedError('Cannot reduce spot fleet capacity yet')  # TODO (CLUSTERMAN-52)
+        curr_capacity = self.fulfilled_capacity
+        if curr_capacity > target_capacity and terminate_excess_capacity is True:
+            # Since AWS doesn't allow the user to specify which instances are shut down,
+            # we terminate instances one by one (in order of launch time) until the target capacity is reached
+            sequence = sorted([instance for instance in self.instances.values()], key=lambda i: i.start_time)
+            removed_ids = []
+            adjusted_capacity = curr_capacity - target_capacity
+            for instance in sequence:
+                weight = self._instance_types[instance.market].weight
+                if weight > adjusted_capacity:
+                    continue
+                adjusted_capacity -= weight
+                removed_ids.append(instance.id)
+                if adjusted_capacity <= 0:
+                    break
+            self.terminate_instances(removed_ids)
         else:
-            new_market_counts = self._get_new_market_counts(target_capacity, spot_prices)
+            new_market_counts = self._get_new_market_counts(target_capacity)
             added_instances, __ = self.modify_size(new_market_counts)
             for instance in added_instances:
                 instance.bid_price = self._instance_types[instance.market].bid_price
-            self.target_capacity = target_capacity
+        self.target_capacity = target_capacity
 
     def terminate_instances(self, ids):
-        raise NotImplementedError('Cannot terminate instances yet')  # TODO (CLUSTERMAN-52)
+        """ Terminate specified instances
 
-    def _get_new_market_counts(self, target_capacity, spot_prices):
+        :param ids: desired ids of instances to be terminated
+        """
+        self.terminate_instances_by_ids(ids)
+
+    def _get_new_market_counts(self, target_capacity):
         """ Given a target capacity and current spot market prices, find instances to add to achieve the target capacity
 
         :param target_capacity: the desired total capacity of the fleet
-        :param spot_prices: the current spot market prices
         :returns: a dictionary suitable for passing to Cluster.modify_size
         :raises ValueError: if target_capacity is less than the current self.target_capacity
         """
         if target_capacity < self.target_capacity:
             raise ValueError(f'Target capacity {target_capacity} < current capacity {self.target_capacity}')
 
-        available_markets = self._find_available_markets(spot_prices)
-        residuals = self._compute_market_residuals(target_capacity, available_markets, spot_prices)
+        available_markets = self._find_available_markets()
+        residuals = self._compute_market_residuals(target_capacity, available_markets)
 
         residual_correction = 0  # If we overflow in one market, correct the residuals in the remaining markets
         new_market_counts = {}
@@ -123,13 +140,12 @@ class SpotFleet(Cluster):
                 new_market_counts[market] = instance_num + self.market_size(market)
         return new_market_counts
 
-    def _compute_market_residuals(self, target_capacity, markets, spot_prices):
+    def _compute_market_residuals(self, target_capacity, markets):
         """ Given a target capacity and list of available markets, compute the residuals needed to bring all markets up
         to an (approximately) equal capacity such that the total capacity meets or exceeds the target capacity
 
         :param target_capacity: the desired total capacity of the fleet
         :param markets: a list of available markets
-        :param spot_prices: the current spot market prices
         :returns: a list of (market, residual) tuples, sorted first by lowest capacity and next by lowest spot price
         """
         target_capacity_per_market = target_capacity / len(markets)
@@ -141,7 +157,7 @@ class SpotFleet(Cluster):
 
         def residual_sort_key(value_tuple):
             market, residual = value_tuple
-            return (residual, spot_prices[market])
+            return (residual, self.simulator.instance_prices[market])
 
         return sorted(
             [(market, residual(market)) for market in markets],
@@ -151,9 +167,8 @@ class SpotFleet(Cluster):
     def _total_market_weight(self, market):
         return self.market_size(market) * self._instance_types[market].weight
 
-    def _find_available_markets(self, spot_prices):
+    def _find_available_markets(self):
         """
-        :param spot_prices: the current spot market prices
         :returns: a list of available spot markets, e.g. markets in the spot fleet request whose bid price is above the
             current market price
         """
@@ -161,7 +176,7 @@ class SpotFleet(Cluster):
         return [
             market
             for market, config in self._instance_types.items()
-            if config.bid_price >= spot_prices[market]
+            if config.bid_price >= self.simulator.instance_prices[market]
         ]
 
     @property
@@ -171,4 +186,4 @@ class SpotFleet(Cluster):
         Note that the actual capacity may be greater than the target capacity if instance weights do not evenly divide
         the given target capacity
         """
-        return sum(self._total_market_weight(market) for market in self.instance_types)
+        return sum(self._total_market_weight(market) for market in self._instance_types)

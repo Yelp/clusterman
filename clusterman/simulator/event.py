@@ -43,7 +43,6 @@ class ModifyClusterCapacityEvent(Event):
         # add the instances to the cluster and compute costs for their first hour
         __, removed_instances = simulator.cluster.modify_size(
             self.instance_types,
-            modify_time=self.time,
         )
         simulator.capacity.add_breakpoint(self.time, simulator.cluster.cpu)
 
