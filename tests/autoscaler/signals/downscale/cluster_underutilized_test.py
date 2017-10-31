@@ -1,6 +1,7 @@
 import mock
 import pytest
 
+from clusterman.autoscaler.signals.base_signal import SignalResult
 from clusterman.autoscaler.signals.downscale.cluster_underutilized import ClusterUnderutilizedSignal
 
 
@@ -21,8 +22,7 @@ class TestClusterUnderutilizedSignal:
         mock_cpu_util.return_value = mock_config['scale_down_threshold'] - 0.1
 
         signal = ClusterUnderutilizedSignal('foo', 'bar', mock_config)
-        assert signal.delta() == -mock_config['units_to_remove']
-        assert signal.active
+        assert signal() == SignalResult(True, -mock_config['units_to_remove'])
 
     def test_signal_ignored_1(self, mock_cpu_util, mock_config):
         mock_cpu_util.side_effect = [
@@ -31,8 +31,7 @@ class TestClusterUnderutilizedSignal:
         ]
 
         signal = ClusterUnderutilizedSignal('foo', 'bar', mock_config)
-        assert signal.delta() == 0
-        assert not signal.active
+        assert signal() == SignalResult()
 
     def test_signal_ignored_2(self, mock_cpu_util, mock_config):
         mock_cpu_util.side_effect = [
@@ -41,8 +40,7 @@ class TestClusterUnderutilizedSignal:
         ]
 
         signal = ClusterUnderutilizedSignal('foo', 'bar', mock_config)
-        assert signal.delta() == 0
-        assert not signal.active
+        assert signal() == SignalResult()
 
     def test_ignored_3(self, mock_cpu_util, mock_config):
         mock_cpu_util.side_effect = [
@@ -51,5 +49,4 @@ class TestClusterUnderutilizedSignal:
         ]
 
         signal = ClusterUnderutilizedSignal('foo', 'bar', mock_config)
-        assert signal.delta() == 0
-        assert not signal.active
+        assert signal() == SignalResult()

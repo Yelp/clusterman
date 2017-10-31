@@ -2,6 +2,7 @@ import mock
 import pytest
 
 from clusterman.autoscaler.autoscaler import Autoscaler
+from clusterman.autoscaler.signals.base_signal import SignalResult
 
 
 @pytest.fixture
@@ -9,19 +10,19 @@ def mock_read_signals(mock_autoscaler_config_dict):
     with mock.patch('clusterman.autoscaler.autoscaler._read_signals') as mock_read_signals:
         sig1 = mock.MagicMock(priority=mock_autoscaler_config_dict['autoscale_signals'][0]['priority'])
         sig1.name = mock_autoscaler_config_dict['autoscale_signals'][0]['name']
-        sig1.active = False
+        sig1.return_value = SignalResult()
 
         sig2 = mock.MagicMock(priority=0)
         sig2.name = mock_autoscaler_config_dict['autoscale_signals'][1]['name']
-        sig2.active = False
+        sig2.return_value = SignalResult()
 
         sig3 = mock.MagicMock(priority=3)
         sig3.name = 'UnusedSignal'
-        sig3.active = False
+        sig3.return_value = SignalResult()
 
         sig4 = mock.MagicMock(priority=mock_autoscaler_config_dict['autoscale_signals'][2]['priority'])
         sig4.name = mock_autoscaler_config_dict['autoscale_signals'][2]['name']
-        sig4.active = False
+        sig4.return_value = SignalResult()
 
         mock_read_signals.return_value = {
             sig1.name: mock.Mock(return_value=sig1),
@@ -57,15 +58,14 @@ def test_autoscaler_dry_run(dry_run, mock_autoscaler):
 
 
 def test_compute_cluster_delta_active(mock_read_signals, mock_autoscaler):
-    mock_read_signals.return_value['FakeSignalTwo'].return_value.active = True
-    mock_read_signals.return_value['FakeSignalTwo'].return_value.delta.return_value = 20
+    mock_read_signals.return_value['FakeSignalTwo'].return_value.return_value = SignalResult(True, 20)
     mock_autoscaler._constrain_cluster_delta = mock.Mock(side_effect=lambda x: x)
 
     delta = mock_autoscaler._compute_cluster_delta()
     assert delta == 20
-    assert mock_read_signals.return_value['FakeSignalOne'].return_value.delta.call_count == 0
-    assert mock_read_signals.return_value['FakeSignalTwo'].return_value.delta.call_count == 1
-    assert mock_read_signals.return_value['FakeSignalThree'].return_value.delta.call_count == 0
+    assert mock_read_signals.return_value['FakeSignalOne'].return_value.call_count == 0
+    assert mock_read_signals.return_value['FakeSignalTwo'].return_value.call_count == 1
+    assert mock_read_signals.return_value['FakeSignalThree'].return_value.call_count == 0
 
 
 def test_signals_not_active(mock_read_signals, mock_autoscaler):
@@ -73,9 +73,23 @@ def test_signals_not_active(mock_read_signals, mock_autoscaler):
 
     delta = mock_autoscaler._compute_cluster_delta()
     assert delta == 0
-    assert mock_read_signals.return_value['FakeSignalOne'].return_value.delta.call_count == 1
-    assert mock_read_signals.return_value['FakeSignalTwo'].return_value.delta.call_count == 1
-    assert mock_read_signals.return_value['FakeSignalThree'].return_value.delta.call_count == 1
+    assert mock_read_signals.return_value['FakeSignalOne'].return_value.call_count == 1
+    assert mock_read_signals.return_value['FakeSignalTwo'].return_value.call_count == 1
+    assert mock_read_signals.return_value['FakeSignalThree'].return_value.call_count == 1
+
+
+def test_signals_error(mock_read_signals, mock_autoscaler):
+    mock_autoscaler._constrain_cluster_delta = mock.Mock(side_effect=lambda x: x)
+    mock_read_signals.return_value['FakeSignalTwo'].return_value.side_effect = Exception('something bad happened')
+    mock_read_signals.return_value['FakeSignalOne'].return_value.return_value = SignalResult(True, 30)
+
+    with mock.patch('clusterman.autoscaler.autoscaler.logger') as logger:
+        delta = mock_autoscaler._compute_cluster_delta()
+        assert logger.error.call_count == 1
+    assert delta == 30
+    assert mock_read_signals.return_value['FakeSignalOne'].return_value.call_count == 1
+    assert mock_read_signals.return_value['FakeSignalTwo'].return_value.call_count == 1
+    assert mock_read_signals.return_value['FakeSignalThree'].return_value.call_count == 0
 
 
 def test_constrain_cluster_delta_normal_scale_up(mock_autoscaler):

@@ -1,6 +1,7 @@
 import mock
 import pytest
 
+from clusterman.autoscaler.signals.base_signal import SignalResult
 from clusterman.autoscaler.signals.upscale import ClusterOverutilizedSignal
 
 
@@ -21,12 +22,10 @@ class TestClusterOverutilizedSignal:
         mock_cpu_util.return_value = mock_config['scale_up_threshold'] + 0.1
 
         signal = ClusterOverutilizedSignal('foo', 'bar', mock_config)
-        assert signal.delta() == mock_config['units_to_add']
-        assert signal.active
+        assert signal() == SignalResult(True, mock_config['units_to_add'])
 
     def test_signal_ignored(self, mock_cpu_util, mock_config):
         mock_cpu_util.return_value = mock_config['scale_up_threshold'] - 0.1
 
         signal = ClusterOverutilizedSignal('foo', 'bar', mock_config)
-        assert signal.delta() == 0
-        assert not signal.active
+        assert signal() == SignalResult()

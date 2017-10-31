@@ -87,11 +87,15 @@ class Autoscaler:
             for signal in signals:
                 signal_name = signal.__class__.__name__
                 logger.info(f'Evaluating signal {signal_name}')
-                delta = signal.delta()
+                try:
+                    signal_result = signal()
+                except Exception as err:
+                    logger.error(f'Error in signal handling, skipping {signal_name}: {err}')
+                    continue
                 logger.info(f'Done with signal {signal_name}')
 
-                if signal.active:
-                    delta = self._constrain_cluster_delta(delta)
+                if signal_result.active:
+                    delta = self._constrain_cluster_delta(signal_result.delta)
                     logger.info(f'Signal {signal_name} activated; cluster capacity changing by {delta} weight.')
                     return delta
 

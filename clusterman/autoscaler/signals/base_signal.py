@@ -1,18 +1,16 @@
 from abc import ABCMeta
 from abc import abstractmethod
+from collections import namedtuple
 
 from clusterman.util import get_clusterman_logger
 
 logger = get_clusterman_logger(__name__)
+SignalResult = namedtuple('SignalResult', ['active', 'delta'])
+SignalResult.__new__.__defaults__ = (False, 0)
 
 
 class BaseSignal(metaclass=ABCMeta):
-    """ All autoscaling signals MUST inherit from this class to ensure priorities are set correctly
-
-    In order to be correctly processed by the scaling engine, an auto-scaling signal MUST do two things:
-        1. Implement a function self.delta(), which returns the number of units the signal is requesting to scale up or
-           down by; this value can be 0 if the signal wishes to maintain the current cluster capacity
-        2. In self.delta(), set self._active = True if the signal should be processed by the signal manager
+    """ All autoscaling signals MUST inherit from this class to ensure priorities are set correctly.
 
     Additionally, each signal MUST have an entry corresponding to its class name in the config file if it will be
     checked by the signal manager.  This entry SHOULD have a priority setting to determine how the signal will be
@@ -21,7 +19,6 @@ class BaseSignal(metaclass=ABCMeta):
     """
 
     def __init__(self, cluster, role, signal_config):
-        self._active = False
         self.cluster = cluster
         self.role = role
         try:
@@ -33,12 +30,9 @@ class BaseSignal(metaclass=ABCMeta):
             self.priority = 0
 
     @abstractmethod
-    def delta(self):  # pragma: no cover
-        pass
+    def __call__(self):  # pragma: no cover
+        """ Check to see if the signal has fired or not
 
-    @property
-    def active(self):
-        """ Once a signal has activated, reset it so that future evaluations don't accidentally trigger """
-        ret = self._active
-        self._active = False
-        return ret
+        :returns: a SignalResult
+        """
+        pass

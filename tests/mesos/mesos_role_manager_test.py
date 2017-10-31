@@ -9,7 +9,6 @@ from clusterman.exceptions import MesosRoleManagerError
 from clusterman.exceptions import ResourceGroupProtectedException
 from clusterman.mesos.mesos_role_manager import DEFAULT_ROLE_CONFIG
 from clusterman.mesos.mesos_role_manager import get_roles_in_cluster
-from clusterman.mesos.constants import ROLE_NAMESPACE
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.mesos.mesos_role_manager import SERVICES_FILE
 from tests.conftest import mock_open
@@ -33,6 +32,7 @@ def mock_role_config():
             }
         }
     }
+
 
 @pytest.fixture
 def mock_resource_groups():
