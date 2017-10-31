@@ -3,7 +3,7 @@ arrow
 botocore==1.7.25.post1
 boto3
 cached-property
-clusterman-metrics>=0.8.3
+clusterman-metrics>=0.8.4
 colorlog
 colorama
 matplotlib
