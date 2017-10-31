@@ -68,6 +68,7 @@ class SpotFleet(Cluster):
         :param terminate_excess_capacity: indicate if we should kill instances to meet target capacity
         """
         curr_capacity = self.fulfilled_capacity
+        self.target_capacity = target_capacity
         if curr_capacity > target_capacity and terminate_excess_capacity is True:
             # Since AWS doesn't allow the user to specify which instances are shut down,
             # we terminate instances one by one (in order of launch time) until the target capacity is reached
@@ -83,12 +84,8 @@ class SpotFleet(Cluster):
                 if adjusted_capacity <= 0:
                     break
             self.terminate_instances(removed_ids)
-        else:
-            new_market_counts = self._get_new_market_counts(target_capacity)
-            added_instances, __ = self.modify_size(new_market_counts)
-            for instance in added_instances:
-                instance.bid_price = self._instance_types[instance.market].bid_price
-        self.target_capacity = target_capacity
+        elif curr_capacity < target_capacity:
+            self._increase_capacity_to_target(target_capacity)
 
     def terminate_instances(self, ids):
         """ Terminate specified instances
@@ -96,6 +93,20 @@ class SpotFleet(Cluster):
         :param ids: desired ids of instances to be terminated
         """
         self.terminate_instances_by_ids(ids)
+        # restore capacity if current capacity is less than target capacity
+        if self.fulfilled_capacity < self.target_capacity:
+            self._increase_capacity_to_target(self.target_capacity)
+
+    def _increase_capacity_to_target(self, target_capacity):
+        """ When current capacity is less than target_capacity, this function would increase capacity to meet target_capacity
+
+        :returns: the current capacity after filling up
+        """
+        new_market_counts = self._get_new_market_counts(target_capacity)
+        added_instances, __ = self.modify_size(new_market_counts)
+        for instance in added_instances:
+            instance.bid_price = self._instance_types[instance.market].bid_price
+        return self.fulfilled_capacity
 
     def _get_new_market_counts(self, target_capacity):
         """ Given a target capacity and current spot market prices, find instances to add to achieve the target capacity
