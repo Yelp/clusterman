@@ -8,6 +8,8 @@ from clusterman.util import get_clusterman_logger
 _session = None
 logger = get_clusterman_logger(__name__)
 
+FILTER_LIMIT = 200
+
 
 def _init_session():
     global _session
@@ -52,11 +54,27 @@ class ec2(metaclass=_BotoForwarder):
 
 def ec2_describe_instances(instance_ids=None, filters=None):
 
+    def _get_lindex_upper_bound(filter):
+        if len(filters) == 0:
+            return 1
+        return max(1, len(filters[0]['Values']))
+
     instance_ids = instance_ids or []
     filters = filters or []
+    filter_values = []
+
+    # TODO (CLUSTERMAN-116) need to support multiple filters case
+    if len(filters) > 1:
+        raise NotImplementedError(f'Multiple filters is not yet supported')
+    elif len(filters) == 1 and len(filters[0]['Values']) > FILTER_LIMIT:
+        filter_values = filters[0]['Values']
 
     instance_paginator = ec2.get_paginator('describe_instances')
-    for page in instance_paginator.paginate(InstanceIds=instance_ids, Filters=filters):
-        for reservation in page['Reservations']:
-            for i in reservation['Instances']:
-                yield i
+
+    for lindex in range(0, _get_lindex_upper_bound(filters), FILTER_LIMIT):
+        if lindex < len(filter_values):
+            filters[0]['Values'] = filter_values[lindex:lindex + FILTER_LIMIT]
+        for page in instance_paginator.paginate(InstanceIds=instance_ids, Filters=filters):
+            for reservation in page['Reservations']:
+                for i in reservation['Instances']:
+                    yield i
