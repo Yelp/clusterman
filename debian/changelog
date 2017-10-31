@@ -1,3 +1,9 @@
+clusterman (0.6.3) trusty; urgency=low
+
+  * Fix FilterLimitExceeded bug for ec2_describe_instances
+
+ -- Chien-An Lai <chl@yelp.com>  Tue, 31 Oct 2017 16:17:22 -0700
+
 clusterman (0.6.2) trusty; urgency=low
 
   * Fix RequestLimitExceeded bug for `clusterman status`
