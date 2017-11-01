@@ -60,24 +60,13 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
     @protect_unowned_instances
     def terminate_instances_by_id(self, instance_ids, batch_size=500):
         if not instance_ids:
-            logger.warn('No instances to terminate')
+            logger.warn(f'No instances to terminate in {self.sfr_id}')
             return [], 0
 
         instance_weights = {
             instance['InstanceId']: self.market_weights[get_instance_market(instance)]
             for instance in ec2_describe_instances(instance_ids)
         }
-
-        # There is an unavoidable race condition here; if the fulfilled capacity changes
-        # between now and the modify_target_capacity below, the final numbers for the
-        # cluster will be incorrect.  There are two cases:
-        #  1) The fulfilled capacity goes up between these two calls: in this case, there
-        #     will just be some extra instances hanging around (above our target capacity)
-        #     these extra instances will (in theory) get terminated the next time we scale
-        #     down, or when we get outbid
-        #  2) The fulfilled capacity goes down between these two calls: in this case, nothing
-        #     bad will happen since the SFR will just try to re-fill the extra needed capacity
-        original_fulfilled_capacity = self.fulfilled_capacity
 
         # AWS API recommends not terminating more than 1000 instances at a time, and to
         # terminate larger numbers in batches
@@ -93,17 +82,10 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
         if missing_instances:
             logger.warn('Some instances could not be terminated; they were probably killed previously')
             logger.warn(f'Missing instances: {list(missing_instances)}')
-        capacity_to_terminate = sum(instance_weights[i] for i in instance_ids)
+        terminated_capacity = sum(instance_weights[i] for i in instance_ids)
 
-        # We use the _requested_ terminated capacity instead of the _actual_ terminated capacity here;
-        # if AWS took some instances away before we were able to terminate them we still want to account
-        # for them in the target_capacity change.  Note that if there is some other reason why the instances
-        # weren't terminated, they could still be floating around, as in case (1) in the race condition
-        # discussion above
-        self.modify_target_capacity(original_fulfilled_capacity - capacity_to_terminate)
-
-        logger.info(f'{self.id} terminated weight: {capacity_to_terminate}; instances: {terminated_instance_ids}')
-        return terminated_instance_ids, capacity_to_terminate
+        logger.info(f'{self.id} terminated weight: {terminated_capacity}; instances: {terminated_instance_ids}')
+        return terminated_instance_ids
 
     @property
     def id(self):

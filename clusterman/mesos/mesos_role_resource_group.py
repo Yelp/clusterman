@@ -62,7 +62,7 @@ class MesosRoleResourceGroup(metaclass=ABCMeta):
         termination of instances that do not belong to this ResourceGroup
 
         :param instance_ids: a list of instance IDs to terminate
-        :returns: a list of terminated instance IDs and the total terminated weight
+        :returns: a list of terminated instance IDs
         """
         pass
 

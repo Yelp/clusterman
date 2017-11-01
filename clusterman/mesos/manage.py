@@ -7,7 +7,7 @@ from clusterman.util import ask_for_confirmation
 def main(args):
     if args.recycle:
         raise NotImplementedError('Cluster recycling is not yet supported')
-    manager = MesosRoleManager(args.role, args.cluster)
+    manager = MesosRoleManager(args.cluster, args.role)
     ask_for_confirmation(
         f'Modifying target capacity from {manager.target_capacity} to {args.target_capacity}.  Proceed? '
     )

@@ -34,7 +34,7 @@ class ClusterMetricsCollector(BatchDaemon):
 
         roles = get_roles_in_cluster(self.options.cluster)
         self.mesos_managers = {
-            role: MesosRoleManager(role, self.options.cluster)
+            role: MesosRoleManager(self.options.cluster, role)
             for role in roles
         }
 
