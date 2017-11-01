@@ -1,3 +1,11 @@
+clusterman (0.7.0) trusty; urgency=low
+
+  * Revised scale-down logic in the MesosRoleManager: target capacity
+    is always set to the desired capacity, and the fulfilled capacity
+    will slowly be brought down to match
+
+ -- David Morrison <drmorr@yelp.com>  Wed, 01 Nov 2017 15:36:37 -0700
+
 clusterman (0.6.3) trusty; urgency=low
 
   * Fix FilterLimitExceeded bug for ec2_describe_instances
