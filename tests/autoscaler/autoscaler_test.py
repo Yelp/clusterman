@@ -1,27 +1,29 @@
 import mock
 import pytest
+import staticconf
 
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.autoscaler.signals.base_signal import SignalResult
 
 
 @pytest.fixture
-def mock_read_signals(mock_autoscaler_config_dict):
+def mock_read_signals():
     with mock.patch('clusterman.autoscaler.autoscaler._read_signals') as mock_read_signals:
-        sig1 = mock.MagicMock(priority=mock_autoscaler_config_dict['autoscale_signals'][0]['priority'])
-        sig1.name = mock_autoscaler_config_dict['autoscale_signals'][0]['name']
+        read_config = staticconf.NamespaceReaders('bar_config')
+        sig1 = mock.MagicMock(priority=read_config.read_list('autoscale_signals')[0]['priority'])
+        sig1.name = read_config.read_list('autoscale_signals')[0]['name']
         sig1.return_value = SignalResult()
 
         sig2 = mock.MagicMock(priority=0)
-        sig2.name = mock_autoscaler_config_dict['autoscale_signals'][1]['name']
+        sig2.name = read_config.read_list('autoscale_signals')[1]['name']
         sig2.return_value = SignalResult()
 
         sig3 = mock.MagicMock(priority=3)
         sig3.name = 'UnusedSignal'
         sig3.return_value = SignalResult()
 
-        sig4 = mock.MagicMock(priority=mock_autoscaler_config_dict['autoscale_signals'][2]['priority'])
-        sig4.name = mock_autoscaler_config_dict['autoscale_signals'][2]['name']
+        sig4 = mock.MagicMock(priority=read_config.read_list('autoscale_signals')[2]['priority'])
+        sig4.name = read_config.read_list('autoscale_signals')[2]['name']
         sig4.return_value = SignalResult()
 
         mock_read_signals.return_value = {
@@ -36,7 +38,7 @@ def mock_read_signals(mock_autoscaler_config_dict):
 
 @pytest.fixture
 @mock.patch('clusterman.autoscaler.autoscaler.MesosRoleManager', autospec=True)
-def mock_autoscaler(mock_role_manager, mock_read_signals, mock_autoscaler_config):
+def mock_autoscaler(mock_role_manager, mock_read_signals):
     with mock.patch('clusterman.autoscaler.autoscaler.logger'):
         mock_role_manager.return_value.target_capacity = 300
         a = Autoscaler('foo', 'bar')

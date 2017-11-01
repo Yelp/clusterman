@@ -1,8 +1,5 @@
 import pytest
-import staticconf.testing
 from moto import mock_ec2
-
-from tests.conftest import mock_open
 
 
 @pytest.fixture(autouse=True)
@@ -11,36 +8,6 @@ def setup_ec2():
     mock_ec2_obj.start()
     yield
     mock_ec2_obj.stop()
-
-
-def cluster_configs():
-    return {
-        'mesos_clusters': {
-            'mesos-test': {
-                'leader_service': 'the.mesos.leader',
-                'aws_region': 'us-test-3',
-            },
-        },
-    }
-
-
-@pytest.fixture(autouse=True)
-def mock_service_config():
-    mock_config = cluster_configs()
-    mock_config.update({
-        'aws': {
-            'access_key_file': '/etc/secrets',
-            'region': 'us-west-2',
-        },
-    })
-    with staticconf.testing.MockConfiguration(mock_config):
-        yield
-
-
-@pytest.fixture(autouse=True)
-def mock_aws_client_setup():
-    with mock_open('/etc/secrets', '{"accessKeyId": "foo", "secretAccessKey": "bar"}'):
-        yield
 
 
 @pytest.fixture

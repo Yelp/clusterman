@@ -13,7 +13,6 @@ from clusterman.util import colored_status
 from clusterman.util import parse_time_interval_seconds
 from clusterman.util import parse_time_string
 from clusterman.util import setup_config
-from tests.mesos.conftest import cluster_configs
 
 
 @pytest.mark.parametrize('inp,response', [('\n', True), ('\n', False), ('yE', True), ('n', False)])
@@ -73,7 +72,6 @@ def test_setup_config_no_cluster(mock_load_config):
 @mock.patch('clusterman.util.load_default_config')
 def test_setup_config_cluster(mock_load_config):
     args = argparse.Namespace(env_config_path='/nail/etc/config.yaml', cluster='mesos-test')
-    with staticconf.testing.MockConfiguration(cluster_configs()):
-        setup_config(args)
-        assert mock_load_config.call_args_list == [mock.call('/nail/etc/config.yaml')]
-        assert staticconf.read_string('aws.region') == 'us-test-3'
+    setup_config(args)
+    assert mock_load_config.call_args_list == [mock.call('/nail/etc/config.yaml')]
+    assert staticconf.read_string('aws.region') == 'us-west-2'

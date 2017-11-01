@@ -10,7 +10,7 @@ class DummySignal(BaseSignal):
 
 
 @mock.patch('clusterman.autoscaler.signals.base_signal.logger', autospec=True)
-def test_base_signal_init(mock_logger, mock_autoscaler_config):
+def test_base_signal_init(mock_logger):
     config = staticconf.NamespaceReaders('bar_config')
     signal_config = config.read_list('autoscale_signals')[0]
     a = DummySignal('foo', 'bar', signal_config)
@@ -19,7 +19,7 @@ def test_base_signal_init(mock_logger, mock_autoscaler_config):
 
 
 @mock.patch('clusterman.autoscaler.signals.base_signal.logger', autospec=True)
-def test_base_signal_init_no_priority(mock_logger, mock_autoscaler_config):
+def test_base_signal_init_no_priority(mock_logger):
     config = staticconf.NamespaceReaders('bar_config')
     signal_config = config.read_list('autoscale_signals')[1]
     a = DummySignal('foo', 'bar', signal_config)

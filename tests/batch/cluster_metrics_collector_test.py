@@ -3,12 +3,10 @@ from contextlib import contextmanager
 
 import mock
 import pytest
-import staticconf.testing
 from clusterman_metrics import SYSTEM_METRICS
 
 from clusterman.batch.cluster_metrics_collector import ClusterMetricsCollector
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
-from tests.mesos.conftest import cluster_configs
 
 
 @pytest.fixture
@@ -21,29 +19,15 @@ def batch(args=None):
     return batch
 
 
-@pytest.fixture
-def mock_batch_config():
-    mock_config = cluster_configs()
-    mock_config.update({
-        'batches': {
-            'cluster_metrics': {
-                'run_interval_seconds': 120,
-            }
-        },
-    })
-    with staticconf.testing.MockConfiguration(mock_config):
-        yield
-
-
 @mock.patch('clusterman.batch.cluster_metrics_collector.MesosRoleManager', autospec=True)
 @mock.patch('clusterman.batch.cluster_metrics_collector.get_roles_in_cluster')
-def test_configure_initial(mock_get_roles, mock_mesos_role_manager, batch, mock_batch_config):
+def test_configure_initial(mock_get_roles, mock_mesos_role_manager, batch):
     mock_get_roles.return_value = ['role-1', 'role-3']
     with mock.patch('clusterman.batch.cluster_metrics_collector.setup_config'):
         batch.configure_initial()
 
     assert batch.run_interval == 120
-    assert batch.region == 'us-test-3'  # region from cluster configs
+    assert batch.region == 'us-west-2'  # region from cluster configs
     assert mock_get_roles.call_args_list == [mock.call('mesos-test')]
     assert sorted(batch.mesos_managers.keys()) == ['role-1', 'role-3']
     for manager in batch.mesos_managers.values():
