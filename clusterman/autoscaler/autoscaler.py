@@ -71,7 +71,7 @@ class Autoscaler:
                 logger.warn(f'Could not load signal {signal_name}, missing config value; ignoring ({e})')
                 continue
 
-            logger.info('Registering signal {signal_name} (priority {signal.priority})')
+            logger.info(f'Registering signal {signal_name} (priority {signal.priority})')
             active_signals[signal.priority].append(signal)
 
         return active_signals
