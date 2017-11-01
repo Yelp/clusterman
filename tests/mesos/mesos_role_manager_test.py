@@ -55,14 +55,14 @@ def mock_role_manager(mock_role_config, mock_resource_groups):
             mock_open(SERVICES_FILE, 'the.mesos.leader:\n  host: foo\n  port: 1234'), \
             mock.patch('clusterman.mesos.mesos_role_manager.load_spot_fleets_from_s3') as mock_load:
         mock_load.return_value = []
-        manager = MesosRoleManager('baz', 'mesos-test')
+        manager = MesosRoleManager('mesos-test', 'baz')
         manager.resource_groups = mock_resource_groups
 
         return manager
 
 
 def test_mesos_role_manager_init(mock_role_manager):
-    assert mock_role_manager.name == 'baz'
+    assert mock_role_manager.role == 'baz'
     assert mock_role_manager.api_endpoint == 'http://foo:1234/api/v1'
 
 

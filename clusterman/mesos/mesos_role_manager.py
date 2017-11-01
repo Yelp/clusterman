@@ -14,6 +14,7 @@ from clusterman.exceptions import MarketProtectedException
 from clusterman.exceptions import MesosRoleManagerError
 from clusterman.exceptions import ResourceGroupProtectedException
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
+from clusterman.mesos.constants import ROLE_NAMESPACE
 from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_s3
 from clusterman.mesos.util import allocated_cpu_resources
 from clusterman.mesos.util import find_largest_capacity_market
@@ -24,41 +25,43 @@ from clusterman.util import get_clusterman_logger
 ROLE_CONFIG_DIR = '/nail/srv/configs/clusterman-roles'
 DEFAULT_ROLE_CONFIG = ROLE_CONFIG_DIR + '/{name}/config.yaml'
 SERVICES_FILE = '/nail/etc/services/services.yaml'
-NAMESPACE = 'role_config'
 logger = get_clusterman_logger(__name__)
 
 
-def get_roles_in_cluster(cluster_name):
+def get_roles_in_cluster(cluster):
     all_roles = os.listdir(ROLE_CONFIG_DIR)
     cluster_roles = []
     for role in all_roles:
         role_file = DEFAULT_ROLE_CONFIG.format(name=role)
         with open(role_file) as f:
             config = yaml.load(f)
-            if cluster_name in config['mesos']:
+            if cluster in config['mesos']:
                 cluster_roles.append(role)
     return cluster_roles
 
 
-def load_configs_for_cluster(cluster_name, role_config_file):
+def load_configs_for_cluster(cluster, role):
+    role_config_file = DEFAULT_ROLE_CONFIG.format(name=role)
     with open(role_config_file) as f:
         all_configs = yaml.load(f)
-    staticconf.DictConfiguration(all_configs['mesos'][cluster_name], namespace=NAMESPACE)
+    role_namespace = ROLE_NAMESPACE.format(role=role)
+    staticconf.DictConfiguration(all_configs['mesos'][cluster], namespace=role_namespace)
     del all_configs['mesos']
-    staticconf.DictConfiguration(all_configs, namespace=NAMESPACE)
+    staticconf.DictConfiguration(all_configs, namespace=role_namespace)
 
 
 class MesosRoleManager:
-    def __init__(self, name, cluster):
-        self.name = name
+    def __init__(self, cluster, role):
         self.cluster = cluster
-        role_config_file = DEFAULT_ROLE_CONFIG.format(name=self.name)
-        load_configs_for_cluster(self.cluster, role_config_file)
+        self.role = role
+        load_configs_for_cluster(self.cluster, self.role)
 
-        self.min_capacity = staticconf.read_int('defaults.min_capacity', namespace=NAMESPACE)
-        self.max_capacity = staticconf.read_int('defaults.max_capacity', namespace=NAMESPACE)
+        role_config = staticconf.NamespaceReaders(ROLE_NAMESPACE.format(role=self.role))
 
         mesos_master_discovery_label = staticconf.read_string(f'mesos_clusters.{cluster}.leader_service')
+        self.min_capacity = role_config.read_int('defaults.min_capacity')
+        self.max_capacity = role_config.read_int('defaults.max_capacity')
+
         with open(SERVICES_FILE) as f:
             services = yaml.load(f)
         self.api_endpoint = 'http://{host}:{port}/api/v1'.format(
@@ -67,9 +70,9 @@ class MesosRoleManager:
         )
 
         self.resource_groups = load_spot_fleets_from_s3(
-            staticconf.read_string('resource_groups.s3.bucket', namespace=NAMESPACE),
-            staticconf.read_string('resource_groups.s3.prefix', namespace=NAMESPACE),
-            role=self.name,
+            role_config.read_string('resource_groups.s3.bucket'),
+            role_config.read_string('resource_groups.s3.prefix'),
+            role=self.role,
         )
 
     def modify_target_capacity(self, new_target_capacity):
@@ -306,7 +309,7 @@ class MesosRoleManager:
         agents = []
         for agent in response.json()['get_agents']['agents']:
             for attr in agent['agent_info'].get('attributes', []):
-                if attr['name'] == 'role' and self.name == attr['text']['value']:
+                if attr['name'] == 'role' and self.role == attr['text']['value']:
                     agents.append(agent)
                     break  # once we've generated a valid agent, don't need to loop through the rest of its attrs
         return agents

@@ -3,6 +3,7 @@ from contextlib import contextmanager
 
 import mock
 import pytest
+import staticconf.testing
 
 from clusterman.math.piecewise import PiecewiseConstantFunction
 
@@ -43,6 +44,80 @@ def mock_open(filename, contents=None):
     mocked_file.start()
     yield
     mocked_file.stop()
+
+
+@pytest.fixture(autouse=True)
+def main_clusterman_config():
+    config = {
+        'aws': {
+            'access_key_file': '/etc/secrets',
+            'region': 'us-west-2',
+        },
+        'batches': {
+            'cluster_metrics': {
+                'run_interval_seconds': 120,
+            }
+        },
+        'mesos_clusters': {
+            'mesos-test': {
+                'leader_service': 'the.mesos.leader',
+                'aws_region': 'us-west-2',
+            },
+        },
+    }
+
+    with staticconf.testing.MockConfiguration(config):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def clusterman_role_config():
+    config = {
+        'resource_groups': {
+            's3': {
+                'bucket': 'fake-bucket',
+                'prefix': 'none',
+            }
+        },
+        'defaults': {
+            'max_capacity': 5000,
+            'min_capacity': 24,
+            'max_weight_to_add': 200,
+            'max_weight_to_remove': 10,
+        },
+        'autoscale_signals': [
+            {
+                'name': 'FakeSignalOne',
+                'priority': 1,
+                'param1': 42,
+                'param2': 'asdf',
+            },
+            {
+                'name': 'FakeSignalTwo',
+                'paramA': 24,
+                'paramB': 'fdsa',
+            },
+            {
+                'name': 'FakeSignalThree',
+                'priority': 1,
+            },
+            {
+                'name': 'FakeSignalFour',
+                'priority': 7,
+            },
+            {
+                'name': 'MissingParamSignal',
+            },
+        ]
+    }
+    with staticconf.testing.MockConfiguration(config, namespace='bar_config'):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def mock_aws_client_setup():
+    with mock_open('/etc/secrets', '{"accessKeyId": "foo", "secretAccessKey": "bar"}'):
+        yield
 
 
 @pytest.fixture
