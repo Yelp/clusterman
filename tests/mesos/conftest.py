@@ -34,7 +34,7 @@ def mock_agents_dict():
                     'agent_info': {
                         'attributes': [
                             {'name': 'blah', 'scalar': {'value': 10}, 'type': 'SCALAR'},
-                            {'name': 'role', 'text': {'value': 'baz'}, 'type': 'TEXT'},
+                            {'name': 'role', 'text': {'value': 'bar'}, 'type': 'TEXT'},
                             {'name': 'ssss', 'text': {'value': 'hjkl'}, 'type': 'TEXT'},
                         ],
                         'hostname': 'im-in-the-role.yelpcorp.com',

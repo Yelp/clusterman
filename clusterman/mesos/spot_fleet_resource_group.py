@@ -60,7 +60,7 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
     @protect_unowned_instances
     def terminate_instances_by_id(self, instance_ids, batch_size=500):
         if not instance_ids:
-            logger.warn('No instances to terminate')
+            logger.warn(f'No instances to terminate in {self.sfr_id}')
             return [], 0
 
         instance_weights = {

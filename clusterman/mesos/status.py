@@ -8,7 +8,7 @@ from clusterman.util import colored_status
 
 def print_status(manager, verbose):
     print('\n')
-    print(f'Current status for the {manager.name} role in the {manager.cluster} cluster:\n')
+    print(f'Current status for the {manager.role} role in the {manager.cluster} cluster:\n')
     print('Resource groups:')
     for group in manager.resource_groups:
         # TODO (CLUSTERMAN-100) These are just the status responses for spot fleets; this probably won't
@@ -41,7 +41,7 @@ def print_status(manager, verbose):
 
 
 def main(args):
-    manager = MesosRoleManager(args.role, args.cluster)
+    manager = MesosRoleManager(args.cluster, args.role)
     print_status(manager, args.verbose)
 
 

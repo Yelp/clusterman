@@ -23,7 +23,7 @@ from clusterman.util import get_clusterman_logger
 
 
 ROLE_CONFIG_DIR = '/nail/srv/configs/clusterman-roles'
-DEFAULT_ROLE_CONFIG = ROLE_CONFIG_DIR + '/{name}/config.yaml'
+DEFAULT_ROLE_CONFIG = ROLE_CONFIG_DIR + '/{role}/config.yaml'
 SERVICES_FILE = '/nail/etc/services/services.yaml'
 logger = get_clusterman_logger(__name__)
 
@@ -32,7 +32,7 @@ def get_roles_in_cluster(cluster):
     all_roles = os.listdir(ROLE_CONFIG_DIR)
     cluster_roles = []
     for role in all_roles:
-        role_file = DEFAULT_ROLE_CONFIG.format(name=role)
+        role_file = DEFAULT_ROLE_CONFIG.format(role=role)
         with open(role_file) as f:
             config = yaml.load(f)
             if cluster in config['mesos']:
@@ -41,7 +41,7 @@ def get_roles_in_cluster(cluster):
 
 
 def load_configs_for_cluster(cluster, role):
-    role_config_file = DEFAULT_ROLE_CONFIG.format(name=role)
+    role_config_file = DEFAULT_ROLE_CONFIG.format(role=role)
     with open(role_config_file) as f:
         all_configs = yaml.load(f)
     role_namespace = ROLE_NAMESPACE.format(role=role)
@@ -86,11 +86,13 @@ class MesosRoleManager:
         """
         if not self.resource_groups:
             raise MesosRoleManagerError('No resource groups available')
+        orig_target_capacity = self.target_capacity
         new_target_capacity = self._constrain_target_capacity(new_target_capacity)
 
         for i, target in self._compute_new_resource_group_targets(new_target_capacity):
             self.resource_groups[i].modify_target_capacity(target)
-        self.prune_excess_fulfilled_capacity(new_target_capacity)
+        if new_target_capacity <= orig_target_capacity:
+            self.prune_excess_fulfilled_capacity(new_target_capacity)
         return new_target_capacity
 
     def _constrain_target_capacity(self, target_capacity):

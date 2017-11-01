@@ -41,19 +41,21 @@ def test_target_capacity(mock_manager):
     assert mock_manager.target_capacity == 5
 
 
-def test_scale_up(mock_manager, mock_sfrs):
-    with mock.patch('clusterman.mesos.mesos_role_manager.MesosRoleManager.prune_excess_fulfilled_capacity'):
-        mock_manager.max_capacity = 101
-        mock_manager.modify_target_capacity(53)
-        assert sorted([rg.target_capacity for rg in mock_manager.resource_groups]) == [10, 10, 11, 11, 11]
+@mock.patch('clusterman.mesos.mesos_role_manager.MesosRoleManager.prune_excess_fulfilled_capacity')
+def test_scale_up(mock_prune, mock_manager, mock_sfrs):
+    mock_manager.max_capacity = 101
+    mock_manager.modify_target_capacity(53)
+    assert sorted([rg.target_capacity for rg in mock_manager.resource_groups]) == [10, 10, 11, 11, 11]
 
-        ec2.modify_spot_fleet_request(SpotFleetRequestId=mock_sfrs[0].id, TargetCapacity=13)
-        mock_manager.modify_target_capacity(76)
-        assert sorted([rg.target_capacity for rg in mock_manager.resource_groups]) == [15, 15, 15, 15, 16]
+    ec2.modify_spot_fleet_request(SpotFleetRequestId=mock_sfrs[0].id, TargetCapacity=13)
+    mock_manager.modify_target_capacity(76)
+    assert sorted([rg.target_capacity for rg in mock_manager.resource_groups]) == [15, 15, 15, 15, 16]
 
-        ec2.modify_spot_fleet_request(SpotFleetRequestId=mock_sfrs[3].id, TargetCapacity=30)
-        mock_manager.modify_target_capacity(1000)
-        assert sorted([rg.target_capacity for rg in mock_manager.resource_groups]) == [17, 18, 18, 18, 30]
+    ec2.modify_spot_fleet_request(SpotFleetRequestId=mock_sfrs[3].id, TargetCapacity=30)
+    mock_manager.modify_target_capacity(1000)
+    assert sorted([rg.target_capacity for rg in mock_manager.resource_groups]) == [17, 18, 18, 18, 30]
+
+    assert mock_prune.call_count == 0
 
 
 # TODO (CLUSTERMAN-97) the scale_down itests need some efficiency improvements in moto before it's feasible

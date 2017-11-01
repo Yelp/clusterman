@@ -15,26 +15,6 @@ from tests.conftest import mock_open
 
 
 @pytest.fixture
-def mock_role_config():
-    return {
-        'defaults': {
-            'min_capacity': 3,
-            'max_capacity': 345,
-        },
-        'mesos': {
-            'mesos-test': {
-                'resource_groups': {
-                    's3': {
-                        'bucket': 'dummy-bucket',
-                        'prefix': 'nowhere',
-                    }
-                }
-            }
-        }
-    }
-
-
-@pytest.fixture
 def mock_resource_groups():
     return [
         mock.Mock(
@@ -49,20 +29,19 @@ def mock_resource_groups():
 
 
 @pytest.fixture
-def mock_role_manager(mock_role_config, mock_resource_groups):
-    role_config_file = DEFAULT_ROLE_CONFIG.format(name='baz')
-    with mock_open(role_config_file, yaml.dump(mock_role_config)), \
+def mock_role_manager(mock_resource_groups):
+    with mock.patch('clusterman.mesos.mesos_role_manager.load_configs_for_cluster'), \
             mock_open(SERVICES_FILE, 'the.mesos.leader:\n  host: foo\n  port: 1234'), \
             mock.patch('clusterman.mesos.mesos_role_manager.load_spot_fleets_from_s3') as mock_load:
         mock_load.return_value = []
-        manager = MesosRoleManager('mesos-test', 'baz')
+        manager = MesosRoleManager('mesos-test', 'bar')
         manager.resource_groups = mock_resource_groups
 
         return manager
 
 
 def test_mesos_role_manager_init(mock_role_manager):
-    assert mock_role_manager.role == 'baz'
+    assert mock_role_manager.role == 'bar'
     assert mock_role_manager.api_endpoint == 'http://foo:1234/api/v1'
 
 
@@ -75,14 +54,14 @@ def test_mesos_role_manager_init(mock_role_manager):
 def test_get_roles_in_cluster(mock_ls, cluster, roles):
     mock_ls.return_value = ['role-1', 'role-2']
     with mock_open(
-        DEFAULT_ROLE_CONFIG.format(name='role-1'),
+        DEFAULT_ROLE_CONFIG.format(role='role-1'),
         contents=yaml.dump({
             'mesos': {
                 'cluster-A': {},
             }
         }),
     ), mock_open(
-        DEFAULT_ROLE_CONFIG.format(name='role-2'),
+        DEFAULT_ROLE_CONFIG.format(role='role-2'),
         contents=yaml.dump({
             'mesos': {
                 'cluster-A': {},
@@ -109,7 +88,7 @@ def test_modify_target_capacity(constrain_return, mock_role_manager):
     ])
     assert mock_role_manager.modify_target_capacity(100) == constrain_return
     assert mock_role_manager._constrain_target_capacity.call_count == 1
-    assert mock_role_manager.prune_excess_fulfilled_capacity.call_count == 1
+    assert mock_role_manager.prune_excess_fulfilled_capacity.call_count == 0
     assert mock_role_manager._compute_new_resource_group_targets.call_count == 1
     for i, group in enumerate(mock_role_manager.resource_groups):
         assert group.modify_target_capacity.call_count == 1

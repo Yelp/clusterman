@@ -40,6 +40,10 @@ def mock_read_signals():
 @mock.patch('clusterman.autoscaler.autoscaler.MesosRoleManager', autospec=True)
 def mock_autoscaler(mock_role_manager, mock_read_signals):
     with mock.patch('clusterman.autoscaler.autoscaler.logger'):
+        staticconf.DictConfiguration(
+            {'defaults': {'min_capacity': 24, 'max_capacity': 5000}},
+            namespace='bar_config',
+        )
         mock_role_manager.return_value.target_capacity = 300
         a = Autoscaler('foo', 'bar')
         return a
