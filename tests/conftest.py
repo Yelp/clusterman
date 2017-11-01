@@ -54,9 +54,13 @@ def main_clusterman_config():
             'region': 'us-west-2',
         },
         'batches': {
+            'spot_prices': {
+                'run_interval_seconds': 120,
+                'dedupe_interval_seconds': 60,
+            },
             'cluster_metrics': {
                 'run_interval_seconds': 120,
-            }
+            },
         },
         'mesos_clusters': {
             'mesos-test': {

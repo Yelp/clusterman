@@ -5,7 +5,6 @@ from contextlib import contextmanager
 import arrow
 import mock
 import pytest
-import staticconf.testing
 from clusterman_metrics import METADATA
 
 from clusterman.batch.spot_price_collector import SpotPriceCollector
@@ -14,20 +13,6 @@ from clusterman.batch.spot_price_collector import SpotPriceCollector
 @pytest.fixture
 def batch():
     return SpotPriceCollector()
-
-
-@pytest.fixture
-def mock_spot_price_batch_config():
-    mock_config = {
-        'batches': {
-            'spot_prices': {
-                'run_interval_seconds': 120,
-                'dedupe_interval_seconds': 60,
-            }
-        }
-    }
-    with staticconf.testing.MockConfiguration(mock_config):
-        yield
 
 
 @pytest.fixture
@@ -49,7 +34,7 @@ def test_start_time_default(mock_now, batch):
     assert args.start_time == mock_now.return_value
 
 
-def test_configure_initial_default(batch, mock_spot_price_batch_config):
+def test_configure_initial_default(batch):
     batch.options = batch_arg_parser(batch, ['--aws-region', 'us-test-2'])
     with mock.patch('clusterman.batch.spot_price_collector.setup_config'):
         batch.configure_initial()
@@ -60,7 +45,7 @@ def test_configure_initial_default(batch, mock_spot_price_batch_config):
     assert batch.dedupe_interval == 60
 
 
-def test_configure_initial_with_options(batch, mock_spot_price_batch_config, batch_arg_parser):
+def test_configure_initial_with_options(batch, batch_arg_parser):
     batch.options = batch_arg_parser  # just to set up options object, will override
     batch.options.env_config_path = 'custom.yaml'
     batch.options.start_time = arrow.get(2017, 9, 1, 1, 1, 0)
