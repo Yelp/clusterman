@@ -1,12 +1,12 @@
 import os
 import socket
+from bisect import bisect
 from collections import defaultdict
 
 import requests
 import staticconf
 import yaml
 from cached_property import timed_cached_property
-from sortedcontainers import SortedList
 
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import get_instance_market
@@ -88,13 +88,10 @@ class MesosRoleManager:
             raise MesosRoleManagerError('No resource groups available')
         new_target_capacity = self._constrain_target_capacity(new_target_capacity)
 
-        # We have different scaling behavior based on whether we're increasing or decreasing the cluster size
-        if new_target_capacity > self.target_capacity:
-            return self._increase_capacity(new_target_capacity)
-        elif new_target_capacity < self.target_capacity:
-            return self._decrease_capacity(new_target_capacity)
-        else:
-            return self.target_capacity
+        for i, target in self._compute_new_resource_group_targets(new_target_capacity):
+            self.resource_groups[i].modify_target_capacity(target)
+        self.prune_excess_fulfilled_capacity(new_target_capacity)
+        return new_target_capacity
 
     def _constrain_target_capacity(self, target_capacity):
         """ Ensure that the desired target capacity is within the specified bounds for the cluster """
@@ -109,38 +106,17 @@ class MesosRoleManager:
             logger.warn(f'Requested target capacity {target_capacity}; constraining to {new_target_capacity}')
         return new_target_capacity
 
-    def _increase_capacity(self, new_target_capacity):
-        """ Increase the capacity in the cluster; compute the capacity to add to each resource group
-        to ensure that the cluster is as balanced as possible
-
-        :param new_target_capacity: the desired target capacity for the cluster
-        :raises MesosRoleManagerError: if the desired capacity is not in (self.target_capacity, self.max_capacity]
-        """
-        if not self.target_capacity < new_target_capacity <= self.max_capacity:
-            raise MesosRoleManagerError(f'{new_target_capacity} is not in range '
-                                        '({self.target_capacity}, {self.max_capacity}]')
-        for i, target in self._compute_new_resource_group_targets(new_target_capacity):
-            self.resource_groups[i].modify_target_capacity(target)
-        return new_target_capacity
-
-    def _decrease_capacity(self, new_target_capacity):
+    def prune_excess_fulfilled_capacity(self, new_target_capacity=None):
         """ Decrease the capacity in the cluster; we only remove idle instances (i.e., instances that have
         no resources allocated to tasks).  We remove instances from the markets that have the largest fulfilled
         capacity first, so as to maintain balance across all the different spot groups.
 
-        NOTE: there is a disparity between _increase_capacity and _decrease_capacity; in particular, _increase_capacity
-        is based off target_capacity, but _decrease_capacity is based on fulfilled_capacity.  This is because the list
-        of idle agents is drawn from the fulfilled capacity, so we cannot make decisions based on just the target
-        capacity alone.  It also leads to some potential unpleasant race conditions, depending on how the fulfilled
-        capacity changes between the idle_agents computation and the actual cluster modification calls.  The code has
-        been architechted (as best as possible) to minimize effects from this disparity
-
         :param new_target_capacity: the desired target capacity for the cluster
         :raises MesosRoleManagerError: if the desired capacity is not in [self.min_capacity, self.target_capacity)
         """
-        if not self.min_capacity <= new_target_capacity < self.target_capacity:
-            raise MesosRoleManagerError(f'{new_target_capacity} is not in range '
-                                        '({self.min_capacity}, {self.target_capacity}]')
+        target_capacity = new_target_capacity or self.target_capacity
+        if self.fulfilled_capacity <= target_capacity:
+            return
 
         idle_agents = self._idle_agents_by_market()
         logger.info(f'Idle agents found: {list(idle_agents.values())}')
@@ -180,51 +156,52 @@ class MesosRoleManager:
             curr_capacity -= weight
 
         # Terminate the marked instances; it's possible that not all instances will be terminated
-        all_terminated_instances, total_terminated_weight = [], 0
+        all_terminated_instances = []
         for group, instances in marked_instances.items():
-            terminated_instances, terminated_weight = group.terminate_instances_by_id(instances)
+            terminated_instances = group.terminate_instances_by_id(instances)
             all_terminated_instances.extend(terminated_instances)
-            total_terminated_weight += terminated_weight
-
-        actual_new_target_capacity = initial_capacity - total_terminated_weight
-        if actual_new_target_capacity != new_target_capacity:
-            logger.warn(f'New target capacity is {actual_new_target_capacity} instead of {new_target_capacity}')
         logger.info(f'The following instances have been terminated: {all_terminated_instances}')
-        return actual_new_target_capacity
 
     def _compute_new_resource_group_targets(self, new_target_capacity):
         """ Compute a balanced distribution of target capacities for the resource groups in the cluster
 
         :param new_target_capacity: the desired new target capacity that needs to be distributed
-        :returns: A (sorted) list of (resource group index, target_capacity) pairs
+        :returns: A list of (resource group index, target_capacity) pairs
         """
-        new_targets = SortedList(
-            [[i, group.target_capacity] for i, group in enumerate(self.resource_groups)],
+
+        # If we're scaling down the logic is identical but reversed, so we multiply everything by -1
+        coeff = -1 if new_target_capacity < self.target_capacity else 1
+        new_targets_with_indices = sorted(
+            [(i, coeff * group.target_capacity) for i, group in enumerate(self.resource_groups)],
             key=lambda x: (x[1], x[0]),
         )
         if new_target_capacity == self.target_capacity:
-            return new_targets
+            return new_targets_with_indices
 
-        num_groups_to_increase = len(self.resource_groups)
+        original_indices, new_targets = [list(a) for a in zip(*new_targets_with_indices)]
+        num_groups_to_change = len(self.resource_groups)
         while True:
             # If any resource groups are currently above the new target "uniform" capacity, we need to recompute
             # the target while taking into account the over-supplied resource groups.  We never decrease the
             # capacity of a resource group here, so we just find the first index is above the desired target
             # and remove those from consideration.  We have to repeat this multiple times, as new resource
             # groups could be over the new "uniform" capacity after we've subtracted the overage value
-            capacity_per_group, remainder = divmod(new_target_capacity, num_groups_to_increase)
-            pos = new_targets.bisect([len(self.resource_groups), capacity_per_group])
-            overage = sum(new_targets[i][1] for i in range(pos, num_groups_to_increase))
+            #
+            # (For scaling down, apply the same logic for resource groups below the target "uniform" capacity instead;
+            # i.e., instances will below the target capacity will not be increased)
+            capacity_per_group, remainder = divmod(new_target_capacity, num_groups_to_change)
+            pos = bisect(new_targets, coeff * capacity_per_group)
+            residual = sum(new_targets[pos:num_groups_to_change])
 
-            if overage == 0:
-                for i in range(num_groups_to_increase):
-                    new_targets[i][1] = capacity_per_group + (1 if i < remainder else 0)
+            if residual == 0:
+                for i in range(num_groups_to_change):
+                    new_targets[i] = coeff * (capacity_per_group + (1 if i < remainder else 0))
                 break
 
-            new_target_capacity -= overage
-            num_groups_to_increase = pos
+            new_target_capacity -= coeff * residual
+            num_groups_to_change = pos
 
-        return new_targets
+        return zip(original_indices, [coeff * target for target in new_targets])
 
     def _mark_instance_for_removal(self, idle_agents, marked_instances, instance_market, rem_capacity):
         """ Attempt to mark an instance for removal from the cluster

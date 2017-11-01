@@ -119,7 +119,6 @@ def test_modify_target_capacity_down_terminate(mock_spot_fleet_resource_group):
 def test_terminate_all_instances_by_id(mock_spot_fleet_resource_group):
     mock_spot_fleet_resource_group.terminate_instances_by_id(mock_spot_fleet_resource_group.instances)
     assert mock_spot_fleet_resource_group.instances == []
-    assert mock_spot_fleet_resource_group.target_capacity == 0
 
 
 def test_terminate_all_instances_by_id_small_batch(mock_spot_fleet_resource_group):
@@ -130,7 +129,6 @@ def test_terminate_all_instances_by_id_small_batch(mock_spot_fleet_resource_grou
         mock_spot_fleet_resource_group.terminate_instances_by_id(mock_spot_fleet_resource_group.instances, batch_size=1)
         assert mock_terminate.call_count == 7
         assert mock_spot_fleet_resource_group.instances == []
-        assert mock_spot_fleet_resource_group.target_capacity == 0
 
 
 @mock.patch('clusterman.mesos.spot_fleet_resource_group.logger')
@@ -141,8 +139,7 @@ def test_terminate_some_instances_missing(mock_logger, mock_spot_fleet_resource_
                 {'InstanceId': i} for i in mock_spot_fleet_resource_group.instances[:3]
             ]
         }
-        instances, weight = mock_spot_fleet_resource_group.terminate_instances_by_id(
-            mock_spot_fleet_resource_group.instances)
+        instances = mock_spot_fleet_resource_group.terminate_instances_by_id(mock_spot_fleet_resource_group.instances)
 
         assert len(instances) == 3
         assert mock_logger.warn.call_count == 2
