@@ -52,6 +52,21 @@ def load_configs_for_cluster(cluster, role):
 
 
 class MesosRoleManager:
+    """ The MesosRoleManager object provides a consistent interface to the infrastructure that underpins a particular
+    Mesos role.  Specifically, it allows users to interact with the Mesos master (querying the number of agents in the
+    cluster, and what resources are available/allocated, for example) as well as to modify the capacity available to the
+    Mesos role.  Since many different types of hosts may be present in a Mesos cluster, this object refers to a list of
+    abstract :class:`MesosRoleResourceGroup <clusterman.mesos.mesos_role_resource_group.MesosRoleResourceGroup>` objects
+    to modify the underlying infrastructure.
+
+    One major assumption the MesosRoleManager makes currently is that the underlying infrastructure for a particular
+    role belongs completely to that role; in other words, at present no roles are co-located on the same physical
+    hardware.  This assumption is subject to change in the future.
+
+    .. note:: Values returned from MesosRoleManager functions may be cached to limit requests made to the Mesos masters
+       or AWS API endpoints.
+    """
+
     def __init__(self, cluster, role):
         self.cluster = cluster
         self.role = role
@@ -77,24 +92,18 @@ class MesosRoleManager:
         )
 
     def modify_target_capacity(self, new_target_capacity):
-        """ Change the target capacity of the resource groups belonging to this role.
+        """ Change the desired :attr:`target_capacity` of the resource groups belonging to this role.
 
         Capacity changes are roughly evenly distributed across the resource groups to ensure that
         instances are diversified in the cluster
 
-        :param new_target_capacity: the desired target capacity for the cluster
+        :param new_target_capacity: the desired target capacity for the cluster and role
 
-        .. note:: The cluster's :attr:`fulfilled_capacity` may not exactly match the desired capacity, but it will never
-           be under the :attr:`target_capacity` (for example, if there is no combination of instances that evenly sum to
-           the desired target capacity, the final fulfilled capacity will be slightly above the target capacity)
-
-        .. note:: There is a disparity between capacity increases and capacity decreases; in particular,
-           increases in capacity are based off the cluster's :attr:`target_capacity`, but decreases in capacity are
-           based on the cluster's :attr:`fulfilled_capacity`.  This is because the list of idle agents is drawn from the
-           fulfilled capacity, so we cannot make decisions based on just the target capacity alone.  It also leads to
-           some potential unpleasant race conditions, depending on how the fulfilled capacity changes between the
-           idle_agents computation and the actual cluster modification calls.  The code has been architected (as best
-           as possible) to minimize effects from this disparity
+        .. note:: It may take some time (up to a few minutes) for changes in the target capacity to be reflected in
+           :attr:`fulfilled_capacity`.  Once the capacity has equilibrated, the fulfilled capacity and the target
+           capacity may not exactly match, but the fulfilled capacity will never be under the target (for example, if
+           there is no combination of instances that evenly sum to the desired target capacity, the final fulfilled
+           capacity will be slightly above the target capacity)
         """
         if not self.resource_groups:
             raise MesosRoleManagerError('No resource groups available')

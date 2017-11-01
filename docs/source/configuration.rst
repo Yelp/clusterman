@@ -4,16 +4,16 @@ Configuration
 There are two levels of configuration for Clusterman; first configures the Clusterman application or service itself, and
 the second provides per-client configuration.
 
-Clusterman Configuration
-------------------------
+Main Configuration
+-------------------
 
 The following is an example configuration file for the core Clusterman service and application::
 
-   aws:
-       access_key_file: /etc/boto_cfg/clusterman.json
-       region: us-west-1
+    aws:
+        access_key_file: /etc/boto_cfg/clusterman.json
+        region: us-west-1
 
-   batches:
+    batches:
         cluster_metrics:
             run_interval_seconds: 60
 
@@ -22,19 +22,19 @@ The following is an example configuration file for the core Clusterman service a
             run_interval_seconds: 60
 
     mesos_clusters:
-       cluster-name:
+        cluster-name:
             aws_region: us-west-2
             leader_service: <Mesos master service hostname/port>
 
     module_config:
     - config:
-          log_stream_name: clusterman
+         log_stream_name: clusterman
       file: /nail/srv/configs/clog.yaml
       initialize: yelp_servlib.clog_util.initialize
       namespace: clog
 
     - file: /nail/srv/configs/clusterman_metrics.yaml
-        namespace: clusterman_metrics
+      namespace: clusterman_metrics
 
 The ``aws`` section provides the location of access credentials for the AWS API, as well as the region in which
 Clusterman should operate.
@@ -46,8 +46,8 @@ The ``mesos_clusters`` section provides the location of the Mesos clusters which
 The ``module_config`` section loads additional configuration values for Clusterman modules, such as
 ``clusterman_metrics``.
 
-Clusterman Role Configuration
------------------------------
+Role Configuration
+------------------
 
 The following is an example configuration file for a particular Clusterman role::
 

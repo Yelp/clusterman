@@ -10,6 +10,7 @@ Welcome to clusterman's documentation!
    :maxdepth: 2
    :caption: User Guide
 
+   batches
    configuration
    manage
    metrics
@@ -23,6 +24,7 @@ Welcome to clusterman's documentation!
 
    dev/metric_schemas.rst
    dev/mesos_role_manager.rst
+   dev/mesos_role_resource_group.rst
 
 
 
