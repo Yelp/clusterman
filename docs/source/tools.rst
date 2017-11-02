@@ -1,42 +1,6 @@
 Additional Tools
 ================
 
-backfill
---------
-
-The ``clusterman backfill`` tool can pull metrics data from a variety of sources (SignalFX, ElasticSearch, AWS) and
-backfill this data into the datastore (or, alternately, write the data to a compressed JSON file (see :ref:`Experimental
-Input Data`).  Since this is a relatively generic tool, it may or may not work "out-of-the-box".  Additional scripting
-may be required to get the data in the right format to backfill.
-
-Some generic options common to all input sources can be specified on the command line; additional, input-source-specific
-options may be specified via the ``-o`` or ``--option`` flag.  Such options must be specified as a whitespace-separated
-list of ``option_name=value`` strings.  Details for input-source-specific options for each of the supported data sources
-are specifed below.
-
-Backfilling from SignalFX
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Supported options:
-
-* ``api_token`` *(required)* -- a valid token used to interact with the SignalFX API
-* ``filters`` -- a ``dimension:value`` string used to filter the SignalFX results (can be specified multiple times)
-* ``resolution`` smallest time interval (in seconds) to perform the query on.  Note that SignalFX appears to have a
-  maximum resolution of 1 minute for the most recent data, and coarser resolutions for older data; therefore, setting a
-  fine resolution does not guarantee that data points will appear at that resolution.
-* ``rollup`` -- methods used to roll up data points that are closer together than the given resolution; supported values
-  can be found in the `SignalFX documentation <https://developers.signalfx.com/v2/reference#data>`_
-* ``extrapolation`` -- methods used to extrapolate missing data; supported values can be found in the `SignalFX
-  documentation`_
-
-Backfilling from ElasticSearch
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. todo:: Not yet implemented
-
-Backfilling from AWS
-~~~~~~~~~~~~~~~~~~~~
-.. todo:: Not yet implemented
-
 generate-data
 -------------
 
@@ -53,13 +17,16 @@ Experimental Design File Specification
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 An experimental design file contains details for how to generate experimental metric data for use in a simulation.  The
-specification for the experimental design is as follows::
+specification for the experimental design is as follows:
+
+.. code-block:: text
 
     metric_name:
         start_time: <date-time string>
         end_time: <date-time string>
         frequency: <frequency specification>
         values: <values specification>
+        dict_keys: (optional) <list of dictionary keys>
 
 * The ``metric_name`` is arbitrary; it should correspond to a metric value that ``clusterman simulate`` will use when
   performing its simulation.  Multiple metrics can be specified for a given experimental design by repeating the above
@@ -80,8 +47,8 @@ specification for the experimental design is as follows::
 
         distribution: dist-function
         params:
-            dist-param-a: param-value
-            dist-param-b: param-value
+            dist_param_a: param-value
+            dist_param_b: param-value
 
     The ``dist-function`` should be the name of a function in the `Python random module
     <https://docs.python.org/3/library/random.html#>`_.  The ``params`` are the keyword arguments for the chosen
@@ -100,12 +67,22 @@ specification for the experimental design is as follows::
 
 .. todo:: Currently you can only create a constant function, i.e., the metric value is always constant
 
+* The ``dict_keys`` field takes a list of strings which are used to generate a single timeseries with (potentially)
+  multiple data points per time value.  For example, given the following ``dict_keys`` configuration::
+
+    metric_a:
+        dict_keys:
+            - key1
+            - key2
+            - key3
+
+  the resulting generated data for ``metric_a`` might look something like the example in :ref:`dict_data_fmt` format.
 
 Output Format
 ~~~~~~~~~~~~~
 
 The ``generate-data`` command produces a compressed JSON containing the generated metric data.  The format for this file
-is identical to the simulator's :ref:`Experimental Input Data` format.
+is identical to the simulator's :ref:`input_data_fmt` format.
 
 
 Sample Usage

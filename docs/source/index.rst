@@ -8,10 +8,23 @@ Welcome to clusterman's documentation!
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: User Guide
 
+   batches
+   configuration
+   manage
+   metrics
    simulator
    tools
+
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Developing Clusterman
+
+   dev/metric_schemas.rst
+   dev/mesos_role_manager.rst
+   dev/mesos_role_resource_group.rst
 
 
 
