@@ -9,7 +9,8 @@ Manage
 
 The ``clusterman manage`` command can be used to directly change the state of the cluster:
 
-.. command-output:: clusterman manage --help
+.. program-output:: python -m clusterman.run manage --help
+   :cwd: ../../
 
 The ``--target-capacity`` option allows users to directly change the size of the Mesos cluster specified by the
 ``--cluster`` and ``--role`` arguments.
@@ -35,7 +36,8 @@ Status
 
 The ``clusterman status`` command provides information on the current state of the cluster:
 
-.. command-output:: clusterman status --help
+.. program-output:: python -m clusterman.run status --help
+   :cwd: ../../
 
 As noted above, the state of the cluster may take a few minutes to equilibrate after a ``clusterman manage`` command or
 the autoscaler has run, so the output from ``clusterman status`` may not accurately reflect the desired status.

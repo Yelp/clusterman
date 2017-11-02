@@ -21,10 +21,11 @@ minimal: development
 
 .PHONY: docs
 docs:
+	-rm -rf docs/build
 	tox -e docs
 
-.PHONY: doc-server
-doc-server: docs
+.PHONY: docs-server
+docs-server: docs
 	python docs/doc_server.py
 
 .PHONY: test

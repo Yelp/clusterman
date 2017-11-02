@@ -106,7 +106,7 @@ def parse_args(description):  # pragma: no cover
     from clusterman.simulator.run import add_simulate_parser
     from clusterman.tools.generate_data import add_generate_data_parser
 
-    root_parser = argparse.ArgumentParser(description=description, formatter_class=help_formatter)
+    root_parser = argparse.ArgumentParser(prog='clusterman', description=description, formatter_class=help_formatter)
     add_env_config_path_arg(root_parser)
     root_parser.add_argument(
         '--log-level',

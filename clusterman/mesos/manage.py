@@ -26,6 +26,7 @@ def add_mesos_manager_parser(subparser, required_named_args, optional_named_args
     required_named_args.add_argument(
         '--target-capacity',
         type=int,
+        metavar='X',
         required=True,
         help='New target capacity for the cluster',
     )
