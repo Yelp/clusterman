@@ -7,6 +7,7 @@ clusterman-metrics>=0.8.6
 clusterman-signals>=0.4.0
 colorlog
 colorama
+humanize
 matplotlib
 numpy
 parsedatetime

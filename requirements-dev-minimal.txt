@@ -7,6 +7,6 @@ requirements-tools
 mock
 moto>=1.1.24
 # TODO (CLUSTERMAN-113)
-# sphinx>=1.6.6
+sphinx>=1.6.5
 sphinx-rtd-theme
 sphinxcontrib-programoutput

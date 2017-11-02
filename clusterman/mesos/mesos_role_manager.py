@@ -123,7 +123,7 @@ class MesosRoleManager:
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
         :returns: float
         """
-        return get_total_resource_value(self._agents, 'allocated_resources', resource_name)
+        return get_total_resource_value(self.agents, 'allocated_resources', resource_name)
 
     def get_resource_total(self, resource_name):
         """Get the total amount of the given resource for this Mesos role.
@@ -131,7 +131,7 @@ class MesosRoleManager:
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
         :returns: float
         """
-        return get_total_resource_value(self._agents, 'total_resources', resource_name)
+        return get_total_resource_value(self.agents, 'total_resources', resource_name)
 
     def get_average_resource_allocation(self, resource_name):
         """Get the overall proportion of the given resource that is in use.
@@ -308,7 +308,7 @@ class MesosRoleManager:
         """ Find a list of idle agents, grouped by the market they belong to """
         idle_agents = [
             socket.gethostbyname(agent['agent_info']['hostname'])
-            for agent in self._agents
+            for agent in self.agents
             if allocated_cpu_resources(agent) == 0
         ]
 
@@ -335,7 +335,7 @@ class MesosRoleManager:
         return sum(group.fulfilled_capacity for group in self.resource_groups)
 
     @timed_cached_property(CACHE_TTL_SECONDS)
-    def _agents(self):
+    def agents(self):
         response = requests.post(
             self.api_endpoint,
             json={'type': 'GET_AGENTS'},
