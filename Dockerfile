@@ -16,6 +16,7 @@ RUN     apt-get update \
             python3.6 \
             tox \
             virtualenv \
+            zk-flock \
         && apt-get clean
 
 # See https://confluence.yelpcorp.com/display/~asottile/GettingPythonOffLucid
