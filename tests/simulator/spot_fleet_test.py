@@ -161,3 +161,11 @@ def test_downsize_capacity_by_small_weight(spot_fleet):
     spot_fleet.modify_spot_fleet_request(11)
     assert spot_fleet.target_capacity == 11
     assert spot_fleet.market_size(MARKETS[0]) == 0
+
+
+@pytest.mark.parametrize('target_capacity', [5, 10, 30, 50, 100])
+def test_restore_capacity(spot_fleet, target_capacity):
+    spot_fleet.modify_spot_fleet_request(target_capacity)
+    # terminate all instances
+    spot_fleet.terminate_instances(spot_fleet.instances.keys())
+    assert spot_fleet.fulfilled_capacity >= target_capacity
