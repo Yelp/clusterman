@@ -6,7 +6,6 @@ from clusterman_metrics import ClustermanMetricsBotoClient
 from clusterman_metrics import METADATA
 from yelp_batch.batch import batch_command_line_arguments
 from yelp_batch.batch import batch_configure
-from yelp_batch.batch import batch_context
 from yelp_batch.batch_daemon import BatchDaemon
 
 from clusterman.args import add_env_config_path_arg
@@ -43,24 +42,19 @@ class SpotPriceCollector(BatchDaemon):
         self.last_time_called = self.options.start_time
         self.run_interval = staticconf.read_int('batches.spot_prices.run_interval_seconds')
         self.dedupe_interval = staticconf.read_int('batches.spot_prices.dedupe_interval_seconds')
-
-    @batch_context
-    def get_writer(self):
         self.metrics_client = ClustermanMetricsBotoClient(region_name=self.region)
-        with self.metrics_client.get_writer(METADATA) as writer:
-            self.writer = writer
-            yield
 
-    def write_prices(self, end_time):
+    def write_prices(self, end_time, writer):
         prices = spot_price_generator(self.last_time_called, end_time)
-        write_prices_with_dedupe(prices, self.writer, self.dedupe_interval)
+        write_prices_with_dedupe(prices, writer, self.dedupe_interval)
         self.last_time_called = end_time
 
     def run(self):
         while self.running:
             time.sleep(self.run_interval - time.time() % self.run_interval)
             now = arrow.utcnow()
-            self.write_prices(now)
+            with self.metrics_client.get_writer(METADATA) as writer:
+                self.write_prices(now, writer)
 
 
 if __name__ == '__main__':
