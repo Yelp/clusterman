@@ -6,7 +6,6 @@ from clusterman_metrics import generate_key_with_dimensions
 from clusterman_metrics import SYSTEM_METRICS
 from yelp_batch.batch import batch_command_line_arguments
 from yelp_batch.batch import batch_configure
-from yelp_batch.batch import batch_context
 from yelp_batch.batch_daemon import BatchDaemon
 
 from clusterman.args import add_cluster_arg
@@ -37,25 +36,20 @@ class ClusterMetricsCollector(BatchDaemon):
             role: MesosRoleManager(self.options.cluster, role)
             for role in roles
         }
-
-    @batch_context
-    def get_writer(self):
         self.metrics_client = ClustermanMetricsBotoClient(region_name=self.region)
-        with self.metrics_client.get_writer(SYSTEM_METRICS) as writer:
-            self.writer = writer
-            yield
 
-    def write_metrics(self):
+    def write_metrics(self, writer):
         for role, manager in self.mesos_managers.items():
             average_cpu = manager.get_average_resource_utilization('cpus')
             metric_name = generate_key_with_dimensions('cpu_allocation', {'cluster': self.options.cluster, 'role': role})
             data = (metric_name, int(time.time()), average_cpu)
-            self.writer.send(data)
+            writer.send(data)
 
     def run(self):
         while self.running:
             time.sleep(self.run_interval - time.time() % self.run_interval)
-            self.write_metrics()
+            with self.metrics_client.get_writer(SYSTEM_METRICS) as writer:
+                self.write_metrics(writer)
 
 
 if __name__ == '__main__':
