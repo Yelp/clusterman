@@ -3,6 +3,7 @@ import pytest
 import staticconf
 
 from clusterman.autoscaler.autoscaler import Autoscaler
+from clusterman.autoscaler.autoscaler import DELTA_GAUGE_NAME
 from clusterman.autoscaler.signals.base_signal import SignalResult
 
 
@@ -37,8 +38,14 @@ def mock_read_signals():
 
 
 @pytest.fixture
+def mock_gauge():
+    with mock.patch('yelp_meteorite.create_gauge', autospec=True) as mock_gauge:
+        yield mock_gauge
+
+
+@pytest.fixture
 @mock.patch('clusterman.autoscaler.autoscaler.MesosRoleManager', autospec=True)
-def mock_autoscaler(mock_role_manager, mock_read_signals):
+def mock_autoscaler(mock_role_manager, mock_gauge, mock_read_signals):
     with mock.patch('clusterman.autoscaler.autoscaler.logger'):
         staticconf.DictConfiguration(
             {'defaults': {'min_capacity': 24, 'max_capacity': 5000}},
@@ -49,11 +56,13 @@ def mock_autoscaler(mock_role_manager, mock_read_signals):
         return a
 
 
-def test_autoscaler_init(mock_autoscaler):
+def test_autoscaler_init(mock_autoscaler, mock_gauge):
     assert mock_autoscaler.cluster == 'foo'
     assert mock_autoscaler.role == 'bar'
     assert {signal.name for signal in mock_autoscaler.signals[0]} == {'FakeSignalTwo'}
     assert {signal.name for signal in mock_autoscaler.signals[1]} == {'FakeSignalOne', 'FakeSignalThree'}
+    assert mock_gauge.call_args_list == [mock.call(DELTA_GAUGE_NAME, {'cluster': 'foo', 'role': 'bar'})]
+    assert mock_autoscaler.delta_gauge == mock_gauge.return_value
 
 
 @pytest.mark.parametrize('dry_run', [True, False])
@@ -61,6 +70,7 @@ def test_autoscaler_dry_run(dry_run, mock_autoscaler):
     mock_autoscaler._compute_cluster_delta = mock.Mock(return_value=100)
     mock_autoscaler.run(dry_run=dry_run)
     assert mock_autoscaler.mesos_role_manager.modify_target_capacity.call_count == int(not dry_run)
+    assert mock_autoscaler.delta_gauge.set.call_args_list == [mock.call(100, {'dry_run': dry_run})]
 
 
 def test_compute_cluster_delta_active(mock_read_signals, mock_autoscaler):

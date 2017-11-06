@@ -2,6 +2,7 @@ import inspect
 from collections import defaultdict
 
 import staticconf
+import yelp_meteorite
 
 import clusterman.autoscaler.signals.downscale as DownscaleSignals
 import clusterman.autoscaler.signals.upscale as UpscaleSignals
@@ -9,6 +10,8 @@ from clusterman.mesos.constants import ROLE_NAMESPACE
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.util import get_clusterman_logger
 
+
+DELTA_GAUGE_NAME = 'clusterman.autoscaler.delta'
 logger = get_clusterman_logger(__name__)
 
 
@@ -33,6 +36,7 @@ class Autoscaler:
         logger.info(f'Initializing autoscaler engine for {self.role} in {self.cluster}...')
         # TODO (CLUSTERMAN-107) we'll want to monitor this config for changes and reload as needed
         self.config = staticconf.NamespaceReaders(ROLE_NAMESPACE.format(role=self.role))
+        self.delta_gauge = yelp_meteorite.create_gauge(DELTA_GAUGE_NAME, {'cluster': cluster, 'role': role})
         logger.info('Connecting to Mesos')
         self.mesos_role_manager = MesosRoleManager(self.cluster, self.role)
         logger.info('Loading autoscaling signals')
@@ -44,11 +48,12 @@ class Autoscaler:
 
         :param dry_run: Don't actually modify the fleet size, just print what would happen
         """
-        new_target_capacity = self.mesos_role_manager.target_capacity + self._compute_cluster_delta()
+        delta = self._compute_cluster_delta()
+        self.delta_gauge.set(delta, {'dry_run': dry_run})
+        new_target_capacity = self.mesos_role_manager.target_capacity + delta
         if dry_run:
             logger.warn('This is a dry run: cluster size will not change.')
         else:
-            # TODO (CLUSTERMAN-106) log signals/scaling events to SignalFX, (and maybe Scribe, DynamoDB?)
             self.mesos_role_manager.modify_target_capacity(new_target_capacity)
 
     def _load_signals(self):
