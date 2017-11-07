@@ -46,7 +46,7 @@ def test_write_metrics(batch):
     batch.write_metrics(writer)
 
     for role, manager in batch.mesos_managers.items():
-        assert manager.get_average_resource_utilization.call_args_list == [mock.call('cpus')]
+        assert manager.get_average_resource_allocation.call_args_list == [mock.call('cpus')]
 
     assert writer.send.call_count == 2
 

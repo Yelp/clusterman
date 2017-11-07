@@ -116,20 +116,18 @@ class MesosRoleManager:
             self.prune_excess_fulfilled_capacity(new_target_capacity)
         return new_target_capacity
 
-    def get_resource_utilization(self, resource_name):
-        """Get the current amount of the given resource in use on each agent with this Mesos role.
+    def get_resource_allocation(self, resource_name):
+        """Get the total amount of the given resource currently allocated for this Mesos role.
 
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
-        :returns: dict of agent_id -> float of resource utilization
+        :returns: float
         """
-        resource_util = defaultdict(float)
+        resources_allocated = 0
         for agent in self._agents:
-            agent_id = agent['agent_info']['id']['value']
-            value = get_resource_value(agent.get('allocated_resources', []), resource_name)
-            resource_util[agent_id] = value
-        return resource_util
+            resources_allocated += get_resource_value(agent.get('allocated_resources', []), resource_name)
+        return resources_allocated
 
-    def get_total_resources(self, resource_name):
+    def get_resource_total(self, resource_name):
         """Get the total amount of the given resource for this Mesos role.
 
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
@@ -140,16 +138,16 @@ class MesosRoleManager:
             total += get_resource_value(agent['total_resources'], resource_name)
         return total
 
-    def get_average_resource_utilization(self, resource_name):
+    def get_average_resource_allocation(self, resource_name):
         """Get the overall proportion of the given resource that is in use.
 
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
         :returns: float
         """
-        total = self.get_total_resources(resource_name)
+        total = self.get_resource_total(resource_name)
         if total == 0:
             return 0
-        used = sum(self.get_resource_utilization(resource_name).values())
+        used = self.get_resource_allocation(resource_name)
         return used / total
 
     def _constrain_target_capacity(self, target_capacity):

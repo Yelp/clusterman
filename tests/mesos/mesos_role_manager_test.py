@@ -408,23 +408,23 @@ class TestResources:
             yield mock_role_manager
 
     @pytest.mark.parametrize('resource_name,expected', [
-        ('cpus', {'idle': 0, 'no-gpus': 1.5, 'gpus-1': 0, 'gpus-2': 0}),
-        ('gpus', {'idle': 0, 'no-gpus': 0, 'gpus-1': 1, 'gpus-2': 0.2}),
+        ('cpus', 1.5),
+        ('gpus', 1.2),
     ])
-    def test_utilization(self, mock_agents, resource_name, expected):
-        assert mock_agents.get_resource_utilization(resource_name) == expected
+    def test_allocation(self, mock_agents, resource_name, expected):
+        assert mock_agents.get_resource_allocation(resource_name) == expected
 
     @pytest.mark.parametrize('resource_name,expected', [
         ('cpus', 12),
         ('gpus', 8),
     ])
     def test_total_cpus(self, mock_agents, resource_name, expected):
-        assert mock_agents.get_total_resources(resource_name) == expected
+        assert mock_agents.get_resource_total(resource_name) == expected
 
     @pytest.mark.parametrize('resource_name,expected', [
         ('mem', 0),
         ('cpus', 0.125),
         ('gpus', 0.15),
     ])
-    def test_average_utilization(self, mock_agents, resource_name, expected):
-        assert mock_agents.get_average_resource_utilization(resource_name) == expected
+    def test_average_allocation(self, mock_agents, resource_name, expected):
+        assert mock_agents.get_average_resource_allocation(resource_name) == expected
