@@ -41,7 +41,7 @@ class ClusterMetricsCollector(BatchDaemon):
     def write_metrics(self, writer):
         for role, manager in self.mesos_managers.items():
             average_cpu = manager.get_average_resource_utilization('cpus')
-            metric_name = generate_key_with_dimensions('cpu_allocation', {'cluster': self.options.cluster, 'role': role})
+            metric_name = generate_key_with_dimensions('cpu_allocation_percent', {'cluster': self.options.cluster, 'role': role})
             data = (metric_name, int(time.time()), average_cpu)
             writer.send(data)
 
