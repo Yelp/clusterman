@@ -47,8 +47,17 @@ def test_write_metrics(batch):
 
     for role, manager in batch.mesos_managers.items():
         assert manager.get_average_resource_allocation.call_args_list == [mock.call('cpus')]
+        assert manager.get_resource_allocation.call_args_list == [mock.call('cpus')]
 
-    assert writer.send.call_count == 2
+    assert writer.send.call_count == 4
+
+    metric_names = [call[0][0][0] for call in writer.send.call_args_list]
+    assert sorted(metric_names) == sorted([
+        'cpu_allocation|cluster=mesos-test,role=role_A',
+        'cpu_allocation|cluster=mesos-test,role=role_B',
+        'cpu_allocation_percent|cluster=mesos-test,role=role_A',
+        'cpu_allocation_percent|cluster=mesos-test,role=role_B',
+    ])
 
 
 @mock.patch('time.sleep')

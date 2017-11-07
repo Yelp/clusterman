@@ -39,11 +39,16 @@ class ClusterMetricsCollector(BatchDaemon):
         self.metrics_client = ClustermanMetricsBotoClient(region_name=self.region)
 
     def write_metrics(self, writer):
-        for role, manager in self.mesos_managers.items():
-            average_cpu = manager.get_average_resource_allocation('cpus')
-            metric_name = generate_key_with_dimensions('cpu_allocation_percent', {'cluster': self.options.cluster, 'role': role})
-            data = (metric_name, int(time.time()), average_cpu)
-            writer.send(data)
+        metrics_to_write = [
+            ('cpu_allocation_percent', lambda manager: manager.get_average_resource_allocation('cpus')),
+            ('cpu_allocation', lambda manager: manager.get_resource_allocation('cpus')),
+        ]
+        for metric, value_method in metrics_to_write:
+            for role, manager in self.mesos_managers.items():
+                value = value_method(manager)
+                metric_name = generate_key_with_dimensions(metric, {'cluster': self.options.cluster, 'role': role})
+                data = (metric_name, int(time.time()), value)
+                writer.send(data)
 
     def run(self):
         while self.running:
