@@ -4,6 +4,7 @@ from contextlib import contextmanager
 import mock
 import pytest
 import staticconf.testing
+import yelp_meteorite
 
 from clusterman.math.piecewise import PiecewiseConstantFunction
 
@@ -124,6 +125,12 @@ def clusterman_role_config():
 @pytest.fixture(autouse=True)
 def mock_aws_client_setup():
     with mock_open('/etc/secrets', '{"accessKeyId": "foo", "secretAccessKey": "bar"}'):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def block_meteorite_emission():
+    with yelp_meteorite.testcase():
         yield
 
 
