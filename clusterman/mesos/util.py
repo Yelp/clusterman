@@ -15,7 +15,7 @@ def get_resource_value(resources, resource_name):
 
 def allocated_cpu_resources(agent):
     return get_resource_value(
-        agent['agent_info'].get('allocated_resources', []),
+        agent.get('allocated_resources', []),
         'cpus'
     )
 

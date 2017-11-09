@@ -22,13 +22,13 @@ def mock_agents_dict():
                             {'name': 'role', 'text': {'value': 'asdf'}, 'type': 'TEXT'},
                         ],
                         'hostname': 'not-in-the-role.yelpcorp.com',
-                    }
+                    },
                 },
                 {
                     'agent_info': {
                         'hostname': 'asdf.yelpcorp.com',
-                        'allocated_resources': [{'name': 'mem', 'scalar': {'value': 10}, 'type': 'SCALAR'}],
-                    }
+                    },
+                    'allocated_resources': [{'name': 'mem', 'scalar': {'value': 10}, 'type': 'SCALAR'}],
                 },
                 {
                     'agent_info': {
@@ -38,11 +38,11 @@ def mock_agents_dict():
                             {'name': 'ssss', 'text': {'value': 'hjkl'}, 'type': 'TEXT'},
                         ],
                         'hostname': 'im-in-the-role.yelpcorp.com',
-                        'allocated_resources': [
-                            {'name': 'mem', 'scalar': {'value': 20}, 'type': 'SCALAR'},
-                            {'name': 'cpus', 'scalar': {'value': 10}, 'type': 'SCALAR'},
-                        ],
-                    }
+                    },
+                    'allocated_resources': [
+                        {'name': 'mem', 'scalar': {'value': 20}, 'type': 'SCALAR'},
+                        {'name': 'cpus', 'scalar': {'value': 10}, 'type': 'SCALAR'},
+                    ],
                 },
             ]
         }
