@@ -18,7 +18,7 @@ from clusterman.mesos.constants import ROLE_NAMESPACE
 from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_s3
 from clusterman.mesos.util import allocated_cpu_resources
 from clusterman.mesos.util import find_largest_capacity_market
-from clusterman.mesos.util import get_resource_value
+from clusterman.mesos.util import get_total_resource_value
 from clusterman.util import get_clusterman_logger
 
 
@@ -122,10 +122,7 @@ class MesosRoleManager:
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
         :returns: float
         """
-        resources_allocated = 0
-        for agent in self._agents:
-            resources_allocated += get_resource_value(agent.get('allocated_resources', []), resource_name)
-        return resources_allocated
+        return get_total_resource_value(self._agents, 'allocated_resources', resource_name)
 
     def get_resource_total(self, resource_name):
         """Get the total amount of the given resource for this Mesos role.
@@ -133,10 +130,7 @@ class MesosRoleManager:
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
         :returns: float
         """
-        total = 0
-        for agent in self._agents:
-            total += get_resource_value(agent['total_resources'], resource_name)
-        return total
+        return get_total_resource_value(self._agents, 'total_resources', resource_name)
 
     def get_average_resource_allocation(self, resource_name):
         """Get the overall proportion of the given resource that is in use.
