@@ -13,6 +13,20 @@ def get_resource_value(resources, resource_name):
     return 0
 
 
+def get_total_resource_value(agents, value_name, resource_name):
+    """
+    Get the total value of a resource type from the list of agents.
+
+    :param agents: list of agents from Mesos
+    :param value_name: desired resource value (e.g. total_resources, allocated_resources)
+    :param resource_name: name of resource recognized by Mesos (e.g. cpus, memory, disk)
+    """
+    total = 0
+    for agent in agents:
+        total += get_resource_value(agent.get(value_name, []), resource_name)
+    return total
+
+
 def allocated_cpu_resources(agent):
     return get_resource_value(
         agent.get('allocated_resources', []),

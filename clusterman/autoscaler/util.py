@@ -20,7 +20,7 @@ def get_average_cpu_util(cluster, role, query_period):
 
     aws_region = staticconf.read_string(f'mesos_clusters.{cluster}.aws_region')
     metrics_client = ClustermanMetricsBotoClient(region_name=aws_region)
-    metric_name = generate_key_with_dimensions('cpu_allocation', {'cluster': cluster, 'role': role})
+    metric_name = generate_key_with_dimensions('cpu_allocation_percent', {'cluster': cluster, 'role': role})
     __, cpu_util_history = metrics_client.get_metric_values(
         metric_name,
         SYSTEM_METRICS,
