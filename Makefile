@@ -34,8 +34,9 @@ test: clean-cache
 
 .PHONY: itest
 itest: cook-image
-	paasta local-run --service ${PKG_NAME} --cluster norcal-devc --instance testing \
-		--cmd "python -m clusterman.batch.spot_price_collector --help"
+	paasta local-run -s ${PKG_NAME} -c norcal-devc -i spot_prices --healthcheck-only
+	paasta local-run -s ${PKG_NAME} -c norcal-devc -i cluster_metrics --healthcheck-only
+	paasta local-run -s ${PKG_NAME} -c norcal-devc -i autoscaler --healthcheck-only
 
 .PHONY: cook-image
 cook-image:
