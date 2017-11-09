@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 
 import boto3
 import staticconf
@@ -62,9 +63,16 @@ def ec2_describe_instances(instance_ids=None, filters=None):
     instance_ids = instance_ids or []
     filters = filters or []
     filter_values = []
+    # We handle couple of special scenarios here to generate ec2 instances we want.
+    # First, if both of instance_ids and filters are none or empty, the AWS query will return
+    # all instances in the region, so we just return None. Second, multiple filters case is not
+    # implemented yet, Finally, if the number of filter value is larger than FILTER_LIMIT, we
+    # break up the requests and limit by FILTER_LIMIT per request.
 
+    if len(instance_ids) == 0 and len(filters) == 0:
+        return None
     # TODO (CLUSTERMAN-116) need to support multiple filters case
-    if len(filters) > 1:
+    elif len(filters) > 1:
         raise NotImplementedError(f'Multiple filters is not yet supported')
     elif len(filters) == 1 and len(filters[0]['Values']) > FILTER_LIMIT:
         filter_values = filters[0]['Values']
@@ -72,9 +80,10 @@ def ec2_describe_instances(instance_ids=None, filters=None):
     instance_paginator = ec2.get_paginator('describe_instances')
 
     for lindex in range(0, _get_lindex_upper_bound(filters), FILTER_LIMIT):
+        partial_filters = deepcopy(filters)
         if lindex < len(filter_values):
-            filters[0]['Values'] = filter_values[lindex:lindex + FILTER_LIMIT]
-        for page in instance_paginator.paginate(InstanceIds=instance_ids, Filters=filters):
+            partial_filters[0]['Values'] = filter_values[lindex:lindex + FILTER_LIMIT]
+        for page in instance_paginator.paginate(InstanceIds=instance_ids, Filters=partial_filters):
             for reservation in page['Reservations']:
                 for i in reservation['Instances']:
                     yield i
