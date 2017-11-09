@@ -1,3 +1,10 @@
+clusterman (0.7.1) trusty; urgency=low
+
+  * Bug fix in detection of idle agents for scaling down:
+    previously all agents in the cluster were considered idle
+
+ -- Qui Nguyen <qui@yelp.com>  Thu, 09 Nov 2017 12:56:42 -0800
+
 clusterman (0.7.0) trusty; urgency=low
 
   * Revised scale-down logic in the MesosRoleManager: target capacity
