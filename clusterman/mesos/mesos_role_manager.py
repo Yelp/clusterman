@@ -26,6 +26,7 @@ from clusterman.util import get_clusterman_logger
 ROLE_CONFIG_DIR = '/nail/srv/configs/clusterman-roles'
 DEFAULT_ROLE_CONFIG = ROLE_CONFIG_DIR + '/{role}/config.yaml'
 SERVICES_FILE = '/nail/etc/services/services.yaml'
+MIN_CAPACITY_PER_GROUP = 1
 logger = get_clusterman_logger(__name__)
 
 
@@ -154,10 +155,11 @@ class MesosRoleManager:
 
     def _constrain_target_capacity(self, target_capacity):
         """ Ensure that the desired target capacity is within the specified bounds for the cluster """
+        min_capacity = max(self.min_capacity, MIN_CAPACITY_PER_GROUP * len(self.resource_groups))
         if target_capacity > self.max_capacity:
             new_target_capacity = self.max_capacity
-        elif target_capacity < self.min_capacity:
-            new_target_capacity = self.min_capacity
+        elif target_capacity < min_capacity:
+            new_target_capacity = min_capacity
         else:
             new_target_capacity = target_capacity
 
