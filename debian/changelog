@@ -1,3 +1,9 @@
+clusterman (0.7.2) trusty; urgency=low
+
+  * Add minimum target capacity of 1 for each resource group
+
+ -- Qui Nguyen <qui@yelp.com>  Mon, 13 Nov 2017 15:36:54 -0800
+
 clusterman (0.7.1) trusty; urgency=low
 
   * Bug fix in detection of idle agents for scaling down:
