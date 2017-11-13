@@ -241,10 +241,19 @@ def test_compute_new_resource_group_targets_below_delta_equal_scale_down_2(mock_
     assert sorted(target for __, target in new_targets) == [1, 1, 1, 1, 1, 2, 2]
 
 
-def test_constrain_target_capacity(mock_role_manager):
+def test_constrain_target_capacity_below_min_per_group(mock_role_manager):
     with mock.patch('clusterman.mesos.mesos_role_manager.logger') as mock_logger:
         assert mock_role_manager._constrain_target_capacity(1000) == 345
-        assert mock_role_manager._constrain_target_capacity(1) == 3
+        assert mock_role_manager._constrain_target_capacity(1) == 7
+        assert mock_role_manager._constrain_target_capacity(42) == 42
+        assert mock_logger.warn.call_count == 2
+
+
+def test_constrain_target_capacity_below_overall_min(mock_role_manager):
+    mock_role_manager.min_capacity = 10
+    with mock.patch('clusterman.mesos.mesos_role_manager.logger') as mock_logger:
+        assert mock_role_manager._constrain_target_capacity(1000) == 345
+        assert mock_role_manager._constrain_target_capacity(1) == 10
         assert mock_role_manager._constrain_target_capacity(42) == 42
         assert mock_logger.warn.call_count == 2
 
