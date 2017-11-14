@@ -1,3 +1,9 @@
+clusterman (0.7.3) trusty; urgency=low
+
+  * fix ec2_describe_instances doesn't filter issue
+
+ -- Chien-An Lai <chl@yelp.com>  Mon, 13 Nov 2017 18:37:59 -0800
+
 clusterman (0.7.2) trusty; urgency=low
 
   * Add minimum target capacity of 1 for each resource group
