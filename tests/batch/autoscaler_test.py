@@ -8,13 +8,14 @@ from clusterman.batch.autoscaler import AutoscalerBatch
 
 @pytest.fixture
 def batch(args=None):
-    batch = AutoscalerBatch()
-    args = args or ['--cluster', 'mesos-test']
-    parser = argparse.ArgumentParser()
-    batch.parse_args(parser)
-    batch.options = parser.parse_args(args)
-    batch.configure_initial()
-    return batch
+    with mock.patch('clusterman.batch.autoscaler.build_watcher'):
+        batch = AutoscalerBatch()
+        args = args or ['--cluster', 'mesos-test']
+        parser = argparse.ArgumentParser()
+        batch.parse_args(parser)
+        batch.options = parser.parse_args(args)
+        batch.configure_initial()
+        return batch
 
 
 @pytest.fixture

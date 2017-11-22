@@ -1,6 +1,7 @@
 import time
 
 import staticconf
+from staticconf.config import DEFAULT
 from yelp_batch.batch import batch_command_line_arguments
 from yelp_batch.batch import batch_configure
 from yelp_batch.batch_daemon import BatchDaemon
@@ -9,9 +10,9 @@ from clusterman.args import add_cluster_arg
 from clusterman.args import add_env_config_path_arg
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.mesos.mesos_role_manager import get_roles_in_cluster
+from clusterman.util import build_watcher
 from clusterman.util import get_clusterman_logger
 from clusterman.util import setup_config
-
 
 logger = get_clusterman_logger(__name__)
 
@@ -35,6 +36,7 @@ class AutoscalerBatch(BatchDaemon):
     def configure_initial(self):
         setup_config(self.options)
         self.run_interval = staticconf.read_int('batches.autoscaler.run_interval_seconds')
+        self.default_config_watcher = build_watcher(self.options.env_config_path, DEFAULT)
 
     def get_name(self):
         # Overrides the yelp_batch default, which is the name of the file (autoscaler in this case).
@@ -44,6 +46,7 @@ class AutoscalerBatch(BatchDaemon):
 
     def run(self):
         roles = get_roles_in_cluster(self.options.cluster)
+
         if not roles:
             raise Exception('No roles are configured to be managed by Clusterman in this cluster')
 
@@ -54,6 +57,9 @@ class AutoscalerBatch(BatchDaemon):
 
         while self.running:
             time.sleep(self.run_interval - time.time() % self.run_interval)
+            reload_config = self.default_config_watcher.reload_if_changed()
+            if reload_config is not None:
+                self.run_interval = staticconf.read_int('batches.autoscaler.run_interval_seconds')
             self.autoscaler.run(dry_run=self.options.dry_run)
 
 

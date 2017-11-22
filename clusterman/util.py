@@ -1,4 +1,5 @@
 from datetime import datetime
+from functools import partial
 
 import arrow
 import colorlog
@@ -95,3 +96,9 @@ def setup_config(args):
     if getattr(args, 'cluster', None):
         cluster_region = staticconf.read_string('mesos_clusters.{cluster}.aws_region'.format(cluster=args.cluster))
         staticconf.DictConfiguration({'aws': {'region': cluster_region}})
+
+
+def build_watcher(filename, namespace):
+    config_loader = partial(staticconf.YamlConfiguration, filename, namespace=namespace)
+    reloader = staticconf.config.ReloadCallbackChain(namespace)
+    return staticconf.config.ConfigurationWatcher(config_loader, filename, reloader=reloader)
