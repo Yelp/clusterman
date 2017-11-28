@@ -168,7 +168,7 @@ class SpotFleet(Cluster):
 
         def residual_sort_key(value_tuple):
             market, residual = value_tuple
-            return (residual, self.simulator.instance_prices[market])
+            return (residual, self.simulator.instance_prices[market].call(self.simulator.current_time))
 
         return sorted(
             [(market, residual(market)) for market in markets],
@@ -187,7 +187,7 @@ class SpotFleet(Cluster):
         return [
             market
             for market, config in self._instance_types.items()
-            if config.bid_price >= self.simulator.instance_prices[market]
+            if config.bid_price >= self.simulator.instance_prices[market].call(self.simulator.current_time)
         ]
 
     @property
