@@ -1,8 +1,11 @@
+from collections import defaultdict
+
 import arrow
 import mock
 import pytest
 
 from clusterman.aws.markets import InstanceMarket
+from clusterman.math.piecewise import PiecewiseConstantFunction
 from clusterman.simulator.simulator import SimulationMetadata
 from clusterman.simulator.simulator import Simulator
 from clusterman.simulator.spot_fleet import SpotFleet
@@ -56,7 +59,12 @@ def spot_fleet_request_config():
 
 @pytest.fixture
 def spot_prices():
-    return {MARKETS[0]: 0.5, MARKETS[1]: 2.5, MARKETS[2]: 0.1, MARKETS[3]: 0.5}
+    instance_price = defaultdict(lambda: PiecewiseConstantFunction())
+    instance_price[MARKETS[0]].add_breakpoint(arrow.get(0), 0.5)
+    instance_price[MARKETS[1]].add_breakpoint(arrow.get(0), 2.5)
+    instance_price[MARKETS[2]].add_breakpoint(arrow.get(0), 0.1)
+    instance_price[MARKETS[3]].add_breakpoint(arrow.get(0), 0.5)
+    return instance_price
 
 
 def get_fake_instance_market(spec):
@@ -101,7 +109,8 @@ def test_compute_market_residuals_new_fleet(spot_fleet, test_instances_by_market
     target_capacity = 10
     residuals = spot_fleet._compute_market_residuals(target_capacity, test_instances_by_market.keys())
     assert residuals == list(zip(
-        sorted(list(test_instances_by_market.keys()), key=lambda x: spot_fleet.simulator.instance_prices[x]),
+        sorted(list(test_instances_by_market.keys()),
+               key=lambda x: spot_fleet.simulator.instance_prices[x].call(spot_fleet.simulator.current_time)),
         [target_capacity / len(test_instances_by_market)] * len(test_instances_by_market)
     ))
 
