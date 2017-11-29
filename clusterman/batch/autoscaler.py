@@ -9,6 +9,7 @@ from yelp_batch.batch_daemon import BatchDaemon
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_env_config_path_arg
 from clusterman.autoscaler.autoscaler import Autoscaler
+from clusterman.autoscaler.autoscaler_v2 import AutoscalerV2
 from clusterman.mesos.mesos_role_manager import get_roles_in_cluster
 from clusterman.util import build_watcher
 from clusterman.util import get_clusterman_logger
@@ -30,6 +31,13 @@ class AutoscalerBatch(BatchDaemon):
             default=False,
             action='store_true',
             help='If true, will only log autoscaling decisions instead of modifying capacities.',
+        )
+        # TODO: clean up after testing (CLUSTERMAN-140)
+        arg_group.add_argument(
+            '--use-v2',
+            default=False,
+            action='store_true',
+            help='If true, use the v2 autoscaler.',
         )
 
     @batch_configure
@@ -53,9 +61,18 @@ class AutoscalerBatch(BatchDaemon):
         # TODO: handle multiple roles in the autoscaler (CLUSTERMAN-126)
         if len(roles) > 1:
             raise NotImplementedError('Scaling multiple roles in a cluster is not yet supported')
-        self.autoscaler = Autoscaler(self.options.cluster, roles[0])
+        if self.options.use_v2:
+            self.autoscaler = AutoscalerV2(self.options.cluster, roles[0])
+        else:
+            self.autoscaler = Autoscaler(self.options.cluster, roles[0])
 
         while self.running:
+            if self.options.use_v2:
+                signal_period = self.autoscaler.get_period_seconds()
+                if signal_period != self.run_interval:
+                    logger.info(f'Signal period has changed to {signal_period}, updating batch run interval')
+                    self.run_interval = signal_period
+
             time.sleep(self.run_interval - time.time() % self.run_interval)
             reload_config = self.default_config_watcher.reload_if_changed()
             if reload_config is not None:

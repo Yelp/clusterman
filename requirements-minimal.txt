@@ -4,6 +4,7 @@ botocore==1.7.25.post1
 boto3
 cached-property
 clusterman-metrics>=0.8.6
+clusterman-signals>=0.4.0
 colorlog
 colorama
 matplotlib

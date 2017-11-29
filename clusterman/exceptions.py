@@ -15,6 +15,10 @@ class MesosRoleManagerError(ClustermanException):
     pass
 
 
+class SignalConfigurationError(ClustermanException):
+    pass
+
+
 class ResourceGroupError(ClustermanException):
     pass
 
