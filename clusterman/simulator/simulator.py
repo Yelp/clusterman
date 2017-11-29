@@ -133,7 +133,7 @@ class Simulator:
                 delta = prices.breakpoints[bp_timestamp] - last_billed_price
 
         # TODO (CLUSTERMAN-54) add some itests to make sure this is working correctly
-        # Determine whether or not to bill for the last billing period of the instance.  We charge for the last hour if
+        # Determine whether or not to bill for the last billing period of the instance.  We charge for the last billing period if
         # any of the following conditions are met:
         #   a) the instance is not a spot instance
         #   b) self.refund_outbid is false, e.g. we have "new-style" AWS pricing

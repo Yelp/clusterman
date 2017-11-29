@@ -159,7 +159,7 @@ class SpotFleet(Cluster):
         :param markets: a list of available markets
         :returns: a list of (market, residual) tuples, sorted first by lowest capacity and next by lowest spot price
         """
-        target_capacity_per_market = target_capacity / len(markets)
+        target_capacity_per_market = target_capacity / len(markets) if len(markets) != 0 else 0
 
         # Some helper closures for computing residuals and sorting;
         @lru_cache()  # memoize the results
