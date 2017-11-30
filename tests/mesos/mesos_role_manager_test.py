@@ -1,14 +1,11 @@
 import mock
 import pytest
-import yaml
 from moto import mock_ec2
 
 from clusterman.aws.client import ec2
 from clusterman.exceptions import MarketProtectedException
 from clusterman.exceptions import MesosRoleManagerError
 from clusterman.exceptions import ResourceGroupProtectedException
-from clusterman.mesos.mesos_role_manager import DEFAULT_ROLE_CONFIG
-from clusterman.mesos.mesos_role_manager import get_roles_in_cluster
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.mesos.mesos_role_manager import SERVICES_FILE
 from tests.conftest import mock_open
@@ -30,8 +27,7 @@ def mock_resource_groups():
 
 @pytest.fixture
 def mock_role_manager(mock_resource_groups):
-    with mock.patch('clusterman.mesos.mesos_role_manager.load_configs_for_cluster'), \
-            mock_open(SERVICES_FILE, 'the.mesos.leader:\n  host: foo\n  port: 1234'), \
+    with mock_open(SERVICES_FILE, 'the.mesos.leader:\n  host: foo\n  port: 1234'), \
             mock.patch('clusterman.mesos.mesos_role_manager.load_spot_fleets_from_s3') as mock_load:
         mock_load.return_value = []
         manager = MesosRoleManager('mesos-test', 'bar')
@@ -43,33 +39,6 @@ def mock_role_manager(mock_resource_groups):
 def test_mesos_role_manager_init(mock_role_manager):
     assert mock_role_manager.role == 'bar'
     assert mock_role_manager.api_endpoint == 'http://foo:1234/api/v1'
-
-
-@pytest.mark.parametrize('cluster,roles', [
-    ('cluster-A', ['role-1', 'role-2']),
-    ('cluster-B', ['role-2']),
-    ('cluster-C', []),
-])
-@mock.patch('os.listdir')
-def test_get_roles_in_cluster(mock_ls, cluster, roles):
-    mock_ls.return_value = ['role-1', 'role-2']
-    with mock_open(
-        DEFAULT_ROLE_CONFIG.format(role='role-1'),
-        contents=yaml.dump({
-            'mesos': {
-                'cluster-A': {},
-            }
-        }),
-    ), mock_open(
-        DEFAULT_ROLE_CONFIG.format(role='role-2'),
-        contents=yaml.dump({
-            'mesos': {
-                'cluster-A': {},
-                'cluster-B': {},
-            }
-        }),
-    ):
-        assert roles == get_roles_in_cluster(cluster)
 
 
 def test_modify_target_capacity_no_resource_groups(mock_role_manager):

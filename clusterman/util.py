@@ -1,13 +1,10 @@
 from datetime import datetime
-from functools import partial
 
 import arrow
 import colorlog
 import parsedatetime
-import staticconf
 from colorama import Fore
 from colorama import Style
-from yelp_servlib.config_util import load_default_config
 
 
 def ask_for_confirmation(prompt='Are you sure? ', default=True):
@@ -88,17 +85,3 @@ def parse_time_interval_seconds(time_str):
     if parse_result[1] == 0:
         raise ValueError('Could not understand time {time}'.format(time=time_str))
     return (parse_result[0] - datetime.min).total_seconds()
-
-
-def setup_config(args):
-    load_default_config(args.env_config_path)
-    # If a cluster is specified, the CLI should operate on that AWS region.
-    if getattr(args, 'cluster', None):
-        cluster_region = staticconf.read_string('mesos_clusters.{cluster}.aws_region'.format(cluster=args.cluster))
-        staticconf.DictConfiguration({'aws': {'region': cluster_region}})
-
-
-def build_watcher(filename, namespace):
-    config_loader = partial(staticconf.YamlConfiguration, filename, namespace=namespace)
-    reloader = staticconf.config.ReloadCallbackChain(namespace)
-    return staticconf.config.ConfigurationWatcher(config_loader, filename, reloader=reloader)

@@ -30,8 +30,7 @@ def mock_sfrs(setup_ec2):
 
 @pytest.fixture
 def mock_manager(main_clusterman_config, mock_aws_client_setup, mock_sfrs):
-    with mock.patch('clusterman.mesos.mesos_role_manager.load_configs_for_cluster'), \
-            mock_open(SERVICES_FILE, 'the.mesos.leader:\n  host: foo\n  port: 1234'), \
+    with mock_open(SERVICES_FILE, 'the.mesos.leader:\n  host: foo\n  port: 1234'), \
             mock.patch('clusterman.mesos.mesos_role_manager.load_spot_fleets_from_s3') as mock_load:
         mock_load.return_value = mock_sfrs
         return MesosRoleManager('mesos-test', 'bar')

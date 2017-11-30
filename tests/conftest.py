@@ -72,6 +72,7 @@ def main_clusterman_config():
                 'aws_region': 'us-west-2',
             },
         },
+        'cluster_roles': ['bar'],
     }
 
     with staticconf.testing.MockConfiguration(config):
@@ -81,11 +82,13 @@ def main_clusterman_config():
 @pytest.fixture(autouse=True)
 def clusterman_role_config():
     config = {
-        'resource_groups': {
-            's3': {
-                'bucket': 'fake-bucket',
-                'prefix': 'none',
-            }
+        'mesos': {
+            'resource_groups': {
+                's3': {
+                    'bucket': 'fake-bucket',
+                    'prefix': 'none',
+                }
+            },
         },
         'defaults': {
             'min_capacity': 3,

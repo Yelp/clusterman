@@ -23,6 +23,12 @@ def batch_arg_parser(batch, args=None):
 
 
 @pytest.fixture
+def mock_setup_config():
+    with mock.patch('clusterman.batch.spot_price_collector.setup_config', autospec=True) as mock_setup:
+        yield mock_setup
+
+
+@pytest.fixture
 def mock_client_class():
     with mock.patch('clusterman.batch.spot_price_collector.ClustermanMetricsBotoClient', autospec=True) as client:
         yield client
@@ -39,11 +45,11 @@ def test_start_time_default(mock_now, batch):
     assert args.start_time == mock_now.return_value
 
 
-def test_configure_initial_default(batch, mock_client_class):
+def test_configure_initial_default(batch, mock_client_class, mock_setup_config):
     batch.options = batch_arg_parser(batch, ['--aws-region', 'us-test-2'])
-    with mock.patch('clusterman.batch.spot_price_collector.setup_config'):
-        batch.configure_initial()
+    batch.configure_initial()
 
+    assert mock_setup_config.call_args_list == [mock.call(batch.options)]
     assert batch.region == 'us-test-2'
     assert batch.last_time_called == batch.options.start_time
     assert batch.run_interval == 120
@@ -52,14 +58,14 @@ def test_configure_initial_default(batch, mock_client_class):
     assert batch.metrics_client == mock_client_class.return_value
 
 
-def test_configure_initial_with_options(batch, batch_arg_parser, mock_client_class):
+def test_configure_initial_with_options(batch, batch_arg_parser, mock_client_class, mock_setup_config):
     batch.options = batch_arg_parser  # just to set up options object, will override
     batch.options.env_config_path = 'custom.yaml'
     batch.options.start_time = arrow.get(2017, 9, 1, 1, 1, 0)
     batch.options.aws_region = 'us-other-1'
-    with mock.patch('clusterman.batch.spot_price_collector.setup_config'):
-        batch.configure_initial()
+    batch.configure_initial()
 
+    assert mock_setup_config.call_args_list == [mock.call(batch.options)]
     assert batch.region == 'us-other-1'
     assert batch.last_time_called == batch.options.start_time
     assert batch.run_interval == 120
