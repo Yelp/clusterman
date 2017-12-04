@@ -10,9 +10,8 @@ from yelp_batch.batch_daemon import BatchDaemon
 
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_env_config_path_arg
-from clusterman.mesos.mesos_role_manager import get_roles_in_cluster
+from clusterman.config import setup_config
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
-from clusterman.util import setup_config
 
 
 class ClusterMetricsCollector(BatchDaemon):
@@ -31,7 +30,7 @@ class ClusterMetricsCollector(BatchDaemon):
         self.region = staticconf.read_string(f'mesos_clusters.{self.options.cluster}.aws_region')
         self.run_interval = staticconf.read_int('batches.cluster_metrics.run_interval_seconds')
 
-        roles = get_roles_in_cluster(self.options.cluster)
+        roles = staticconf.read_list('cluster_roles')
         self.mesos_managers = {
             role: MesosRoleManager(self.options.cluster, role)
             for role in roles

@@ -12,7 +12,7 @@ from clusterman.args import add_env_config_path_arg
 from clusterman.args import add_region_arg
 from clusterman.aws.spot_prices import spot_price_generator
 from clusterman.aws.spot_prices import write_prices_with_dedupe
-from clusterman.util import setup_config
+from clusterman.config import setup_config
 
 
 class SpotPriceCollector(BatchDaemon):

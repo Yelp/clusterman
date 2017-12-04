@@ -1,7 +1,6 @@
 import time
 
 import staticconf
-from staticconf.config import DEFAULT
 from yelp_batch.batch import batch_command_line_arguments
 from yelp_batch.batch import batch_configure
 from yelp_batch.batch_daemon import BatchDaemon
@@ -10,10 +9,10 @@ from clusterman.args import add_cluster_arg
 from clusterman.args import add_env_config_path_arg
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.autoscaler.autoscaler_v2 import AutoscalerV2
-from clusterman.mesos.mesos_role_manager import get_roles_in_cluster
-from clusterman.util import build_watcher
+from clusterman.config import get_roles_watcher
+from clusterman.config import get_service_watcher
+from clusterman.config import setup_config
 from clusterman.util import get_clusterman_logger
-from clusterman.util import setup_config
 
 logger = get_clusterman_logger(__name__)
 
@@ -44,7 +43,8 @@ class AutoscalerBatch(BatchDaemon):
     def configure_initial(self):
         setup_config(self.options)
         self.run_interval = staticconf.read_int('batches.autoscaler.run_interval_seconds')
-        self.default_config_watcher = build_watcher(self.options.env_config_path, DEFAULT)
+        self.service_config_watcher = get_service_watcher(self.options, using_roles=True)
+        self.role_configs_watcher = get_roles_watcher(self.options.cluster)
 
     def get_name(self):
         # Overrides the yelp_batch default, which is the name of the file (autoscaler in this case).
@@ -53,7 +53,7 @@ class AutoscalerBatch(BatchDaemon):
         return 'clusterman_autoscaler'
 
     def run(self):
-        roles = get_roles_in_cluster(self.options.cluster)
+        roles = staticconf.read_list('cluster_roles')
 
         if not roles:
             raise Exception('No roles are configured to be managed by Clusterman in this cluster')
@@ -66,18 +66,40 @@ class AutoscalerBatch(BatchDaemon):
         else:
             self.autoscaler = Autoscaler(self.options.cluster, roles[0])
 
+        if self.options.use_v2:
+            signal_period = self.autoscaler.get_period_seconds()
+            if signal_period != self.run_interval:
+                logger.info(f'Signal period has changed to {signal_period}, updating batch run interval')
+                self.run_interval = signal_period
+
         while self.running:
-            if self.options.use_v2:
+            time.sleep(self.run_interval - time.time() % self.run_interval)
+
+            reload_config = self.service_config_watcher.reload_if_changed()
+            new_signal = True
+            if reload_config is not None:
+                logger.info('Service config changed, reloading')
+                self.run_interval = staticconf.read_int('batches.autoscaler.run_interval_seconds')
+                # Role directory may have changed, so we need to get new role watchers.
+                self.role_configs_watcher = get_roles_watcher(self.options.cluster)
+                self.autoscaler.load_signal()
+            elif self.role_configs_watcher.reload_if_changed() is not None:
+                logger.info('Role config changed, reloading')
+                self.autoscaler.load_signal()
+            else:
+                new_signal = False
+
+            if new_signal and self.options.use_v2:
                 signal_period = self.autoscaler.get_period_seconds()
                 if signal_period != self.run_interval:
                     logger.info(f'Signal period has changed to {signal_period}, updating batch run interval')
                     self.run_interval = signal_period
 
-            time.sleep(self.run_interval - time.time() % self.run_interval)
-            reload_config = self.default_config_watcher.reload_if_changed()
-            if reload_config is not None:
-                self.run_interval = staticconf.read_int('batches.autoscaler.run_interval_seconds')
-            self.autoscaler.run(dry_run=self.options.dry_run)
+            if staticconf.read_list('cluster_roles') != roles:
+                logger.info('Roles configured for cluster have changed. Stopping.')
+                self.stop()
+            else:
+                self.autoscaler.run(dry_run=self.options.dry_run)
 
 
 if __name__ == '__main__':

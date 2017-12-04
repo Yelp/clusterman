@@ -1,10 +1,6 @@
-import argparse
-
 import arrow
 import mock
 import pytest
-import staticconf
-import staticconf.testing
 from colorama import Fore
 from colorama import Style
 
@@ -12,7 +8,6 @@ from clusterman.util import ask_for_confirmation
 from clusterman.util import colored_status
 from clusterman.util import parse_time_interval_seconds
 from clusterman.util import parse_time_string
-from clusterman.util import setup_config
 
 
 @pytest.mark.parametrize('inp,response', [('\n', True), ('\n', False), ('yE', True), ('n', False)])
@@ -61,18 +56,3 @@ def test_parse_time_interval_seconds():
 def test_parse_time_interval_seconds_invalid():
     with pytest.raises(ValueError):
         parse_time_interval_seconds('asdf')
-
-
-@mock.patch('clusterman.util.load_default_config')
-def test_setup_config_no_cluster(mock_load_config):
-    args = argparse.Namespace(env_config_path='/nail/etc/config.yaml')
-    setup_config(args)
-    assert mock_load_config.call_args_list == [mock.call('/nail/etc/config.yaml')]
-
-
-@mock.patch('clusterman.util.load_default_config')
-def test_setup_config_cluster(mock_load_config):
-    args = argparse.Namespace(env_config_path='/nail/etc/config.yaml', cluster='mesos-test')
-    setup_config(args)
-    assert mock_load_config.call_args_list == [mock.call('/nail/etc/config.yaml')]
-    assert staticconf.read_string('aws.region') == 'us-west-2'

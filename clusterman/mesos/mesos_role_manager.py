@@ -1,4 +1,3 @@
-import os
 import socket
 from bisect import bisect
 from collections import defaultdict
@@ -23,33 +22,9 @@ from clusterman.util import get_clusterman_logger
 
 
 # TODO (CLUSTERMAN-112) these should be customizable
-ROLE_CONFIG_DIR = '/nail/srv/configs/clusterman-roles'
-DEFAULT_ROLE_CONFIG = ROLE_CONFIG_DIR + '/{role}/config.yaml'
 SERVICES_FILE = '/nail/etc/services/services.yaml'
 MIN_CAPACITY_PER_GROUP = 1
 logger = get_clusterman_logger(__name__)
-
-
-def get_roles_in_cluster(cluster):
-    all_roles = os.listdir(ROLE_CONFIG_DIR)
-    cluster_roles = []
-    for role in all_roles:
-        role_file = DEFAULT_ROLE_CONFIG.format(role=role)
-        with open(role_file) as f:
-            config = yaml.load(f)
-            if cluster in config['mesos']:
-                cluster_roles.append(role)
-    return cluster_roles
-
-
-def load_configs_for_cluster(cluster, role):
-    role_config_file = DEFAULT_ROLE_CONFIG.format(role=role)
-    with open(role_config_file) as f:
-        all_configs = yaml.load(f)
-    role_namespace = ROLE_NAMESPACE.format(role=role)
-    staticconf.DictConfiguration(all_configs['mesos'][cluster], namespace=role_namespace)
-    del all_configs['mesos']
-    staticconf.DictConfiguration(all_configs, namespace=role_namespace)
 
 
 class MesosRoleManager:
@@ -71,7 +46,6 @@ class MesosRoleManager:
     def __init__(self, cluster, role):
         self.cluster = cluster
         self.role = role
-        load_configs_for_cluster(self.cluster, self.role)
 
         role_config = staticconf.NamespaceReaders(ROLE_NAMESPACE.format(role=self.role))
 
@@ -87,8 +61,8 @@ class MesosRoleManager:
         )
 
         self.resource_groups = load_spot_fleets_from_s3(
-            role_config.read_string('resource_groups.s3.bucket'),
-            role_config.read_string('resource_groups.s3.prefix'),
+            role_config.read_string('mesos.resource_groups.s3.bucket'),
+            role_config.read_string('mesos.resource_groups.s3.prefix'),
             role=self.role,
         )
 

@@ -1,7 +1,7 @@
 import logging
 
 from clusterman.args import parse_args
-from clusterman.util import setup_config
+from clusterman.config import setup_config
 
 
 def setup_logging():
