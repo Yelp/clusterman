@@ -1,40 +1,37 @@
 import mock
 import pytest
 import staticconf
+from clusterman_signals.base_signal import BaseSignal
+from clusterman_signals.base_signal import MetricConfig
+from clusterman_signals.base_signal import SignalResources
+from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 from clusterman.autoscaler.autoscaler import Autoscaler
+from clusterman.autoscaler.autoscaler import DEFAULT_SIGNAL_ROLE
 from clusterman.autoscaler.autoscaler import DELTA_GAUGE_NAME
-from clusterman.autoscaler.signals.base_signal import SignalResult
+from clusterman.autoscaler.util import SignalConfig
+from clusterman.mesos.constants import ROLE_NAMESPACE
 
 
-@pytest.fixture
-def mock_read_signals():
-    with mock.patch('clusterman.autoscaler.autoscaler._read_signals') as mock_read_signals:
-        read_config = staticconf.NamespaceReaders('bar_config')
-        sig1 = mock.MagicMock(priority=read_config.read_list('autoscale_signals')[0]['priority'])
-        sig1.name = read_config.read_list('autoscale_signals')[0]['name']
-        sig1.return_value = SignalResult()
+@pytest.fixture(autouse=True)
+def mock_logger():
+    with mock.patch('clusterman.autoscaler.autoscaler.logger') as mock_logger:
+        yield mock_logger
 
-        sig2 = mock.MagicMock(priority=0)
-        sig2.name = read_config.read_list('autoscale_signals')[1]['name']
-        sig2.return_value = SignalResult()
 
-        sig3 = mock.MagicMock(priority=3)
-        sig3.name = 'UnusedSignal'
-        sig3.return_value = SignalResult()
-
-        sig4 = mock.MagicMock(priority=read_config.read_list('autoscale_signals')[2]['priority'])
-        sig4.name = read_config.read_list('autoscale_signals')[2]['name']
-        sig4.return_value = SignalResult()
-
-        mock_read_signals.return_value = {
-            sig1.name: mock.Mock(return_value=sig1),
-            sig2.name: mock.Mock(return_value=sig2),
-            sig3.name: mock.Mock(return_value=sig3),
-            sig4.name: mock.Mock(return_value=sig4),
-            'MissingParamSignal': mock.Mock(side_effect=KeyError)
-        }
-        yield mock_read_signals
+@pytest.fixture(autouse=True)
+def default_configs():
+    staticconf.DictConfiguration(
+        {
+            'defaults': {
+                'min_capacity': 24,
+                'max_capacity': 5000,
+                'max_weight_to_add': 200,
+                'max_weight_to_remove': 10,
+            },
+        },
+        namespace=ROLE_NAMESPACE.format(role='bar'),
+    )
 
 
 @pytest.fixture
@@ -44,25 +41,105 @@ def mock_gauge():
 
 
 @pytest.fixture
-@mock.patch('clusterman.autoscaler.autoscaler.MesosRoleManager', autospec=True)
-def mock_autoscaler(mock_role_manager, mock_gauge, mock_read_signals):
-    with mock.patch('clusterman.autoscaler.autoscaler.logger'):
-        staticconf.DictConfiguration(
-            {'defaults': {'min_capacity': 24, 'max_capacity': 5000}},
-            namespace='bar_config',
-        )
-        mock_role_manager.return_value.target_capacity = 300
-        a = Autoscaler('foo', 'bar')
-        return a
+def mock_import_signals():
+    with mock.patch('clusterman.autoscaler.autoscaler.import_module') as mock_import:
+        yield mock_import
 
 
-def test_autoscaler_init(mock_autoscaler, mock_gauge):
+@pytest.fixture
+def mock_role_manager():
+    with mock.patch('clusterman.autoscaler.autoscaler.MesosRoleManager', autospec=True) as mock_role_manager:
+        yield mock_role_manager
+
+
+@pytest.fixture
+@mock.patch('clusterman.autoscaler.autoscaler.Autoscaler.load_signal', autospec=True)
+def mock_autoscaler(mock_load_signal, mock_role_manager, mock_gauge):
+    mock_autoscaler = Autoscaler('foo', 'bar')
+    mock_autoscaler.mesos_role_manager.target_capacity = 300
+    return mock_autoscaler
+
+
+@pytest.fixture
+def mock_constrain_delta():
+    with mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._constrain_cluster_delta', autospec=True) as mock_constrain:
+        mock_constrain.side_effect = lambda cls, x: x
+        yield mock_constrain
+
+
+@pytest.fixture
+def mock_signal():
+    return mock.Mock(spec=BaseSignal)
+
+
+def signal_config():
+    return SignalConfig(
+        'CoolSignal',
+        3,
+        [MetricConfig('metricA', 'system_metrics', 8)],
+        {'paramA': 20, 'paramC': 'abc'},
+    )
+
+
+@mock.patch('clusterman.autoscaler.autoscaler.Autoscaler.load_signal', autospec=True)
+def test_autoscaler_init(mock_load_signal, mock_role_manager, mock_gauge):
+    mock_autoscaler = Autoscaler('foo', 'bar')
+
     assert mock_autoscaler.cluster == 'foo'
     assert mock_autoscaler.role == 'bar'
-    assert {signal.name for signal in mock_autoscaler.signals[0]} == {'FakeSignalTwo'}
-    assert {signal.name for signal in mock_autoscaler.signals[1]} == {'FakeSignalOne', 'FakeSignalThree'}
+
     assert mock_gauge.call_args_list == [mock.call(DELTA_GAUGE_NAME, {'cluster': 'foo', 'role': 'bar'})]
     assert mock_autoscaler.delta_gauge == mock_gauge.return_value
+
+    assert mock_role_manager.call_args_list == [mock.call('foo', 'bar')]
+    assert mock_autoscaler.mesos_role_manager == mock_role_manager.return_value
+
+    assert mock_load_signal.call_count == 1
+
+
+@pytest.mark.parametrize('role_config,role_signal,expected_default', [
+    (None, Exception, True),  # no role signal
+    (Exception, Exception, True),  # invalid role signal config
+    (signal_config(), Exception, True),  # loading role signal fails
+    (signal_config(), mock_signal(), False),  # Custom role signal successful
+])
+@mock.patch('clusterman.autoscaler.autoscaler.read_signal_config', autospec=True)
+@mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._init_signal_from_config', autospec=True)
+def test_load_signal(mock_init_signal, mock_read_config, mock_autoscaler, role_config, role_signal, expected_default):
+    # Set up mocks according to test parameters
+    default_signal = mock_signal()
+    default_config = signal_config()
+    if isinstance(role_config, SignalConfig):  # mock a return value for the role signal, since there's a config for it
+        mock_init_signal.side_effect = [role_signal, default_signal]
+    else:
+        mock_init_signal.side_effect = [default_signal]
+    mock_read_config.side_effect = [role_config, default_config]
+
+    mock_autoscaler.load_signal()
+    mock_read_config.assert_any_call(ROLE_NAMESPACE.format(role='bar'))
+    if expected_default:
+        # call args is most recent call
+        assert mock_init_signal.call_args == mock.call(mock_autoscaler, DEFAULT_SIGNAL_ROLE, default_config)
+        assert mock_read_config.call_args == mock.call(DEFAULT_NAMESPACE)
+        assert mock_autoscaler.signal == default_signal
+    else:
+        assert mock_init_signal.call_args == mock.call(mock_autoscaler, 'bar', role_config)
+        assert mock_autoscaler.signal == role_signal
+
+
+def test_init_signal_from_config(mock_import_signals, mock_autoscaler):
+    config = signal_config()
+    config_role = 'anything'
+    val = mock_autoscaler._init_signal_from_config(config_role, config)
+    assert mock_import_signals.call_args_list == [mock.call(f'clusterman_signals.{config_role}')]
+    assert mock_import_signals.return_value.CoolSignal.call_args_list == [mock.call(
+        'foo',
+        'bar',
+        period_minutes=config.period_minutes,
+        required_metrics=config.required_metrics,
+        custom_parameters=config.custom_parameters,
+    )]
+    assert val == mock_import_signals.return_value.CoolSignal.return_value
 
 
 @pytest.mark.parametrize('dry_run', [True, False])
@@ -73,39 +150,22 @@ def test_autoscaler_dry_run(dry_run, mock_autoscaler):
     assert mock_autoscaler.delta_gauge.set.call_args_list == [mock.call(100, {'dry_run': dry_run})]
 
 
-def test_compute_cluster_delta_active(mock_read_signals, mock_autoscaler):
-    mock_read_signals.return_value['FakeSignalTwo'].return_value.return_value = SignalResult(True, 20)
-    mock_autoscaler._constrain_cluster_delta = mock.Mock(side_effect=lambda x: x)
-
+@pytest.mark.parametrize('signal_cpus,total_cpus,expected_delta', [
+    (None, 500, 0),
+    (799, 1000, 0),  # above setpoint, but within setpoint delta
+    (980, 1000, 50),  # above setpoint delta
+    (601, 1000, 0),  # below setpoint, but within setpoint delta
+    (490, 1000, -37.5),  # below setpoint delta
+    (1400, 1000, 125),  # above setpoint delta and total
+])
+def test_compute_cluster_delta(mock_autoscaler, mock_signal, mock_constrain_delta, signal_cpus, total_cpus, expected_delta):
+    mock_signal.get_signal.return_value = SignalResources(signal_cpus, None, None)
+    mock_autoscaler.signal = mock_signal
+    mock_autoscaler.mesos_role_manager.get_resource_total.return_value = total_cpus
     delta = mock_autoscaler._compute_cluster_delta()
-    assert delta == 20
-    assert mock_read_signals.return_value['FakeSignalOne'].return_value.call_count == 0
-    assert mock_read_signals.return_value['FakeSignalTwo'].return_value.call_count == 1
-    assert mock_read_signals.return_value['FakeSignalThree'].return_value.call_count == 0
-
-
-def test_signals_not_active(mock_read_signals, mock_autoscaler):
-    mock_autoscaler._constrain_cluster_delta = mock.Mock(side_effect=lambda x: x)
-
-    delta = mock_autoscaler._compute_cluster_delta()
-    assert delta == 0
-    assert mock_read_signals.return_value['FakeSignalOne'].return_value.call_count == 1
-    assert mock_read_signals.return_value['FakeSignalTwo'].return_value.call_count == 1
-    assert mock_read_signals.return_value['FakeSignalThree'].return_value.call_count == 1
-
-
-def test_signals_error(mock_read_signals, mock_autoscaler):
-    mock_autoscaler._constrain_cluster_delta = mock.Mock(side_effect=lambda x: x)
-    mock_read_signals.return_value['FakeSignalTwo'].return_value.side_effect = Exception('something bad happened')
-    mock_read_signals.return_value['FakeSignalOne'].return_value.return_value = SignalResult(True, 30)
-
-    with mock.patch('clusterman.autoscaler.autoscaler.logger') as logger:
-        delta = mock_autoscaler._compute_cluster_delta()
-        assert logger.error.call_count == 1
-    assert delta == 30
-    assert mock_read_signals.return_value['FakeSignalOne'].return_value.call_count == 1
-    assert mock_read_signals.return_value['FakeSignalTwo'].return_value.call_count == 1
-    assert mock_read_signals.return_value['FakeSignalThree'].return_value.call_count == 0
+    assert delta == pytest.approx(expected_delta)
+    if delta != 0:
+        assert mock_constrain_delta.call_count == 1
 
 
 def test_constrain_cluster_delta_normal_scale_up(mock_autoscaler):
