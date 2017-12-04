@@ -62,6 +62,14 @@ def add_cluster_arg(parser, required=False):  # pragma: no cover
     )
 
 
+def add_role_arg(parser, required=False):  # pragma: no cover
+    parser.add_argument(
+        '--role',
+        required=required,
+        help='Mesos role to operate on',
+    )
+
+
 def add_env_config_path_arg(parser):  # pragma: no cover
     """ Add a --env-config-path argument to a parser """
     parser.add_argument(

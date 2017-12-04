@@ -1,4 +1,5 @@
 from clusterman.args import add_cluster_arg
+from clusterman.args import add_role_arg
 from clusterman.args import subparser
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.util import ask_for_confirmation
@@ -17,12 +18,8 @@ def main(args):
 
 @subparser('manage', 'check the status of a Mesos cluster', main)
 def add_mesos_manager_parser(subparser, required_named_args, optional_named_args):  # pragma: no cover
-    required_named_args.add_argument(
-        '--role',
-        required=True,
-        help='Mesos role to query the status for',
-    )
     add_cluster_arg(required_named_args, required=True)
+    add_role_arg(required_named_args, required=True)
     required_named_args.add_argument(
         '--target-capacity',
         type=int,
