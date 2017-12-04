@@ -17,6 +17,7 @@ from clusterman.util import colored_status
 class MesosAgentState:
     IDLE = 'no tasks'
     ORPHANED = 'orphan'
+    RUNNING = 'running'
     UNKNOWN = 'unknown'
 
 
@@ -78,8 +79,8 @@ def _get_mesos_status_string(instance, agents):
             mesos_state = MesosAgentState.IDLE
             postfix_str = f', up for {uptime}'
         else:
-            mesos_state = str(allocated_cpu_resources(agents[instance_ip])) + ' CPUs allocated'
-            postfix_str = ''
+            mesos_state = MesosAgentState.RUNNING
+            postfix_str = str(allocated_cpu_resources(agents[instance_ip])) + ' CPUs allocated'
 
     return mesos_state, colored_status(
         mesos_state,
@@ -115,7 +116,7 @@ def print_status(manager, args):
     sys.stdout.write('\n')
 
 
-def main(args):
+def main(args):  # pragma: no cover
     manager = MesosRoleManager(args.cluster, args.role)
     print_status(manager, args)
 
