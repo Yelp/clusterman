@@ -96,30 +96,6 @@ def clusterman_role_config():
             'max_weight_to_add': 200,
             'max_weight_to_remove': 10,
         },
-        'autoscale_signals': [
-            {
-                'name': 'FakeSignalOne',
-                'priority': 1,
-                'param1': 42,
-                'param2': 'asdf',
-            },
-            {
-                'name': 'FakeSignalTwo',
-                'paramA': 24,
-                'paramB': 'fdsa',
-            },
-            {
-                'name': 'FakeSignalThree',
-                'priority': 1,
-            },
-            {
-                'name': 'FakeSignalFour',
-                'priority': 7,
-            },
-            {
-                'name': 'MissingParamSignal',
-            },
-        ]
     }
     with staticconf.testing.MockConfiguration(config, namespace='bar_config'):
         yield
