@@ -31,7 +31,8 @@ def test_colored_status():
     assert colored_status('foo', ('foo', 'bar'), ('baz', 'asdf'), ('hjkl',)) == Fore.GREEN + 'foo' + Style.RESET_ALL
     assert colored_status('baz', ('foo', 'bar'), ('baz', 'asdf'), ('hjkl',)) == Fore.BLUE + 'baz' + Style.RESET_ALL
     assert colored_status('hjkl', ('foo', 'bar'), ('baz', 'asdf'), ('hjkl',)) == Fore.RED + 'hjkl' + Style.RESET_ALL
-    assert colored_status('qwerty', ('foo', 'bar'), ('baz', 'asdf'), ('hjkl',)) == 'qwerty'
+    assert colored_status('qwerty', ('foo', 'bar'), ('baz', 'asdf'), ('hjkl',)) == \
+        Fore.WHITE + 'qwerty' + Style.RESET_ALL
 
 
 def test_parse_time_string_without_tz():

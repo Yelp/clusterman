@@ -1,7 +1,5 @@
 import random
 
-import requests
-
 from clusterman.exceptions import MesosRoleManagerError
 
 
@@ -44,11 +42,3 @@ def find_largest_capacity_market(markets):
         )
     except ValueError:
         return None, 0
-
-
-def mesos_post(url, query):
-    response = requests.post(url, json={'type': query}, headers={'user-agent': 'clusterman'})
-    if not response.ok:
-        raise MesosRoleManagerError(f'Could not get instances from Mesos master:\n{response.text}')
-
-    return response

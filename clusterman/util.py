@@ -34,7 +34,7 @@ def ask_for_confirmation(prompt='Are you sure? ', default=True):
 def colored_status(status, green=None, blue=None, red=None, prefix=None, postfix=None):
     prefix = prefix or ''
     postfix = postfix or ''
-    color_str = ''
+    color_str = Fore.WHITE
     if green and status in green:
         color_str = Fore.GREEN
     elif blue and status in blue:
@@ -42,7 +42,7 @@ def colored_status(status, green=None, blue=None, red=None, prefix=None, postfix
     elif red and status in red:
         color_str = Fore.RED
     combined_str = prefix + status + postfix
-    return (color_str + combined_str + Style.RESET_ALL if color_str else combined_str)
+    return color_str + combined_str + Style.RESET_ALL
 
 
 def get_clusterman_logger(name):

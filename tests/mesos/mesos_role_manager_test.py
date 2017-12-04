@@ -336,7 +336,7 @@ def test_idle_agents_by_market(mock_role_manager):
     mock_agents = mock.PropertyMock(return_value=agents_list)
 
     with mock.patch('clusterman.mesos.mesos_role_manager.socket.gethostbyname', lambda x: x), \
-            mock.patch('clusterman.mesos.mesos_role_manager.MesosRoleManager._agents', mock_agents), \
+            mock.patch('clusterman.mesos.mesos_role_manager.MesosRoleManager.agents', mock_agents), \
             mock.patch('clusterman.mesos.mesos_role_manager.allocated_cpu_resources') as mock_cpu:
         mock_cpu.side_effect = [0, 1, 0, 0]  # Three idle instances, but one AWS doesn't know about
         idle_agents_by_market = mock_role_manager._idle_agents_by_market()
@@ -349,17 +349,17 @@ class TestAgentListing:
         mock_post.return_value.ok = False
         mock_post.return_value.text = 'dummy error'
         with pytest.raises(MesosRoleManagerError):
-            mock_role_manager._agents
+            mock_role_manager.agents
 
     def test_filter_roles(self, mock_post, mock_agents_dict, mock_role_manager):
         mock_post.return_value.ok = True
         mock_post.return_value.json.return_value = mock_agents_dict
-        agents = mock_role_manager._agents
+        agents = mock_role_manager.agents
         assert len(agents) == 1
         assert agents[0]['agent_info']['hostname'] == 'im-in-the-role.yelpcorp.com'
 
         # Multiple calls should have the same result.
-        assert agents == mock_role_manager._agents
+        assert agents == mock_role_manager.agents
         assert mock_post.call_count == 2  # cache expires immediately in tests
 
 
@@ -367,7 +367,7 @@ class TestResources:
     @pytest.fixture
     def mock_agents(self, mock_role_manager):
         with mock.patch(
-            'clusterman.mesos.mesos_role_manager.MesosRoleManager._agents',
+            'clusterman.mesos.mesos_role_manager.MesosRoleManager.agents',
             new_callable=mock.PropertyMock
         ) as mock_agents:
             mock_agents.return_value = [

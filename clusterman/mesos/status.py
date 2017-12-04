@@ -14,8 +14,10 @@ from clusterman.mesos.util import allocated_cpu_resources
 from clusterman.util import colored_status
 
 
-_AGENT_IDLE = 'no tasks'
-_AGENT_ORPHANED = 'orphan'
+class MesosAgentState:
+    IDLE = 'no tasks'
+    ORPHANED = 'orphan'
+    UNKNOWN = 'unknown'
 
 
 def _write_resource_group_line(group):
@@ -43,7 +45,7 @@ def _write_instance_line(instance, postfix=None):
     try:
         instance_ip = instance['PrivateIpAddress']
     except KeyError:
-        instance_ip = None
+        instance_ip = 'unknown'
     print(f'\t - {instance_id} {market} ({instance_ip}): {instance_status_str} {postfix}')
 
 
@@ -61,21 +63,28 @@ def _write_summary(manager):
 
 
 def _get_mesos_status_string(instance, agents):
-    instance_ip = instance['PrivateIpAddress']
-    uptime = humanize.naturaldelta(arrow.now() - arrow.get(instance['LaunchTime']))
-    if instance_ip not in agents:
-        mesos_state = _AGENT_ORPHANED
-        postfix_str = f', up for {uptime}'
-    elif allocated_cpu_resources(agents[instance_ip]) == 0:
-        mesos_state = _AGENT_IDLE
-        postfix_str = f', up for {uptime}'
-    else:
-        mesos_state = str(allocated_cpu_resources(agents[instance_ip])) + ' CPUs allocated'
+    try:
+        instance_ip = instance['PrivateIpAddress']
+        launch_time = instance['LaunchTime']
+    except KeyError:
+        mesos_state = MesosAgentState.UNKNOWN
         postfix_str = ''
+    else:
+        uptime = humanize.naturaldelta(arrow.now() - arrow.get(launch_time))
+        if instance_ip not in agents:
+            mesos_state = MesosAgentState.ORPHANED
+            postfix_str = f', up for {uptime}'
+        elif allocated_cpu_resources(agents[instance_ip]) == 0:
+            mesos_state = MesosAgentState.IDLE
+            postfix_str = f', up for {uptime}'
+        else:
+            mesos_state = str(allocated_cpu_resources(agents[instance_ip])) + ' CPUs allocated'
+            postfix_str = ''
+
     return mesos_state, colored_status(
         mesos_state,
-        blue=(_AGENT_IDLE,),
-        red=(_AGENT_ORPHANED,),
+        blue=(MesosAgentState.IDLE,),
+        red=(MesosAgentState.ORPHANED, MesosAgentState.UNKNOWN),
         prefix='[',
         postfix=postfix_str + ']',
     )
@@ -85,18 +94,19 @@ def print_status(manager, args):
     sys.stdout.write('\n')
     print(f'Current status for the {manager.role} role in the {manager.cluster} cluster:\n')
     print(f'Resource groups ({manager.fulfilled_capacity} units out of {manager.target_capacity}):')
+    if args.verbose:
+        agents = {
+            socket.gethostbyname(agent['agent_info']['hostname']): agent
+            for agent in manager.agents
+        }
+
     for group in manager.resource_groups:
         _write_resource_group_line(group)
         if args.verbose:
-            agents = {
-                socket.gethostbyname(agent['agent_info']['hostname']): agent
-                for agent in manager.agents
-            }
-
             for instance in ec2_describe_instances(instance_ids=group.instances):
                 mesos_state, postfix = _get_mesos_status_string(instance, agents)
-                if ((args.only_orphans and mesos_state != _AGENT_ORPHANED) or
-                        (args.only_idle and mesos_state != _AGENT_IDLE)):
+                if ((args.only_orphans and mesos_state != MesosAgentState.ORPHANED) or
+                        (args.only_idle and mesos_state != MesosAgentState.IDLE)):
                     continue
                 _write_instance_line(instance, postfix)
         sys.stdout.write('\n')
