@@ -23,7 +23,7 @@ def mock_logger():
 def default_configs():
     staticconf.DictConfiguration(
         {
-            'defaults': {
+            'scaling_limits': {
                 'min_capacity': 24,
                 'max_capacity': 5000,
                 'max_weight_to_add': 200,

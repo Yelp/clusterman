@@ -91,7 +91,7 @@ def clusterman_role_config():
                 }
             },
         },
-        'defaults': {
+        'scaling_limits': {
             'min_capacity': 3,
             'max_capacity': 345,
             'max_weight_to_add': 200,

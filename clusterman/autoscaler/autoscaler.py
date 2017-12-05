@@ -132,14 +132,14 @@ class Autoscaler:
         """ Signals can return arbitrary values, so make sure we don't add or remove too much capacity """
         if delta > 0:
             return min(
-                self.role_config.read_int('defaults.max_capacity') - self.mesos_role_manager.target_capacity,
-                self.role_config.read_int('defaults.max_weight_to_add'),
+                self.role_config.read_int('scaling_limits.max_capacity') - self.mesos_role_manager.target_capacity,
+                self.role_config.read_int('scaling_limits.max_weight_to_add'),
                 delta,
             )
         elif delta < 0:
             return max(
-                self.role_config.read_int('defaults.min_capacity') - self.mesos_role_manager.target_capacity,
-                -self.role_config.read_int('defaults.max_weight_to_remove'),
+                self.role_config.read_int('scaling_limits.min_capacity') - self.mesos_role_manager.target_capacity,
+                -self.role_config.read_int('scaling_limits.max_weight_to_remove'),
                 delta,
             )
         else:

@@ -48,8 +48,8 @@ class MesosRoleManager:
         role_config = staticconf.NamespaceReaders(ROLE_NAMESPACE.format(role=self.role))
 
         mesos_master_discovery_label = staticconf.read_string(f'mesos_clusters.{cluster}.leader_service')
-        self.min_capacity = role_config.read_int('defaults.min_capacity')
-        self.max_capacity = role_config.read_int('defaults.max_capacity')
+        self.min_capacity = role_config.read_int('scaling_limits.min_capacity')
+        self.max_capacity = role_config.read_int('scaling_limits.max_capacity')
 
         services_file = staticconf.read_string('services_file')
         with open(services_file) as f:
