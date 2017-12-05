@@ -72,6 +72,7 @@ def main_clusterman_config():
                 'aws_region': 'us-west-2',
             },
         },
+        'services_file': '/etc/services.yaml',
         'cluster_roles': ['bar'],
     }
 
