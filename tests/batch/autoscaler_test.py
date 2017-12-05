@@ -60,10 +60,10 @@ def test_run(mock_running, mock_time, mock_sleep, dry_run, mock_autoscaler, mock
     if dry_run:
         args.append('--dry-run')
     batch_obj = batch(args)
+    mock_autoscaler.return_value.get_period_seconds.return_value = 600
 
     assert mock_setup_config.call_count == 1
     mock_running.side_effect = [True, True, True, False]
-    # batch interval is configured to be 600
     mock_time.side_effect = [101, 913, 2000]
 
     batch_obj.run()
