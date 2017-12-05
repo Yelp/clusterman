@@ -15,7 +15,7 @@ from clusterman.mesos.mesos_role_manager import MesosRoleManager
 
 
 class ClusterMetricsCollector(BatchDaemon):
-    notify_emails = ['distsys-processing@yelp.com']
+    notify_emails = ['distsys-compute@yelp.com']
 
     @batch_command_line_arguments
     def parse_args(self, parser):
