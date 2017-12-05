@@ -14,14 +14,6 @@ DELTA_GAUGE_NAME = 'clusterman.autoscaler.delta'
 logger = get_clusterman_logger(__name__)
 
 
-# TODO: put in config file (CLUSTERMAN-141)
-DEFAULT_SIGNAL_ROLE = 'clusterman'
-# If the percentage allocated differs by more than the allowable margin from the setpoint, we scale up/down to reach the setpoint.
-SETPOINT = 0.7
-SETPOINT_MARGIN = 0.1
-CPUS_PER_WEIGHT = 8
-
-
 class Autoscaler:
     def __init__(self, cluster, role):
         self.cluster = cluster
@@ -77,7 +69,10 @@ class Autoscaler:
             logger.exception(f'Error loading signal for {self.role}, falling back to default')
 
         signal_config = read_signal_config(DEFAULT_NAMESPACE)
-        self.signal = self._init_signal_from_config(DEFAULT_SIGNAL_ROLE, signal_config)
+        self.signal = self._init_signal_from_config(
+            staticconf.read_string('autoscaling.default_signal_role'),
+            signal_config,
+        )
 
     def _init_signal_from_config(self, signal_role, signal_config):
         """Initialize a signal object, given the role where the signal class is defined and config values for the signal.
@@ -108,23 +103,30 @@ class Autoscaler:
             return 0
         signal_cpus = float(resources.cpus)
 
+        # Get autoscaling settings.
+        setpoint = staticconf.read_float('autoscaling.setpoint')
+        setpoint_margin = staticconf.read_float('autoscaling.setpoint_margin')
+        cpus_per_weight = staticconf.read_int('autoscaling.cpus_per_weight')
+
+        # If the percentage allocated differs by more than the allowable margin from the setpoint,
+        # we scale up/down to reach the setpoint.
         total_cpus = self.mesos_role_manager.get_resource_total('cpus')
-        cpus_difference_from_setpoint = signal_cpus - SETPOINT * total_cpus
+        cpus_difference_from_setpoint = signal_cpus - setpoint * total_cpus
 
         logger.info(f'Signal was {signal_cpus}, current total CPUs is {total_cpus}')
-        if abs(cpus_difference_from_setpoint / total_cpus) >= SETPOINT_MARGIN:
-            # We want signal_cpus / new_total_cpus = SETPOINT.
-            # So new_total_cpus should be signal_cpus / SETPOINT.
+        if abs(cpus_difference_from_setpoint / total_cpus) >= setpoint_margin:
+            # We want signal_cpus / new_total_cpus = setpoint.
+            # So new_total_cpus should be signal_cpus / setpoint.
 
             # The number of cpus to add/remove, cpus_delta, is new_total_cpus - total_cpus.
-            # cpus_delta = signal_cpus / SETPOINT - total_cpus
+            # cpus_delta = signal_cpus / setpoint - total_cpus
 
-            # We already have cpus_difference_from_setpoint = signal_cpus - SETPOINT * total_cpus.
-            # Dividing by SETPOINT, we get signal_cpus / SETPOINT - total_cpus, which is the desired cpus_delta above.
-            cpus_delta = cpus_difference_from_setpoint / SETPOINT
+            # We already have cpus_difference_from_setpoint = signal_cpus - setpoint * total_cpus.
+            # Dividing by setpoint, we get signal_cpus / setpoint - total_cpus, which is the desired cpus_delta above.
+            cpus_delta = cpus_difference_from_setpoint / setpoint
 
             # Finally, convert CPUs to capacity units.
-            capacity_delta = cpus_delta / CPUS_PER_WEIGHT
+            capacity_delta = cpus_delta / cpus_per_weight
             return self._constrain_cluster_delta(capacity_delta)
         return 0
 
