@@ -1,3 +1,10 @@
+clusterman (0.8.1) trusty; urgency=low
+
+  * minor config loading changes; now smartstack services file can be
+    configured
+
+ -- Qui Nguyen <qui@yelp.com>  Wed, 06 Dec 2017 15:21:48 -0800
+
 clusterman (0.8.0) trusty; urgency=low
 
   * improvements to ``clusterman status`` command
