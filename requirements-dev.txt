@@ -1,6 +1,7 @@
 alabaster==0.7.10
 asn1crypto==0.22.0
 aspy.yaml==0.3.0
+attrs==17.2.0
 aws-xray-sdk==0.93
 Babel==2.3.4.post1
 cffi==1.10.0
@@ -21,18 +22,17 @@ mock==2.0.0
 moto==1.1.24
 nodeenv==1.1.4
 pbr==3.1.1
+pluggy==0.6.0
 pre-commit==1.4.1
-py==1.4.34
+py==1.5.2
 pyaml==17.8.0
 pycodestyle==2.3.1
 pycparser==2.18
 pyflakes==1.6.0
 Pygments==2.2.0
-pytest==3.1.3
+pytest==3.3.1
 requirements-tools==1.1.2
 snowballstemmer==1.2.0
-# TODO (CLUSTERMAN-113)
-# -e git+git@github.com:sphinx-doc/sphinx.git#egg=Sphinx
 Sphinx==1.6.5
 sphinx-rtd-theme==0.2.4
 sphinxcontrib-programoutput==0.8
