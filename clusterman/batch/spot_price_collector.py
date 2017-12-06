@@ -16,7 +16,7 @@ from clusterman.config import setup_config
 
 
 class SpotPriceCollector(BatchDaemon):
-    notify_emails = ['distsys-processing@yelp.com']
+    notify_emails = ['distsys-compute@yelp.com']
 
     @batch_command_line_arguments
     def parse_args(self, parser):

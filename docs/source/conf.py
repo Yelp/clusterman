@@ -51,8 +51,8 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'clusterman'
-copyright = '2017, distsys-processing'
-author = 'distsys-processing'
+copyright = '2017, distsys-compute'
+author = 'distsys-compute'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -148,7 +148,7 @@ latex_elements = {
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
     (master_doc, 'clusterman.tex', 'clusterman Documentation',
-     'distsys-processing', 'manual'),
+     'distsys-compute', 'manual'),
 ]
 
 

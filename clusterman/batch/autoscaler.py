@@ -17,7 +17,7 @@ logger = get_clusterman_logger(__name__)
 
 
 class AutoscalerBatch(BatchDaemon):
-    notify_emails = ['distsys-processing@yelp.com']
+    notify_emails = ['distsys-compute@yelp.com']
 
     @batch_command_line_arguments
     def parse_args(self, parser):
