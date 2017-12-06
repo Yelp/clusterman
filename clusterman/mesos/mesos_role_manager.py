@@ -21,8 +21,6 @@ from clusterman.mesos.util import get_total_resource_value
 from clusterman.util import get_clusterman_logger
 
 
-# TODO (CLUSTERMAN-112) these should be customizable
-SERVICES_FILE = '/nail/etc/services/services.yaml'
 MIN_CAPACITY_PER_GROUP = 1
 logger = get_clusterman_logger(__name__)
 
@@ -50,10 +48,11 @@ class MesosRoleManager:
         role_config = staticconf.NamespaceReaders(ROLE_NAMESPACE.format(role=self.role))
 
         mesos_master_discovery_label = staticconf.read_string(f'mesos_clusters.{cluster}.leader_service')
-        self.min_capacity = role_config.read_int('defaults.min_capacity')
-        self.max_capacity = role_config.read_int('defaults.max_capacity')
+        self.min_capacity = role_config.read_int('scaling_limits.min_capacity')
+        self.max_capacity = role_config.read_int('scaling_limits.max_capacity')
 
-        with open(SERVICES_FILE) as f:
+        services_file = staticconf.read_string('services_file')
+        with open(services_file) as f:
             services = yaml.load(f)
         self.api_endpoint = 'http://{host}:{port}/api/v1'.format(
             host=services[mesos_master_discovery_label]['host'],

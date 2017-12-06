@@ -72,6 +72,7 @@ def main_clusterman_config():
                 'aws_region': 'us-west-2',
             },
         },
+        'services_file': '/etc/services.yaml',
         'cluster_roles': ['bar'],
     }
 
@@ -90,7 +91,7 @@ def clusterman_role_config():
                 }
             },
         },
-        'defaults': {
+        'scaling_limits': {
             'min_capacity': 3,
             'max_capacity': 345,
             'max_weight_to_add': 200,

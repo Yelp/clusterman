@@ -7,7 +7,6 @@ from clusterman_signals.base_signal import SignalResources
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 from clusterman.autoscaler.autoscaler import Autoscaler
-from clusterman.autoscaler.autoscaler import DEFAULT_SIGNAL_ROLE
 from clusterman.autoscaler.autoscaler import DELTA_GAUGE_NAME
 from clusterman.autoscaler.util import SignalConfig
 from clusterman.mesos.constants import ROLE_NAMESPACE
@@ -20,10 +19,10 @@ def mock_logger():
 
 
 @pytest.fixture(autouse=True)
-def default_configs():
-    staticconf.DictConfiguration(
+def role_configs():
+    with staticconf.testing.PatchConfiguration(
         {
-            'defaults': {
+            'scaling_limits': {
                 'min_capacity': 24,
                 'max_capacity': 5000,
                 'max_weight_to_add': 200,
@@ -31,7 +30,24 @@ def default_configs():
             },
         },
         namespace=ROLE_NAMESPACE.format(role='bar'),
-    )
+    ):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def scaling_configs():
+    with staticconf.testing.PatchConfiguration(
+        {
+            'autoscaling': {
+                'default_signal_role': 'clusterman',
+                'setpoint': 0.7,
+                'setpoint_margin': 0.1,
+                'cpus_per_weight': 8,
+            },
+        },
+        namespace=DEFAULT_NAMESPACE,
+    ):
+        yield
 
 
 @pytest.fixture
@@ -119,7 +135,7 @@ def test_load_signal(mock_init_signal, mock_read_config, mock_autoscaler, role_c
     mock_read_config.assert_any_call(ROLE_NAMESPACE.format(role='bar'))
     if expected_default:
         # call args is most recent call
-        assert mock_init_signal.call_args == mock.call(mock_autoscaler, DEFAULT_SIGNAL_ROLE, default_config)
+        assert mock_init_signal.call_args == mock.call(mock_autoscaler, 'clusterman', default_config)
         assert mock_read_config.call_args == mock.call(DEFAULT_NAMESPACE)
         assert mock_autoscaler.signal == default_signal
     else:

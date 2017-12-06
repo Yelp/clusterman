@@ -7,7 +7,6 @@ from clusterman.exceptions import MarketProtectedException
 from clusterman.exceptions import MesosRoleManagerError
 from clusterman.exceptions import ResourceGroupProtectedException
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
-from clusterman.mesos.mesos_role_manager import SERVICES_FILE
 from tests.conftest import mock_open
 
 
@@ -27,7 +26,7 @@ def mock_resource_groups():
 
 @pytest.fixture
 def mock_role_manager(mock_resource_groups):
-    with mock_open(SERVICES_FILE, 'the.mesos.leader:\n  host: foo\n  port: 1234'), \
+    with mock_open('/etc/services.yaml', 'the.mesos.leader:\n  host: foo\n  port: 1234'), \
             mock.patch('clusterman.mesos.mesos_role_manager.load_spot_fleets_from_s3') as mock_load:
         mock_load.return_value = []
         manager = MesosRoleManager('mesos-test', 'bar')
