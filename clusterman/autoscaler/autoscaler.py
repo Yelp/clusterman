@@ -23,7 +23,7 @@ CPUS_PER_WEIGHT = 8
 
 
 class Autoscaler:
-    def __init__(self, cluster, role):
+    def __init__(self, cluster, role, role_manager=None, metrics_client=None):
         self.cluster = cluster
         self.role = role
 
@@ -31,9 +31,9 @@ class Autoscaler:
         self.role_config = staticconf.NamespaceReaders(ROLE_NAMESPACE.format(role=self.role))
         self.delta_gauge = yelp_meteorite.create_gauge(DELTA_GAUGE_NAME, {'cluster': cluster, 'role': role})
 
-        logger.info('Connecting to Mesos')
-        self.mesos_role_manager = MesosRoleManager(self.cluster, self.role)
+        self.mesos_role_manager = role_manager or MesosRoleManager(self.cluster, self.role)
 
+        self.metrics_client = metrics_client
         self.load_signal()
 
         logger.info('Initialization complete')
@@ -42,13 +42,13 @@ class Autoscaler:
         """Get how often the autoscaler should be run."""
         return self.signal.period_minutes * 60
 
-    def run(self, dry_run=False):
+    def run(self, dry_run=False, timestamp=None):
         """ Do a single check to scale the fleet up or down if necessary.
 
         :param dry_run: Don't actually modify the fleet size, just print what would happen
         """
         # TODO (CLUSTERMAN-122): reload signal if signals code or configs change
-        delta = self._compute_cluster_delta()
+        delta = self._compute_cluster_delta(timestamp)
         logger.info(f'Computed capacity delta is {delta}')
         self.delta_gauge.set(delta, {'dry_run': dry_run})
         new_target_capacity = self.mesos_role_manager.target_capacity + delta
@@ -93,16 +93,17 @@ class Autoscaler:
             period_minutes=signal_config.period_minutes,
             required_metrics=signal_config.required_metrics,
             custom_parameters=signal_config.custom_parameters,
+            metrics_client=self.metrics_client,
         )
         logger.info(f'Loaded signal {signal_config.name} from role {signal_role}')
         return signal
 
-    def _compute_cluster_delta(self):
+    def _compute_cluster_delta(self, timestamp):
         """ Compare signal to the resources allocated and compute appropriate capacity change.
 
         :returns: a capacity delta for the role
         """
-        resources = self.signal.get_signal()
+        resources = self.signal.get_signal(timestamp)
         if resources.cpus is None:
             logger.info(f'No data from signal, not changing capacity')
             return 0

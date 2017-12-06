@@ -1,6 +1,8 @@
+import arrow
 import mock
 import pytest
 import staticconf
+from clusterman_metrics import ClustermanMetricsSimulationClient
 from clusterman_signals.base_signal import BaseSignal
 from clusterman_signals.base_signal import MetricConfig
 from clusterman_signals.base_signal import SignalResources
@@ -53,6 +55,11 @@ def mock_role_manager():
 
 
 @pytest.fixture
+def mock_metrics_client():
+    yield mock.Mock(spec=ClustermanMetricsSimulationClient)
+
+
+@pytest.fixture
 @mock.patch('clusterman.autoscaler.autoscaler.Autoscaler.load_signal', autospec=True)
 def mock_autoscaler(mock_load_signal, mock_role_manager, mock_gauge):
     mock_autoscaler = Autoscaler('foo', 'bar')
@@ -82,8 +89,8 @@ def signal_config():
 
 
 @mock.patch('clusterman.autoscaler.autoscaler.Autoscaler.load_signal', autospec=True)
-def test_autoscaler_init(mock_load_signal, mock_role_manager, mock_gauge):
-    mock_autoscaler = Autoscaler('foo', 'bar')
+def test_autoscaler_init(mock_load_signal, mock_role_manager, mock_metrics_client, mock_gauge):
+    mock_autoscaler = Autoscaler('foo', 'bar', None, mock_metrics_client())
 
     assert mock_autoscaler.cluster == 'foo'
     assert mock_autoscaler.role == 'bar'
@@ -93,6 +100,7 @@ def test_autoscaler_init(mock_load_signal, mock_role_manager, mock_gauge):
 
     assert mock_role_manager.call_args_list == [mock.call('foo', 'bar')]
     assert mock_autoscaler.mesos_role_manager == mock_role_manager.return_value
+    assert mock_autoscaler.metrics_client == mock_metrics_client.return_value
 
     assert mock_load_signal.call_count == 1
 
@@ -138,16 +146,19 @@ def test_init_signal_from_config(mock_import_signals, mock_autoscaler):
         period_minutes=config.period_minutes,
         required_metrics=config.required_metrics,
         custom_parameters=config.custom_parameters,
+        metrics_client=mock_autoscaler.metrics_client,
     )]
     assert val == mock_import_signals.return_value.CoolSignal.return_value
 
 
 @pytest.mark.parametrize('dry_run', [True, False])
-def test_autoscaler_dry_run(dry_run, mock_autoscaler):
+@pytest.mark.parametrize('run_timestamp', [None, arrow.get(300)])
+def test_autoscaler_dry_run(dry_run, run_timestamp, mock_autoscaler):
     mock_autoscaler._compute_cluster_delta = mock.Mock(return_value=100)
-    mock_autoscaler.run(dry_run=dry_run)
+    mock_autoscaler.run(dry_run=dry_run, timestamp=run_timestamp)
     assert mock_autoscaler.mesos_role_manager.modify_target_capacity.call_count == int(not dry_run)
     assert mock_autoscaler.delta_gauge.set.call_args_list == [mock.call(100, {'dry_run': dry_run})]
+    assert mock_autoscaler._compute_cluster_delta.call_args_list == [mock.call(run_timestamp)]
 
 
 @pytest.mark.parametrize('signal_cpus,total_cpus,expected_delta', [
@@ -158,14 +169,17 @@ def test_autoscaler_dry_run(dry_run, mock_autoscaler):
     (490, 1000, -37.5),  # below setpoint delta
     (1400, 1000, 125),  # above setpoint delta and total
 ])
-def test_compute_cluster_delta(mock_autoscaler, mock_signal, mock_constrain_delta, signal_cpus, total_cpus, expected_delta):
+@pytest.mark.parametrize('run_timestamp', [None, arrow.get(300)])
+def test_compute_cluster_delta(run_timestamp, mock_autoscaler, mock_signal,
+                               mock_constrain_delta, signal_cpus, total_cpus, expected_delta):
     mock_signal.get_signal.return_value = SignalResources(signal_cpus, None, None)
     mock_autoscaler.signal = mock_signal
     mock_autoscaler.mesos_role_manager.get_resource_total.return_value = total_cpus
-    delta = mock_autoscaler._compute_cluster_delta()
+    delta = mock_autoscaler._compute_cluster_delta(run_timestamp)
     assert delta == pytest.approx(expected_delta)
     if delta != 0:
         assert mock_constrain_delta.call_count == 1
+    assert mock_autoscaler.signal.get_signal.call_args_list == [mock.call(run_timestamp)]
 
 
 def test_constrain_cluster_delta_normal_scale_up(mock_autoscaler):
