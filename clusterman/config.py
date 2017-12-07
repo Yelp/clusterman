@@ -11,7 +11,11 @@ from clusterman.mesos.constants import ROLE_NAMESPACE
 
 
 def setup_config(args, include_roles=True):
-    load_default_config(args.env_config_path)
+    # load_default_config merges the 'module_config' key from the first file
+    # and the 'module_env_config' key from the second file to configure packages.
+    # This allows us to configure packages differently in different hiera envs by
+    # changing 'module_env_config'. We use the same file for both keys.
+    load_default_config(args.env_config_path, args.env_config_path)
 
     # If a cluster is specified, any AWS calls should go to the corresponding region.
     # We can also load the role configs in that cluster, if include_roles is True.

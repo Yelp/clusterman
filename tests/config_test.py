@@ -77,7 +77,7 @@ def test_setup_config(mock_service_load, mock_role_load, cluster, include_roles)
     return_value = config.setup_config(args, include_roles=include_roles)
 
     assert return_value  # Must be truthy for config watchers
-    assert mock_service_load.call_args_list == [mock.call('/nail/etc/config.yaml')]
+    assert mock_service_load.call_args_list == [mock.call('/nail/etc/config.yaml', '/nail/etc/config.yaml')]
     if cluster is not None:
         assert staticconf.read_string('aws.region') == 'us-test-3'
         if include_roles:
