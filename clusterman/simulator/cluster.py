@@ -57,7 +57,7 @@ class Cluster:
         self._instances.update({instance.id: instance for instance in added_instances})
         return added_instances, removed_instances
 
-    def terminate_instances_by_ids(self, ids):
+    def terminate_instances_by_id(self, ids):
         """ Terminate instance in the ids list
 
         :param ids: a list of IDs to be terminated

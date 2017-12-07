@@ -37,13 +37,13 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
 
     def __init__(self, sfr_id):
         self.sfr_id = sfr_id
-        self.market_weights = {  # Can't change WeightedCapacity of SFRs, so cache them here for frequent access
+        self._market_weights = {  # Can't change WeightedCapacity of SFRs, so cache them here for frequent access
             get_instance_market(spec): spec['WeightedCapacity']
             for spec in self._configuration['SpotFleetRequestConfig']['LaunchSpecifications']
         }
 
     def market_weight(self, market):
-        return self.market_weights[market]
+        return self._market_weights[market]
 
     def modify_target_capacity(self, new_capacity, should_terminate=False):
         termination_policy = 'Default' if should_terminate else 'NoTermination'
@@ -64,7 +64,7 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
             return [], 0
 
         instance_weights = {
-            instance['InstanceId']: self.market_weights[get_instance_market(instance)]
+            instance['InstanceId']: self.market_weight(get_instance_market(instance))
             for instance in ec2_describe_instances(instance_ids)
         }
 
@@ -103,7 +103,7 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
     @property
     def market_capacities(self):
         return {
-            market: len(instances) * self.market_weights[market]
+            market: len(instances) * self.market_weight(market)
             for market, instances in self._instances_by_market.items()
             if market.az
         }
