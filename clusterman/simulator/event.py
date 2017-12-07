@@ -44,7 +44,7 @@ class ModifyClusterCapacityEvent(Event):
         __, removed_instances = simulator.cluster.modify_size(
             self.instance_types,
         )
-        simulator.capacity.add_breakpoint(self.time, simulator.cluster.cpu)
+        simulator.capacity.add_breakpoint(self.time, simulator.cluster.cpus)
 
         for instance in removed_instances:
             simulator.compute_instance_cost(instance)

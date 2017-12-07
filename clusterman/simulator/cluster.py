@@ -76,8 +76,8 @@ class Cluster:
         return {id: instance for id, instance in self._instances.items()}
 
     @property
-    def cpu(self):
-        return sum(instance.resources.cpu for instance in self._instances.values())
+    def cpus(self):
+        return sum(instance.resources.cpus for instance in self._instances.values())
 
     @property
     def mem(self):

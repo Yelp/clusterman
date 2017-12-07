@@ -7,7 +7,7 @@ def get_resource_value(resources, resource_name):
     """Helper to get the value of the given resource, from a list of resources returned by Mesos."""
     for resource in resources:
         if resource['name'] == resource_name:
-            if resource['type'] != "SCALAR":
+            if resource['type'] != 'SCALAR':
                 raise MesosRoleManagerError('Only scalar resource types are supported.')
             return resource['scalar']['value']
     return 0
@@ -21,10 +21,10 @@ def get_total_resource_value(agents, value_name, resource_name):
     :param value_name: desired resource value (e.g. total_resources, allocated_resources)
     :param resource_name: name of resource recognized by Mesos (e.g. cpus, memory, disk)
     """
-    total = 0
-    for agent in agents:
-        total += get_resource_value(agent.get(value_name, []), resource_name)
-    return total
+    return sum(
+        get_resource_value(agent.get(value_name, []), resource_name)
+        for agent in agents
+    )
 
 
 def allocated_cpu_resources(agent):

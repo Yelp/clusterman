@@ -107,17 +107,18 @@ class MesosRoleManager:
         """
         return get_total_resource_value(self.agents, 'total_resources', resource_name)
 
-    def get_average_resource_allocation(self, resource_name):
+    def get_percent_resource_allocation(self, resource_name):
         """Get the overall proportion of the given resource that is in use.
 
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
         :returns: float
         """
         total = self.get_resource_total(resource_name)
-        if total == 0:
-            return 0
         used = self.get_resource_allocation(resource_name)
-        return used / total
+        try:
+            return used / total
+        except ZeroDivisionError:
+            return 0
 
     def _constrain_target_capacity(self, target_capacity):
         """ Ensure that the desired target capacity is within the specified bounds for the cluster """

@@ -404,4 +404,4 @@ class TestResources:
         ('gpus', 0.15),
     ])
     def test_average_allocation(self, mock_agents, resource_name, expected):
-        assert mock_agents.get_average_resource_allocation(resource_name) == expected
+        assert mock_agents.get_percent_resource_allocation(resource_name) == expected

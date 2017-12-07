@@ -57,7 +57,7 @@ def test_modify_cluster_capacity(cluster):
 
 def test_cpu_mem_disk(cluster):
     assert len(cluster) == 7
-    assert cluster.cpu == 160
+    assert cluster.cpus == 160
     assert cluster.mem == 988
     assert cluster.disk == 22200
 
@@ -70,7 +70,7 @@ def test_remove_instances(cluster):
     })
 
     assert len(cluster) == 3
-    assert cluster.cpu == 80
+    assert cluster.cpus == 80
     assert cluster.mem == 552
     assert cluster.disk == 15800
 
