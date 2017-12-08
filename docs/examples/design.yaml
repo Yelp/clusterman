@@ -2,8 +2,8 @@ metadata:
     spot_prices|AZ=us-west-2a,instance_type=c3.8xlarge: &spot_prices
 
         # If no timezone is specified, generator will use YST
-        start_time: "2017-08-01T08:00:00Z"
-        end_time: "2017-08-01T09:00:00Z"
+        start_time: "2017-12-01T08:00:00Z"
+        end_time: "2017-12-01T09:00:00Z"
 
         frequency:
             distribution: expovariate
@@ -20,8 +20,8 @@ metadata:
     spot_prices|AZ=us-west-2c,instance_type=c3.8xlarge: *spot_prices
 
     capacity|cluster=norcal-prod,role=seagull:
-        start_time: "2017-08-01T08:00:00Z"
-        end_time: "2017-08-01T09:00:00Z"
+        start_time: "2017-12-01T08:00:00Z"
+        end_time: "2017-12-01T09:00:00Z"
 
         dict_keys:
             - c3.8xlarge,us-west-2a
@@ -41,10 +41,22 @@ metadata:
 
 app_metrics:
     seagull_runs:
-        start_time: "2017-08-01T08:00:00Z"
-        end_time: "2017-08-01T09:00:00Z"
+        start_time: "2017-12-01T08:00:00Z"
+        end_time: "2017-12-01T09:00:00Z"
         frequency:
             distribution: expovariate
             params:
                 lambd: 0.0041666 # 15 seagull runs per hour
         values: 1
+
+
+system_metrics:
+    cpu_allocation|cluster=everywhere-testopia,role=jolt:
+        start_time: "2017-12-01T08:00:00Z"
+        end_time: "2017-12-01T09:00:00Z"
+        frequency: historical
+        values:
+            aws_region: "us-west-2"
+            params:   # calculate value by a*x + b
+                a: 1.5
+                b: 10
