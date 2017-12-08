@@ -45,6 +45,7 @@ class MesosRoleManager:
         self.cluster = cluster
         self.role = role
 
+        logger.info('Connecting to Mesos')
         role_config = staticconf.NamespaceReaders(ROLE_NAMESPACE.format(role=self.role))
 
         mesos_master_discovery_label = staticconf.read_string(f'mesos_clusters.{cluster}.leader_service')
