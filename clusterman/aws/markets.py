@@ -88,7 +88,7 @@ EC2_AZS = [
 ]
 
 
-def get_instance_resources(market):
+def get_market_resources(market):
     return EC2_INSTANCE_TYPES[market.instance]
 
 

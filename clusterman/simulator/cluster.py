@@ -1,7 +1,7 @@
 import itertools
 from collections import defaultdict
 
-from clusterman.aws.markets import get_instance_resources
+from clusterman.aws.markets import get_market_resources
 
 
 class Instance:
@@ -12,7 +12,7 @@ class Instance:
         self.market = market
         self.start_time = start_time
         self.end_time = None
-        self.resources = get_instance_resources(self.market)
+        self.resources = get_market_resources(self.market)
         self.bid_price = bid_price
 
     @property
@@ -70,6 +70,9 @@ class Cluster:
 
     def market_size(self, market):
         return len(self._instance_ids_by_market[market])
+
+    def get_instance(self, instance_id):
+        return self._instances[instance_id]
 
     @property
     def instances(self):

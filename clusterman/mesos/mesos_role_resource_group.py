@@ -73,7 +73,7 @@ class MesosRoleResourceGroup(metaclass=ABCMeta):
 
     @abstractproperty
     def instances(self):  # pragma: no cover
-        """ The list of instances belonging to this ResourceGroup """
+        """ The list of instance IDs belonging to this ResourceGroup """
         pass
 
     @abstractproperty
