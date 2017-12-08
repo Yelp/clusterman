@@ -3,9 +3,10 @@ import argparse
 import mock
 import pytest
 import staticconf.testing
-from clusterman_metrics import SYSTEM_METRICS
+from clusterman_metrics import ClustermanMetricsBotoClient
 
 from clusterman.batch.cluster_metrics_collector import ClusterMetricsCollector
+from clusterman.batch.cluster_metrics_collector import METRICS_TO_WRITE
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 
 
@@ -50,20 +51,24 @@ def test_write_metrics(batch):
         'role_B': mock.Mock(spec_set=MesosRoleManager),
     }
     writer = mock.Mock()
-    batch.write_metrics(writer)
+    metrics_to_write = [
+        ('total', lambda manager: manager.get_resource_total('cpus')),
+        ('allocated', lambda manager: manager.get_resource_allocation('cpus')),
+    ]
+    batch.write_metrics(writer, metrics_to_write)
 
     for role, manager in batch.mesos_managers.items():
-        assert manager.get_average_resource_allocation.call_args_list == [mock.call('cpus')]
+        assert manager.get_resource_total.call_args_list == [mock.call('cpus')]
         assert manager.get_resource_allocation.call_args_list == [mock.call('cpus')]
 
     assert writer.send.call_count == 4
 
     metric_names = [call[0][0][0] for call in writer.send.call_args_list]
     assert sorted(metric_names) == sorted([
-        'cpu_allocation|cluster=mesos-test,role=role_A',
-        'cpu_allocation|cluster=mesos-test,role=role_B',
-        'cpu_allocation_percent|cluster=mesos-test,role=role_A',
-        'cpu_allocation_percent|cluster=mesos-test,role=role_B',
+        'total|cluster=mesos-test,role=role_A',
+        'total|cluster=mesos-test,role=role_B',
+        'allocated|cluster=mesos-test,role=role_A',
+        'allocated|cluster=mesos-test,role=role_B',
     ])
 
 
@@ -74,7 +79,7 @@ def test_run(mock_running, mock_time, mock_sleep, batch):
     mock_running.side_effect = [True, True, True, False]
     mock_time.side_effect = [101, 113, 148]
     batch.run_interval = 10
-    batch.metrics_client = mock.MagicMock()
+    batch.metrics_client = mock.MagicMock(spec_set=ClustermanMetricsBotoClient)
 
     writer_context = batch.metrics_client.get_writer.return_value
     writer = writer_context.__enter__.return_value
@@ -82,10 +87,14 @@ def test_run(mock_running, mock_time, mock_sleep, batch):
     with mock.patch.object(batch, 'write_metrics', autospec=True) as write_metrics:
         batch.run()
 
-        # Writing should have happened 3 times.
+        # Writing should have happened 3 times, for each metric type.
         # Each time, we create a new writer context and call write_metrics.
-        assert batch.metrics_client.get_writer.call_args_list == [mock.call(SYSTEM_METRICS) for i in range(3)]
-        assert write_metrics.call_args_list == [mock.call(writer) for i in range(3)]
-        assert writer_context.__exit__.call_count == 3
+        assert sorted(batch.metrics_client.get_writer.call_args_list) == sorted(
+            [mock.call(metric_type) for metric_type in METRICS_TO_WRITE] * 3
+        )
+        assert sorted(write_metrics.call_args_list) == sorted(
+            [mock.call(writer, metrics) for metrics in METRICS_TO_WRITE.values()] * 3
+        )
+        assert writer_context.__exit__.call_count == len(METRICS_TO_WRITE) * 3
 
     assert mock_sleep.call_args_list == [mock.call(9), mock.call(7), mock.call(2)]

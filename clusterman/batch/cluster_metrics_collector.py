@@ -3,6 +3,7 @@ import time
 import staticconf
 from clusterman_metrics import ClustermanMetricsBotoClient
 from clusterman_metrics import generate_key_with_dimensions
+from clusterman_metrics import METADATA
 from clusterman_metrics import SYSTEM_METRICS
 from yelp_batch.batch import batch_command_line_arguments
 from yelp_batch.batch import batch_configure
@@ -12,6 +13,19 @@ from clusterman.args import add_cluster_arg
 from clusterman.args import add_env_config_path_arg
 from clusterman.config import setup_config
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
+
+
+METRICS_TO_WRITE = {
+    SYSTEM_METRICS: [
+        ('cpus_allocated', lambda manager: manager.get_resource_allocation('cpus')),
+    ],
+    METADATA: [
+        ('cpus_total', lambda manager: manager.get_resource_total('cpus')),
+        ('target_capacity', lambda manager: manager.target_capacity),
+        ('fulfilled_capacity', lambda manager: {str(market): value for market,
+                                                value in manager._get_market_capacities().items()}),
+    ],
+}
 
 
 class ClusterMetricsCollector(BatchDaemon):
@@ -37,11 +51,7 @@ class ClusterMetricsCollector(BatchDaemon):
         }
         self.metrics_client = ClustermanMetricsBotoClient(region_name=self.region)
 
-    def write_metrics(self, writer):
-        metrics_to_write = [
-            ('cpu_allocation_percent', lambda manager: manager.get_average_resource_allocation('cpus')),
-            ('cpu_allocation', lambda manager: manager.get_resource_allocation('cpus')),
-        ]
+    def write_metrics(self, writer, metrics_to_write):
         for metric, value_method in metrics_to_write:
             for role, manager in self.mesos_managers.items():
                 value = value_method(manager)
@@ -52,8 +62,10 @@ class ClusterMetricsCollector(BatchDaemon):
     def run(self):
         while self.running:
             time.sleep(self.run_interval - time.time() % self.run_interval)
-            with self.metrics_client.get_writer(SYSTEM_METRICS) as writer:
-                self.write_metrics(writer)
+
+            for metric_type, metrics in METRICS_TO_WRITE.items():
+                with self.metrics_client.get_writer(metric_type) as writer:
+                    self.write_metrics(writer, metrics)
 
 
 if __name__ == '__main__':
