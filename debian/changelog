@@ -1,3 +1,9 @@
+clusterman (0.8.2) trusty; urgency=low
+
+  * allow env-specific module configs
+
+ -- Qui Nguyen <qui@yelp.com>  Fri, 08 Dec 2017 16:42:43 -0800
+
 clusterman (0.8.1) trusty; urgency=low
 
   * minor config loading changes; now smartstack services file can be
