@@ -62,9 +62,6 @@ def main_clusterman_config():
             'cluster_metrics': {
                 'run_interval_seconds': 120,
             },
-            'autoscaler': {
-                'run_interval_seconds': 600,
-            },
         },
         'mesos_clusters': {
             'mesos-test': {
