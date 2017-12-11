@@ -1,4 +1,5 @@
 import arrow
+import pytest
 
 from clusterman.aws.markets import get_market_resources
 from clusterman.aws.markets import InstanceMarket
@@ -11,15 +12,25 @@ from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSp
 TEST_MARKET = InstanceMarket('c3.4xlarge', 'us-west-2a')
 
 
-class SSFRGTestClass(SimulatedSpotFleetResourceGroup):
-    def __init__(self):
-        instances = [Instance(TEST_MARKET, arrow.get(0)) for i in range(10)]
-        self._instances = {instance.id: instance for instance in instances}
+@pytest.fixture
+def ssfrg_config():
+    return {
+        'LaunchSpecifications': [],
+        'AllocationStrategy': 'diversified'
+    }
 
 
-def test_simulated_agents():
+@pytest.fixture
+def mock_ssfrg(ssfrg_config):
+    ssfrg = SimulatedSpotFleetResourceGroup(ssfrg_config, None)
+    instances = [Instance(TEST_MARKET, arrow.get(0)) for i in range(10)]
+    ssfrg.instances = {instance.id: instance for instance in instances}
+    return ssfrg
+
+
+def test_simulated_agents(mock_ssfrg):
     role_manager = SimulatedMesosRoleManager('foo', 'bar', [], None)
-    role_manager.resource_groups = [SSFRGTestClass()]
+    role_manager.resource_groups = [mock_ssfrg]
     assert len(role_manager.agents) == 10
     assert get_total_resource_value(role_manager.agents, 'total_resources', 'cpus') == \
         10 * get_market_resources(TEST_MARKET).cpus

@@ -12,11 +12,11 @@ SpotMarketConfig = namedtuple('SpotMarketConfig', ['bid_price', 'weight'])
 class SimulatedSpotFleetResourceGroup(Cluster, MesosRoleResourceGroup):
     """ An implementation of a Cluster designed to model the AWS EC2 Spot Fleet object
 
-    The Spot Fleet object encapsulates a group of spot instances and attempts to maintain a specified capacity of those
-    instances, as long as the bid price for the instances does not exceed a user-specified threshold.  If a fleet gets
-    outbid in a particular market, the spot fleet will try to replenish the needed capacity in one or more different
-    markets.  Users may specify an instance weight for each requested market, which will be used in capacity
-    calculations.
+    The simulated spot fleet resource group object encapsulates a group of spot instances and attempts to maintain a
+    specified capacity of those instances, as long as the bid price for the instances does not exceed a user-specified
+    threshold.  If a fleet gets outbid in a particular market, the spot fleet will try to replenish the needed capacity
+    in one or more different markets.  Users may specify an instance weight for each requested market, which will be
+    used in capacity calculations.
 
     AWS provides two modes for allocating new instances, called the "allocation strategy": lowestPrice, and diversified.
     This model implementation only supports the diversified strategy; moreover, the details on how spot fleets maintain
@@ -78,7 +78,7 @@ class SimulatedSpotFleetResourceGroup(Cluster, MesosRoleResourceGroup):
         if curr_capacity > target_capacity and terminate_excess_capacity is True:
             # Since AWS doesn't allow the user to specify which instances are shut down,
             # we terminate instances one by one (in order of launch time) until the target capacity is reached
-            sequence = sorted([instance for instance in self._instances.values()], key=lambda i: i.start_time)
+            sequence = sorted([instance for instance in self.instances.values()], key=lambda i: i.start_time)
             removed_ids = []
             adjusted_capacity = curr_capacity - target_capacity
             for instance in sequence:
@@ -198,13 +198,13 @@ class SimulatedSpotFleetResourceGroup(Cluster, MesosRoleResourceGroup):
         return self._id
 
     @property
-    def instances(self):
-        return self._instances.keys()
+    def instance_ids(self):
+        return list(self.instances.keys())
 
     @property
     def market_capacities(self):
         return {
-            market: len(instance_ids) * self.market_weight(market)
+            market: self.market_weight(market)
             for market, instance_ids in self._instance_ids_by_market.items()
             if market.az
         }

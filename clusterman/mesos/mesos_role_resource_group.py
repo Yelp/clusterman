@@ -17,8 +17,8 @@ def protect_unowned_instances(func):
     """
 
     def wrapper(self, instance_ids, *args, **kwargs):
-        resource_group_instances = list(set(instance_ids) & set(self.instances))
-        invalid_instances = set(instance_ids) - set(self.instances)
+        resource_group_instances = list(set(instance_ids) & set(self.instance_ids))
+        invalid_instances = set(instance_ids) - set(self.instance_ids)
         if invalid_instances:
             logger.warn(f'Some instances are not part of this resource group ({self.id}):\n{invalid_instances}')
         return func(self, resource_group_instances, *args, **kwargs)
@@ -72,7 +72,7 @@ class MesosRoleResourceGroup(metaclass=ABCMeta):
         pass
 
     @abstractproperty
-    def instances(self):  # pragma: no cover
+    def instance_ids(self):  # pragma: no cover
         """ The list of instance IDs belonging to this ResourceGroup """
         pass
 

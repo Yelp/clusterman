@@ -18,7 +18,7 @@ class DummyResourceGroup(MesosRoleResourceGroup):
         return 'fake-resource-group'
 
     @property
-    def instances(self):
+    def instance_ids(self):
         return ['fake-1', 'fake-2', 'fake-3']
 
     @property

@@ -27,7 +27,6 @@ def _make_agent(instance):
         },
         '_aws_instance': instance,
     }
-    pass
 
 
 class SimulatedMesosRoleManager(MesosRoleManager):
@@ -52,7 +51,7 @@ class SimulatedMesosRoleManager(MesosRoleManager):
     @property
     def agents(self):
         return [
-            _make_agent(group.get_instance(instance_id))
+            _make_agent(group.instances[instance_id])
             for group in self.resource_groups
             for instance_id in group.instances
         ]

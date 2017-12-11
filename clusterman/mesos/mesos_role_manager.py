@@ -115,10 +115,7 @@ class MesosRoleManager:
         """
         total = self.get_resource_total(resource_name)
         used = self.get_resource_allocation(resource_name)
-        try:
-            return used / total
-        except ZeroDivisionError:
-            return 0
+        return used / total if total else 0
 
     def _constrain_target_capacity(self, target_capacity):
         """ Ensure that the desired target capacity is within the specified bounds for the cluster """

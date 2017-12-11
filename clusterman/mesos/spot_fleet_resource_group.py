@@ -92,7 +92,7 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
         return self.sfr_id
 
     @timed_cached_property(ttl=CACHE_TTL_SECONDS)
-    def instances(self):
+    def instance_ids(self):
         """ Responses from this API call are cached to prevent hitting any AWS request limits """
         return [
             instance['InstanceId']
@@ -130,6 +130,6 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
     def _instances_by_market(self):
         """ Responses from this API call are cached to prevent hitting any AWS request limits """
         instance_dict = defaultdict(list)
-        for instance in ec2_describe_instances(self.instances):
+        for instance in ec2_describe_instances(self.instance_ids):
             instance_dict[get_instance_market(instance)].append(instance)
         return instance_dict
