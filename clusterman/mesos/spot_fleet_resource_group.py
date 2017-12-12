@@ -37,19 +37,19 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
 
     def __init__(self, sfr_id):
         self.sfr_id = sfr_id
-        self.market_weights = {  # Can't change WeightedCapacity of SFRs, so cache them here for frequent access
+        self._market_weights = {  # Can't change WeightedCapacity of SFRs, so cache them here for frequent access
             get_instance_market(spec): spec['WeightedCapacity']
             for spec in self._configuration['SpotFleetRequestConfig']['LaunchSpecifications']
         }
 
     def market_weight(self, market):
-        return self.market_weights[market]
+        return self._market_weights[market]
 
-    def modify_target_capacity(self, new_capacity, should_terminate=False):
-        termination_policy = 'Default' if should_terminate else 'NoTermination'
+    def modify_target_capacity(self, target_capacity, terminate_excess_capacity=False):
+        termination_policy = 'Default' if terminate_excess_capacity else 'NoTermination'
         response = ec2.modify_spot_fleet_request(
             SpotFleetRequestId=self.sfr_id,
-            TargetCapacity=int(new_capacity),
+            TargetCapacity=int(target_capacity),
             ExcessCapacityTerminationPolicy=termination_policy,
         )
         if not response['Return']:
@@ -64,7 +64,7 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
             return [], 0
 
         instance_weights = {
-            instance['InstanceId']: self.market_weights[get_instance_market(instance)]
+            instance['InstanceId']: self.market_weight(get_instance_market(instance))
             for instance in ec2_describe_instances(instance_ids)
         }
 
@@ -92,7 +92,7 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
         return self.sfr_id
 
     @timed_cached_property(ttl=CACHE_TTL_SECONDS)
-    def instances(self):
+    def instance_ids(self):
         """ Responses from this API call are cached to prevent hitting any AWS request limits """
         return [
             instance['InstanceId']
@@ -103,7 +103,7 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
     @property
     def market_capacities(self):
         return {
-            market: len(instances) * self.market_weights[market]
+            market: len(instances) * self.market_weight(market)
             for market, instances in self._instances_by_market.items()
             if market.az
         }
@@ -130,6 +130,6 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
     def _instances_by_market(self):
         """ Responses from this API call are cached to prevent hitting any AWS request limits """
         instance_dict = defaultdict(list)
-        for instance in ec2_describe_instances(self.instances):
+        for instance in ec2_describe_instances(self.instance_ids):
             instance_dict[get_instance_market(instance)].append(instance)
         return instance_dict

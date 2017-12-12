@@ -1,20 +1,22 @@
 from collections import namedtuple
 from functools import lru_cache
+from uuid import uuid4
 
 from clusterman.aws.markets import get_instance_market
+from clusterman.mesos.mesos_role_resource_group import MesosRoleResourceGroup
 from clusterman.simulator.cluster import Cluster
 
 SpotMarketConfig = namedtuple('SpotMarketConfig', ['bid_price', 'weight'])
 
 
-class SpotFleet(Cluster):
+class SimulatedSpotFleetResourceGroup(Cluster, MesosRoleResourceGroup):
     """ An implementation of a Cluster designed to model the AWS EC2 Spot Fleet object
 
-    The Spot Fleet object encapsulates a group of spot instances and attempts to maintain a specified capacity of those
-    instances, as long as the bid price for the instances does not exceed a user-specified threshold.  If a fleet gets
-    outbid in a particular market, the spot fleet will try to replenish the needed capacity in one or more different
-    markets.  Users may specify an instance weight for each requested market, which will be used in capacity
-    calculations.
+    The simulated spot fleet resource group object encapsulates a group of spot instances and attempts to maintain a
+    specified capacity of those instances, as long as the bid price for the instances does not exceed a user-specified
+    threshold.  If a fleet gets outbid in a particular market, the spot fleet will try to replenish the needed capacity
+    in one or more different markets.  Users may specify an instance weight for each requested market, which will be
+    used in capacity calculations.
 
     AWS provides two modes for allocating new instances, called the "allocation strategy": lowestPrice, and diversified.
     This model implementation only supports the diversified strategy; moreover, the details on how spot fleets maintain
@@ -51,24 +53,28 @@ class SpotFleet(Cluster):
         """
         super().__init__(simulator)
         self._instance_types = {}
+        self._id = 'ssfr-{uuid}'.format(uuid=uuid4())
         for spec in config['LaunchSpecifications']:
             bid_price = spec['SpotPrice'] * spec['WeightedCapacity']
             market = get_instance_market(spec)
             self._instance_types[market] = SpotMarketConfig(bid_price, spec['WeightedCapacity'])
 
-        self.target_capacity = 0
+        self._target_capacity = 0
         self.allocation_strategy = config['AllocationStrategy']
         if self.allocation_strategy != 'diversified':
             raise NotImplementedError(f'{self.allocation_strategy} not supported')
 
-    def modify_spot_fleet_request(self, target_capacity, terminate_excess_capacity=True):
+    def market_weight(self, market):
+        return self.market_size(market) * self._instance_types[market].weight
+
+    def modify_target_capacity(self, target_capacity, terminate_excess_capacity=False):
         """ Modify the requested capacity for a particular spot fleet
 
         :param target_capacity: desired capacity after this operation
         :param terminate_excess_capacity: indicate if we should kill instances to meet target capacity
         """
         curr_capacity = self.fulfilled_capacity
-        self.target_capacity = target_capacity
+        self._target_capacity = target_capacity
         if curr_capacity > target_capacity and terminate_excess_capacity is True:
             # Since AWS doesn't allow the user to specify which instances are shut down,
             # we terminate instances one by one (in order of launch time) until the target capacity is reached
@@ -83,16 +89,16 @@ class SpotFleet(Cluster):
                 removed_ids.append(instance.id)
                 if adjusted_capacity <= 0:
                     break
-            self.terminate_instances(removed_ids)
+            self.terminate_instances_by_id(removed_ids)
         elif curr_capacity < target_capacity:
             self._increase_capacity_to_target(target_capacity)
 
-    def terminate_instances(self, ids):
+    def terminate_instances_by_id(self, ids):
         """ Terminate specified instances
 
         :param ids: desired ids of instances to be terminated
         """
-        self.terminate_instances_by_ids(ids)
+        super().terminate_instances_by_id(ids)
         # restore capacity if current capacity is less than target capacity
         if self.fulfilled_capacity < self.target_capacity:
             self._increase_capacity_to_target(self.target_capacity)
@@ -164,7 +170,7 @@ class SpotFleet(Cluster):
         # Some helper closures for computing residuals and sorting;
         @lru_cache()  # memoize the results
         def residual(market):
-            return target_capacity_per_market - self._total_market_weight(market)
+            return target_capacity_per_market - self.market_weight(market)
 
         def residual_sort_key(value_tuple):
             market, residual = value_tuple
@@ -174,9 +180,6 @@ class SpotFleet(Cluster):
             [(market, residual(market)) for market in markets],
             key=residual_sort_key,
         )
-
-    def _total_market_weight(self, market):
-        return self.market_size(market) * self._instance_types[market].weight
 
     def _find_available_markets(self):
         """
@@ -191,10 +194,34 @@ class SpotFleet(Cluster):
         ]
 
     @property
+    def id(self):
+        return self._id
+
+    @property
+    def instance_ids(self):
+        return list(self.instances.keys())
+
+    @property
+    def market_capacities(self):
+        return {
+            market: self.market_weight(market)
+            for market, instance_ids in self._instance_ids_by_market.items()
+            if market.az
+        }
+
+    @property
+    def target_capacity(self):
+        return self._target_capacity
+
+    @property
     def fulfilled_capacity(self):
         """ The current actual capacity of the spot fleet
 
         Note that the actual capacity may be greater than the target capacity if instance weights do not evenly divide
         the given target capacity
         """
-        return sum(self._total_market_weight(market) for market in self._instance_types)
+        return sum(self.market_weight(market) for market in self._instance_types)
+
+    @property
+    def status(self):
+        return 'active'

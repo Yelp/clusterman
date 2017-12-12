@@ -1,5 +1,3 @@
-import random
-
 import arrow
 import mock
 import pytest
@@ -59,7 +57,7 @@ def test_modify_cluster_capacity(cluster):
 
 def test_cpu_mem_disk(cluster):
     assert len(cluster) == 7
-    assert cluster.cpu == 160
+    assert cluster.cpus == 160
     assert cluster.mem == 988
     assert cluster.disk == 22200
 
@@ -72,22 +70,21 @@ def test_remove_instances(cluster):
     })
 
     assert len(cluster) == 3
-    assert cluster.cpu == 80
+    assert cluster.cpus == 80
     assert cluster.mem == 552
     assert cluster.disk == 15800
 
 
-def test_terminate_instances_by_ids(cluster):
-    # Remove the random number of instances
+def test_terminate_instances_by_id(cluster):
     terminate_instances_ids = []
-    remain_instances_ids = []
-    for id in cluster.instances:
-        if random.randint(0, 1) == 0:
+    remaining_instances_ids = []
+    for i, id in enumerate(cluster.instances):
+        if i % 3:
             terminate_instances_ids.append(id)
         else:
-            remain_instances_ids.append(id)
-    cluster.terminate_instances_by_ids(terminate_instances_ids)
+            remaining_instances_ids.append(id)
+    cluster.terminate_instances_by_id(terminate_instances_ids)
     for id in terminate_instances_ids:
         assert id not in cluster.instances
-    for id in remain_instances_ids:
+    for id in remaining_instances_ids:
         assert id in cluster.instances

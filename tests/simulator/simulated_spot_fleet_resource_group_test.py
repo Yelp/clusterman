@@ -6,9 +6,9 @@ import pytest
 
 from clusterman.aws.markets import InstanceMarket
 from clusterman.math.piecewise import PiecewiseConstantFunction
+from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSpotFleetResourceGroup
 from clusterman.simulator.simulator import SimulationMetadata
 from clusterman.simulator.simulator import Simulator
-from clusterman.simulator.spot_fleet import SpotFleet
 
 
 MARKETS = [
@@ -73,8 +73,9 @@ def get_fake_instance_market(spec):
 
 @pytest.fixture
 def spot_fleet(spot_fleet_request_config, simulator, spot_prices):
-    with mock.patch('clusterman.simulator.spot_fleet.get_instance_market', side_effect=get_fake_instance_market):
-        s = SpotFleet(spot_fleet_request_config, simulator)
+    with mock.patch('clusterman.simulator.simulated_spot_fleet_resource_group.get_instance_market',
+                    side_effect=get_fake_instance_market):
+        s = SimulatedSpotFleetResourceGroup(spot_fleet_request_config, simulator)
     s.simulator.instance_prices = spot_prices
     return s
 
@@ -122,10 +123,10 @@ def test_compute_market_residuals_existing_fleet(spot_fleet, test_instances_by_m
     assert residuals == [(MARKETS[2], -4), (MARKETS[3], 3), (MARKETS[1], 3), (MARKETS[0], 4)]
 
 
-def test_total_market_weight(spot_fleet_request_config, spot_fleet, test_instances_by_market):
+def test_market_weight(spot_fleet_request_config, spot_fleet, test_instances_by_market):
     spot_fleet.modify_size(test_instances_by_market)
     for i, (market, instance_count) in enumerate(test_instances_by_market.items()):
-        assert spot_fleet._total_market_weight(market) == \
+        assert spot_fleet.market_weight(market) == \
             instance_count * spot_fleet_request_config['LaunchSpecifications'][i]['WeightedCapacity']
 
 
@@ -141,22 +142,22 @@ def test_terminate_instance(spot_fleet, test_instances_by_market):
     split_point = 2
     added_instances, __ = spot_fleet.modify_size(test_instances_by_market)
     terminate_instances_ids = (instance.id for instance in added_instances[split_point:])
-    spot_fleet.terminate_instances(terminate_instances_ids)
+    spot_fleet.terminate_instances_by_id(terminate_instances_ids)
     remain_instances = spot_fleet.instances
     assert len(remain_instances) == split_point
     for instance in added_instances[:split_point]:
         assert instance.id in remain_instances
 
 
-def test_modify_spot_fleet_request(spot_fleet):
-    spot_fleet.modify_spot_fleet_request(10)
+def test_modify_target_capacity(spot_fleet):
+    spot_fleet.modify_target_capacity(10)
     capacity = spot_fleet.target_capacity
-    set1 = set(spot_fleet.instances.keys())
-    spot_fleet.modify_spot_fleet_request(capacity * 2)
-    set2 = set(spot_fleet.instances.keys())
+    set1 = set(spot_fleet.instances)
+    spot_fleet.modify_target_capacity(capacity * 2)
+    set2 = set(spot_fleet.instances)
     # Because of FIFO strategy, this should remove all instances in set1
-    spot_fleet.modify_spot_fleet_request(spot_fleet.target_capacity - capacity)
-    set3 = set(spot_fleet.instances.keys())
+    spot_fleet.modify_target_capacity(spot_fleet.target_capacity - capacity, True)
+    set3 = set(spot_fleet.instances)
     assert set3 == (set2 - set1)
 
 
@@ -165,16 +166,16 @@ def test_downsize_capacity_by_small_weight(spot_fleet):
     spot_fleet.modify_size({MARKETS[1]: 1, MARKETS[2]: 3})
     spot_fleet.simulator.current_time.shift(seconds=+50)
     spot_fleet.modify_size({MARKETS[0]: 1})
-    spot_fleet.target_capacity = 12
+    spot_fleet._target_capacity = 12
     # This should removed the last one instance to meet capacity requirement
-    spot_fleet.modify_spot_fleet_request(11)
+    spot_fleet.modify_target_capacity(11, True)
     assert spot_fleet.target_capacity == 11
     assert spot_fleet.market_size(MARKETS[0]) == 0
 
 
 @pytest.mark.parametrize('target_capacity', [5, 10, 30, 50, 100])
 def test_restore_capacity(spot_fleet, target_capacity):
-    spot_fleet.modify_spot_fleet_request(target_capacity)
+    spot_fleet.modify_target_capacity(target_capacity)
     # terminate all instances
-    spot_fleet.terminate_instances(spot_fleet.instances.keys())
+    spot_fleet.terminate_instances_by_id(list(spot_fleet.instances))
     assert spot_fleet.fulfilled_capacity >= target_capacity

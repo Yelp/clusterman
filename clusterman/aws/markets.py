@@ -1,23 +1,15 @@
 from collections import namedtuple
 from functools import lru_cache
 
-import staticconf
-
 from clusterman.aws.client import ec2
 
-InstanceResources = namedtuple('InstanceResources', ['cpu', 'mem', 'disk'])
-PRIVATE_AWS_CONFIG = 'private-aws-config'
+InstanceResources = namedtuple('InstanceResources', ['cpus', 'mem', 'disk'])
 
 
 class InstanceMarket(namedtuple('InstanceMarket', ['instance', 'az'])):
     __slots__ = ()
 
-    def __new__(cls, instance, subnet_or_az):
-        try:
-            az = staticconf.read(f'subnet.{subnet_or_az}', namespace=PRIVATE_AWS_CONFIG)
-        except staticconf.errors.ConfigurationError:
-            az = subnet_or_az
-
+    def __new__(cls, instance, az):
         if (instance in EC2_INSTANCE_TYPES and az in EC2_AZS):
             return super().__new__(cls, instance, az)
         else:
@@ -96,7 +88,7 @@ EC2_AZS = [
 ]
 
 
-def get_instance_resources(market):
+def get_market_resources(market):
     return EC2_INSTANCE_TYPES[market.instance]
 
 

@@ -99,26 +99,26 @@ def test_fulfilled_capacity(mock_spot_fleet_resource_group):
 def test_modify_target_capacity_up(mock_spot_fleet_resource_group):
     mock_spot_fleet_resource_group.modify_target_capacity(20)
     assert mock_spot_fleet_resource_group.target_capacity == 20
-    assert len(mock_spot_fleet_resource_group.instances) == 13
+    assert len(mock_spot_fleet_resource_group.instance_ids) == 13
 
 
 def test_modify_target_capacity_down_no_terminate(mock_spot_fleet_resource_group):
     mock_spot_fleet_resource_group.modify_target_capacity(5)
     assert mock_spot_fleet_resource_group.target_capacity == 5
     assert mock_spot_fleet_resource_group.fulfilled_capacity == 11
-    assert len(mock_spot_fleet_resource_group.instances) == 7
+    assert len(mock_spot_fleet_resource_group.instance_ids) == 7
 
 
 def test_modify_target_capacity_down_terminate(mock_spot_fleet_resource_group):
-    mock_spot_fleet_resource_group.modify_target_capacity(5, should_terminate=True)
+    mock_spot_fleet_resource_group.modify_target_capacity(5, terminate_excess_capacity=True)
     assert mock_spot_fleet_resource_group.target_capacity == 5
     assert mock_spot_fleet_resource_group.fulfilled_capacity == 5
-    assert len(mock_spot_fleet_resource_group.instances) == 4
+    assert len(mock_spot_fleet_resource_group.instance_ids) == 4
 
 
 def test_terminate_all_instances_by_id(mock_spot_fleet_resource_group):
-    mock_spot_fleet_resource_group.terminate_instances_by_id(mock_spot_fleet_resource_group.instances)
-    assert mock_spot_fleet_resource_group.instances == []
+    mock_spot_fleet_resource_group.terminate_instances_by_id(mock_spot_fleet_resource_group.instance_ids)
+    assert mock_spot_fleet_resource_group.instance_ids == []
 
 
 def test_terminate_all_instances_by_id_small_batch(mock_spot_fleet_resource_group):
@@ -126,9 +126,9 @@ def test_terminate_all_instances_by_id_small_batch(mock_spot_fleet_resource_grou
         'clusterman.mesos.spot_fleet_resource_group.ec2.terminate_instances',
         wraps=ec2.terminate_instances,
     ) as mock_terminate:
-        mock_spot_fleet_resource_group.terminate_instances_by_id(mock_spot_fleet_resource_group.instances, batch_size=1)
+        mock_spot_fleet_resource_group.terminate_instances_by_id(mock_spot_fleet_resource_group.instance_ids, batch_size=1)
         assert mock_terminate.call_count == 7
-        assert mock_spot_fleet_resource_group.instances == []
+        assert mock_spot_fleet_resource_group.instance_ids == []
 
 
 @mock.patch('clusterman.mesos.spot_fleet_resource_group.logger')
@@ -136,10 +136,10 @@ def test_terminate_some_instances_missing(mock_logger, mock_spot_fleet_resource_
     with mock.patch('clusterman.mesos.spot_fleet_resource_group.ec2.terminate_instances') as mock_terminate:
         mock_terminate.return_value = {
             'TerminatingInstances': [
-                {'InstanceId': i} for i in mock_spot_fleet_resource_group.instances[:3]
+                {'InstanceId': i} for i in mock_spot_fleet_resource_group.instance_ids[:3]
             ]
         }
-        instances = mock_spot_fleet_resource_group.terminate_instances_by_id(mock_spot_fleet_resource_group.instances)
+        instances = mock_spot_fleet_resource_group.terminate_instances_by_id(mock_spot_fleet_resource_group.instance_ids)
 
         assert len(instances) == 3
         assert mock_logger.warn.call_count == 2
@@ -148,14 +148,14 @@ def test_terminate_some_instances_missing(mock_logger, mock_spot_fleet_resource_
 @mock.patch('clusterman.mesos.spot_fleet_resource_group.logger')
 def test_terminate_no_instances_by_id(mock_logger, mock_spot_fleet_resource_group):
     mock_spot_fleet_resource_group.terminate_instances_by_id([])
-    assert len(mock_spot_fleet_resource_group.instances) == 7
+    assert len(mock_spot_fleet_resource_group.instance_ids) == 7
     assert mock_spot_fleet_resource_group.target_capacity == 10
     assert mock_spot_fleet_resource_group.fulfilled_capacity == 11
     assert mock_logger.warn.call_count == 1
 
 
 def test_instances(mock_spot_fleet_resource_group):
-    assert len(mock_spot_fleet_resource_group.instances) == 7
+    assert len(mock_spot_fleet_resource_group.instance_ids) == 7
 
 
 def test_market_capacities(mock_spot_fleet_resource_group, mock_subnet):

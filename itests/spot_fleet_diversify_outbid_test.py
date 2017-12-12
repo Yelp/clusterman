@@ -7,9 +7,9 @@ import pytest
 
 from clusterman.aws.markets import InstanceMarket
 from clusterman.math.piecewise import PiecewiseConstantFunction
+from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSpotFleetResourceGroup
 from clusterman.simulator.simulator import SimulationMetadata
 from clusterman.simulator.simulator import Simulator
-from clusterman.simulator.spot_fleet import SpotFleet
 
 MARKETS = [
     InstanceMarket('c3.4xlarge', 'us-west-1a'),
@@ -106,8 +106,11 @@ def simulator():
 
 @pytest.fixture
 def spot_fleet(spot_fleet_request_config, simulator, spot_prices):
-    with mock.patch('clusterman.simulator.spot_fleet.get_instance_market', side_effect=get_fake_instance_market):
-        s = SpotFleet(spot_fleet_request_config, simulator)
+    with mock.patch(
+        'clusterman.simulator.simulated_spot_fleet_resource_group.get_instance_market',
+        side_effect=get_fake_instance_market,
+    ):
+        s = SimulatedSpotFleetResourceGroup(spot_fleet_request_config, simulator)
     s.simulator.instance_prices = spot_prices
     return s
 
@@ -115,7 +118,7 @@ def spot_fleet(spot_fleet_request_config, simulator, spot_prices):
 @pytest.mark.parametrize('target_capacity', [200, 300, 500, 700, 1000, 1500])
 def test_spot_fleet_diversifying(target_capacity, spot_fleet, spot_prices):
     threshold = 0.1
-    spot_fleet.modify_spot_fleet_request(target_capacity, spot_prices)
+    spot_fleet.modify_target_capacity(target_capacity)
     for market in MARKETS:
         assert (
             spot_fleet.market_size(market) * (spot_fleet._instance_types[market].weight)
@@ -130,12 +133,12 @@ def test_spot_fleet_diversifying(target_capacity, spot_fleet, spot_prices):
 @pytest.mark.parametrize('outbid_market', [0, 1, 2, 3, 4, 5, 6, 7])
 @pytest.mark.parametrize('target_capacity', [100, 200, 300, 500, 700, 1000, 1500])
 def test_spot_fleet_refill_capacity(target_capacity, outbid_market, spot_fleet, spot_prices):
-    spot_fleet.modify_spot_fleet_request(target_capacity, spot_prices)
+    spot_fleet.modify_target_capacity(target_capacity)
     # Outbid event happens
     spot_prices[MARKETS[outbid_market]].add_breakpoint(arrow.get(300), 3.0)
     spot_fleet.simulator.current_time = arrow.get(480)
     terminate_ids = list(spot_fleet._instance_ids_by_market[MARKETS[outbid_market]])
-    spot_fleet.terminate_instances(terminate_ids)
+    spot_fleet.terminate_instances_by_id(terminate_ids)
     assert spot_fleet.market_size(MARKETS[outbid_market]) == 0
     assert spot_fleet.fulfilled_capacity >= spot_fleet.target_capacity
 
@@ -149,14 +152,14 @@ def test_spot_fleet_cost_for_outbid_instances(outbid_market, target_capacity, sp
             spot_prices[MARKETS[market_number]].add_breakpoint(arrow.get(300), 3.0)
     # Increasing target_capacity, this should add instances in outbid_market, since it's the only available market
     spot_fleet.simulator.current_time = arrow.get(1200)
-    spot_fleet.modify_spot_fleet_request(target_capacity)
+    spot_fleet.modify_target_capacity(target_capacity)
     size = spot_fleet.market_size(MARKETS[outbid_market])
     # Outbid event happens in outbid_market, it causes all instances to get evicted
     spot_prices[MARKETS[outbid_market]].add_breakpoint(arrow.get(3000), 3.0)
     spot_fleet.simulator.current_time = arrow.get(3120)
-    instances = spot_fleet.instances.values()
+    instances = list(spot_fleet.instances.values())
     terminate_ids = list(spot_fleet._instance_ids_by_market[MARKETS[outbid_market]])
-    spot_fleet.terminate_instances(terminate_ids)
+    spot_fleet.terminate_instances_by_id(terminate_ids)
     for instance in instances:
         spot_fleet.simulator.compute_instance_cost(instance)
     # No available market, market size shoud be zero
@@ -170,7 +173,7 @@ def test_spot_fleet_cost_for_outbid_instances(outbid_market, target_capacity, sp
 def test_negative_residual_scale_up(target_capacity, spot_fleet):
     spot_fleet.modify_size({MARKETS[0]: 100})
     threshold = 0.01
-    spot_fleet.modify_spot_fleet_request(target_capacity)
+    spot_fleet.modify_target_capacity(target_capacity)
     # Since the residual is negative, it should not launch any new instance in MARKETS[0]
     assert spot_fleet.market_size(MARKETS[0]) == 100
     assert spot_fleet.fulfilled_capacity >= spot_fleet.target_capacity
