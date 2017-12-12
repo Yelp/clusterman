@@ -110,7 +110,7 @@ def test_modify_target_capacity_down_no_terminate(mock_spot_fleet_resource_group
 
 
 def test_modify_target_capacity_down_terminate(mock_spot_fleet_resource_group):
-    mock_spot_fleet_resource_group.modify_target_capacity(5, should_terminate=True)
+    mock_spot_fleet_resource_group.modify_target_capacity(5, terminate_excess_capacity=True)
     assert mock_spot_fleet_resource_group.target_capacity == 5
     assert mock_spot_fleet_resource_group.fulfilled_capacity == 5
     assert len(mock_spot_fleet_resource_group.instance_ids) == 4
