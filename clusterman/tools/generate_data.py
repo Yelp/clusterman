@@ -2,7 +2,9 @@ import random
 import time
 from collections import defaultdict
 
+import arrow
 import yaml
+from clusterman_metrics import ClustermanMetricsBotoClient
 
 from clusterman.args import subparser
 from clusterman.simulator.metrics import write_metrics_to_compressed_json
@@ -17,17 +19,16 @@ def get_values_function(values_conf):
     1. Use functions from the python random library to generate data; the config
        should be a dict in the format
 
-          {'distribution': <function_name>, 'params': <distribution_parameters>}
+       {'distribution': <function_name>, 'params': <distribution_parameters>}
 
        where function_name is a function from random, and distribution_parameters
        is the kwargs for the distribution function.
-    2. TODO
+    2. Return a constant
     """
     try:
         gen_func = getattr(random, values_conf['distribution'])
         return lambda: gen_func(**values_conf['params'])
     except (AttributeError, TypeError):
-        # TODO - want to be able to parse a function of existing metric values, rn just constant
         return lambda: int(values_conf)
 
 
@@ -61,6 +62,36 @@ def get_markets_and_values(dict_keys, values_func):
     return {k: values_func() for k in random.sample(dict_keys, random.randint(1, len(dict_keys)))}
 
 
+def get_historical_data(metric_key, metric_type, config, start_time, end_time):
+    """ Returns a list of tuples (timestamp, value) based on the historical data in database, in which value is
+        calculated by a*x + b.
+    """
+    aws_region = config['values']['aws_region']
+    boto_client = ClustermanMetricsBotoClient(aws_region)
+    result_key, result_items = boto_client.get_metric_values(metric_key, metric_type, start_time.timestamp, end_time.timestamp)
+    metric = []
+    a = config['values']['params']['a']
+    b = config['values']['params']['b']
+    for item in result_items:
+        metric.append((arrow.get(item[0]), a * int(item[1]) + b))
+    return metric
+
+
+def get_random_data(config, start_time, end_time):
+    next_time_func = get_frequency_function(config['frequency'])
+    values_func = get_values_function(config['values'])
+
+    current_time = start_time
+    metric = []
+    while current_time < end_time:
+        if 'dict_keys' in config:
+            metric.append((current_time, get_markets_and_values(config['dict_keys'], values_func)))
+        else:
+            metric.append((current_time, values_func()))
+        current_time = next_time_func(current_time)
+    return metric
+
+
 def load_experimental_design(inputfile):
     """ Generate metric timeseries data from an experimental design .yaml file
 
@@ -75,7 +106,9 @@ def load_experimental_design(inputfile):
 
     This will generate a set of metric values between XXXX and YYYY, with the interarrival
     time between events meeting the frequency specification and the metric values corresponding
-    to the values specification
+    to the values specification. When frequency is specified as historical, this will use the
+    data in database (aws_region should be provided as a value parameter) to generate timeseries
+    data.
 
     :returns: a dictionary of metric_type -> (metric_name -> timeseries data)
     """
@@ -88,17 +121,10 @@ def load_experimental_design(inputfile):
         for metric_name, config in metric_design.items():
             start_time = parse_time_string(config['start_time'])
             end_time = parse_time_string(config['end_time'])
-            next_time_func = get_frequency_function(config['frequency'])
-            values_func = get_values_function(config['values'])
-
-            current_time = start_time
-            while current_time < end_time:
-                if 'dict_keys' in config:
-                    metrics[metric_type][metric_name].append(
-                        (current_time, get_markets_and_values(config['dict_keys'], values_func)))
-                else:
-                    metrics[metric_type][metric_name].append((current_time, values_func()))
-                current_time = next_time_func(current_time)
+            if config['frequency'] == 'historical':
+                metrics[metric_type][metric_name] = get_historical_data(metric_name, metric_type, config, start_time, end_time)
+            else:
+                metrics[metric_type][metric_name] = get_random_data(config, start_time, end_time)
 
     return metrics
 
