@@ -54,7 +54,7 @@ class AutoscalerBatch(BatchDaemon):
             raise NotImplementedError('Scaling multiple roles in a cluster is not yet supported')
 
         self.autoscaler = Autoscaler(self.options.cluster, roles[0])
-        self.run_interval = self.autoscaler.get_period_seconds()
+        self.run_interval = self.autoscaler.period_seconds
 
         while self.running:
             time.sleep(self.run_interval - time.time() % self.run_interval)
@@ -73,7 +73,7 @@ class AutoscalerBatch(BatchDaemon):
                 new_signal = False
 
             if new_signal:
-                signal_period = self.autoscaler.get_period_seconds()
+                signal_period = self.autoscaler.period_seconds
                 if signal_period != self.run_interval:
                     logger.info(f'Signal period has changed to {signal_period}, updating batch run interval')
                     self.run_interval = signal_period

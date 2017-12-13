@@ -30,6 +30,8 @@ class SimulatedMesosRoleManager(MesosRoleManager):
             SimulatedSpotFleetResourceGroup(config, simulator)
             for config in configs
         ]
+        self.min_capacity = 1
+        self.max_capacity = 1000
 
     def _idle_agents_by_market(self):
         idle_agents = [agent for agent in self.agents if allocated_cpu_resources(agent) == 0]

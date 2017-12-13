@@ -30,9 +30,19 @@ class Event(object):
         pass
 
 
+class AutoscalingEvent(Event):
+    def __init__(self, time, msg=None):
+        """ Trigger this event whenever the autoscaler should be called """
+
+        super().__init__(time, msg=msg)
+
+    def handle(self, simulator):
+        simulator.autoscaler.run(timestamp=simulator.current_time)
+
+
 class ModifyClusterCapacityEvent(Event):
     def __init__(self, time, instance_types, msg=None):
-        """ Trigger this event when the cluster capacity changes
+        """ Directly modify the capacity of an AWS cluster
 
         :param instance_types: a dict of InstanceMarket -> integer indicating the new (desired) capacity for the market
         """
@@ -40,11 +50,9 @@ class ModifyClusterCapacityEvent(Event):
         self.instance_types = dict(instance_types)
 
     def handle(self, simulator):
-        # add the instances to the cluster and compute costs for their first hour
-        __, removed_instances = simulator.cluster.modify_size(
-            self.instance_types,
-        )
-        simulator.capacity.add_breakpoint(self.time, simulator.cluster.cpus)
+        aws_cluster = simulator.aws_clusters[0]
+        __, removed_instances = aws_cluster.modify_size(self.instance_types)
+        simulator.capacity.add_breakpoint(self.time, aws_cluster.cpus)
 
         for instance in removed_instances:
             simulator.compute_instance_cost(instance)
@@ -68,6 +76,7 @@ class InstancePriceChangeEvent(Event):
 # time and priority(A) < priority(B), A will be processed before B.
 EVENT_PRIORITIES = {
     Event: 0,
+    AutoscalingEvent: 1,
     ModifyClusterCapacityEvent: 1,
     InstancePriceChangeEvent: 2,
 }

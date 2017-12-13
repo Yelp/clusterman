@@ -26,13 +26,10 @@ class Autoscaler:
         self.mesos_role_manager = role_manager or MesosRoleManager(self.cluster, self.role)
 
         self.metrics_client = metrics_client
-        self.load_signal()
+        self.signal = self.load_signal()
+        self.period_seconds = self.signal.period_minutes * 60
 
         logger.info('Initialization complete')
-
-    def get_period_seconds(self):
-        """Get how often the autoscaler should be run."""
-        return self.signal.period_minutes * 60
 
     def run(self, dry_run=False, timestamp=None):
         """ Do a single check to scale the fleet up or down if necessary.
@@ -40,8 +37,8 @@ class Autoscaler:
         :param dry_run: Don't actually modify the fleet size, just print what would happen
         """
         # TODO (CLUSTERMAN-122): reload signal if signals code or configs change
+        logger.info(f'Autoscaling run starting at {timestamp}')
         delta = self._compute_cluster_delta(timestamp)
-        logger.info(f'Computed capacity delta is {delta}')
         self.delta_gauge.set(delta, {'dry_run': dry_run})
         new_target_capacity = self.mesos_role_manager.target_capacity + delta
         if dry_run:
@@ -61,15 +58,14 @@ class Autoscaler:
         try:
             signal_config = read_signal_config(role_namespace)
             if signal_config:
-                self.signal = self._init_signal_from_config(self.role, signal_config)
-                return
+                return self._init_signal_from_config(self.role, signal_config)
             else:
                 logger.info(f'No signal configured for {self.role}, falling back to default')
         except Exception:
             logger.exception(f'Error loading signal for {self.role}, falling back to default')
 
         signal_config = read_signal_config(DEFAULT_NAMESPACE)
-        self.signal = self._init_signal_from_config(
+        return self._init_signal_from_config(
             staticconf.read_string('autoscaling.default_signal_role'),
             signal_config,
         )
@@ -114,7 +110,8 @@ class Autoscaler:
         total_cpus = self.mesos_role_manager.get_resource_total('cpus')
         cpus_difference_from_setpoint = signal_cpus - setpoint * total_cpus
 
-        logger.info(f'Signal was {signal_cpus}, current total CPUs is {total_cpus}')
+        logger.info(f'Signal requested {signal_cpus} CPUs, current total is {total_cpus} CPUs')
+        capacity_delta = 0
         if abs(cpus_difference_from_setpoint / total_cpus) >= setpoint_margin:
             # We want signal_cpus / new_total_cpus = setpoint.
             # So new_total_cpus should be signal_cpus / setpoint.
@@ -127,21 +124,21 @@ class Autoscaler:
             cpus_delta = cpus_difference_from_setpoint / setpoint
 
             # Finally, convert CPUs to capacity units.
-            capacity_delta = cpus_delta / cpus_per_weight
-            return self._constrain_cluster_delta(capacity_delta)
-        return 0
+            capacity_delta = self._constrain_cluster_delta(cpus_delta / cpus_per_weight)
+        logger.info(f'Computed capacity delta is {capacity_delta} units ({capacity_delta * cpus_per_weight} CPUs)')
+        return capacity_delta
 
     def _constrain_cluster_delta(self, delta):
         """ Signals can return arbitrary values, so make sure we don't add or remove too much capacity """
         if delta > 0:
             return min(
-                self.role_config.read_int('scaling_limits.max_capacity') - self.mesos_role_manager.target_capacity,
+                self.mesos_role_manager.max_capacity - self.mesos_role_manager.target_capacity,
                 self.role_config.read_int('scaling_limits.max_weight_to_add'),
                 delta,
             )
         elif delta < 0:
             return max(
-                self.role_config.read_int('scaling_limits.min_capacity') - self.mesos_role_manager.target_capacity,
+                self.mesos_role_manager.min_capacity - self.mesos_role_manager.target_capacity,
                 -self.role_config.read_int('scaling_limits.max_weight_to_remove'),
                 delta,
             )

@@ -3,7 +3,7 @@ import mock
 import pytest
 
 from clusterman.aws.markets import InstanceMarket
-from clusterman.simulator.cluster import Cluster
+from clusterman.simulator.simulated_aws_cluster import SimulatedAWSCluster
 from clusterman.simulator.simulator import SimulationMetadata
 from clusterman.simulator.simulator import Simulator
 
@@ -15,7 +15,7 @@ def simulator():
 
 @pytest.fixture
 def cluster(simulator):
-    cluster = Cluster(simulator)
+    cluster = SimulatedAWSCluster(simulator)
     cluster.simulator.current_time.shift(seconds=+42)
     cluster.modify_size({
         InstanceMarket('m4.4xlarge', 'us-west-1a'): 4,

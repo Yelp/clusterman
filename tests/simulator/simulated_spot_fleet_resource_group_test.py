@@ -123,10 +123,10 @@ def test_compute_market_residuals_existing_fleet(spot_fleet, test_instances_by_m
     assert residuals == [(MARKETS[2], -4), (MARKETS[3], 3), (MARKETS[1], 3), (MARKETS[0], 4)]
 
 
-def test_market_weight(spot_fleet_request_config, spot_fleet, test_instances_by_market):
+def test_market_capacities(spot_fleet_request_config, spot_fleet, test_instances_by_market):
     spot_fleet.modify_size(test_instances_by_market)
     for i, (market, instance_count) in enumerate(test_instances_by_market.items()):
-        assert spot_fleet.market_weight(market) == \
+        assert spot_fleet.market_capacities[market] == \
             instance_count * spot_fleet_request_config['LaunchSpecifications'][i]['WeightedCapacity']
 
 

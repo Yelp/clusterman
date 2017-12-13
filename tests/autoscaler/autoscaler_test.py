@@ -80,6 +80,12 @@ def mock_metrics_client():
 def mock_autoscaler(mock_load_signal, mock_role_manager, mock_gauge):
     mock_autoscaler = Autoscaler('foo', 'bar')
     mock_autoscaler.mesos_role_manager.target_capacity = 300
+    mock_autoscaler.mesos_role_manager.min_capacity = staticconf.read_int(
+        'scaling_limits.min_capacity', namespace=ROLE_NAMESPACE.format(role='bar')
+    )
+    mock_autoscaler.mesos_role_manager.max_capacity = staticconf.read_int(
+        'scaling_limits.max_capacity', namespace=ROLE_NAMESPACE.format(role='bar')
+    )
     return mock_autoscaler
 
 
@@ -139,16 +145,16 @@ def test_load_signal(mock_init_signal, mock_read_config, mock_autoscaler, role_c
         mock_init_signal.side_effect = [default_signal]
     mock_read_config.side_effect = [role_config, default_config]
 
-    mock_autoscaler.load_signal()
+    signal = mock_autoscaler.load_signal()
     mock_read_config.assert_any_call(ROLE_NAMESPACE.format(role='bar'))
     if expected_default:
         # call args is most recent call
         assert mock_init_signal.call_args == mock.call(mock_autoscaler, 'clusterman', default_config)
         assert mock_read_config.call_args == mock.call(DEFAULT_NAMESPACE)
-        assert mock_autoscaler.signal == default_signal
+        assert signal == default_signal
     else:
         assert mock_init_signal.call_args == mock.call(mock_autoscaler, 'bar', role_config)
-        assert mock_autoscaler.signal == role_signal
+        assert signal == role_signal
 
 
 def test_init_signal_from_config(mock_import_signals, mock_autoscaler):

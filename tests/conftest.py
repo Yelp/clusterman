@@ -9,22 +9,6 @@ import yelp_meteorite
 from clusterman.math.piecewise import PiecewiseConstantFunction
 
 
-_ttl_patch = None
-
-
-def pytest_configure(config):
-    """ patch the CACHE_TTL_SECONDS to prevent tests from failing (TTL caches expire immediately);
-    needs to happen before test modules are loaded """
-    global _ttl_patch
-    _ttl_patch = mock.patch('clusterman.mesos.constants.CACHE_TTL_SECONDS', -1)
-    _ttl_patch.__enter__()
-
-
-def pytest_unconfigure(config):
-    """ remove the TTL patch """
-    _ttl_patch.__exit__()
-
-
 @contextmanager
 def mock_open(filename, contents=None):
     """ This function modified from 'Revolution blahg':

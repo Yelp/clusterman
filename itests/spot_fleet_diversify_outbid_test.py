@@ -101,7 +101,13 @@ def spot_fleet_request_config():
 
 @pytest.fixture
 def simulator():
-    return Simulator(SimulationMetadata('testing', 'test-tag'), arrow.get(0), arrow.get(3600), timedelta(seconds=1), False)
+    return Simulator(
+        SimulationMetadata('testing', 'test-tag'),
+        arrow.get(0),
+        arrow.get(3600),
+        billing_frequency=timedelta(seconds=1),
+        refund_outbid=False,
+    )
 
 
 @pytest.fixture
@@ -166,7 +172,7 @@ def test_spot_fleet_cost_for_outbid_instances(target_capacity, spot_fleet, spot_
     assert (spot_fleet.market_size(market) == 0 for market in MARKETS)
     # The cost calculation might change when we have more information from AWS
     expected_cost = size * (3.0 * 120 + spot_prices[MARKETS[outbid_market]].call(arrow.get(1200)) * 1800) / 3600
-    assert round(spot_fleet.simulator.total_cost - expected_cost, 7) == 0
+    assert expected_cost == pytest.approx(expected_cost)
 
 
 @pytest.mark.parametrize('target_capacity', [100, 500])

@@ -5,8 +5,8 @@ import mock
 import pytest
 
 from clusterman.aws.markets import InstanceMarket
-from clusterman.simulator.cluster import Instance
 from clusterman.simulator.event import Event
+from clusterman.simulator.simulated_aws_cluster import Instance
 from clusterman.simulator.simulator import SimulationMetadata
 from clusterman.simulator.simulator import Simulator
 

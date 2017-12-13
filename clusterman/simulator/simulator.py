@@ -9,8 +9,8 @@ from sortedcontainers import SortedDict
 from clusterman.math.piecewise import hour_transform
 from clusterman.math.piecewise import piecewise_breakpoint_generator
 from clusterman.math.piecewise import PiecewiseConstantFunction
-from clusterman.simulator.cluster import Cluster
 from clusterman.simulator.event import Event
+from clusterman.simulator.simulated_aws_cluster import SimulatedAWSCluster
 from clusterman.util import get_clusterman_logger
 
 
@@ -18,9 +18,9 @@ logger = get_clusterman_logger(__name__)
 
 
 class SimulationMetadata:
-    def __init__(self, cluster_name, tag):
+    def __init__(self, cluster_name, role):
         self.cluster = cluster_name
-        self.tag = tag
+        self.role = role
         self.sim_start = None
         self.sim_end = None
 
@@ -31,7 +31,7 @@ class SimulationMetadata:
         self.sim_end = arrow.now()
 
     def __str__(self):
-        return f'({self.cluster}, {self.tag}, {self.sim_start}, {self.sim_end})'
+        return f'({self.cluster}, {self.role}, {self.sim_start}, {self.sim_end})'
 
 
 class Simulator:
@@ -41,17 +41,21 @@ class Simulator:
         :param metadata: a SimulationMetadata object
         :param start_time: an arrow object indicating the start of the simulation
         :param end_time: an arrow object indicating the end of the simulation
+        :param billing_frequency: a timedelta object indicating how often to charge for an instance
+        :param refund_outbid: if True, do not incur any cost for an instance lost to an outbid event
         """
         self.metadata = metadata
-        self.cluster = Cluster(self)
         self.start_time = start_time
         self.current_time = start_time
+        self.end_time = end_time
+
         self.billing_frequency = billing_frequency
         self.refund_outbid = refund_outbid
-        self.end_time = end_time
+
         self.instance_prices = defaultdict(lambda: PiecewiseConstantFunction())
         self.cost_per_hour = PiecewiseConstantFunction()
         self.capacity = PiecewiseConstantFunction()
+        self.markets = set()
 
         # The event queue holds all of the simulation events, ordered by time
         self.event_queue = []
@@ -74,9 +78,18 @@ class Simulator:
 
         heappush(self.event_queue, evt)
 
-    def run(self):
+    def run(self, autoscaler=None):
         """ Run the simulation until the end, processing each event in the queue one-at-a-time in priority order """
         print(f'Starting simulation from {self.start_time} to {self.end_time}')
+
+        self.autoscaler = autoscaler
+        if self.autoscaler:
+            print(f'Autoscaler configured; will run every frequency {self.autoscaler.signal.period_minutes} minutes')
+            self.aws_clusters = autoscaler.mesos_role_manager.resource_groups
+        else:
+            print('No autoscaler configured; using metrics for cluster size')
+            self.aws_clusters = [SimulatedAWSCluster(self)]
+
         with self.metadata:
             while self.event_queue:
                 evt = heappop(self.event_queue)
@@ -85,9 +98,10 @@ class Simulator:
                 evt.handle(self)
 
         # charge any instances that haven't been terminated yet
-        for instance in self.cluster.instances.values():
-            instance.end_time = self.current_time
-            self.compute_instance_cost(instance)
+        for cluster in self.aws_clusters:
+            for instance in cluster.instances.values():
+                instance.end_time = self.current_time
+                self.compute_instance_cost(instance)
 
         print('Simulation complete ({time}s)'.format(
             time=(self.metadata.sim_end - self.metadata.sim_start).total_seconds()

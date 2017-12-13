@@ -4,7 +4,7 @@ import pytest
 from clusterman.aws.markets import get_market_resources
 from clusterman.aws.markets import InstanceMarket
 from clusterman.mesos.util import get_total_resource_value
-from clusterman.simulator.cluster import Instance
+from clusterman.simulator.simulated_aws_cluster import Instance
 from clusterman.simulator.simulated_mesos_role_manager import SimulatedMesosRoleManager
 from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSpotFleetResourceGroup
 
