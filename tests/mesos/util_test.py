@@ -10,9 +10,9 @@ def mock_market_capacities():
 
 
 def test_allocated_cpu_resources(mock_agents_dict):
-    assert allocated_cpu_resources(mock_agents_dict['get_agents']['agents'][0]) == 0
-    assert allocated_cpu_resources(mock_agents_dict['get_agents']['agents'][1]) == 0
-    assert allocated_cpu_resources(mock_agents_dict['get_agents']['agents'][2]) == 10
+    assert allocated_cpu_resources(mock_agents_dict['slaves'][0]) == 0
+    assert allocated_cpu_resources(mock_agents_dict['slaves'][1]) == 0
+    assert allocated_cpu_resources(mock_agents_dict['slaves'][2]) == 10
 
 
 def test_find_largest_capacity_market_no_threshold(mock_market_capacities):

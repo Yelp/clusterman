@@ -32,11 +32,11 @@ def test_simulated_agents(mock_ssfrg):
     role_manager = SimulatedMesosRoleManager('foo', 'bar', [], None)
     role_manager.resource_groups = [mock_ssfrg]
     assert len(role_manager.agents) == 10
-    assert get_total_resource_value(role_manager.agents, 'total_resources', 'cpus') == \
+    assert get_total_resource_value(role_manager.agents, 'resources', 'cpus') == \
         10 * get_market_resources(TEST_MARKET).cpus
-    assert get_total_resource_value(role_manager.agents, 'total_resources', 'mem') == \
+    assert get_total_resource_value(role_manager.agents, 'resources', 'mem') == \
         10 * get_market_resources(TEST_MARKET).mem
-    assert get_total_resource_value(role_manager.agents, 'total_resources', 'disk') == \
+    assert get_total_resource_value(role_manager.agents, 'resources', 'disk') == \
         10 * get_market_resources(TEST_MARKET).disk
     assert list(role_manager._idle_agents_by_market().keys()) == [TEST_MARKET]
     assert len(role_manager._idle_agents_by_market()[TEST_MARKET]) == 10

@@ -2,7 +2,6 @@ import socket
 from bisect import bisect
 from collections import defaultdict
 
-import requests
 import staticconf
 import yaml
 from cached_property import timed_cached_property
@@ -18,6 +17,7 @@ from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_s3
 from clusterman.mesos.util import allocated_cpu_resources
 from clusterman.mesos.util import find_largest_capacity_market
 from clusterman.mesos.util import get_total_resource_value
+from clusterman.mesos.util import mesos_post
 from clusterman.util import get_clusterman_logger
 
 
@@ -55,7 +55,7 @@ class MesosRoleManager:
         services_file = staticconf.read_string('services_file')
         with open(services_file) as f:
             services = yaml.load(f)
-        self.api_endpoint = 'http://{host}:{port}/api/v1'.format(
+        self.api_endpoint = 'http://{host}:{port}/'.format(
             host=services[mesos_master_discovery_label]['host'],
             port=services[mesos_master_discovery_label]['port'],
         )
@@ -97,7 +97,7 @@ class MesosRoleManager:
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
         :returns: float
         """
-        return get_total_resource_value(self.agents, 'allocated_resources', resource_name)
+        return get_total_resource_value(self.agents, 'used_resources', resource_name)
 
     def get_resource_total(self, resource_name):
         """Get the total amount of the given resource for this Mesos role.
@@ -105,7 +105,7 @@ class MesosRoleManager:
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
         :returns: float
         """
-        return get_total_resource_value(self.agents, 'total_resources', resource_name)
+        return get_total_resource_value(self.agents, 'resources', resource_name)
 
     def get_percent_resource_allocation(self, resource_name):
         """Get the overall proportion of the given resource that is in use.
@@ -279,7 +279,7 @@ class MesosRoleManager:
     def _idle_agents_by_market(self):
         """ Find a list of idle agents, grouped by the market they belong to """
         idle_agents = [
-            socket.gethostbyname(agent['agent_info']['hostname'])
+            socket.gethostbyname(agent['hostname'])
             for agent in self.agents
             if allocated_cpu_resources(agent) == 0
         ]
@@ -308,18 +308,9 @@ class MesosRoleManager:
 
     @timed_cached_property(CACHE_TTL_SECONDS)
     def agents(self):
-        response = requests.post(
-            self.api_endpoint,
-            json={'type': 'GET_AGENTS'},
-            headers={'user-agent': 'clusterman'},
-        )
-        if not response.ok:
-            raise MesosRoleManagerError(f'Could not get instances from Mesos master:\n{response.text}')
-
-        agents = []
-        for agent in response.json()['get_agents']['agents']:
-            for attr in agent['agent_info'].get('attributes', []):
-                if attr['name'] == 'role' and self.role == attr['text']['value']:
-                    agents.append(agent)
-                    break  # once we've generated a valid agent, don't need to loop through the rest of its attrs
-        return agents
+        response = mesos_post(self.api_endpoint, 'slaves')
+        return [
+            agent
+            for agent in response['slaves']
+            if agent.get('attributes', {}).get('role', 'default') == self.role
+        ]

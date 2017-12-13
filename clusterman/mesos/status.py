@@ -97,14 +97,14 @@ def print_status(manager, args):
     print(f'Resource groups ({manager.fulfilled_capacity} units out of {manager.target_capacity}):')
     if args.verbose:
         agents = {
-            socket.gethostbyname(agent['agent_info']['hostname']): agent
+            socket.gethostbyname(agent['hostname']): agent
             for agent in manager.agents
         }
 
     for group in manager.resource_groups:
         _write_resource_group_line(group)
         if args.verbose:
-            for instance in ec2_describe_instances(instance_ids=group.instances):
+            for instance in ec2_describe_instances(instance_ids=group.instance_ids):
                 mesos_state, postfix = _get_mesos_status_string(instance, agents)
                 if ((args.only_orphans and mesos_state != MesosAgentState.ORPHANED) or
                         (args.only_idle and mesos_state != MesosAgentState.IDLE)):

@@ -37,7 +37,7 @@ def mock_role_manager(mock_resource_groups):
 
 def test_mesos_role_manager_init(mock_role_manager):
     assert mock_role_manager.role == 'bar'
-    assert mock_role_manager.api_endpoint == 'http://foo:1234/api/v1'
+    assert mock_role_manager.api_endpoint == 'http://foo:1234/'
 
 
 def test_modify_target_capacity_no_resource_groups(mock_role_manager):
@@ -297,10 +297,10 @@ def test_fulfilled_capacity(mock_role_manager):
 def test_idle_agents_by_market(mock_role_manager):
     reservations = ec2.run_instances(ImageId='ami-foobar', MinCount=3, MaxCount=3, InstanceType='t2.nano')
     agents_list = [
-        {'agent_info': {'hostname': instance['PrivateIpAddress']}}
+        {'hostname': instance['PrivateIpAddress']}
         for instance in reservations['Instances']
     ]
-    agents_list.append({'agent_info': {'hostname': '12.34.56.78'}})  # This IP doesn't exist for AWS
+    agents_list.append({'hostname': '12.34.56.78'})  # This IP doesn't exist for AWS
     mock_agents = mock.PropertyMock(return_value=agents_list)
 
     with mock.patch('clusterman.mesos.mesos_role_manager.socket.gethostbyname', lambda x: x), \
@@ -311,20 +311,18 @@ def test_idle_agents_by_market(mock_role_manager):
         assert(len(list(idle_agents_by_market.values())[0]) == 2)
 
 
-@mock.patch('clusterman.mesos.mesos_role_manager.requests.post')
+@mock.patch('clusterman.mesos.mesos_role_manager.mesos_post')
 class TestAgentListing:
     def test_agent_list_error(self, mock_post, mock_role_manager):
-        mock_post.return_value.ok = False
-        mock_post.return_value.text = 'dummy error'
+        mock_post.side_effect = MesosRoleManagerError('dummy error')
         with pytest.raises(MesosRoleManagerError):
             mock_role_manager.agents
 
     def test_filter_roles(self, mock_post, mock_agents_dict, mock_role_manager):
-        mock_post.return_value.ok = True
-        mock_post.return_value.json.return_value = mock_agents_dict
+        mock_post.return_value = mock_agents_dict
         agents = mock_role_manager.agents
         assert len(agents) == 1
-        assert agents[0]['agent_info']['hostname'] == 'im-in-the-role.yelpcorp.com'
+        assert agents[0]['hostname'] == 'im-in-the-role.yelpcorp.com'
 
         # Multiple calls should have the same result.
         assert agents == mock_role_manager.agents
@@ -340,46 +338,23 @@ class TestResources:
         ) as mock_agents:
             mock_agents.return_value = [
                 {
-                    'agent_info': {
-                        'id': {'value': 'idle'},
-                    },
-                    'total_resources': [
-                        {'name': 'cpus', 'scalar': {'value': 4}, 'type': 'SCALAR'},
-                        {'name': 'gpus', 'scalar': {'value': 2}, 'type': 'SCALAR'},
-                    ],
+                    'id': 'idle',
+                    'resources': {'cpus': 4, 'gpus': 2},
                 },
                 {
-                    'agent_info': {
-                        'id': {'value': 'no-gpus'},
-                    },
-                    'total_resources': [
-                        {'name': 'cpus', 'scalar': {'value': 8}, 'type': 'SCALAR'},
-                    ],
-                    'allocated_resources': [
-                        {'name': 'cpus', 'scalar': {'value': 1.5}, 'type': 'SCALAR'},
-                    ],
+                    'id': 'no-gpus',
+                    'resources': {'cpus': 8},
+                    'used_resources': {'cpus': 1.5},
                 },
                 {
-                    'agent_info': {
-                        'id': {'value': 'gpus-1'},
-                    },
-                    'total_resources': [
-                        {'name': 'gpus', 'scalar': {'value': 2}, 'type': 'SCALAR'},
-                    ],
-                    'allocated_resources': [
-                        {'name': 'gpus', 'scalar': {'value': 1}, 'type': 'SCALAR'},
-                    ],
+                    'id': 'gpus-1',
+                    'resources': {'gpus': 2},
+                    'used_resources': {'gpus': 1},
                 },
                 {
-                    'agent_info': {
-                        'id': {'value': 'gpus-2'},
-                    },
-                    'total_resources': [
-                        {'name': 'gpus', 'scalar': {'value': 4}, 'type': 'SCALAR'},
-                    ],
-                    'allocated_resources': [
-                        {'name': 'gpus', 'scalar': {'value': 0.2}, 'type': 'SCALAR'},
-                    ],
+                    'id': 'gpus-2',
+                    'resources': {'gpus': 4},
+                    'used_resources': {'gpus': 0.2},
                 },
             ]
             yield mock_role_manager

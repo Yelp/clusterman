@@ -13,37 +13,29 @@ def setup_ec2():
 @pytest.fixture
 def mock_agents_dict():
     return {
-        'get_agents': {
-            'agents': [
-                {
-                    'agent_info': {
-                        'attributes': [
-                            {'name': 'blah', 'scalar': {'value': 10}, 'type': 'SCALAR'},
-                            {'name': 'role', 'text': {'value': 'asdf'}, 'type': 'TEXT'},
-                        ],
-                        'hostname': 'not-in-the-role.yelpcorp.com',
-                    },
+        'slaves': [
+            {
+                'attributes': {
+                    'blah': 10,
+                    'role': 'asdf',
                 },
-                {
-                    'agent_info': {
-                        'hostname': 'asdf.yelpcorp.com',
-                    },
-                    'allocated_resources': [{'name': 'mem', 'scalar': {'value': 10}, 'type': 'SCALAR'}],
+                'hostname': 'not-in-the-role.yelpcorp.com',
+            },
+            {
+                'hostname': 'asdf.yelpcorp.com',
+                'used_resources': {'mem': 10},
+            },
+            {
+                'attributes': {
+                    'blah': 10,
+                    'role': 'bar',
+                    'ssss': 'hjkl',
                 },
-                {
-                    'agent_info': {
-                        'attributes': [
-                            {'name': 'blah', 'scalar': {'value': 10}, 'type': 'SCALAR'},
-                            {'name': 'role', 'text': {'value': 'bar'}, 'type': 'TEXT'},
-                            {'name': 'ssss', 'text': {'value': 'hjkl'}, 'type': 'TEXT'},
-                        ],
-                        'hostname': 'im-in-the-role.yelpcorp.com',
-                    },
-                    'allocated_resources': [
-                        {'name': 'mem', 'scalar': {'value': 20}, 'type': 'SCALAR'},
-                        {'name': 'cpus', 'scalar': {'value': 10}, 'type': 'SCALAR'},
-                    ],
+                'hostname': 'im-in-the-role.yelpcorp.com',
+                'used_resources': {
+                    'mem': 20,
+                    'cpus': 10,
                 },
-            ]
-        }
+            },
+        ]
     }
