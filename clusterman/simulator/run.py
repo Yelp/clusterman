@@ -33,7 +33,7 @@ def _make_autoscaler(metadata, simulator, metrics_client, spot_fleet_config):
     with open(spot_fleet_config) as f:
         config = json.load(f)
     role_manager = SimulatedMesosRoleManager(metadata.cluster, metadata.role, [config], simulator)
-    role_manager.modify_target_capacity(100)
+    role_manager.modify_target_capacity(role_manager.min_capacity)
     for spec in config['LaunchSpecifications']:
         simulator.markets |= {get_instance_market(spec)}
     return Autoscaler(
@@ -67,7 +67,7 @@ def _populate_cluster_capacity_events(metadata, simulator, metrics_client, start
 def _populate_price_changes(simulator, metrics_client, start_time, end_time):
     for market in simulator.markets:
         __, market_prices = metrics_client.get_metric_values(
-            f'spot_price|AZ={market.az},instance_type={market.instance}',
+            f'spot_prices|AZ={market.az},instance_type={market.instance}',
             METADATA,
             start_time.timestamp,
             end_time.timestamp,

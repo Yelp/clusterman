@@ -35,7 +35,7 @@ class SimulationMetadata:
 
 
 class Simulator:
-    def __init__(self, metadata, start_time, end_time, billing_frequency=timedelta(hours=1), refund_outbid=True):
+    def __init__(self, metadata, start_time, end_time, billing_frequency=timedelta(seconds=1), refund_outbid=True):
         """ Maintains all of the state for a clusterman simulation
 
         :param metadata: a SimulationMetadata object

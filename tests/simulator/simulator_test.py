@@ -13,7 +13,12 @@ from clusterman.simulator.simulator import Simulator
 
 @pytest.fixture
 def simulator():
-    return Simulator(SimulationMetadata('testing', 'test-tag'), arrow.get(0), arrow.get(3600))
+    return Simulator(
+        SimulationMetadata('testing', 'test-tag'),
+        arrow.get(0),
+        arrow.get(3600),
+        billing_frequency=timedelta(hours=1),
+    )
 
 
 @pytest.fixture(params=[arrow.get(1820), arrow.get(3599), arrow.get(10000)])

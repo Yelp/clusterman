@@ -1,4 +1,5 @@
 import logging
+from datetime import timedelta
 
 import arrow
 import pytest
@@ -27,7 +28,12 @@ def end_time(start_time):
 @pytest.fixture
 def simulator(start_time, end_time):
     setup_logging()
-    return Simulator(SimulationMetadata('Testing', 'test-tag'), start_time, end_time)
+    return Simulator(
+        SimulationMetadata('Testing', 'test-tag'),
+        start_time,
+        end_time,
+        billing_frequency=timedelta(hours=1),
+    )
 
 
 @pytest.fixture
