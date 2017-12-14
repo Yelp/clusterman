@@ -1,3 +1,9 @@
+clusterman (0.8.4) trusty; urgency=low
+
+  * orphaned instances are considered for termination during scale-down
+
+ -- David Morrison <drmorr@yelp.com>  Thu, 14 Dec 2017 15:41:44 -0800
+
 clusterman (0.8.3) trusty; urgency=low
 
   * Revert to old Mesos HTTP API
