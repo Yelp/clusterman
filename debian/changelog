@@ -1,3 +1,10 @@
+clusterman (0.8.3) trusty; urgency=low
+
+  * Revert to old Mesos HTTP API
+  * Unpin botocore
+
+ -- David Morrison <drmorr@yelp.com>  Thu, 14 Dec 2017 13:44:26 -0800
+
 clusterman (0.8.2) trusty; urgency=low
 
   * allow env-specific module configs
