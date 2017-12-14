@@ -1,6 +1,5 @@
 arrow
-# TODO (CLUSTERMAN-87) remove when https://github.com/boto/botocore/pull/1286 is accepted
-botocore==1.7.25.post1
+botocore>=1.8.13
 boto3
 cached-property
 clusterman-metrics>=1.0.0
