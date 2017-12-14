@@ -115,7 +115,7 @@ def spot_fleet(spot_fleet_request_config, simulator, spot_prices):
     return s
 
 
-@pytest.mark.parametrize('target_capacity', [200, 300, 500, 700, 1000, 1500])
+@pytest.mark.parametrize('target_capacity', [200, 750, 1500])
 def test_spot_fleet_diversifying(target_capacity, spot_fleet, spot_prices):
     threshold = 0.1
     spot_fleet.modify_target_capacity(target_capacity)
@@ -130,9 +130,9 @@ def test_spot_fleet_diversifying(target_capacity, spot_fleet, spot_prices):
         )
 
 
-@pytest.mark.parametrize('outbid_market', [0, 1, 2, 3, 4, 5, 6, 7])
-@pytest.mark.parametrize('target_capacity', [100, 200, 300, 500, 700, 1000, 1500])
-def test_spot_fleet_refill_capacity(target_capacity, outbid_market, spot_fleet, spot_prices):
+@pytest.mark.parametrize('target_capacity', [100, 1000])
+def test_spot_fleet_refill_capacity(target_capacity, spot_fleet, spot_prices):
+    outbid_market = 4
     spot_fleet.modify_target_capacity(target_capacity)
     # Outbid event happens
     spot_prices[MARKETS[outbid_market]].add_breakpoint(arrow.get(300), 3.0)
@@ -143,9 +143,9 @@ def test_spot_fleet_refill_capacity(target_capacity, outbid_market, spot_fleet, 
     assert spot_fleet.fulfilled_capacity >= spot_fleet.target_capacity
 
 
-@pytest.mark.parametrize('outbid_market', [0, 1, 2, 3, 4, 5, 6, 7])
 @pytest.mark.parametrize('target_capacity', [10, 100, 1000])
-def test_spot_fleet_cost_for_outbid_instances(outbid_market, target_capacity, spot_fleet, spot_prices):
+def test_spot_fleet_cost_for_outbid_instances(target_capacity, spot_fleet, spot_prices):
+    outbid_market = 4
     # Assuming price of the market except outbid_markets is higher than bid price
     for market_number in range(len(MARKETS)):
         if market_number != outbid_market:
@@ -169,7 +169,7 @@ def test_spot_fleet_cost_for_outbid_instances(outbid_market, target_capacity, sp
     assert round(spot_fleet.simulator.total_cost - expected_cost, 7) == 0
 
 
-@pytest.mark.parametrize('target_capacity', [100, 200, 300, 400, 500])
+@pytest.mark.parametrize('target_capacity', [100, 500])
 def test_negative_residual_scale_up(target_capacity, spot_fleet):
     spot_fleet.modify_size({MARKETS[0]: 100})
     threshold = 0.01

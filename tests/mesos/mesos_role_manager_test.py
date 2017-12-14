@@ -7,6 +7,7 @@ from clusterman.exceptions import MarketProtectedException
 from clusterman.exceptions import MesosRoleManagerError
 from clusterman.exceptions import ResourceGroupProtectedException
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
+from clusterman.mesos.util import MesosAgentState
 from tests.conftest import mock_open
 
 
@@ -300,13 +301,18 @@ def test_idle_agents_by_market(mock_role_manager):
         {'hostname': instance['PrivateIpAddress']}
         for instance in reservations['Instances']
     ]
-    agents_list.append({'hostname': '12.34.56.78'})  # This IP doesn't exist for AWS
     mock_agents = mock.PropertyMock(return_value=agents_list)
+    mock_role_manager.resource_groups = [
+        mock.Mock(instance_ids=[i['InstanceId'] for i in reservations['Instances']])
+    ]
 
-    with mock.patch('clusterman.mesos.mesos_role_manager.socket.gethostbyname', lambda x: x), \
-            mock.patch('clusterman.mesos.mesos_role_manager.MesosRoleManager.agents', mock_agents), \
-            mock.patch('clusterman.mesos.mesos_role_manager.allocated_cpu_resources') as mock_cpu:
-        mock_cpu.side_effect = [0, 1, 0, 0]  # Three idle instances, but one AWS doesn't know about
+    with mock.patch('clusterman.mesos.mesos_role_manager.MesosRoleManager.agents', mock_agents), \
+            mock.patch('clusterman.mesos.mesos_role_manager.get_mesos_state') as mock_mesos_state:
+        mock_mesos_state.side_effect = [
+            MesosAgentState.IDLE,
+            MesosAgentState.ORPHANED,
+            MesosAgentState.RUNNING,
+        ]
         idle_agents_by_market = mock_role_manager._idle_agents_by_market()
         assert(len(list(idle_agents_by_market.values())[0]) == 2)
 

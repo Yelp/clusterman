@@ -1,4 +1,3 @@
-import socket
 from bisect import bisect
 from collections import defaultdict
 
@@ -14,10 +13,11 @@ from clusterman.exceptions import ResourceGroupProtectedException
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
 from clusterman.mesos.constants import ROLE_NAMESPACE
 from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_s3
-from clusterman.mesos.util import allocated_cpu_resources
 from clusterman.mesos.util import find_largest_capacity_market
+from clusterman.mesos.util import get_mesos_state
 from clusterman.mesos.util import get_total_resource_value
 from clusterman.mesos.util import mesos_post
+from clusterman.mesos.util import MesosAgentState
 from clusterman.util import get_clusterman_logger
 
 
@@ -278,16 +278,12 @@ class MesosRoleManager:
 
     def _idle_agents_by_market(self):
         """ Find a list of idle agents, grouped by the market they belong to """
-        idle_agents = [
-            socket.gethostbyname(agent['hostname'])
-            for agent in self.agents
-            if allocated_cpu_resources(agent) == 0
-        ]
-
-        # Turn the IP address from the Mesos API into an AWS InstanceId
         idle_agents_by_market = defaultdict(list)
-        for instance in ec2_describe_instances(filters=[{'Name': 'private-ip-address', 'Values': idle_agents}]):
-            idle_agents_by_market[get_instance_market(instance)].append(instance['InstanceId'])
+        for group in self.resource_groups:
+            for instance in ec2_describe_instances(instance_ids=group.instance_ids):
+                mesos_state = get_mesos_state(instance, self.agents)
+                if mesos_state in {MesosAgentState.ORPHANED, MesosAgentState.IDLE}:
+                    idle_agents_by_market[get_instance_market(instance)].append(instance['InstanceId'])
         return idle_agents_by_market
 
     @property

@@ -11,14 +11,9 @@ from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import get_instance_market
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.mesos.util import allocated_cpu_resources
+from clusterman.mesos.util import get_mesos_state
+from clusterman.mesos.util import MesosAgentState
 from clusterman.util import colored_status
-
-
-class MesosAgentState:
-    IDLE = 'no tasks'
-    ORPHANED = 'orphan'
-    RUNNING = 'running'
-    UNKNOWN = 'unknown'
 
 
 def _write_resource_group_line(group):
@@ -63,26 +58,19 @@ def _write_summary(manager):
     print(f'\tDisk allocation: {allocated_disk} disk space allocated to tasks, {total_disk} total')
 
 
-def _get_mesos_status_string(instance, agents):
-    try:
-        instance_ip = instance['PrivateIpAddress']
-        launch_time = instance['LaunchTime']
-    except KeyError:
-        mesos_state = MesosAgentState.UNKNOWN
+def _get_mesos_status_string(mesos_state, instance, agents):
+    if mesos_state == MesosAgentState.UNKNOWN:
         postfix_str = ''
+    elif mesos_state == MesosAgentState.RUNNING:
+        instance_ip = instance['PrivateIpAddress']
+        allocated_cpus = allocated_cpu_resources(agents[instance_ip])
+        postfix_str = f', {allocated_cpus} CPUs allocated'
     else:
+        launch_time = instance['LaunchTime']
         uptime = humanize.naturaldelta(arrow.now() - arrow.get(launch_time))
-        if instance_ip not in agents:
-            mesos_state = MesosAgentState.ORPHANED
-            postfix_str = f', up for {uptime}'
-        elif allocated_cpu_resources(agents[instance_ip]) == 0:
-            mesos_state = MesosAgentState.IDLE
-            postfix_str = f', up for {uptime}'
-        else:
-            mesos_state = MesosAgentState.RUNNING
-            postfix_str = str(allocated_cpu_resources(agents[instance_ip])) + ' CPUs allocated'
+        postfix_str = f', up for {uptime}'
 
-    return mesos_state, colored_status(
+    return colored_status(
         mesos_state,
         blue=(MesosAgentState.IDLE,),
         red=(MesosAgentState.ORPHANED, MesosAgentState.UNKNOWN),
@@ -105,10 +93,11 @@ def print_status(manager, args):
         _write_resource_group_line(group)
         if args.verbose:
             for instance in ec2_describe_instances(instance_ids=group.instance_ids):
-                mesos_state, postfix = _get_mesos_status_string(instance, agents)
+                mesos_state = get_mesos_state(instance, agents)
                 if ((args.only_orphans and mesos_state != MesosAgentState.ORPHANED) or
                         (args.only_idle and mesos_state != MesosAgentState.IDLE)):
                     continue
+                postfix = _get_mesos_status_string(mesos_state, instance, agents)
                 _write_instance_line(instance, postfix)
         sys.stdout.write('\n')
 
