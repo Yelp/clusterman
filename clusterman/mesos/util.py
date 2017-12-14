@@ -5,6 +5,27 @@ import requests
 from clusterman.exceptions import MesosRoleManagerError
 
 
+class MesosAgentState:
+    IDLE = 'no tasks'
+    ORPHANED = 'orphan'
+    RUNNING = 'running'
+    UNKNOWN = 'unknown'
+
+
+def get_mesos_state(instance, mesos_agents):
+    try:
+        instance_ip = instance['PrivateIpAddress']
+    except KeyError:
+        return MesosAgentState.UNKNOWN
+    else:
+        if instance_ip not in mesos_agents:
+            return MesosAgentState.ORPHANED
+        elif allocated_cpu_resources(mesos_agents[instance_ip]) == 0:
+            return MesosAgentState.IDLE
+        else:
+            return MesosAgentState.RUNNING
+
+
 def get_resource_value(resources, resource_name):
     """Helper to get the value of the given resource, from a list of resources returned by Mesos."""
     return resources.get(resource_name, 0)
