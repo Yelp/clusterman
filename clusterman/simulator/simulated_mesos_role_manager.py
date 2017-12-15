@@ -26,12 +26,20 @@ class SimulatedMesosRoleManager(MesosRoleManager):
     def __init__(self, cluster, role, configs, simulator):
         self.cluster = cluster
         self.role = role
+        self.simulator = simulator
         self.resource_groups = [
-            SimulatedSpotFleetResourceGroup(config, simulator)
+            SimulatedSpotFleetResourceGroup(config, self.simulator)
             for config in configs
         ]
         self.min_capacity = 1
         self.max_capacity = 1000
+
+    def prune_excess_fulfilled_capacity(self, new_target_capacity=None):
+        terminated_instance_ids = super().prune_excess_fulfilled_capacity(new_target_capacity)
+        for group in self.resource_groups:
+            for instance_id in set(terminated_instance_ids) & set(group.instance_ids):
+                self.simulator.compute_instance_cost(group.instances[instance_id])
+        return terminated_instance_ids
 
     def _idle_agents_by_market(self):
         idle_agents = [agent for agent in self.agents if allocated_cpu_resources(agent) == 0]

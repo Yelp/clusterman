@@ -181,11 +181,12 @@ class MesosRoleManager:
             curr_capacity -= weight
 
         # Terminate the marked instances; it's possible that not all instances will be terminated
-        all_terminated_instances = []
+        all_terminated_instance_ids = []
         for group, instances in marked_instances.items():
             terminated_instances = group.terminate_instances_by_id(instances)
-            all_terminated_instances.extend(terminated_instances)
-        logger.info(f'The following instances have been terminated: {all_terminated_instances}')
+            all_terminated_instance_ids.extend(terminated_instances)
+        logger.info(f'The following instances have been terminated: {all_terminated_instance_ids}')
+        return all_terminated_instance_ids
 
     def _compute_new_resource_group_targets(self, new_target_capacity):
         """ Compute a balanced distribution of target capacities for the resource groups in the cluster
