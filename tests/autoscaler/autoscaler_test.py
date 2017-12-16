@@ -145,16 +145,16 @@ def test_load_signal(mock_init_signal, mock_read_config, mock_autoscaler, role_c
         mock_init_signal.side_effect = [default_signal]
     mock_read_config.side_effect = [role_config, default_config]
 
-    signal = mock_autoscaler.load_signal()
+    mock_autoscaler.load_signal()
     mock_read_config.assert_any_call(ROLE_NAMESPACE.format(role='bar'))
     if expected_default:
         # call args is most recent call
         assert mock_init_signal.call_args == mock.call(mock_autoscaler, 'clusterman', default_config)
         assert mock_read_config.call_args == mock.call(DEFAULT_NAMESPACE)
-        assert signal == default_signal
+        assert mock_autoscaler.signal == default_signal
     else:
         assert mock_init_signal.call_args == mock.call(mock_autoscaler, 'bar', role_config)
-        assert signal == role_signal
+        assert mock_autoscaler.signal == role_signal
 
 
 def test_init_signal_from_config(mock_import_signals, mock_autoscaler):

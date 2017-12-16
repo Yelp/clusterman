@@ -1,5 +1,8 @@
 from collections import defaultdict
 
+import staticconf
+
+from clusterman.mesos.constants import ROLE_NAMESPACE
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.mesos.util import allocated_cpu_resources
 from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSpotFleetResourceGroup
@@ -31,14 +34,16 @@ class SimulatedMesosRoleManager(MesosRoleManager):
             SimulatedSpotFleetResourceGroup(config, self.simulator)
             for config in configs
         ]
-        self.min_capacity = 1
-        self.max_capacity = 1000
+        role_config = staticconf.NamespaceReaders(ROLE_NAMESPACE.format(role=self.role))
+        self.min_capacity = role_config.read_int('scaling_limits.min_capacity')
+        self.max_capacity = role_config.read_int('scaling_limits.max_capacity')
 
     def prune_excess_fulfilled_capacity(self, new_target_capacity=None):
         terminated_instance_ids = super().prune_excess_fulfilled_capacity(new_target_capacity)
-        for group in self.resource_groups:
-            for instance_id in set(terminated_instance_ids) & set(group.instance_ids):
-                self.simulator.compute_instance_cost(group.instances[instance_id])
+        if terminated_instance_ids:
+            for group in self.resource_groups:
+                for instance_id in set(terminated_instance_ids) & set(group.instance_ids):
+                    self.simulator.compute_instance_cost(group.instances[instance_id])
         return terminated_instance_ids
 
     def _idle_agents_by_market(self):

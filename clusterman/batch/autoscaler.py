@@ -54,13 +54,10 @@ class AutoscalerBatch(BatchDaemon):
             raise NotImplementedError('Scaling multiple roles in a cluster is not yet supported')
 
         self.autoscaler = Autoscaler(self.options.cluster, roles[0])
-        self.run_interval = self.autoscaler.period_seconds
-
         while self.running:
-            time.sleep(self.run_interval - time.time() % self.run_interval)
+            time.sleep(self.autoscaler.time_to_next_activation())
 
             reload_config = self.service_config_watcher.reload_if_changed()
-            new_signal = True
             if reload_config is not None:
                 logger.info('Service config changed, reloading')
                 # Role directory may have changed, so we need to get new role watchers.
@@ -69,14 +66,6 @@ class AutoscalerBatch(BatchDaemon):
             elif self.role_configs_watcher.reload_if_changed() is not None:
                 logger.info('Role config changed, reloading')
                 self.autoscaler.load_signal()
-            else:
-                new_signal = False
-
-            if new_signal:
-                signal_period = self.autoscaler.period_seconds
-                if signal_period != self.run_interval:
-                    logger.info(f'Signal period has changed to {signal_period}, updating batch run interval')
-                    self.run_interval = signal_period
 
             if staticconf.read_list('cluster_roles') != roles:
                 logger.info('Roles configured for cluster have changed. Stopping.')

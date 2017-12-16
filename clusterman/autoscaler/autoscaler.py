@@ -1,3 +1,5 @@
+import time
+from datetime import timedelta
 from importlib import import_module
 
 import staticconf
@@ -26,10 +28,14 @@ class Autoscaler:
         self.mesos_role_manager = role_manager or MesosRoleManager(self.cluster, self.role)
 
         self.metrics_client = metrics_client
-        self.signal = self.load_signal()
-        self.period_seconds = self.signal.period_minutes * 60
+        self.load_signal()
 
         logger.info('Initialization complete')
+
+    def time_to_next_activation(self, timestamp=None):
+        timestamp = timestamp or time.time()
+        period_seconds = self.signal.period_minutes * 60
+        return timedelta(seconds=period_seconds - timestamp % period_seconds)
 
     def run(self, dry_run=False, timestamp=None):
         """ Do a single check to scale the fleet up or down if necessary.
@@ -58,14 +64,15 @@ class Autoscaler:
         try:
             signal_config = read_signal_config(role_namespace)
             if signal_config:
-                return self._init_signal_from_config(self.role, signal_config)
+                self.signal = self._init_signal_from_config(self.role, signal_config)
+                return
             else:
                 logger.info(f'No signal configured for {self.role}, falling back to default')
         except Exception:
             logger.exception(f'Error loading signal for {self.role}, falling back to default')
 
         signal_config = read_signal_config(DEFAULT_NAMESPACE)
-        return self._init_signal_from_config(
+        self.signal = self._init_signal_from_config(
             staticconf.read_string('autoscaling.default_signal_role'),
             signal_config,
         )

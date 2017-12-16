@@ -1,5 +1,4 @@
 import json
-from datetime import timedelta
 
 import arrow
 import staticconf
@@ -44,16 +43,16 @@ def _make_autoscaler(metadata, simulator, metrics_client, spot_fleet_config):
     )
 
 
-def _populate_autoscaling_events(simulator, start_time, end_time, period):
-    current_time = start_time
+def _populate_autoscaling_events(simulator, autoscaler, start_time, end_time):
+    current_time = start_time + autoscaler.time_to_next_activation(start_time.timestamp)
     while current_time < end_time:
         simulator.add_event(AutoscalingEvent(current_time))
-        current_time += period
+        current_time += autoscaler.time_to_next_activation(current_time.timestamp)
 
 
 def _populate_cluster_capacity_events(metadata, simulator, metrics_client, start_time, end_time):
     __, capacity_ts = metrics_client.get_metric_values(
-        f'target_capacity|cluster={metadata.cluster},role={metadata.role}',
+        f'fulfilled_capacity|cluster={metadata.cluster},role={metadata.role}',
         METADATA,
         start_time.timestamp,
         end_time.timestamp,
@@ -98,10 +97,9 @@ def main(args):
         else None
     )
     if autoscaler:
-        autoscaler_period = timedelta(seconds=autoscaler.period_seconds)
-        _populate_autoscaling_events(simulator, args.start_time, args.end_time, autoscaler_period)
+        _populate_autoscaling_events(simulator, autoscaler, args.start_time, args.end_time)
     else:
-        _populate_cluster_capacity_events()
+        _populate_cluster_capacity_events(metadata, simulator, metrics_client, args.start_time, args.end_time)
 
     _populate_price_changes(simulator, metrics_client, args.start_time, args.end_time)
 
