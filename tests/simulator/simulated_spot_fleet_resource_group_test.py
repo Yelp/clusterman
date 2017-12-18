@@ -7,8 +7,6 @@ import pytest
 from clusterman.aws.markets import InstanceMarket
 from clusterman.math.piecewise import PiecewiseConstantFunction
 from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSpotFleetResourceGroup
-from clusterman.simulator.simulator import SimulationMetadata
-from clusterman.simulator.simulator import Simulator
 
 
 MARKETS = [
@@ -17,11 +15,6 @@ MARKETS = [
     InstanceMarket('i2.8xlarge', 'us-west-2a'),
     InstanceMarket('m4.4xlarge', 'us-west-2b'),
 ]
-
-
-@pytest.fixture
-def simulator():
-    return Simulator(SimulationMetadata('testing', 'test-tag'), arrow.get(0), arrow.get(3600))
 
 
 @pytest.fixture

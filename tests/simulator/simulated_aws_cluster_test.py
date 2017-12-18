@@ -1,16 +1,8 @@
-import arrow
 import mock
 import pytest
 
 from clusterman.aws.markets import InstanceMarket
 from clusterman.simulator.simulated_aws_cluster import SimulatedAWSCluster
-from clusterman.simulator.simulator import SimulationMetadata
-from clusterman.simulator.simulator import Simulator
-
-
-@pytest.fixture
-def simulator():
-    return Simulator(SimulationMetadata('testing', 'test-tag'), arrow.get(0), arrow.get(3600))
 
 
 @pytest.fixture

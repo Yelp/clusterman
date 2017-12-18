@@ -1,3 +1,4 @@
+import json
 from collections import defaultdict
 from datetime import timedelta
 from heapq import heappop
@@ -6,11 +7,14 @@ from heapq import heappush
 import arrow
 from sortedcontainers import SortedDict
 
+from clusterman.autoscaler.autoscaler import Autoscaler
+from clusterman.aws.markets import get_instance_market
 from clusterman.math.piecewise import hour_transform
 from clusterman.math.piecewise import piecewise_breakpoint_generator
 from clusterman.math.piecewise import PiecewiseConstantFunction
 from clusterman.simulator.event import Event
 from clusterman.simulator.simulated_aws_cluster import SimulatedAWSCluster
+from clusterman.simulator.simulated_mesos_role_manager import SimulatedMesosRoleManager
 from clusterman.util import get_clusterman_logger
 
 
@@ -35,7 +39,8 @@ class SimulationMetadata:
 
 
 class Simulator:
-    def __init__(self, metadata, start_time, end_time, billing_frequency=timedelta(seconds=1), refund_outbid=True):
+    def __init__(self, metadata, start_time, end_time, autoscaler_config, metrics_client,
+                 billing_frequency=timedelta(seconds=1), refund_outbid=True):
         """ Maintains all of the state for a clusterman simulation
 
         :param metadata: a SimulationMetadata object
@@ -45,6 +50,17 @@ class Simulator:
         :param refund_outbid: if True, do not incur any cost for an instance lost to an outbid event
         """
         self.metadata = metadata
+        self.metrics_client = metrics_client
+        if autoscaler_config:
+            print(f'Autoscaler configured; will run every frequency {self.autoscaler.signal.period_minutes} minutes')
+            self._make_autoscaler(autoscaler_config)
+            self.aws_clusters = self.autoscaler.mesos_role_manager.resource_groups
+        else:
+            print('No autoscaler configured; using metrics for cluster size')
+            self.autoscaler = None
+            self.aws_clusters = [SimulatedAWSCluster(self)]
+
+        self.autoscaler = None
         self.start_time = start_time
         self.current_time = start_time
         self.end_time = end_time
@@ -78,17 +94,9 @@ class Simulator:
 
         heappush(self.event_queue, evt)
 
-    def run(self, autoscaler=None):
+    def run(self):
         """ Run the simulation until the end, processing each event in the queue one-at-a-time in priority order """
         print(f'Starting simulation from {self.start_time} to {self.end_time}')
-
-        self.autoscaler = autoscaler
-        if self.autoscaler:
-            print(f'Autoscaler configured; will run every frequency {self.autoscaler.signal.period_minutes} minutes')
-            self.aws_clusters = autoscaler.mesos_role_manager.resource_groups
-        else:
-            print('No autoscaler configured; using metrics for cluster size')
-            self.aws_clusters = [SimulatedAWSCluster(self)]
 
         with self.metadata:
             while self.event_queue:
@@ -201,3 +209,17 @@ class Simulator:
             for ((timestamp, cost), capacity) in zip(cost_data.items(), capacity_data.values())
             if capacity != 0
         ])
+
+    def _make_autoscaler(self, autoscaler_config):
+        with open(autoscaler_config) as f:
+            config = json.load(f)
+        role_manager = SimulatedMesosRoleManager(self.metadata.cluster, self.metadata.role, [config], self)
+        role_manager.modify_target_capacity(role_manager.min_capacity)
+        for spec in config['LaunchSpecifications']:
+            self.markets |= {get_instance_market(spec)}
+        self.autoscaler = Autoscaler(
+            self.metadata.cluster,
+            self.metadata.role,
+            role_manager,
+            self.metrics_client,
+        )

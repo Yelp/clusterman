@@ -1,5 +1,4 @@
 import time
-from datetime import timedelta
 from importlib import import_module
 
 import staticconf
@@ -35,7 +34,7 @@ class Autoscaler:
     def time_to_next_activation(self, timestamp=None):
         timestamp = timestamp or time.time()
         period_seconds = self.signal.period_minutes * 60
-        return timedelta(seconds=period_seconds - timestamp % period_seconds)
+        return period_seconds - timestamp % period_seconds
 
     def run(self, dry_run=False, timestamp=None):
         """ Do a single check to scale the fleet up or down if necessary.

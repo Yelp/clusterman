@@ -1,5 +1,4 @@
 from collections import defaultdict
-from datetime import timedelta
 
 import arrow
 import mock
@@ -8,8 +7,6 @@ import pytest
 from clusterman.aws.markets import InstanceMarket
 from clusterman.math.piecewise import PiecewiseConstantFunction
 from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSpotFleetResourceGroup
-from clusterman.simulator.simulator import SimulationMetadata
-from clusterman.simulator.simulator import Simulator
 
 MARKETS = [
     InstanceMarket('c3.4xlarge', 'us-west-1a'),
@@ -97,17 +94,6 @@ def spot_fleet_request_config():
             },
         ],
     }
-
-
-@pytest.fixture
-def simulator():
-    return Simulator(
-        SimulationMetadata('testing', 'test-tag'),
-        arrow.get(0),
-        arrow.get(3600),
-        billing_frequency=timedelta(seconds=1),
-        refund_outbid=False,
-    )
 
 
 @pytest.fixture

@@ -63,7 +63,8 @@ def test_read_config_valid_values():
     )
 
 
-def test_read_signal_invalid_metrics():
+@pytest.mark.parametrize('period_minutes', [1, -1])
+def test_read_signal_invalid_metrics(period_minutes):
     config_dict = signal_config_base()
     config_dict['autoscale_signal'].update({
         'required_metrics': [
@@ -77,6 +78,7 @@ def test_read_signal_invalid_metrics():
                 'type': 'system_metrics',
             },
         ],
+        'period_minutes': period_minutes,
     })
     with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'):
         with pytest.raises(Exception):

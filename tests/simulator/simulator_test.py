@@ -17,6 +17,8 @@ def simulator():
         SimulationMetadata('testing', 'test-tag'),
         arrow.get(0),
         arrow.get(3600),
+        None,
+        None,
         billing_frequency=timedelta(hours=1),
     )
 
