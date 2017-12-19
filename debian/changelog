@@ -1,3 +1,9 @@
+clusterman (0.9.0) trusty; urgency=low
+
+  * simulator can create and use an Autoscaler object
+
+ -- David Morrison <drmorr@yelp.com>  Tue, 19 Dec 2017 13:32:53 -0800
+
 clusterman (0.8.4) trusty; urgency=low
 
   * orphaned instances are considered for termination during scale-down
