@@ -56,7 +56,7 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, MesosRoleResourceGrou
         self._instance_types = {}
         self._id = 'ssfr-{uuid}'.format(uuid=uuid4())
         for spec in config['LaunchSpecifications']:
-            bid_price = spec['SpotPrice'] * spec['WeightedCapacity']
+            bid_price = float(spec['SpotPrice']) * spec['WeightedCapacity']
             market = get_instance_market(spec)
             self._instance_types[market] = SpotMarketConfig(bid_price, spec['WeightedCapacity'])
 

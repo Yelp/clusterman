@@ -1,15 +1,16 @@
-import json
 from collections import defaultdict
 from datetime import timedelta
 from heapq import heappop
 from heapq import heappush
 
 import arrow
+import yaml
 from clusterman_metrics import generate_key_with_dimensions
 from clusterman_metrics import METADATA
 from sortedcontainers import SortedDict
 
 from clusterman.autoscaler.autoscaler import Autoscaler
+from clusterman.aws.client import ec2
 from clusterman.aws.markets import get_instance_market
 from clusterman.math.piecewise import hour_transform
 from clusterman.math.piecewise import piecewise_breakpoint_generator
@@ -41,15 +42,14 @@ class SimulationMetadata:
 
 
 class Simulator:
-    def __init__(self, metadata, start_time, end_time, autoscaler_config, metrics_client,
+    def __init__(self, metadata, start_time, end_time, autoscaler_config_file, metrics_client,
                  billing_frequency=timedelta(seconds=1), refund_outbid=True):
         """ Maintains all of the state for a clusterman simulation
 
         :param metadata: a SimulationMetadata object
         :param start_time: an arrow object indicating the start of the simulation
         :param end_time: an arrow object indicating the end of the simulation
-        :param autoscaler_config: a list of SFR-like configuration dicts; at a minimum, each dict needs a
-            'LaunchSpecifications' item and an 'AllocationStrategy' item
+        :param autoscaler_config_file: a filename specifying a list of existing SFRs or SFR configs
         :param billing_frequency: a timedelta object indicating how often to charge for an instance
         :param refund_outbid: if True, do not incur any cost for an instance lost to an outbid event
         """
@@ -67,8 +67,8 @@ class Simulator:
         self.billing_frequency = billing_frequency
         self.refund_outbid = refund_outbid
 
-        if autoscaler_config:
-            self._make_autoscaler(autoscaler_config)
+        if autoscaler_config_file:
+            self._make_autoscaler(autoscaler_config_file)
             self.aws_clusters = self.autoscaler.mesos_role_manager.resource_groups
             print(f'Autoscaler configured; will run every frequency {self.autoscaler.signal.period_minutes} minutes')
         else:
@@ -213,9 +213,13 @@ class Simulator:
             if capacity != 0
         ])
 
-    def _make_autoscaler(self, autoscaler_config):
-        with open(autoscaler_config) as f:
-            configs = json.load(f)
+    def _make_autoscaler(self, autoscaler_config_file):
+        with open(autoscaler_config_file) as f:
+            autoscaler_config = yaml.load(f)
+        configs = autoscaler_config.get('configs', [])
+        if 'sfrs' in autoscaler_config:
+            aws_configs = ec2.describe_spot_fleet_requests(SpotFleetRequestIds=autoscaler_config['sfrs'])
+            configs.extend([config['SpotFleetRequestConfig'] for config in aws_configs['SpotFleetRequestConfigs']])
         role_manager = SimulatedMesosRoleManager(self.metadata.cluster, self.metadata.role, configs, self)
         metric_values = self.metrics_client.get_metric_values(
             generate_key_with_dimensions(
@@ -227,8 +231,8 @@ class Simulator:
             # metrics collector runs 1x/min, but we'll try to get five data points in case some data is missing
             self.start_time.shift(minutes=5).timestamp,
         )
-        # take the earliest data point available
-        actual_target_capacity = metric_values[1][0][1]
+        # take the earliest data point available - this is a Decimal, which doesn't play nicely, so convert to an int
+        actual_target_capacity = int(metric_values[1][0][1])
         role_manager.modify_target_capacity(actual_target_capacity)
         for config in configs:
             for spec in config['LaunchSpecifications']:
