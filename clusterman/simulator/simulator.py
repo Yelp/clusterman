@@ -48,6 +48,8 @@ class Simulator:
         :param metadata: a SimulationMetadata object
         :param start_time: an arrow object indicating the start of the simulation
         :param end_time: an arrow object indicating the end of the simulation
+        :param autoscaler_config: a list of SFR-like configuration dicts; at a minimum, each dict needs a
+            'LaunchSpecifications' item and an 'AllocationStrategy' item
         :param billing_frequency: a timedelta object indicating how often to charge for an instance
         :param refund_outbid: if True, do not incur any cost for an instance lost to an outbid event
         """
@@ -213,9 +215,8 @@ class Simulator:
 
     def _make_autoscaler(self, autoscaler_config):
         with open(autoscaler_config) as f:
-            config = json.load(f)
-        # TODO (CLUSTERMAN-154) we need to load multiple SFRs here
-        role_manager = SimulatedMesosRoleManager(self.metadata.cluster, self.metadata.role, [config], self)
+            configs = json.load(f)
+        role_manager = SimulatedMesosRoleManager(self.metadata.cluster, self.metadata.role, configs, self)
         metric_values = self.metrics_client.get_metric_values(
             generate_key_with_dimensions(
                 'target_capacity',
@@ -229,8 +230,9 @@ class Simulator:
         # take the earliest data point available
         actual_target_capacity = metric_values[1][0][1]
         role_manager.modify_target_capacity(actual_target_capacity)
-        for spec in config['LaunchSpecifications']:
-            self.markets |= {get_instance_market(spec)}
+        for config in configs:
+            for spec in config['LaunchSpecifications']:
+                self.markets |= {get_instance_market(spec)}
         self.autoscaler = Autoscaler(
             self.metadata.cluster,
             self.metadata.role,

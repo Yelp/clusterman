@@ -15,7 +15,7 @@ class InstanceMarket(namedtuple('InstanceMarket', ['instance', 'az'])):
         else:
             raise ValueError(f'Invalid AWS market specified: <{instance}, {az}> (choices from {EC2_AZS})')
 
-    def __str__(self):
+    def __repr__(self):
         return f'<{self.instance}, {self.az}>'
 
     @classmethod
