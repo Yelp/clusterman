@@ -53,27 +53,26 @@ class Simulator:
         """
         self.metadata = metadata
         self.metrics_client = metrics_client
-        if autoscaler_config:
-            print(f'Autoscaler configured; will run every frequency {self.autoscaler.signal.period_minutes} minutes')
-            self._make_autoscaler(autoscaler_config)
-            self.aws_clusters = self.autoscaler.mesos_role_manager.resource_groups
-        else:
-            print('No autoscaler configured; using metrics for cluster size')
-            self.autoscaler = None
-            self.aws_clusters = [SimulatedAWSCluster(self)]
-
-        self.autoscaler = None
         self.start_time = start_time
         self.current_time = start_time
         self.end_time = end_time
-
-        self.billing_frequency = billing_frequency
-        self.refund_outbid = refund_outbid
 
         self.instance_prices = defaultdict(lambda: PiecewiseConstantFunction())
         self.cost_per_hour = PiecewiseConstantFunction()
         self.capacity = PiecewiseConstantFunction()
         self.markets = set()
+
+        self.billing_frequency = billing_frequency
+        self.refund_outbid = refund_outbid
+
+        if autoscaler_config:
+            self._make_autoscaler(autoscaler_config)
+            self.aws_clusters = self.autoscaler.mesos_role_manager.resource_groups
+            print(f'Autoscaler configured; will run every frequency {self.autoscaler.signal.period_minutes} minutes')
+        else:
+            self.autoscaler = None
+            self.aws_clusters = [SimulatedAWSCluster(self)]
+            print('No autoscaler configured; using metrics for cluster size')
 
         # The event queue holds all of the simulation events, ordered by time
         self.event_queue = []
@@ -217,16 +216,19 @@ class Simulator:
             config = json.load(f)
         # TODO (CLUSTERMAN-154) we need to load multiple SFRs here
         role_manager = SimulatedMesosRoleManager(self.metadata.cluster, self.metadata.role, [config], self)
-        actual_target_capacities = self.metrics_client.get_metric_values(
+        metric_values = self.metrics_client.get_metric_values(
             generate_key_with_dimensions(
                 'target_capacity',
                 {'cluster': self.metadata.cluster, 'role': self.metadata.role},
             ),
             METADATA,
-            self.start_time,
-            self.start_time.shift(seconds=30),  # metrics collector runs 1x/min, so this should just get one data point
+            self.start_time.timestamp,
+            # metrics collector runs 1x/min, but we'll try to get five data points in case some data is missing
+            self.start_time.shift(minutes=5).timestamp,
         )
-        role_manager.modify_target_capacity(actual_target_capacities[0])
+        # take the earliest data point available
+        actual_target_capacity = metric_values[1][0][1]
+        role_manager.modify_target_capacity(actual_target_capacity)
         for spec in config['LaunchSpecifications']:
             self.markets |= {get_instance_market(spec)}
         self.autoscaler = Autoscaler(

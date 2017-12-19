@@ -24,15 +24,15 @@ logger = get_clusterman_logger(__name__)
 
 
 def _populate_autoscaling_events(simulator, start_time, end_time):
-    current_time = start_time + simulator.autoscaler.time_to_next_activation(start_time.timestamp)
+    current_time = start_time.shift(seconds=simulator.autoscaler.time_to_next_activation(start_time.timestamp))
     while current_time < end_time:
         simulator.add_event(AutoscalingEvent(current_time))
-        current_time += simulator.autoscaler.time_to_next_activation(current_time.timestamp)
+        current_time = current_time.shift(seconds=simulator.autoscaler.time_to_next_activation(current_time.timestamp))
 
 
-def _populate_cluster_capacity_events(metadata, simulator, start_time, end_time):
+def _populate_cluster_capacity_events(simulator, start_time, end_time):
     __, capacity_ts = simulator.metrics_client.get_metric_values(
-        f'fulfilled_capacity|cluster={metadata.cluster},role={metadata.role}',
+        f'fulfilled_capacity|cluster={simulator.metadata.cluster},role={simulator.metadata.role}',
         METADATA,
         start_time.timestamp,
         end_time.timestamp,
@@ -74,7 +74,7 @@ def main(args):
     if simulator.autoscaler:
         _populate_autoscaling_events(simulator, args.start_time, args.end_time)
     else:
-        _populate_cluster_capacity_events(metadata, simulator, args.start_time, args.end_time)
+        _populate_cluster_capacity_events(simulator, args.start_time, args.end_time)
 
     _populate_price_changes(simulator, args.start_time, args.end_time)
 
@@ -96,13 +96,9 @@ def add_simulate_parser(subparser, required_named_args, optional_named_args):  #
     add_cluster_arg(required_named_args, required=True)
     add_role_arg(required_named_args, required=True)
     optional_named_args.add_argument(
-        '--use-autoscaler',
-        action='store_true',
-        help='use the autoscaler in the simulation to adjust the cluster size',
-    )
-    optional_named_args.add_argument(
-        '--spot-fleet-config',
-        help='file containing the spot fleet request JSON data',
+        '--autoscaler-config',
+        default=None,
+        help='file containing the spot fleet request JSON data for the autoscaler',
     )
     optional_named_args.add_argument(
         '--reports',
