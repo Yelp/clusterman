@@ -8,6 +8,7 @@ from clusterman.args import add_role_arg
 from clusterman.args import add_start_end_args
 from clusterman.args import subparser
 from clusterman.aws.markets import InstanceMarket
+from clusterman.config import load_role_configs_for_cluster
 from clusterman.reports.report_types import REPORT_TYPES
 from clusterman.reports.reports import make_report
 from clusterman.simulator.event import AutoscalingEvent
@@ -18,7 +19,6 @@ from clusterman.simulator.simulator import SimulationMetadata
 from clusterman.simulator.simulator import Simulator
 from clusterman.util import get_clusterman_logger
 from clusterman.util import parse_time_string
-
 
 logger = get_clusterman_logger(__name__)
 
@@ -58,6 +58,9 @@ def _populate_price_changes(simulator, start_time, end_time):
 def main(args):
     args.start_time = parse_time_string(args.start_time)
     args.end_time = parse_time_string(args.end_time)
+
+    if args.role_config_dir is not None:
+        load_role_configs_for_cluster(args.role_config_dir, args.cluster)
 
     metrics = {}
     if args.metrics_data_file:
@@ -110,4 +113,8 @@ def add_simulate_parser(subparser, required_named_args, optional_named_args):  #
         '--metrics-data-file',
         metavar='filename',
         help='provide simulated values for one or more metric time series',
+    )
+    optional_named_args.add_argument(
+        '--role-config-dir',
+        help='specify role configuration directory for simulation',
     )

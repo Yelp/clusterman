@@ -73,7 +73,7 @@ def get_historical_data(metric_key, metric_type, config, start_time, end_time):
     a = config['values']['params']['a']
     b = config['values']['params']['b']
     for item in result_items:
-        metric.append((arrow.get(item[0]), a * int(item[1]) + b))
+        metric.append((arrow.get(item[0]), a * float(item[1]) + b))
     return metric
 
 
