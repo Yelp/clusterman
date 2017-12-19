@@ -5,15 +5,22 @@ import mock
 import pytest
 
 from clusterman.aws.markets import InstanceMarket
-from clusterman.simulator.cluster import Instance
 from clusterman.simulator.event import Event
+from clusterman.simulator.simulated_aws_cluster import Instance
 from clusterman.simulator.simulator import SimulationMetadata
 from clusterman.simulator.simulator import Simulator
 
 
 @pytest.fixture
 def simulator():
-    return Simulator(SimulationMetadata('testing', 'test-tag'), arrow.get(0), arrow.get(3600))
+    return Simulator(
+        SimulationMetadata('testing', 'test-tag'),
+        arrow.get(0),
+        arrow.get(3600),
+        None,
+        None,
+        billing_frequency=timedelta(hours=1),
+    )
 
 
 @pytest.fixture(params=[arrow.get(1820), arrow.get(3599), arrow.get(10000)])

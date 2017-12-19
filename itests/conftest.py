@@ -1,28 +1,13 @@
 import logging
+from datetime import timedelta
 
 import arrow
-import mock
 import pytest
 
 from clusterman.aws.markets import InstanceMarket
 from clusterman.run import setup_logging
 from clusterman.simulator.simulator import SimulationMetadata
 from clusterman.simulator.simulator import Simulator
-
-_ttl_patch = None
-
-
-def pytest_configure(config):
-    """ patch the CACHE_TTL_SECONDS to prevent tests from failing (TTL caches expire immediately);
-    needs to happen before modules loaded """
-    global _ttl_patch
-    _ttl_patch = mock.patch('clusterman.mesos.constants.CACHE_TTL_SECONDS', -1)
-    _ttl_patch.__enter__()
-
-
-def pytest_unconfigure(config):
-    """ remove the TTL patch """
-    _ttl_patch.__exit__()
 
 
 @pytest.fixture(scope='session', autouse=True)
@@ -43,7 +28,13 @@ def end_time(start_time):
 @pytest.fixture
 def simulator(start_time, end_time):
     setup_logging()
-    return Simulator(SimulationMetadata('Testing', 'test-tag'), start_time, end_time)
+    return Simulator(
+        SimulationMetadata('Testing', 'test-tag'),
+        start_time,
+        end_time,
+        None, None,
+        billing_frequency=timedelta(hours=1),
+    )
 
 
 @pytest.fixture

@@ -1,9 +1,11 @@
 import argparse
+from functools import partial
 
 import mock
 import pytest
 import staticconf.testing
 
+from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.batch.autoscaler import AutoscalerBatch
 
 
@@ -38,7 +40,12 @@ def mock_watcher():
 
 @pytest.fixture
 def mock_autoscaler():
-    with mock.patch('clusterman.batch.autoscaler.Autoscaler', autospec=True) as autoscaler:
+    with mock.patch('clusterman.batch.autoscaler.Autoscaler', signal=mock.Mock()) as autoscaler:
+        autoscaler.signal.period_minutes = 10
+        autoscaler.return_value.time_to_next_activation = partial(
+            Autoscaler.time_to_next_activation,
+            self=autoscaler,
+        )
         yield autoscaler
 
 
@@ -60,7 +67,7 @@ def test_run(mock_running, mock_time, mock_sleep, dry_run, mock_autoscaler, mock
     if dry_run:
         args.append('--dry-run')
     batch_obj = batch(args)
-    mock_autoscaler.return_value.get_period_seconds.return_value = 600
+    mock_autoscaler.return_value.signal.period_minutes = 60
 
     assert mock_setup_config.call_count == 1
     mock_running.side_effect = [True, True, True, False]

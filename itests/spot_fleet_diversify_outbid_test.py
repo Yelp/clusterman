@@ -1,5 +1,4 @@
 from collections import defaultdict
-from datetime import timedelta
 
 import arrow
 import mock
@@ -8,8 +7,6 @@ import pytest
 from clusterman.aws.markets import InstanceMarket
 from clusterman.math.piecewise import PiecewiseConstantFunction
 from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSpotFleetResourceGroup
-from clusterman.simulator.simulator import SimulationMetadata
-from clusterman.simulator.simulator import Simulator
 
 MARKETS = [
     InstanceMarket('c3.4xlarge', 'us-west-1a'),
@@ -100,11 +97,6 @@ def spot_fleet_request_config():
 
 
 @pytest.fixture
-def simulator():
-    return Simulator(SimulationMetadata('testing', 'test-tag'), arrow.get(0), arrow.get(3600), timedelta(seconds=1), False)
-
-
-@pytest.fixture
 def spot_fleet(spot_fleet_request_config, simulator, spot_prices):
     with mock.patch(
         'clusterman.simulator.simulated_spot_fleet_resource_group.get_instance_market',
@@ -166,7 +158,7 @@ def test_spot_fleet_cost_for_outbid_instances(target_capacity, spot_fleet, spot_
     assert (spot_fleet.market_size(market) == 0 for market in MARKETS)
     # The cost calculation might change when we have more information from AWS
     expected_cost = size * (3.0 * 120 + spot_prices[MARKETS[outbid_market]].call(arrow.get(1200)) * 1800) / 3600
-    assert round(spot_fleet.simulator.total_cost - expected_cost, 7) == 0
+    assert expected_cost == pytest.approx(expected_cost)
 
 
 @pytest.mark.parametrize('target_capacity', [100, 500])

@@ -7,8 +7,6 @@ import pytest
 from clusterman.aws.markets import InstanceMarket
 from clusterman.math.piecewise import PiecewiseConstantFunction
 from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSpotFleetResourceGroup
-from clusterman.simulator.simulator import SimulationMetadata
-from clusterman.simulator.simulator import Simulator
 
 
 MARKETS = [
@@ -17,11 +15,6 @@ MARKETS = [
     InstanceMarket('i2.8xlarge', 'us-west-2a'),
     InstanceMarket('m4.4xlarge', 'us-west-2b'),
 ]
-
-
-@pytest.fixture
-def simulator():
-    return Simulator(SimulationMetadata('testing', 'test-tag'), arrow.get(0), arrow.get(3600))
 
 
 @pytest.fixture
@@ -123,10 +116,10 @@ def test_compute_market_residuals_existing_fleet(spot_fleet, test_instances_by_m
     assert residuals == [(MARKETS[2], -4), (MARKETS[3], 3), (MARKETS[1], 3), (MARKETS[0], 4)]
 
 
-def test_market_weight(spot_fleet_request_config, spot_fleet, test_instances_by_market):
+def test_market_capacities(spot_fleet_request_config, spot_fleet, test_instances_by_market):
     spot_fleet.modify_size(test_instances_by_market)
     for i, (market, instance_count) in enumerate(test_instances_by_market.items()):
-        assert spot_fleet.market_weight(market) == \
+        assert spot_fleet.market_capacities[market] == \
             instance_count * spot_fleet_request_config['LaunchSpecifications'][i]['WeightedCapacity']
 
 

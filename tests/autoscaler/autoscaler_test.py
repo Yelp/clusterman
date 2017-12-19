@@ -80,6 +80,12 @@ def mock_metrics_client():
 def mock_autoscaler(mock_load_signal, mock_role_manager, mock_gauge):
     mock_autoscaler = Autoscaler('foo', 'bar')
     mock_autoscaler.mesos_role_manager.target_capacity = 300
+    mock_autoscaler.mesos_role_manager.min_capacity = staticconf.read_int(
+        'scaling_limits.min_capacity', namespace=ROLE_NAMESPACE.format(role='bar')
+    )
+    mock_autoscaler.mesos_role_manager.max_capacity = staticconf.read_int(
+        'scaling_limits.max_capacity', namespace=ROLE_NAMESPACE.format(role='bar')
+    )
     return mock_autoscaler
 
 

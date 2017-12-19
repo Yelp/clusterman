@@ -20,7 +20,7 @@ class Instance:
         return self.bid_price is not None
 
 
-class Cluster:
+class SimulatedAWSCluster:
     def __init__(self, simulator):
         self.simulator = simulator
         self.instances = {}

@@ -4,13 +4,14 @@ from uuid import uuid4
 
 from clusterman.aws.markets import get_instance_market
 from clusterman.mesos.mesos_role_resource_group import MesosRoleResourceGroup
-from clusterman.simulator.cluster import Cluster
+from clusterman.simulator.simulated_aws_cluster import SimulatedAWSCluster
 
 SpotMarketConfig = namedtuple('SpotMarketConfig', ['bid_price', 'weight'])
 
 
-class SimulatedSpotFleetResourceGroup(Cluster, MesosRoleResourceGroup):
-    """ An implementation of a Cluster designed to model the AWS EC2 Spot Fleet object
+class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, MesosRoleResourceGroup):
+    """ An implementation of a SimulatedAWSCluster designed to model the AWS EC2 Spot Fleet object, which is also a
+    ResourceGroup in a simulated Mesos cluster.
 
     The simulated spot fleet resource group object encapsulates a group of spot instances and attempts to maintain a
     specified capacity of those instances, as long as the bid price for the instances does not exceed a user-specified
@@ -65,7 +66,7 @@ class SimulatedSpotFleetResourceGroup(Cluster, MesosRoleResourceGroup):
             raise NotImplementedError(f'{self.allocation_strategy} not supported')
 
     def market_weight(self, market):
-        return self.market_size(market) * self._instance_types[market].weight
+        return self._instance_types[market].weight
 
     def modify_target_capacity(self, target_capacity, terminate_excess_capacity=False):
         """ Modify the requested capacity for a particular spot fleet
@@ -97,11 +98,13 @@ class SimulatedSpotFleetResourceGroup(Cluster, MesosRoleResourceGroup):
         """ Terminate specified instances
 
         :param ids: desired ids of instances to be terminated
+        :returns: a list of the terminated instance ids
         """
         super().terminate_instances_by_id(ids)
         # restore capacity if current capacity is less than target capacity
         if self.fulfilled_capacity < self.target_capacity:
             self._increase_capacity_to_target(self.target_capacity)
+        return ids
 
     def _increase_capacity_to_target(self, target_capacity):
         """ When current capacity is less than target_capacity, this function would increase capacity to meet target_capacity
@@ -170,7 +173,7 @@ class SimulatedSpotFleetResourceGroup(Cluster, MesosRoleResourceGroup):
         # Some helper closures for computing residuals and sorting;
         @lru_cache()  # memoize the results
         def residual(market):
-            return target_capacity_per_market - self.market_weight(market)
+            return target_capacity_per_market - self.market_capacities.get(market, 0)
 
         def residual_sort_key(value_tuple):
             market, residual = value_tuple
@@ -204,7 +207,7 @@ class SimulatedSpotFleetResourceGroup(Cluster, MesosRoleResourceGroup):
     @property
     def market_capacities(self):
         return {
-            market: self.market_weight(market)
+            market: len(instance_ids) * self.market_weight(market)
             for market, instance_ids in self._instance_ids_by_market.items()
             if market.az
         }
@@ -220,7 +223,7 @@ class SimulatedSpotFleetResourceGroup(Cluster, MesosRoleResourceGroup):
         Note that the actual capacity may be greater than the target capacity if instance weights do not evenly divide
         the given target capacity
         """
-        return sum(self.market_weight(market) for market in self._instance_types)
+        return sum(self.market_capacities.values())
 
     @property
     def status(self):

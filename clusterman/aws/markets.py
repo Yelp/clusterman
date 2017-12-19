@@ -18,6 +18,11 @@ class InstanceMarket(namedtuple('InstanceMarket', ['instance', 'az'])):
     def __str__(self):
         return f'<{self.instance}, {self.az}>'
 
+    @classmethod
+    def parse(cls, string):
+        sans_brackets = string[1:-1]
+        return cls(*sans_brackets.split(', '))
+
 
 EC2_INSTANCE_TYPES = {
     't2.nano': InstanceResources(1.0, 0.5, None),
