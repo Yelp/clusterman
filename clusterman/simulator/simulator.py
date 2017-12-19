@@ -5,6 +5,8 @@ from heapq import heappop
 from heapq import heappush
 
 import arrow
+from clusterman_metrics import generate_key_with_dimensions
+from clusterman_metrics import METADATA
 from sortedcontainers import SortedDict
 
 from clusterman.autoscaler.autoscaler import Autoscaler
@@ -213,8 +215,18 @@ class Simulator:
     def _make_autoscaler(self, autoscaler_config):
         with open(autoscaler_config) as f:
             config = json.load(f)
+        # TODO (CLUSTERMAN-154) we need to load multiple SFRs here
         role_manager = SimulatedMesosRoleManager(self.metadata.cluster, self.metadata.role, [config], self)
-        role_manager.modify_target_capacity(role_manager.min_capacity)
+        actual_target_capacities = self.metrics_client.get_metric_values(
+            generate_key_with_dimensions(
+                'target_capacity',
+                {'cluster': self.metadata.cluster, 'role': self.metadata.role},
+            ),
+            METADATA,
+            self.start_time,
+            self.start_time.shift(seconds=30),  # metrics collector runs 1x/min, so this should just get one data point
+        )
+        role_manager.modify_target_capacity(actual_target_capacities[0])
         for spec in config['LaunchSpecifications']:
             self.markets |= {get_instance_market(spec)}
         self.autoscaler = Autoscaler(

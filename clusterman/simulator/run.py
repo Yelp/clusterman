@@ -38,7 +38,7 @@ def _populate_cluster_capacity_events(metadata, simulator, start_time, end_time)
         end_time.timestamp,
     )
     for timestamp, data in capacity_ts:
-        market_data = {InstanceMarket(*market_str.split(',')): value for market_str, value in data.items()}
+        market_data = {InstanceMarket.parse(market_str): value for market_str, value in data.items()}
         simulator.markets |= set(market_data.keys())
         simulator.add_event(ModifyClusterCapacityEvent(arrow.get(timestamp), market_data))
 
