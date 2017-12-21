@@ -144,7 +144,7 @@ class MesosRoleManager:
             return
 
         idle_agents = self._idle_agents_by_market()
-        logger.info(f'Idle agents found: {list(idle_agents.values())}')
+        logger.info(f'Idle agents found: {dict(idle_agents)}')
         # We can only reduce markets that have idle agents, so filter by the list of idle_agent keys
         idle_market_capacities = self._get_market_capacities(market_filter=idle_agents.keys())
 
