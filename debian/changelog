@@ -1,3 +1,9 @@
+clusterman (0.9.1) trusty; urgency=low
+
+  * Load multiple SFRs into the simulator
+
+ -- David Morrison <drmorr@yelp.com>  Thu, 21 Dec 2017 14:28:34 -0800
+
 clusterman (0.9.0) trusty; urgency=low
 
   * simulator can create and use an Autoscaler object
