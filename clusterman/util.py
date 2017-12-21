@@ -28,6 +28,21 @@ def ask_for_confirmation(prompt='Are you sure? ', default=True):
             return 'yes'.startswith(ans)
 
 
+def ask_for_choice(prompt, choices):
+    enumerated_choices = [f'- {choice}: {num}\n' for num, choice in enumerate(choices)]
+    full_prompt = prompt + '\n' + ''.join(enumerated_choices)
+
+    current_prompt = full_prompt
+    while True:
+        ans = input(current_prompt).strip()
+        if (not ans.isnumeric()) or int(ans) > len(choices):
+            print('Please enter one of the numbers corresponding to a choice above.')
+            current_prompt = prompt + ' '
+            continue
+        else:
+            return choices[int(ans)]
+
+
 def colored_status(status, green=None, blue=None, red=None, prefix=None, postfix=None):
     prefix = prefix or ''
     postfix = postfix or ''

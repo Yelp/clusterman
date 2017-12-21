@@ -4,6 +4,7 @@ import pytest
 from colorama import Fore
 from colorama import Style
 
+from clusterman.util import ask_for_choice
 from clusterman.util import ask_for_confirmation
 from clusterman.util import colored_status
 from clusterman.util import parse_time_interval_seconds
@@ -20,6 +21,12 @@ def test_ask_for_confirmation_invalid_input():
     with mock.patch('builtins.input', side_effect=['asdf', 'yes']) as mock_input:
         assert ask_for_confirmation() is True
         assert mock_input.call_count == 2
+
+
+def test_ask_for_choice():
+    with mock.patch('builtins.input', side_effect=['asdf', '-1', '20', '2']) as mock_input:
+        assert ask_for_choice('Pick something', ['a', 'b', 'c']) == 'c'
+        assert mock_input.call_count == 4
 
 
 def test_colored_status():
