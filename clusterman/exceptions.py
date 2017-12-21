@@ -3,10 +3,6 @@ class ClustermanException(Exception):
     pass
 
 
-class MarketProtectedException(ClustermanException):
-    pass
-
-
 class MetricsError(ClustermanException):
     pass
 
@@ -20,8 +16,4 @@ class SignalConfigurationError(ClustermanException):
 
 
 class ResourceGroupError(ClustermanException):
-    pass
-
-
-class ResourceGroupProtectedException(ClustermanException):
     pass

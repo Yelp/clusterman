@@ -38,8 +38,8 @@ class SimulatedMesosRoleManager(MesosRoleManager):
         self.min_capacity = role_config.read_int('scaling_limits.min_capacity')
         self.max_capacity = role_config.read_int('scaling_limits.max_capacity')
 
-    def prune_excess_fulfilled_capacity(self, new_target_capacity=None):
-        terminated_instance_ids = super().prune_excess_fulfilled_capacity(new_target_capacity)
+    def prune_excess_fulfilled_capacity(self):
+        terminated_instance_ids = super().prune_excess_fulfilled_capacity()
         if terminated_instance_ids:
             for group in self.resource_groups:
                 for instance_id in set(terminated_instance_ids) & set(group.instance_ids):

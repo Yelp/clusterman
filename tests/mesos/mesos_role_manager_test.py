@@ -3,10 +3,9 @@ import pytest
 from moto import mock_ec2
 
 from clusterman.aws.client import ec2
-from clusterman.exceptions import MarketProtectedException
 from clusterman.exceptions import MesosRoleManagerError
-from clusterman.exceptions import ResourceGroupProtectedException
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
+from clusterman.mesos.util import find_largest_capacity_market
 from clusterman.mesos.util import MesosAgentState
 
 
@@ -63,68 +62,52 @@ def test_modify_target_capacity(constrain_return, mock_role_manager):
 
 
 @mock.patch('clusterman.mesos.mesos_role_manager.logger')
-@mock.patch('clusterman.mesos.mesos_role_manager.find_largest_capacity_market')
-@mock.patch('clusterman.mesos.mesos_role_manager.MesosRoleManager._mark_instance_for_removal')
-@mock.patch('clusterman.mesos.mesos_role_manager.MesosRoleManager._get_market_capacities')
+@mock.patch('clusterman.mesos.mesos_role_manager.find_largest_capacity_market', wraps=find_largest_capacity_market)
+@mock.patch('clusterman.mesos.mesos_role_manager.MesosRoleManager._find_resource_group')
 @mock.patch('clusterman.mesos.mesos_role_manager.MesosRoleManager._idle_agents_by_market')
-@mock.patch('clusterman.mesos.mesos_role_manager.MesosRoleManager.target_capacity', mock.PropertyMock(return_value=100))
+@mock.patch('clusterman.mesos.mesos_role_manager.MesosRoleManager.target_capacity', mock.PropertyMock(return_value=50))
 @mock.patch(
     'clusterman.mesos.mesos_role_manager.MesosRoleManager.fulfilled_capacity',
     mock.PropertyMock(return_value=100),
 )
 class TestPruneFulfilledCapacity:
-    def test_under_capacity(self, mock_idle_agents_by_market, mock_get_market_capacities,
-                            mock_mark_instance_for_removal, mock_find_largest_capacity_market,
-                            mock_logger, mock_role_manager):
-        mock_role_manager.prune_excess_fulfilled_capacity(110)
-        assert mock_find_largest_capacity_market.call_count == 0
-        assert mock_mark_instance_for_removal.call_count == 0
-        assert mock_logger.warn.call_count == 0
-
-    def test_no_idle_instances(self, mock_idle_agents_by_market, mock_get_market_capacities,
-                               mock_mark_instance_for_removal, mock_find_largest_capacity_market,
-                               mock_logger, mock_role_manager):
+    def test_no_idle_instances(self, mock_idle_agents_by_market, mock_find_res_group,
+                               mock_find_largest_capacity_market, mock_logger, mock_role_manager):
         mock_idle_agents_by_market.return_value = {}
-        mock_find_largest_capacity_market.return_value = (None, 0)
-        mock_role_manager.prune_excess_fulfilled_capacity(90)
-        assert mock_find_largest_capacity_market.call_count == 1
-        assert mock_mark_instance_for_removal.call_count == 0
-        assert mock_logger.warn.call_count == 1
+        assert not mock_role_manager.prune_excess_fulfilled_capacity()
 
-    def test_instance_error(self, mock_idle_agents_by_market, mock_get_market_capacities,
-                            mock_mark_instance_for_removal, mock_find_largest_capacity_market,
-                            mock_logger, mock_role_manager):
-        mock_idle_agents_by_market.return_value = {'market-1': ['agent-1', 'agent-2'], 'market-2': ['agent-3']}
-        mock_find_largest_capacity_market.return_value = ('market-1', 70)
-        mock_mark_instance_for_removal.side_effect = [MesosRoleManagerError('something bad happened'), 10]
-        mock_role_manager.prune_excess_fulfilled_capacity(90)
-        assert mock_find_largest_capacity_market.call_count == 2
-        assert mock_mark_instance_for_removal.call_count == 2
-        assert type(mock_logger.warn.call_args_list[0][0][0]) == MesosRoleManagerError
+    def test_instance_error(self, mock_idle_agents_by_market, mock_find_res_group,
+                            mock_find_largest_capacity_market, mock_logger, mock_role_manager):
+        mock_idle_agents_by_market.return_value = {'market-1': ['agent-1']}
+        mock_find_res_group.return_value = None
+        assert not mock_role_manager.prune_excess_fulfilled_capacity()
+        assert mock_find_largest_capacity_market.call_count == 3
+        assert mock_logger.warn.call_count == 2
 
-    def test_protected_market(self, mock_idle_agents_by_market, mock_get_market_capacities,
-                              mock_mark_instance_for_removal, mock_find_largest_capacity_market,
-                              mock_logger, mock_role_manager):
-        mock_idle_agents_by_market.return_value = {'market-1': ['agent-1', 'agent-2'], 'market-2': ['agent-3']}
-        mock_get_market_capacities.return_value = {'market-1': 70, 'market-2': 30}
-        mock_find_largest_capacity_market.side_effect = [('market-1', 70), ('market-2', 30)]
-        mock_mark_instance_for_removal.side_effect = [MarketProtectedException('market-1 is full'), 10]
-        mock_role_manager.prune_excess_fulfilled_capacity(90)
+    def test_protected_market(self, mock_idle_agents_by_market, mock_find_res_group,
+                              mock_find_largest_capacity_market, mock_logger, mock_role_manager):
+        mock_idle_agents_by_market.return_value = {'market-1': []}
+        assert not mock_role_manager.prune_excess_fulfilled_capacity()
         assert mock_find_largest_capacity_market.call_count == 2
-        assert mock_mark_instance_for_removal.call_count == 2
-        assert mock_get_market_capacities.return_value == {'market-2': 20}
 
-    def test_protected_group(self, mock_idle_agents_by_market, mock_get_market_capacities,
-                             mock_mark_instance_for_removal, mock_find_largest_capacity_market,
-                             mock_logger, mock_role_manager):
+    def test_protected_group(self, mock_idle_agents_by_market, mock_find_res_group,
+                             mock_find_largest_capacity_market, mock_logger, mock_role_manager):
+        mock_idle_agents_by_market.return_value = {'market-1': ['agent-1']}
+        res_group = mock_role_manager.resource_groups[6]
+        res_group.market_weight.return_value = 10000
+        mock_find_res_group.return_value = res_group
+        assert not mock_role_manager.prune_excess_fulfilled_capacity()
+        assert mock_find_largest_capacity_market.call_count == 3
+
+    def test_can_prune(self, mock_idle_agents_by_market, mock_find_res_group,
+                       mock_find_largest_capacity_market, mock_logger, mock_role_manager):
         mock_idle_agents_by_market.return_value = {'market-1': ['agent-1', 'agent-2'], 'market-2': ['agent-3']}
-        mock_get_market_capacities.return_value = {'market-1': 70, 'market-2': 30}
-        mock_find_largest_capacity_market.side_effect = [('market-1', 70), ('market-2', 0)]
-        mock_mark_instance_for_removal.side_effect = [ResourceGroupProtectedException('group-1 is full')]
-        mock_role_manager.prune_excess_fulfilled_capacity(90)
-        assert mock_find_largest_capacity_market.call_count == 2
-        assert mock_mark_instance_for_removal.call_count == 1
-        assert mock_get_market_capacities.return_value == {'market-1': 70, 'market-2': 30}
+        res_group = mock_role_manager.resource_groups[6]
+        res_group.market_weight.return_value = 1
+        res_group.terminate_instances_by_id.side_effect = lambda x: x
+        mock_find_res_group.return_value = res_group
+        assert set(mock_role_manager.prune_excess_fulfilled_capacity()) == {'agent-1', 'agent-2', 'agent-3'}
+        assert mock_find_largest_capacity_market.call_count == 6
 
 
 def test_compute_new_resource_group_targets_no_unfilled_capacity(mock_role_manager):
@@ -223,47 +206,6 @@ def test_constrain_target_capacity_below_overall_min(mock_role_manager):
         assert mock_role_manager._constrain_target_capacity(1) == 10
         assert mock_role_manager._constrain_target_capacity(42) == 42
         assert mock_logger.warn.call_count == 2
-
-
-def test_mark_instance_for_removal_idle_markets_empty(mock_role_manager):
-    with pytest.raises(MarketProtectedException):
-        mock_role_manager._mark_instance_for_removal({'market-1': []}, {}, 'market-1', 1234)
-
-
-@mock.patch('clusterman.mesos.mesos_role_manager.MesosRoleManager._find_resource_group')
-def test_mark_instance_for_removal_invalid_instance(mock_find_resource_group, mock_role_manager):
-    mock_find_resource_group.return_value = None
-    with pytest.raises(MesosRoleManagerError):
-        mock_role_manager._mark_instance_for_removal({'market-1': ['asdf']}, {}, 'market-1', 1234)
-
-
-@mock.patch('clusterman.mesos.mesos_role_manager.MesosRoleManager._find_resource_group')
-def test_mark_instance_for_removal_capacity_low(mock_find_resource_group, mock_role_manager):
-    mock_find_resource_group.return_value.market_weight.return_value = 1000
-    with pytest.raises(MarketProtectedException):
-        mock_role_manager._mark_instance_for_removal({'market-1': ['asdf']}, {}, 'market-1', 1)
-
-
-@mock.patch('clusterman.mesos.mesos_role_manager.MesosRoleManager._find_resource_group')
-def test_mark_instance_for_removal_group_has_one_instance(mock_find_resource_group, mock_role_manager):
-    mock_resource_group = mock.Mock()
-    mock_resource_group.market_weight.return_value = 7
-    mock_resource_group.instances = ['asdf']
-    mock_find_resource_group.return_value = mock_resource_group
-    marked_instances = {mock_resource_group: []}
-    with pytest.raises(ResourceGroupProtectedException):
-        mock_role_manager._mark_instance_for_removal({'market-1': ['asdf']}, marked_instances, 'market-1', 1234)
-
-
-@mock.patch('clusterman.mesos.mesos_role_manager.MesosRoleManager._find_resource_group')
-def test_mark_instance_for_removal(mock_find_resource_group, mock_role_manager):
-    mock_resource_group = mock.Mock()
-    mock_resource_group.market_weight.return_value = 7
-    mock_resource_group.instances = ['asdf', 'qwerty']
-    mock_find_resource_group.return_value = mock_resource_group
-    marked_instances = {mock_resource_group: []}
-    assert mock_role_manager._mark_instance_for_removal({'market-1': ['asdf']}, marked_instances, 'market-1', 10) == 7
-    assert marked_instances[mock_resource_group] == ['asdf']
 
 
 def test_find_resource_group(mock_role_manager):
