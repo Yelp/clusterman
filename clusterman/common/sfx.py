@@ -25,6 +25,8 @@ def _make_ts_label(raw_data, tsid, dimensions):
     :param dimensions: a list of dimensions to create the label from
     :returns: a comma-separated list of the specified dimension values for this tsid
     """
+    if not dimensions:
+        return ''
     metadata = raw_data.get_metadata(tsid)
     return ','.join([metadata[dim] for dim in sorted(dimensions)])
 
