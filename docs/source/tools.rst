@@ -21,14 +21,18 @@ specification for the experimental design is as follows:
 
 .. code-block:: text
 
-    metric_name:
-        start_time: <date-time string>
-        end_time: <date-time string>
-        frequency: <frequency specification>
-        values: <values specification>
-        dict_keys: (optional) <list of dictionary keys>
+    metric_type:
+        metric_name:
+            start_time: <date-time string>
+            end_time: <date-time string>
+            frequency: <frequency specification>
+            values: <values specification>
+            dict_keys: (optional) <list of dictionary keys>
 
-* The ``metric_name`` is arbitrary; it should correspond to a metric value that ``clusterman simulate`` will use when
+* The ``metric_type`` should be one of the :ref:`metric_types`. There should be one section containing all the
+  applicable metric names for each type.
+
+* Each ``metric_name`` is arbitrary; it should correspond to a metric value that ``clusterman simulate`` will use when
   performing its simulation.  Multiple metrics can be specified for a given experimental design by repeating the above
   block in the YAML file for each desired metric; note that if multiple metrics should follow the same data generation
   specification, `YAML anchors and references <https://en.wikipedia.org/wiki/YAML#Advanced_components>`_ can be used.
@@ -38,22 +42,26 @@ specification for the experimental design is as follows:
   ``2017-08-03T18:08:44+00:00``.  However, in some cases it may be useful to specify relative times; these can be in
   human-readable format, for example ``one month ago`` or ``-12h``.
 
-* The ``<frequency specification>`` can take one of two formats:
+* The ``<frequency specification>`` can take one of three formats:
 
-  - Regular intervals: by providing an ``<date-time string>`` for the frequency specification, metric values will be
-    generated periodically; for example, a frequency of ``1m`` will generate a new data point every minute.
-  - Random intervals: to generate new metric event arrival times randomly, specify a ``<random generator>`` block for
-    the frequency, as shown below::
+  - Historical data: To generate values from historical values, specify ``historical`` here and follow
+    the specification for historical values below.
+  - Random data: if values will be randomly generated, then the frequency can be in one of two formats:
 
-        distribution: dist-function
-        params:
-            dist_param_a: param-value
-            dist_param_b: param-value
+      - Regular intervals: by providing an ``<date-time string>`` for the frequency specification, metric values will be
+        generated periodically; for example, a frequency of ``1m`` will generate a new data point every minute.
+      - Random intervals: to generate new metric event arrival times randomly, specify a ``<random generator>`` block for
+        the frequency, as shown below::
 
-    The ``dist-function`` should be the name of a function in the `Python random module
-    <https://docs.python.org/3/library/random.html#>`_.  The ``params`` are the keyword arguments for the chosen
-    function.  All parameter values relating to time should be defined in seconds; for example, if ``gauss`` is chosen
-    for the distribution function, the units for the mean and standard deviation should be seconds.
+            distribution: dist-function
+            params:
+                dist_param_a: param-value
+                dist_param_b: param-value
+
+        The ``dist-function`` should be the name of a function in the `Python random module
+        <https://docs.python.org/3/library/random.html#>`_.  The ``params`` are the keyword arguments for the chosen
+        function.  All parameter values relating to time should be defined in seconds; for example, if ``gauss`` is chosen
+        for the distribution function, the units for the mean and standard deviation should be seconds.
 
 .. note:: A common choice for the dist-function is expovariate, which creates an exponentially-distributed interarrival
    time, a.k.a, a `Poisson process <https://en.wikipedia.org/wiki/Poisson_point_process>`_.  This is a good baseline
@@ -61,11 +69,14 @@ specification for the experimental design is as follows:
 
 * Similarly, the ``<values specification>`` can take one of two formats:
 
-  - Random values: for this mode, specify a ``<random generator>`` block as shown above for frequency.
-  - Function of existing data: specify a string (function of ``x``) and a metric name to generate data as some function
-    of pre-existing data
+  - Function of historical data: historical values can be linearly transformed by :math:`ax+b`. Specify the following block::
 
-.. todo:: Currently you can only create a constant function, i.e., the metric value is always constant
+        aws_region: <AWS region to read historical data from>
+        params:
+            a: <value>
+            b: <value>
+
+  - Random values: for this mode, specify a ``<random generator>`` block as shown above for frequency.
 
 * The ``dict_keys`` field takes a list of strings which are used to generate a single timeseries with (potentially)
   multiple data points per time value.  For example, given the following ``dict_keys`` configuration::
@@ -114,3 +125,7 @@ Sample Experimental Design File
 
 The above design file, and a sample output file are located in ``docs/examples/design.yaml`` and
 ``docs/examples/metrics.json.gz``, respectively.
+
+SignalFX scraper
+----------------
+TODO

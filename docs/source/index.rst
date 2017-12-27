@@ -3,29 +3,43 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to clusterman's documentation!
+clusterman
 ======================================
+
+Clusterman autoscales Mesos clusters based on the values of user-defined signals
+of resource utilization. It also provides tools to manually manage those clusters,
+and simulate how changes to autoscaling logic will impact the cost and performance.
+
+
+.. toctree::
+   :titlesonly:
+
+   scaling_overview
 
 .. toctree::
    :maxdepth: 2
-   :caption: User Guide
+   :caption: Autoscaling
 
-   batches
+   metrics
+   signals
+   roles
+
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Tools
+
    configuration
    manage
-   metrics
    simulator
    tools
 
 
 .. toctree::
    :maxdepth: 2
-   :caption: Developing Clusterman
+   :caption: Batches
 
-   dev/metric_schemas.rst
-   dev/mesos_role_manager.rst
-   dev/mesos_role_resource_group.rst
-
+   batches
 
 
 

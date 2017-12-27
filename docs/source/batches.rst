@@ -1,12 +1,13 @@
-Batch Jobs
-==========
-
-CPU Allocation Collector
-------------------------
+Cluster Metrics Collector
+========================
 
 TODO
 
 Spot Price Collector
---------------------
+====================
 
+TODO
+
+Autoscaler
+==========
 TODO
