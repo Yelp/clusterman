@@ -3,6 +3,9 @@ import random
 import requests
 
 from clusterman.exceptions import MesosRoleManagerError
+from clusterman.util import get_clusterman_logger
+
+logger = get_clusterman_logger(__name__)
 
 
 class MesosAgentState:
@@ -60,10 +63,26 @@ def find_largest_capacity_market(markets):
 
 
 def mesos_post(url, endpoint):
-    response = requests.post(
-        url + endpoint,
-        headers={'user-agent': 'clusterman'},
-    )
-    if not response.ok:
-        raise MesosRoleManagerError(f'Could not read from Mesos master:\n{response.text}')
+    request_url = url + endpoint
+    response = None
+    try:
+        response = requests.post(
+            request_url,
+            headers={'user-agent': 'clusterman'},
+        )
+        response.raise_for_status()
+    except Exception as e:  # there's no one exception class to check for problems with the request :(
+        log_message = (
+            f'Mesos master unreachable:\n\n'
+            f'{str(e)}\n'
+            f'Mesos master URL: {request_url}\n'
+        )
+        if response is not None:
+            log_message += (
+                f'Response Code: {response.status_code}\n'
+                f'Response Text: {response.text}\n'
+            )
+        logger.critical(log_message)
+        raise MesosRoleManagerError(f'Mesos master unreachable: check the logs for details') from e
+
     return response.json()
