@@ -10,7 +10,6 @@ from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from tests.conftest import clusterman_role_config
 from tests.conftest import main_clusterman_config
 from tests.conftest import mock_aws_client_setup
-from tests.conftest import mock_open
 from tests.mesos.conftest import setup_ec2
 from tests.mesos.spot_fleet_resource_group_test import mock_spot_fleet_resource_group
 from tests.mesos.spot_fleet_resource_group_test import mock_subnet
@@ -29,8 +28,7 @@ def mock_sfrs(setup_ec2):
 
 @pytest.fixture
 def mock_manager(main_clusterman_config, mock_aws_client_setup, mock_sfrs):
-    with mock_open('/etc/services.yaml', 'the.mesos.leader:\n  host: foo\n  port: 1234'), \
-            mock.patch('clusterman.mesos.mesos_role_manager.load_spot_fleets_from_s3') as mock_load:
+    with mock.patch('clusterman.mesos.mesos_role_manager.load_spot_fleets_from_s3') as mock_load:
         mock_load.return_value = mock_sfrs
         return MesosRoleManager('mesos-test', 'bar')
 

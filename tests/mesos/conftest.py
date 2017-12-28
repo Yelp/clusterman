@@ -1,3 +1,4 @@
+import mock
 import pytest
 from moto import mock_ec2
 
@@ -11,8 +12,9 @@ def setup_ec2():
 
 
 @pytest.fixture
-def mock_agents_dict():
-    return {
+def mock_agents_response():
+    response = mock.Mock()
+    response.json.return_value = {
         'slaves': [
             {
                 'attributes': {
@@ -39,3 +41,4 @@ def mock_agents_dict():
             },
         ]
     }
+    return response

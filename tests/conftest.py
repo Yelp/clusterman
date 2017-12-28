@@ -49,11 +49,10 @@ def main_clusterman_config():
         },
         'mesos_clusters': {
             'mesos-test': {
-                'leader_service': 'the.mesos.leader',
+                'fqdn': 'the.mesos.leader',
                 'aws_region': 'us-west-2',
             },
         },
-        'services_file': '/etc/services.yaml',
         'cluster_roles': ['bar'],
     }
 
