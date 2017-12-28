@@ -14,3 +14,6 @@ playground
 docker-venv
 .activate.sh
 .deactivate.sh
+
+# we don't need to send all the Debian package builds to Docker for the paasta service
+yelp_package

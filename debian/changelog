@@ -1,3 +1,9 @@
+clusterman (0.9.2) trusty; urgency=low
+
+  * Use FQDN + redirect endpoint to find Mesos master
+
+ -- David Morrison <drmorr@yelp.com>  Thu, 28 Dec 2017 10:50:59 -0800
+
 clusterman (0.9.1) trusty; urgency=low
 
   * Load multiple SFRs into the simulator
