@@ -63,7 +63,9 @@ def find_largest_capacity_market(markets):
 
 
 def mesos_post(url, endpoint):
-    request_url = url + endpoint
+
+    master_url = url if endpoint == 'redirect' else mesos_post(url, 'redirect').url + '/'
+    request_url = master_url + endpoint
     response = None
     try:
         response = requests.post(
@@ -73,9 +75,9 @@ def mesos_post(url, endpoint):
         response.raise_for_status()
     except Exception as e:  # there's no one exception class to check for problems with the request :(
         log_message = (
-            f'Mesos master unreachable:\n\n'
+            f'Mesos is unreachable:\n\n'
             f'{str(e)}\n'
-            f'Mesos master URL: {request_url}\n'
+            f'Querying Mesos URL: {request_url}\n'
         )
         if response is not None:
             log_message += (
@@ -85,4 +87,4 @@ def mesos_post(url, endpoint):
         logger.critical(log_message)
         raise MesosRoleManagerError(f'Mesos master unreachable: check the logs for details') from e
 
-    return response.json()
+    return response

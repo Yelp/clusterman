@@ -8,7 +8,6 @@ from clusterman.exceptions import MesosRoleManagerError
 from clusterman.exceptions import ResourceGroupProtectedException
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.mesos.util import MesosAgentState
-from tests.conftest import mock_open
 
 
 @pytest.fixture
@@ -27,8 +26,7 @@ def mock_resource_groups():
 
 @pytest.fixture
 def mock_role_manager(mock_resource_groups):
-    with mock_open('/etc/services.yaml', 'the.mesos.leader:\n  host: foo\n  port: 1234'), \
-            mock.patch('clusterman.mesos.mesos_role_manager.load_spot_fleets_from_s3') as mock_load:
+    with mock.patch('clusterman.mesos.mesos_role_manager.load_spot_fleets_from_s3') as mock_load:
         mock_load.return_value = []
         manager = MesosRoleManager('mesos-test', 'bar')
         manager.resource_groups = mock_resource_groups
@@ -38,7 +36,7 @@ def mock_role_manager(mock_resource_groups):
 
 def test_mesos_role_manager_init(mock_role_manager):
     assert mock_role_manager.role == 'bar'
-    assert mock_role_manager.api_endpoint == 'http://foo:1234/'
+    assert mock_role_manager.api_endpoint == 'http://the.mesos.leader:5050/'
 
 
 def test_modify_target_capacity_no_resource_groups(mock_role_manager):
@@ -324,8 +322,8 @@ class TestAgentListing:
         with pytest.raises(MesosRoleManagerError):
             mock_role_manager.agents
 
-    def test_filter_roles(self, mock_post, mock_agents_dict, mock_role_manager):
-        mock_post.return_value = mock_agents_dict
+    def test_filter_roles(self, mock_post, mock_agents_response, mock_role_manager):
+        mock_post.return_value = mock_agents_response
         agents = mock_role_manager.agents
         assert len(agents) == 1
         assert agents[0]['hostname'] == 'im-in-the-role.yelpcorp.com'

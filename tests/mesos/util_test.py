@@ -41,10 +41,10 @@ class TestGetMesosState:
         assert get_mesos_state(instance, agents) == MesosAgentState.UNKNOWN
 
 
-def test_allocated_cpu_resources(mock_agents_dict):
-    assert allocated_cpu_resources(mock_agents_dict['slaves'][0]) == 0
-    assert allocated_cpu_resources(mock_agents_dict['slaves'][1]) == 0
-    assert allocated_cpu_resources(mock_agents_dict['slaves'][2]) == 10
+def test_allocated_cpu_resources(mock_agents_response):
+    assert allocated_cpu_resources(mock_agents_response.json()['slaves'][0]) == 0
+    assert allocated_cpu_resources(mock_agents_response.json()['slaves'][1]) == 0
+    assert allocated_cpu_resources(mock_agents_response.json()['slaves'][2]) == 10
 
 
 def test_find_largest_capacity_market_no_threshold(mock_market_capacities):

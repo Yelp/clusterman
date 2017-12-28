@@ -2,7 +2,6 @@ from bisect import bisect
 from collections import defaultdict
 
 import staticconf
-import yaml
 from cached_property import timed_cached_property
 
 from clusterman.aws.client import ec2_describe_instances
@@ -48,17 +47,11 @@ class MesosRoleManager:
         logger.info('Connecting to Mesos')
         role_config = staticconf.NamespaceReaders(ROLE_NAMESPACE.format(role=self.role))
 
-        mesos_master_discovery_label = staticconf.read_string(f'mesos_clusters.{cluster}.leader_service')
+        mesos_master_fqdn = staticconf.read_string(f'mesos_clusters.{cluster}.fqdn')
         self.min_capacity = role_config.read_int('scaling_limits.min_capacity')
         self.max_capacity = role_config.read_int('scaling_limits.max_capacity')
 
-        services_file = staticconf.read_string('services_file')
-        with open(services_file) as f:
-            services = yaml.load(f)
-        self.api_endpoint = 'http://{host}:{port}/'.format(
-            host=services[mesos_master_discovery_label]['host'],
-            port=services[mesos_master_discovery_label]['port'],
-        )
+        self.api_endpoint = f'http://{mesos_master_fqdn}:5050/'
 
         self.resource_groups = load_spot_fleets_from_s3(
             role_config.read_string('mesos.resource_groups.s3.bucket'),
@@ -305,7 +298,7 @@ class MesosRoleManager:
 
     @timed_cached_property(CACHE_TTL_SECONDS)
     def agents(self):
-        response = mesos_post(self.api_endpoint, 'slaves')
+        response = mesos_post(self.api_endpoint, 'slaves').json()
         return [
             agent
             for agent in response['slaves']
