@@ -1,6 +1,7 @@
 import time
 
 import arrow
+import pysensu_yelp
 import staticconf
 from clusterman_metrics import ClustermanMetricsBotoClient
 from clusterman_metrics import METADATA
@@ -44,6 +45,20 @@ class SpotPriceCollector(BatchDaemon):
         self.dedupe_interval = staticconf.read_int('batches.spot_prices.dedupe_interval_seconds')
         self.metrics_client = ClustermanMetricsBotoClient(region_name=self.region)
 
+    def report_success(self):
+        pysensu_yelp.send_event(
+            name='check_clusterman_spot_prices_running',
+            runbook='http://y/rb-clusterman',
+            status=pysensu_yelp.Status.OK,
+            output='OK: clusterman spot_prices is running',
+            team='distsys_compute',
+            page=False,
+            check_every='1m',
+            ttl='5m',
+            alert_after='0m',
+            source=f'{self.options.aws_region}',
+        )
+
     def write_prices(self, end_time, writer):
         prices = spot_price_generator(self.last_time_called, end_time)
         write_prices_with_dedupe(prices, writer, self.dedupe_interval)
@@ -55,6 +70,7 @@ class SpotPriceCollector(BatchDaemon):
             now = arrow.utcnow()
             with self.metrics_client.get_writer(METADATA) as writer:
                 self.write_prices(now, writer)
+            self.report_success()
 
 
 if __name__ == '__main__':

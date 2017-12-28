@@ -1,5 +1,6 @@
 import time
 
+import pysensu_yelp
 import staticconf
 from clusterman_metrics import ClustermanMetricsBotoClient
 from clusterman_metrics import generate_key_with_dimensions
@@ -51,6 +52,20 @@ class ClusterMetricsCollector(BatchDaemon):
         }
         self.metrics_client = ClustermanMetricsBotoClient(region_name=self.region)
 
+    def report_success(self):
+        pysensu_yelp.send_event(
+            name='check_clusterman_cluster_metrics_running',
+            runbook='http://y/rb-clusterman',
+            status=pysensu_yelp.Status.OK,
+            output='OK: clusterman cluster_metrics is running',
+            team='distsys_compute',
+            page=False,
+            check_every='1m',
+            ttl='5m',
+            alert_after='0m',
+            source=f'{self.options.cluster}',
+        )
+
     def write_metrics(self, writer, metrics_to_write):
         for metric, value_method in metrics_to_write:
             for role, manager in self.mesos_managers.items():
@@ -66,6 +81,7 @@ class ClusterMetricsCollector(BatchDaemon):
             for metric_type, metrics in METRICS_TO_WRITE.items():
                 with self.metrics_client.get_writer(metric_type) as writer:
                     self.write_metrics(writer, metrics)
+            self.report_success()
 
 
 if __name__ == '__main__':

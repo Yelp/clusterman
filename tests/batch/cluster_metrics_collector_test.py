@@ -75,7 +75,8 @@ def test_write_metrics(batch):
 @mock.patch('time.sleep')
 @mock.patch('time.time')
 @mock.patch('clusterman.batch.cluster_metrics_collector.ClusterMetricsCollector.running', new_callable=mock.PropertyMock)
-def test_run(mock_running, mock_time, mock_sleep, batch):
+@mock.patch('clusterman.batch.cluster_metrics_collector.ClusterMetricsCollector.report_success', autospec=True)
+def test_run(mock_sensu, mock_running, mock_time, mock_sleep, batch):
     mock_running.side_effect = [True, True, True, False]
     mock_time.side_effect = [101, 113, 148]
     batch.run_interval = 10
@@ -96,5 +97,6 @@ def test_run(mock_running, mock_time, mock_sleep, batch):
             [mock.call(writer, metrics) for metrics in METRICS_TO_WRITE.values()] * 3
         )
         assert writer_context.__exit__.call_count == len(METRICS_TO_WRITE) * 3
+        assert mock_sensu.call_count == 3
 
     assert mock_sleep.call_args_list == [mock.call(9), mock.call(7), mock.call(2)]

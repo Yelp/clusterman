@@ -10,6 +10,7 @@ humanize
 matplotlib
 numpy
 parsedatetime
+pysensu-yelp
 PyYAML
 requests
 sortedcontainers
