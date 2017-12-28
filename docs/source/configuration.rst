@@ -5,6 +5,8 @@ There are two levels of configuration for Clusterman.
 The first configures the Clusterman application or service itself, for operators of the service.
 The second provides per-role configuration, for client applications to customize scaling behavior.
 
+.. _service_configuration:
+
 Service Configuration
 -------------------
 
@@ -30,11 +32,11 @@ The following is an example configuration file for the core Clusterman service a
 
     batches:
         cluster_metrics:
-            run_interval_seconds: 60
+            run_interval_seconds: 60  # How frequently the batch should run to collect metrics.
 
         spot_prices:
-            dedupe_interval_seconds: 60
-            run_interval_seconds: 60
+            dedupe_interval_seconds: 60  # # Max one price change for each (instance type, AZ) in this interval.
+            run_interval_seconds: 60  # How frequently the batch should run to collect metrics.
 
     mesos_clusters:
         cluster-name:
@@ -67,6 +69,8 @@ The ``mesos_clusters`` section provides the location of the Mesos clusters which
 
 The ``module_config`` section loads additional configuration values for Clusterman modules, such as
 ``clusterman_metrics``.
+
+.. _role_configuration:
 
 Role Configuration
 ------------------

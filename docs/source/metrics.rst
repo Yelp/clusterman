@@ -96,6 +96,8 @@ mem_allocated|cluster=norcal-prod,role=appB_role  1502405810    20
 | fulfilled_capacity|cluster=norcal-prod,role=seagull | 1502409314 |                                |                       4 |                      20 |
 +-----------------------------------------------------+------------+--------------------------------+-------------------------+-------------------------+
 
+.. _metric_name_reference:
+
 Metric Name Reference
 ---------------------
 The following is a list of metric names and dimensions that Clusterman collects:
