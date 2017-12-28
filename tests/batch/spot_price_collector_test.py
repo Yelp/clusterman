@@ -94,7 +94,8 @@ def test_write_prices(mock_write, mock_price_gen, batch):
 @mock.patch('time.time')
 @mock.patch('arrow.utcnow')
 @mock.patch('clusterman.batch.spot_price_collector.SpotPriceCollector.running', new_callable=mock.PropertyMock)
-def test_run(mock_running, mock_now, mock_time, mock_sleep, batch):
+@mock.patch('clusterman.batch.spot_price_collector.SpotPriceCollector.report_success', autospec=True)
+def test_run(mock_sensu, mock_running, mock_now, mock_time, mock_sleep, batch):
     mock_running.side_effect = [True, True, True, False]
     mock_time.side_effect = [101, 113, 148]
 
@@ -112,5 +113,6 @@ def test_run(mock_running, mock_now, mock_time, mock_sleep, batch):
         assert batch.metrics_client.get_writer.call_args_list == [mock.call(METADATA) for i in range(3)]
         assert write_prices.call_args_list == [mock.call(mock_now.return_value, writer) for i in range(3)]
         assert writer_context.__exit__.call_count == 3
+        assert mock_sensu.call_count == 3
 
     assert mock_sleep.call_args_list == [mock.call(9), mock.call(7), mock.call(2)]

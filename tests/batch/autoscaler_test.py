@@ -61,8 +61,9 @@ def test_invalid_role_numbers(roles_in_cluster, batch):
 @mock.patch('time.sleep')
 @mock.patch('time.time')
 @mock.patch('clusterman.batch.autoscaler.AutoscalerBatch.running', new_callable=mock.PropertyMock)
+@mock.patch('clusterman.batch.autoscaler.AutoscalerBatch.report_success', autospec=True)
 @pytest.mark.parametrize('dry_run', [True, False])
-def test_run(mock_running, mock_time, mock_sleep, dry_run, mock_autoscaler, mock_setup_config):
+def test_run(mock_sensu, mock_running, mock_time, mock_sleep, dry_run, mock_autoscaler, mock_setup_config):
     args = ['--cluster', 'mesos-test']
     if dry_run:
         args.append('--dry-run')
@@ -77,3 +78,6 @@ def test_run(mock_running, mock_time, mock_sleep, dry_run, mock_autoscaler, mock
     assert mock_autoscaler.call_args_list == [mock.call('mesos-test', 'bar')]
     assert mock_autoscaler.return_value.run.call_args_list == [mock.call(dry_run=dry_run) for i in range(3)]
     assert mock_sleep.call_args_list == [mock.call(499), mock.call(287), mock.call(400)]
+
+    if not dry_run:
+        assert mock_sensu.call_count == 3
