@@ -14,7 +14,7 @@ def mock_resource_groups():
     return [
         mock.Mock(
             id=f'sfr-{i}',
-            instances=[f'i-{i}'],
+            instance_ids=[f'i-{i}'],
             target_capacity=i * 2 + 1,
             fulfilled_capacity=i * 6,
             market_capacities={'market-1': i, 'market-2': i * 2, 'market-3': i * 3},
@@ -82,7 +82,7 @@ class TestPruneFulfilledCapacity:
         mock_find_res_group.return_value = None
         assert not mock_role_manager.prune_excess_fulfilled_capacity()
         assert mock_find_largest_capacity_market.call_count == 3
-        assert mock_logger.warn.call_count == 2
+        assert mock_logger.warn.call_count == 1
 
     def test_protected_market(self, mock_idle_agents_by_market, mock_find_res_group,
                               mock_find_largest_capacity_market, mock_logger, mock_role_manager):

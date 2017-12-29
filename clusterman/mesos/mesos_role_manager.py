@@ -42,7 +42,6 @@ class MesosRoleManager:
         self.cluster = cluster
         self.role = role
 
-        logger.info('Connecting to Mesos')
         role_config = staticconf.NamespaceReaders(ROLE_NAMESPACE.format(role=self.role))
 
         mesos_master_fqdn = staticconf.read_string(f'mesos_clusters.{cluster}.fqdn')
@@ -50,6 +49,7 @@ class MesosRoleManager:
         self.max_capacity = role_config.read_int('scaling_limits.max_capacity')
 
         self.api_endpoint = f'http://{mesos_master_fqdn}:5050/'
+        logger.info(f'Connecting to Mesos masters at {self.api_endpoint}')
 
         self.resource_groups = load_spot_fleets_from_s3(
             role_config.read_string('mesos.resource_groups.s3.bucket'),
@@ -57,7 +57,9 @@ class MesosRoleManager:
             role=self.role,
         )
 
-    def modify_target_capacity(self, new_target_capacity):
+        logger.info('Loaded resource groups: {ids}'.format(ids=[group.id for group in self.resource_groups]))
+
+    def modify_target_capacity(self, new_target_capacity, dry_run=False):
         """ Change the desired :attr:`target_capacity` of the resource groups belonging to this role.
 
         Capacity changes are roughly evenly distributed across the resource groups to ensure that
@@ -71,15 +73,18 @@ class MesosRoleManager:
            there is no combination of instances that evenly sum to the desired target capacity, the final fulfilled
            capacity will be slightly above the target capacity)
         """
+        if dry_run:
+            logger.warn('Running in "dry-run" mode; cluster state will not be modified')
         if not self.resource_groups:
             raise MesosRoleManagerError('No resource groups available')
+
         orig_target_capacity = self.target_capacity
         new_target_capacity = self._constrain_target_capacity(new_target_capacity)
 
         for i, target in self._compute_new_resource_group_targets(new_target_capacity):
-            self.resource_groups[i].modify_target_capacity(target)
+            self.resource_groups[i].modify_target_capacity(target, dry_run=dry_run)
         if new_target_capacity <= orig_target_capacity:
-            self.prune_excess_fulfilled_capacity()
+            self.prune_excess_fulfilled_capacity(dry_run)
         return new_target_capacity
 
     def get_resource_allocation(self, resource_name):
@@ -122,7 +127,7 @@ class MesosRoleManager:
             logger.warn(f'Requested target capacity {target_capacity}; constraining to {new_target_capacity}')
         return new_target_capacity
 
-    def prune_excess_fulfilled_capacity(self):
+    def prune_excess_fulfilled_capacity(self, dry_run=False):
         """ Decrease the capacity in the cluster; we only remove idle instances (i.e., instances that have
         no resources allocated to tasks).  We remove instances from the markets that have the largest fulfilled
         capacity first, so as to maintain balance across all the different spot groups.
@@ -132,7 +137,7 @@ class MesosRoleManager:
             return []
 
         idle_agents = self._idle_agents_by_market()
-        logger.info(f'Idle agents found: {dict(idle_agents)}')
+        logger.debug(f'Idle agents found: {dict(idle_agents)}')
 
         # We can only reduce markets that have idle agents, so filter by the list of idle_agent keys
         if not idle_agents:
@@ -147,7 +152,7 @@ class MesosRoleManager:
             market_to_shrink, available_capacity = find_largest_capacity_market(idle_market_capacities)
             # It's possible too many agents have allocated resources, so we conservatively do not kill any running jobs
             if available_capacity == 0:
-                logger.warn('No idle instances left to remove; aborting')
+                logger.debug('No idle instances left to remove; aborting')
                 break
 
             # Try to mark the instance for removal; this could fail in a few different ways:
@@ -177,9 +182,13 @@ class MesosRoleManager:
 
         # Terminate the marked instances; it's possible that not all instances will be terminated
         all_terminated_instance_ids = []
-        for group, instances in marked_instances.items():
-            terminated_instances = group.terminate_instances_by_id(instances)
-            all_terminated_instance_ids.extend(terminated_instances)
+        if not dry_run:
+            for group, instances in marked_instances.items():
+                terminated_instances = group.terminate_instances_by_id(instances)
+                all_terminated_instance_ids.extend(terminated_instances)
+        else:
+            all_terminated_instance_ids = [i for instances in marked_instances.values() for i in instances]
+
         logger.info(f'The following instances have been terminated: {all_terminated_instance_ids}')
         return all_terminated_instance_ids
 
@@ -227,7 +236,7 @@ class MesosRoleManager:
     def _find_resource_group(self, instance):
         """ Find the resource group that an instance belongs to """
         for group in self.resource_groups:
-            if instance in group.instances:
+            if instance in group.instance_ids:
                 return group
         return None
 

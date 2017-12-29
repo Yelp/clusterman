@@ -116,6 +116,12 @@ def test_modify_target_capacity_down_terminate(mock_spot_fleet_resource_group):
     assert len(mock_spot_fleet_resource_group.instance_ids) == 4
 
 
+def test_modify_target_capacity_dry_run(mock_spot_fleet_resource_group):
+    mock_spot_fleet_resource_group.modify_target_capacity(5, dry_run=True)
+    assert mock_spot_fleet_resource_group.target_capacity == 10
+    assert mock_spot_fleet_resource_group.fulfilled_capacity == 11
+
+
 def test_terminate_all_instances_by_id(mock_spot_fleet_resource_group):
     mock_spot_fleet_resource_group.terminate_instances_by_id(mock_spot_fleet_resource_group.instance_ids)
     assert mock_spot_fleet_resource_group.instance_ids == []
