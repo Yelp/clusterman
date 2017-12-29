@@ -39,8 +39,8 @@ and simulate how changes to autoscaling logic will impact the cost and performan
    :maxdepth: 2
    :caption: Batches
 
-   batches
-
+   autoscaler
+   metrics_batches
 
 
 Indices and tables
