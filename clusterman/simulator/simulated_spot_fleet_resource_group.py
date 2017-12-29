@@ -68,12 +68,15 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, MesosRoleResourceGrou
     def market_weight(self, market):
         return self._instance_types[market].weight
 
-    def modify_target_capacity(self, target_capacity, terminate_excess_capacity=False):
+    def modify_target_capacity(self, target_capacity, *, terminate_excess_capacity=False, dry_run=False):
         """ Modify the requested capacity for a particular spot fleet
 
         :param target_capacity: desired capacity after this operation
         :param terminate_excess_capacity: indicate if we should kill instances to meet target capacity
         """
+        if dry_run:
+            return
+
         curr_capacity = self.fulfilled_capacity
         self._target_capacity = target_capacity
         if curr_capacity > target_capacity and terminate_excess_capacity is True:

@@ -49,9 +49,7 @@ def test_modify_target_capacity(constrain_return, mock_role_manager):
     mock_role_manager.prune_excess_fulfilled_capacity = mock.Mock()
 
     mock_role_manager._constrain_target_capacity = mock.Mock(return_value=constrain_return)
-    mock_role_manager._compute_new_resource_group_targets = mock.Mock(return_value=[
-        (3, 3), (0, 0), (1, 1), (6, 6), (4, 4), (2, 2), (5, 5),
-    ])
+    mock_role_manager._compute_new_resource_group_targets = mock.Mock(return_value=[0, 1, 2, 3, 4, 5, 6])
     assert mock_role_manager.modify_target_capacity(100) == constrain_return
     assert mock_role_manager._constrain_target_capacity.call_count == 1
     assert mock_role_manager.prune_excess_fulfilled_capacity.call_count == 0
@@ -79,7 +77,7 @@ class TestPruneFulfilledCapacity:
     def test_instance_error(self, mock_idle_agents_by_market, mock_find_res_group,
                             mock_find_largest_capacity_market, mock_logger, mock_role_manager):
         mock_idle_agents_by_market.return_value = {'market-1': ['agent-1']}
-        mock_find_res_group.return_value = None
+        mock_find_res_group.return_value = -1, None
         assert not mock_role_manager.prune_excess_fulfilled_capacity()
         assert mock_find_largest_capacity_market.call_count == 3
         assert mock_logger.warn.call_count == 1
@@ -93,27 +91,29 @@ class TestPruneFulfilledCapacity:
     def test_protected_group(self, mock_idle_agents_by_market, mock_find_res_group,
                              mock_find_largest_capacity_market, mock_logger, mock_role_manager):
         mock_idle_agents_by_market.return_value = {'market-1': ['agent-1']}
-        res_group = mock_role_manager.resource_groups[6]
+        index = 6
+        res_group = mock_role_manager.resource_groups[index]
         res_group.market_weight.return_value = 10000
-        mock_find_res_group.return_value = res_group
+        mock_find_res_group.return_value = index, res_group
         assert not mock_role_manager.prune_excess_fulfilled_capacity()
         assert mock_find_largest_capacity_market.call_count == 3
 
     def test_can_prune(self, mock_idle_agents_by_market, mock_find_res_group,
                        mock_find_largest_capacity_market, mock_logger, mock_role_manager):
         mock_idle_agents_by_market.return_value = {'market-1': ['agent-1', 'agent-2'], 'market-2': ['agent-3']}
-        res_group = mock_role_manager.resource_groups[6]
+        index = 6
+        res_group = mock_role_manager.resource_groups[index]
         res_group.market_weight.return_value = 1
         res_group.terminate_instances_by_id.side_effect = lambda x: x
-        mock_find_res_group.return_value = res_group
+        mock_find_res_group.return_value = index, res_group
         assert set(mock_role_manager.prune_excess_fulfilled_capacity()) == {'agent-1', 'agent-2', 'agent-3'}
         assert mock_find_largest_capacity_market.call_count == 6
 
 
 def test_compute_new_resource_group_targets_no_unfilled_capacity(mock_role_manager):
     assert mock_role_manager._compute_new_resource_group_targets(mock_role_manager.target_capacity) == [
-        (i, group.target_capacity)
-        for i, group in enumerate(mock_role_manager.resource_groups)
+        group.target_capacity
+        for group in (mock_role_manager.resource_groups)
     ]
 
 
@@ -124,7 +124,7 @@ def test_compute_new_resource_group_targets_all_equal(orig_targets, mock_role_ma
 
     num_groups = len(mock_role_manager.resource_groups)
     new_targets = mock_role_manager._compute_new_resource_group_targets(105)
-    assert sorted(target for __, target in new_targets) == [15] * num_groups
+    assert sorted(new_targets) == [15] * num_groups
 
 
 @pytest.mark.parametrize('orig_targets', [10, 17])
@@ -133,12 +133,12 @@ def test_compute_new_resource_group_targets_all_equal_with_remainder(orig_target
         group.target_capacity = orig_targets
 
     new_targets = mock_role_manager._compute_new_resource_group_targets(107)
-    assert sorted(target for __, target in new_targets) == [15, 15, 15, 15, 15, 16, 16]
+    assert sorted(new_targets) == [15, 15, 15, 15, 15, 16, 16]
 
 
 def test_compute_new_resource_group_targets_uneven_scale_up(mock_role_manager):
     new_targets = mock_role_manager._compute_new_resource_group_targets(304)
-    assert sorted(target for __, target in new_targets) == [43, 43, 43, 43, 44, 44, 44]
+    assert sorted(new_targets) == [43, 43, 43, 43, 44, 44, 44]
 
 
 def test_compute_new_resource_group_targets_uneven_scale_down(mock_role_manager):
@@ -146,17 +146,17 @@ def test_compute_new_resource_group_targets_uneven_scale_down(mock_role_manager)
         group.target_capacity += 20
 
     new_targets = mock_role_manager._compute_new_resource_group_targets(10)
-    assert sorted(target for __, target in new_targets) == [1, 1, 1, 1, 2, 2, 2]
+    assert sorted(new_targets) == [1, 1, 1, 1, 2, 2, 2]
 
 
 def test_compute_new_resource_group_targets_above_delta_scale_up(mock_role_manager):
     new_targets = mock_role_manager._compute_new_resource_group_targets(62)
-    assert sorted(target for __, target in new_targets) == [7, 7, 7, 8, 9, 11, 13]
+    assert sorted(new_targets) == [7, 7, 7, 8, 9, 11, 13]
 
 
 def test_compute_new_resource_group_targets_below_delta_scale_down(mock_role_manager):
     new_targets = mock_role_manager._compute_new_resource_group_targets(30)
-    assert sorted(target for __, target in new_targets) == [1, 3, 5, 5, 5, 5, 6]
+    assert sorted(new_targets) == [1, 3, 5, 5, 5, 5, 6]
 
 
 def test_compute_new_resource_group_targets_above_delta_equal_scale_up(mock_role_manager):
@@ -164,7 +164,7 @@ def test_compute_new_resource_group_targets_above_delta_equal_scale_up(mock_role
         group.target_capacity = 20
 
     new_targets = mock_role_manager._compute_new_resource_group_targets(100)
-    assert sorted(target for __, target in new_targets) == [6, 7, 7, 20, 20, 20, 20]
+    assert sorted(new_targets) == [6, 7, 7, 20, 20, 20, 20]
 
 
 def test_compute_new_resource_group_targets_below_delta_equal_scale_down(mock_role_manager):
@@ -172,7 +172,7 @@ def test_compute_new_resource_group_targets_below_delta_equal_scale_down(mock_ro
         group.target_capacity = 1
 
     new_targets = mock_role_manager._compute_new_resource_group_targets(20)
-    assert sorted(target for __, target in new_targets) == [1, 1, 1, 4, 4, 4, 5]
+    assert sorted(new_targets) == [1, 1, 1, 4, 4, 4, 5]
 
 
 def test_compute_new_resource_group_targets_above_delta_equal_scale_up_2(mock_role_manager):
@@ -180,7 +180,7 @@ def test_compute_new_resource_group_targets_above_delta_equal_scale_up_2(mock_ro
         group.target_capacity = 20
 
     new_targets = mock_role_manager._compute_new_resource_group_targets(145)
-    assert sorted(target for __, target in new_targets) == [20, 20, 21, 21, 21, 21, 21]
+    assert sorted(new_targets) == [20, 20, 21, 21, 21, 21, 21]
 
 
 def test_compute_new_resource_group_targets_below_delta_equal_scale_down_2(mock_role_manager):
@@ -188,7 +188,7 @@ def test_compute_new_resource_group_targets_below_delta_equal_scale_down_2(mock_
         group.target_capacity = 1
 
     new_targets = mock_role_manager._compute_new_resource_group_targets(9)
-    assert sorted(target for __, target in new_targets) == [1, 1, 1, 1, 1, 2, 2]
+    assert sorted(new_targets) == [1, 1, 1, 1, 1, 2, 2]
 
 
 def test_constrain_target_capacity_below_min_per_group(mock_role_manager):
@@ -209,9 +209,9 @@ def test_constrain_target_capacity_below_overall_min(mock_role_manager):
 
 
 def test_find_resource_group(mock_role_manager):
-    group = mock_role_manager._find_resource_group('i-3')
+    index, group = mock_role_manager._find_resource_group('i-3')
     assert group.id == 'sfr-3'
-    group = mock_role_manager._find_resource_group('i-9')
+    index, group = mock_role_manager._find_resource_group('i-9')
     assert group is None
 
 

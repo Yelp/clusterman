@@ -1,5 +1,6 @@
 from bisect import bisect
 from collections import defaultdict
+from pprint import pformat
 
 import staticconf
 from cached_property import timed_cached_property
@@ -81,10 +82,11 @@ class MesosRoleManager:
         orig_target_capacity = self.target_capacity
         new_target_capacity = self._constrain_target_capacity(new_target_capacity)
 
-        for i, target in self._compute_new_resource_group_targets(new_target_capacity):
+        res_group_targets = self._compute_new_resource_group_targets(new_target_capacity)
+        for i, target in enumerate(res_group_targets):
             self.resource_groups[i].modify_target_capacity(target, dry_run=dry_run)
         if new_target_capacity <= orig_target_capacity:
-            self.prune_excess_fulfilled_capacity(dry_run)
+            self.prune_excess_fulfilled_capacity(res_group_targets, dry_run)
         return new_target_capacity
 
     def get_resource_allocation(self, resource_name):
@@ -127,17 +129,37 @@ class MesosRoleManager:
             logger.warn(f'Requested target capacity {target_capacity}; constraining to {new_target_capacity}')
         return new_target_capacity
 
-    def prune_excess_fulfilled_capacity(self, dry_run=False):
-        """ Decrease the capacity in the cluster; we only remove idle instances (i.e., instances that have
-        no resources allocated to tasks).  We remove instances from the markets that have the largest fulfilled
-        capacity first, so as to maintain balance across all the different spot groups.
+    def prune_excess_fulfilled_capacity(self, group_targets=None, dry_run=False):
+        """ Decrease the capacity in the cluster
+
+        We only remove idle instances (i.e., instances that have no resources allocated to tasks).  We remove instances
+        from the markets that have the largest fulfilled capacity first, so as to maintain balance across all the
+        different spot groups.
+
+        :param group_targets: a list of new resource group target_capacities; if None, use the existing
+            target_capacities (this parameter is necessary in order for dry runs to work correctly)
+        :param dry_run: if True, do not modify the state of the cluster, just log actions
+        :returns: a list of terminated instance ids
         """
-        curr_capacity, target_capacity = self.fulfilled_capacity, self.target_capacity
+
+        # If dry_run is True, the resource group target_capacity values will not have changed, so this function will not
+        # terminate any instances (see case #3 in the while loop below).  So instead we pass in a list of new target
+        # capacities to use in that computation.
+        #
+        # We leave the option for group_targets to be None in the event that we want to call
+        # prune_excess_fulfilled_capacity outside the context of a modify_target_capacity call
+        if not group_targets:
+            group_targets = [rg.target_capacity for rg in self.resource_groups]
+        target_capacity = sum(group_targets)
+
+        curr_capacity = self.fulfilled_capacity
         if curr_capacity <= target_capacity:
             return []
 
         idle_agents = self._idle_agents_by_market()
-        logger.debug(f'Idle agents found: {dict(idle_agents)}')
+        logger.debug('Idle agents found:\n{agents}'.format(
+            agents=pformat(dict(idle_agents), compact=True, width=100)
+        ))
 
         # We can only reduce markets that have idle agents, so filter by the list of idle_agent keys
         if not idle_agents:
@@ -161,18 +183,20 @@ class MesosRoleManager:
             #  3) The resource group the instance belongs to can't be reduced further
             # In each of the cases, the instance has been removed from consideration and we jump to the next iteration
             if not idle_agents[market_to_shrink]:  # case 1
+                logger.debug(f'{market_to_shrink} is empty; removing from consideration')
                 del idle_market_capacities[market_to_shrink]
                 continue
 
             instance = idle_agents[market_to_shrink].pop()
-            instance_group = self._find_resource_group(instance)
+            group_index, instance_group = self._find_resource_group(instance)
             if not instance_group:  # case 2
                 logger.warn(f'Could not find instance {instance} in any resource group')
                 continue
             instance_weight = instance_group.market_weight(market_to_shrink)
 
             # Make sure we don't make a resource group go below its target capacity
-            if rem_group_capacities[instance_group.id] - instance_weight < instance_group.target_capacity:  # case 3
+            if rem_group_capacities[instance_group.id] - instance_weight < group_targets[group_index]:  # case 3
+                logger.debug(f'Resource group {instance_group.id} is at minimum capacity; skipping {instance}')
                 continue
 
             marked_instances[instance_group].append(instance)
@@ -196,8 +220,10 @@ class MesosRoleManager:
         """ Compute a balanced distribution of target capacities for the resource groups in the cluster
 
         :param new_target_capacity: the desired new target capacity that needs to be distributed
-        :returns: A list of (resource group index, target_capacity) pairs
+        :returns: A list of target_capacity values, sorted in order of resource groups
         """
+        if new_target_capacity == self.target_capacity:
+            return [group.target_capacity for group in self.resource_groups]
 
         # If we're scaling down the logic is identical but reversed, so we multiply everything by -1
         coeff = -1 if new_target_capacity < self.target_capacity else 1
@@ -205,8 +231,6 @@ class MesosRoleManager:
             [(i, coeff * group.target_capacity) for i, group in enumerate(self.resource_groups)],
             key=lambda x: (x[1], x[0]),
         )
-        if new_target_capacity == self.target_capacity:
-            return new_targets_with_indices
 
         original_indices, new_targets = [list(a) for a in zip(*new_targets_with_indices)]
         num_groups_to_change = len(self.resource_groups)
@@ -231,14 +255,17 @@ class MesosRoleManager:
             new_target_capacity -= coeff * residual
             num_groups_to_change = pos
 
-        return zip(original_indices, [coeff * target for target in new_targets])
+        return [
+            target
+            for __, target in sorted(zip(original_indices, [coeff * target for target in new_targets]))
+        ]
 
     def _find_resource_group(self, instance):
         """ Find the resource group that an instance belongs to """
-        for group in self.resource_groups:
+        for i, group in enumerate(self.resource_groups):
             if instance in group.instance_ids:
-                return group
-        return None
+                return i, group
+        return -1, None
 
     def _get_market_capacities(self, market_filter=None):
         """ Return the total (fulfilled) capacities in the cluster across all resource groups """

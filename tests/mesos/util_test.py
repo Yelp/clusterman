@@ -16,7 +16,13 @@ def mock_market_capacities():
     return {'market-1': 1000, 'market-2': 5}
 
 
-@mock.patch('clusterman.mesos.util.socket')
+@pytest.fixture
+def mock_socket():
+    with mock.patch('clusterman.mesos.util.socket') as mock_socket:
+        mock_socket.gethostbyname.return_value = '1.2.3.4'
+        yield
+
+
 @mock.patch('clusterman.mesos.util.allocated_cpu_resources')
 class TestGetMesosState:
     def test_orphaned(self, mock_allocated, mock_socket):
@@ -28,14 +34,12 @@ class TestGetMesosState:
     def test_idle(self, mock_allocated, mock_socket):
         instance = {'PrivateIpAddress': '1.2.3.4', 'LaunchTime': datetime.now()}
         agents = [{'hostname': 'foo.com'}]
-        mock_socket.gethostbyname.return_value = '1.2.3.4'
         mock_allocated.return_value = 0
         assert get_mesos_state(instance, agents) == MesosAgentState.IDLE
 
     def test_running(self, mock_allocated, mock_socket):
         instance = {'PrivateIpAddress': '1.2.3.4', 'LaunchTime': datetime.now()}
         agents = [{'hostname': 'foo.com'}]
-        mock_socket.gethostbyname.return_value = '1.2.3.4'
         mock_allocated.return_value = 100
         assert get_mesos_state(instance, agents) == MesosAgentState.RUNNING
 

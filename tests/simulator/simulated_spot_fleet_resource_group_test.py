@@ -149,7 +149,7 @@ def test_modify_target_capacity(spot_fleet):
     spot_fleet.modify_target_capacity(capacity * 2)
     set2 = set(spot_fleet.instances)
     # Because of FIFO strategy, this should remove all instances in set1
-    spot_fleet.modify_target_capacity(spot_fleet.target_capacity - capacity, True)
+    spot_fleet.modify_target_capacity(spot_fleet.target_capacity - capacity, terminate_excess_capacity=True)
     set3 = set(spot_fleet.instances)
     assert set3 == (set2 - set1)
 
@@ -160,8 +160,8 @@ def test_downsize_capacity_by_small_weight(spot_fleet):
     spot_fleet.simulator.current_time.shift(seconds=+50)
     spot_fleet.modify_size({MARKETS[0]: 1})
     spot_fleet._target_capacity = 12
-    # This should removed the last one instance to meet capacity requirement
-    spot_fleet.modify_target_capacity(11, True)
+    # This should remove the last instance to meet capacity requirements
+    spot_fleet.modify_target_capacity(11, terminate_excess_capacity=True)
     assert spot_fleet.target_capacity == 11
     assert spot_fleet.market_size(MARKETS[0]) == 0
 
