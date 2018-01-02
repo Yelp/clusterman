@@ -1,3 +1,11 @@
+clusterman (0.10.0) trusty; urgency=low
+
+  * added --dry-run flag to `clusterman manage`
+  * fixed bug in prune_excess_fulfilled_capacity
+  * fixed bug in _idle_agents_by_market with every instance orphaned
+
+ -- David Morrison <drmorr@yelp.com>  Tue, 02 Jan 2018 11:47:33 -0800
+
 clusterman (0.9.2) trusty; urgency=low
 
   * Use FQDN + redirect endpoint to find Mesos master
