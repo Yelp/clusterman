@@ -178,9 +178,9 @@ def test_init_signal_from_config(mock_import_signals, mock_autoscaler):
 def test_autoscaler_dry_run(dry_run, run_timestamp, mock_autoscaler):
     mock_autoscaler._compute_cluster_delta = mock.Mock(return_value=100)
     mock_autoscaler.run(dry_run=dry_run, timestamp=run_timestamp)
-    assert mock_autoscaler.mesos_role_manager.modify_target_capacity.call_count == int(not dry_run)
     assert mock_autoscaler.delta_gauge.set.call_args_list == [mock.call(100, {'dry_run': dry_run})]
     assert mock_autoscaler._compute_cluster_delta.call_args_list == [mock.call(run_timestamp)]
+    assert mock_autoscaler.mesos_role_manager.modify_target_capacity.call_count == 1
 
 
 @pytest.mark.parametrize('signal_cpus,total_cpus,expected_delta', [

@@ -1,4 +1,3 @@
-import socket
 import sys
 
 import arrow
@@ -11,6 +10,7 @@ from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import get_instance_market
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.mesos.util import allocated_cpu_resources
+from clusterman.mesos.util import get_agent_by_ip
 from clusterman.mesos.util import get_mesos_state
 from clusterman.mesos.util import MesosAgentState
 from clusterman.util import colored_status
@@ -62,8 +62,8 @@ def _get_mesos_status_string(mesos_state, instance, agents):
     if mesos_state == MesosAgentState.UNKNOWN:
         postfix_str = ''
     elif mesos_state == MesosAgentState.RUNNING:
-        instance_ip = instance['PrivateIpAddress']
-        allocated_cpus = allocated_cpu_resources(agents[instance_ip])
+        agent = get_agent_by_ip(instance['PrivateIpAddress'], agents)
+        allocated_cpus = allocated_cpu_resources(agent)
         postfix_str = f', {allocated_cpus} CPUs allocated'
     else:
         launch_time = instance['LaunchTime']
@@ -83,21 +83,16 @@ def print_status(manager, args):
     sys.stdout.write('\n')
     print(f'Current status for the {manager.role} role in the {manager.cluster} cluster:\n')
     print(f'Resource groups ({manager.fulfilled_capacity} units out of {manager.target_capacity}):')
-    if args.verbose:
-        agents = {
-            socket.gethostbyname(agent['hostname']): agent
-            for agent in manager.agents
-        }
 
     for group in manager.resource_groups:
         _write_resource_group_line(group)
         if args.verbose:
             for instance in ec2_describe_instances(instance_ids=group.instance_ids):
-                mesos_state = get_mesos_state(instance, agents)
+                mesos_state = get_mesos_state(instance, manager.agents)
                 if ((args.only_orphans and mesos_state != MesosAgentState.ORPHANED) or
                         (args.only_idle and mesos_state != MesosAgentState.IDLE)):
                     continue
-                postfix = _get_mesos_status_string(mesos_state, instance, agents)
+                postfix = _get_mesos_status_string(mesos_state, instance, manager.agents)
                 _write_instance_line(instance, postfix)
         sys.stdout.write('\n')
 

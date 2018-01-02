@@ -45,17 +45,20 @@ class SpotFleetResourceGroup(MesosRoleResourceGroup):
     def market_weight(self, market):
         return self._market_weights[market]
 
-    def modify_target_capacity(self, target_capacity, terminate_excess_capacity=False):
-        termination_policy = 'Default' if terminate_excess_capacity else 'NoTermination'
-        response = ec2.modify_spot_fleet_request(
-            SpotFleetRequestId=self.sfr_id,
-            TargetCapacity=int(target_capacity),
-            ExcessCapacityTerminationPolicy=termination_policy,
-        )
+    def modify_target_capacity(self, target_capacity, *, terminate_excess_capacity=False, dry_run=False):
+        kwargs = {
+            'SpotFleetRequestId': self.sfr_id,
+            'TargetCapacity': int(target_capacity),
+            'ExcessCapacityTerminationPolicy': 'Default' if terminate_excess_capacity else 'NoTermination'
+        }
+        logger.debug(f'Modifying spot fleet request with arguments: {kwargs}')
+        if dry_run:
+            return
+
+        response = ec2.modify_spot_fleet_request(**kwargs)
         if not response['Return']:
-            raise ResourceGroupError("Could not change size of spot fleet: {resp}".format(
-                resp=json.dumps(response),
-            ))
+            logger.critical('Could not change size of spot fleet:\n{resp}'.format(resp=json.dumps(response)))
+            raise ResourceGroupError('Could not change size of spot fleet: check logs for details')
 
     @protect_unowned_instances
     def terminate_instances_by_id(self, instance_ids, batch_size=500):

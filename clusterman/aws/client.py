@@ -16,7 +16,7 @@ def _init_session():
     global _session
 
     boto_creds_file = staticconf.read_string('aws.access_key_file')
-    logger.debug(f'initializing AWS client from {boto_creds_file}')
+    logger.info(f'initializing AWS client from {boto_creds_file}')
     if not _session:
         with open(boto_creds_file) as f:
             creds = json.load(f)

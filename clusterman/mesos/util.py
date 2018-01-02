@@ -1,4 +1,5 @@
 import random
+import socket
 
 import requests
 
@@ -15,15 +16,23 @@ class MesosAgentState:
     UNKNOWN = 'unknown'
 
 
+def get_agent_by_ip(ip, mesos_agents):
+    try:
+        return next(agent for agent in mesos_agents if socket.gethostbyname(agent['hostname']) == ip)
+    except StopIteration:
+        return None
+
+
 def get_mesos_state(instance, mesos_agents):
     try:
         instance_ip = instance['PrivateIpAddress']
     except KeyError:
         return MesosAgentState.UNKNOWN
     else:
-        if instance_ip not in mesos_agents:
+        agent = get_agent_by_ip(instance_ip, mesos_agents)
+        if not agent:
             return MesosAgentState.ORPHANED
-        elif allocated_cpu_resources(mesos_agents[instance_ip]) == 0:
+        elif allocated_cpu_resources(agent) == 0:
             return MesosAgentState.IDLE
         else:
             return MesosAgentState.RUNNING
@@ -63,7 +72,6 @@ def find_largest_capacity_market(markets):
 
 
 def mesos_post(url, endpoint):
-
     master_url = url if endpoint == 'redirect' else mesos_post(url, 'redirect').url + '/'
     request_url = master_url + endpoint
     response = None

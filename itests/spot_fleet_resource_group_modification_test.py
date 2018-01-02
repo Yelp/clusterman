@@ -1,4 +1,5 @@
 from collections import defaultdict
+from copy import deepcopy
 
 import mock
 import pytest
@@ -40,13 +41,23 @@ def test_target_capacity(mock_manager):
 @mock.patch('clusterman.mesos.mesos_role_manager.MesosRoleManager.prune_excess_fulfilled_capacity')
 def test_scale_up(mock_prune, mock_manager, mock_sfrs):
     mock_manager.max_capacity = 101
+
+    # Test balanced scale up
     mock_manager.modify_target_capacity(53)
     assert sorted([rg.target_capacity for rg in mock_manager.resource_groups]) == [10, 10, 11, 11, 11]
 
+    # Test dry run -- target and fulfilled capacities should remain the same
+    mock_manager.modify_target_capacity(1000, dry_run=True)
+    fulfilled_capacity = sorted([rg.fulfilled_capacity for rg in mock_manager.resource_groups])
+    assert sorted([rg.target_capacity for rg in mock_manager.resource_groups]) == [10, 10, 11, 11, 11]
+    assert sorted([rg.fulfilled_capacity for rg in mock_manager.resource_groups]) == fulfilled_capacity
+
+    # Test balanced scale up after an external modification
     ec2.modify_spot_fleet_request(SpotFleetRequestId=mock_sfrs[0].id, TargetCapacity=13)
     mock_manager.modify_target_capacity(76)
     assert sorted([rg.target_capacity for rg in mock_manager.resource_groups]) == [15, 15, 15, 15, 16]
 
+    # Test an imbalanced scale up
     ec2.modify_spot_fleet_request(SpotFleetRequestId=mock_sfrs[3].id, TargetCapacity=30)
     mock_manager.modify_target_capacity(1000)
     assert sorted([rg.target_capacity for rg in mock_manager.resource_groups]) == [17, 18, 18, 18, 30]
@@ -54,19 +65,30 @@ def test_scale_up(mock_prune, mock_manager, mock_sfrs):
     assert mock_prune.call_count == 0
 
 
-# TODO (CLUSTERMAN-97) the scale_down itests need some efficiency improvements in moto before it's feasible
-# to run them, so I'm going to delay implementing this further for right now
-def TODO_scale_down(mock_manager):
+def test_scale_down(mock_manager, mock_sfrs):
     mock_manager.max_capacity = 101
     mock_manager.modify_target_capacity(1000)
-    print(mock_manager.target_capacity, mock_manager.fulfilled_capacity)
     with mock.patch('clusterman.mesos.mesos_role_manager.MesosRoleManager._idle_agents_by_market') as mock_idle:
+        # Everything is idle
         idle_agents = defaultdict(list)
         for rg in mock_manager.resource_groups:
-            for instance in ec2_describe_instances(instance_ids=rg.instances):
+            for instance in ec2_describe_instances(instance_ids=rg.instance_ids):
                 idle_agents[get_instance_market(instance)].append(instance['InstanceId'])
 
-        print(idle_agents)
-        mock_idle.return_value = idle_agents
+        # Test an balanced scale down
+        mock_idle.return_value = deepcopy(idle_agents)
         mock_manager.modify_target_capacity(80)
-        print(mock_manager.target_capacity, mock_manager.fulfilled_capacity)
+        assert sorted([rg.target_capacity for rg in mock_manager.resource_groups]) == [16, 16, 16, 16, 16]
+
+        mock_idle.return_value = deepcopy(idle_agents)
+        ec2.modify_spot_fleet_request(SpotFleetRequestId=mock_sfrs[0].id, TargetCapacity=1)
+
+        # Test dry run -- target and fulfilled capacities should remain the same
+        mock_manager.modify_target_capacity(22, dry_run=True)
+        fulfilled_capacity = sorted([rg.fulfilled_capacity for rg in mock_manager.resource_groups])
+        assert sorted([rg.target_capacity for rg in mock_manager.resource_groups]) == [1, 16, 16, 16, 16]
+        assert sorted([rg.fulfilled_capacity for rg in mock_manager.resource_groups]) == fulfilled_capacity
+
+        # Test an imbalanced scale down
+        mock_manager.modify_target_capacity(22)
+        assert sorted([rg.target_capacity for rg in mock_manager.resource_groups]) == [1, 5, 5, 5, 6]

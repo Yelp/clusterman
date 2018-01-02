@@ -45,12 +45,13 @@ class MesosRoleResourceGroup(metaclass=ABCMeta):
         return 1
 
     @abstractmethod
-    def modify_target_capacity(self, target_capacity, terminate_excess_capacity):  # pragma: no cover
+    def modify_target_capacity(self, target_capacity, *, terminate_excess_capacity, dry_run):  # pragma: no cover
         """ Modify the target capacity for the resource group
 
         :param target_capacity: the (weighted) new target capacity for the resource group
         :param terminate_excess_capacity: boolean indicating whether to terminate instances if the
             new target capacity is less than the current capacity
+        :param dry_run: boolean indicating whether to take action or just write to stdout
         """
         pass
 

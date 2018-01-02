@@ -46,10 +46,7 @@ class Autoscaler:
         delta = self._compute_cluster_delta(timestamp)
         self.delta_gauge.set(delta, {'dry_run': dry_run})
         new_target_capacity = self.mesos_role_manager.target_capacity + delta
-        if dry_run:
-            logger.warn('This is a dry run: cluster size will not change.')
-        else:
-            self.mesos_role_manager.modify_target_capacity(new_target_capacity)
+        self.mesos_role_manager.modify_target_capacity(new_target_capacity, dry_run=dry_run)
 
     def load_signal(self):
         """Load the signal object to use for autoscaling.
