@@ -2,6 +2,7 @@ import arrow
 from clusterman_metrics import generate_key_with_dimensions
 
 from clusterman.aws.client import ec2
+from clusterman.aws.client import MAX_PAGE_SIZE
 
 
 def spot_price_generator(start_time, end_time):
@@ -19,6 +20,7 @@ def spot_price_generator(start_time, end_time):
         StartTime=start_time.datetime,
         EndTime=end_time.datetime,
         ProductDescriptions=['Linux/UNIX (Amazon VPC)'],
+        PaginationConfig={'PageSize': MAX_PAGE_SIZE},  # limit the page size to prevent SSL read timeouts
     )
     for result in results:
         for price in result['SpotPriceHistory']:

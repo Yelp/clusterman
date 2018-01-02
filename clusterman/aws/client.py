@@ -10,6 +10,7 @@ _session = None
 logger = get_clusterman_logger(__name__)
 
 FILTER_LIMIT = 200
+MAX_PAGE_SIZE = 500
 
 
 def _init_session():
@@ -83,7 +84,11 @@ def ec2_describe_instances(instance_ids=None, filters=None):
         partial_filters = deepcopy(filters)
         if lindex < len(filter_values):
             partial_filters[0]['Values'] = filter_values[lindex:lindex + FILTER_LIMIT]
-        for page in instance_paginator.paginate(InstanceIds=instance_ids, Filters=partial_filters):
+        for page in instance_paginator.paginate(
+            InstanceIds=instance_ids,
+            Filters=partial_filters,
+            PaginationConfig={'PageSize': MAX_PAGE_SIZE},  # limit the page size to prevent SSL read timeouts
+        ):
             for reservation in page['Reservations']:
                 for i in reservation['Instances']:
                     yield i
