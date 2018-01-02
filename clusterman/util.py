@@ -3,6 +3,7 @@ from datetime import datetime
 import arrow
 import colorlog
 import parsedatetime
+import pysensu_yelp
 from colorama import Fore
 from colorama import Style
 
@@ -103,3 +104,30 @@ def parse_time_interval_seconds(time_str):
     if parse_result[1] == 0:
         raise ValueError('Could not understand time {time}'.format(time=time_str))
     return (parse_result[0] - datetime.min).total_seconds()
+
+
+def sensu_checkin(
+    check_name,
+    output,
+    check_every,
+    ttl,
+    source,
+    page=True,
+    alert_after='0m',
+    noop=False,
+):
+    if noop:
+        return
+
+    pysensu_yelp.send_event(
+        name=check_name,
+        runbook='http://y/rb-clusterman',
+        status=pysensu_yelp.Status.OK,
+        output=output,
+        team='distsys_compute',
+        page=page,
+        check_every=check_every,
+        ttl=ttl,
+        alert_after=alert_after,
+        source=source,
+    )

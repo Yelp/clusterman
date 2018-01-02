@@ -1,7 +1,6 @@
 import time
 
 import arrow
-import pysensu_yelp
 import staticconf
 from clusterman_metrics import ClustermanMetricsBotoClient
 from clusterman_metrics import METADATA
@@ -9,11 +8,13 @@ from yelp_batch.batch import batch_command_line_arguments
 from yelp_batch.batch import batch_configure
 from yelp_batch.batch_daemon import BatchDaemon
 
+from clusterman.args import add_disable_sensu_arg
 from clusterman.args import add_env_config_path_arg
 from clusterman.args import add_region_arg
 from clusterman.aws.spot_prices import spot_price_generator
 from clusterman.aws.spot_prices import write_prices_with_dedupe
 from clusterman.config import setup_config
+from clusterman.util import sensu_checkin
 
 
 class SpotPriceCollector(BatchDaemon):
@@ -22,8 +23,9 @@ class SpotPriceCollector(BatchDaemon):
     @batch_command_line_arguments
     def parse_args(self, parser):
         arg_group = parser.add_argument_group('SpotPriceCollector options')
-        add_region_arg(arg_group)
+        add_region_arg(arg_group, required=True)
         add_env_config_path_arg(arg_group)
+        add_disable_sensu_arg(arg_group)
         arg_group.add_argument(
             '--start-time',
             default=arrow.utcnow(),
@@ -45,20 +47,6 @@ class SpotPriceCollector(BatchDaemon):
         self.dedupe_interval = staticconf.read_int('batches.spot_prices.dedupe_interval_seconds')
         self.metrics_client = ClustermanMetricsBotoClient(region_name=self.region)
 
-    def report_success(self):
-        pysensu_yelp.send_event(
-            name='check_clusterman_spot_prices_running',
-            runbook='http://y/rb-clusterman',
-            status=pysensu_yelp.Status.OK,
-            output='OK: clusterman spot_prices is running',
-            team='distsys_compute',
-            page=False,
-            check_every='1m',
-            ttl='5m',
-            alert_after='0m',
-            source=f'{self.options.aws_region}',
-        )
-
     def write_prices(self, end_time, writer):
         prices = spot_price_generator(self.last_time_called, end_time)
         write_prices_with_dedupe(prices, writer, self.dedupe_interval)
@@ -70,7 +58,17 @@ class SpotPriceCollector(BatchDaemon):
             now = arrow.utcnow()
             with self.metrics_client.get_writer(METADATA) as writer:
                 self.write_prices(now, writer)
-            self.report_success()
+
+            # Report successful run to Sensu.
+            sensu_checkin(
+                check_name='check_clusterman_spot_prices_running',
+                output='OK: clusterman spot_prices is running',
+                check_every='1m',
+                source=self.options.aws_region,
+                ttl='5m',
+                page=False,
+                noop=self.options.disable_sensu,
+            )
 
 
 if __name__ == '__main__':

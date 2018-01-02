@@ -1,6 +1,5 @@
 import time
 
-import pysensu_yelp
 import staticconf
 from clusterman_metrics import ClustermanMetricsBotoClient
 from clusterman_metrics import generate_key_with_dimensions
@@ -11,9 +10,11 @@ from yelp_batch.batch import batch_configure
 from yelp_batch.batch_daemon import BatchDaemon
 
 from clusterman.args import add_cluster_arg
+from clusterman.args import add_disable_sensu_arg
 from clusterman.args import add_env_config_path_arg
 from clusterman.config import setup_config
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
+from clusterman.util import sensu_checkin
 
 
 METRICS_TO_WRITE = {
@@ -37,6 +38,7 @@ class ClusterMetricsCollector(BatchDaemon):
         arg_group = parser.add_argument_group('ClusterMetricsCollector options')
         add_cluster_arg(arg_group, required=True)
         add_env_config_path_arg(arg_group)
+        add_disable_sensu_arg(arg_group)
 
     @batch_configure
     def configure_initial(self):
@@ -51,20 +53,6 @@ class ClusterMetricsCollector(BatchDaemon):
             for role in roles
         }
         self.metrics_client = ClustermanMetricsBotoClient(region_name=self.region)
-
-    def report_success(self):
-        pysensu_yelp.send_event(
-            name='check_clusterman_cluster_metrics_running',
-            runbook='http://y/rb-clusterman',
-            status=pysensu_yelp.Status.OK,
-            output='OK: clusterman cluster_metrics is running',
-            team='distsys_compute',
-            page=False,
-            check_every='1m',
-            ttl='5m',
-            alert_after='0m',
-            source=f'{self.options.cluster}',
-        )
 
     def write_metrics(self, writer, metrics_to_write):
         for metric, value_method in metrics_to_write:
@@ -81,7 +69,17 @@ class ClusterMetricsCollector(BatchDaemon):
             for metric_type, metrics in METRICS_TO_WRITE.items():
                 with self.metrics_client.get_writer(metric_type) as writer:
                     self.write_metrics(writer, metrics)
-            self.report_success()
+
+            # Report successful run to Sensu.
+            sensu_checkin(
+                check_name='check_clusterman_cluster_metrics_running',
+                output='OK: clusterman cluster_metrics is running',
+                check_every='1m',
+                source=self.options.cluster,
+                ttl='5m',
+                page=False,
+                noop=self.options.disable_sensu,
+            )
 
 
 if __name__ == '__main__':

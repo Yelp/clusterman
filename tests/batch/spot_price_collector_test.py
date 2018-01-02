@@ -16,7 +16,7 @@ def batch():
 
 @pytest.fixture
 def batch_arg_parser(batch, args=None):
-    args = args or []
+    args = args or ['--aws-region', 'testing']
     parser = argparse.ArgumentParser()
     batch.parse_args(parser)
     return parser.parse_args(args)
@@ -34,8 +34,14 @@ def mock_client_class():
         yield client
 
 
+@pytest.fixture
+def mock_sensu():
+    with mock.patch('clusterman.batch.spot_price_collector.sensu_checkin', autospec=True) as sensu:
+        yield sensu
+
+
 def test_start_time_parsing(batch):
-    args = batch_arg_parser(batch, ['--start-time', '2017-09-12T12:11:23'])
+    args = batch_arg_parser(batch, ['--aws-region', 'testing', '--start-time', '2017-09-12T12:11:23'])
     assert args.start_time == datetime.datetime(2017, 9, 12, 12, 11, 23, tzinfo=datetime.timezone.utc)
 
 
@@ -94,13 +100,13 @@ def test_write_prices(mock_write, mock_price_gen, batch):
 @mock.patch('time.time')
 @mock.patch('arrow.utcnow')
 @mock.patch('clusterman.batch.spot_price_collector.SpotPriceCollector.running', new_callable=mock.PropertyMock)
-@mock.patch('clusterman.batch.spot_price_collector.SpotPriceCollector.report_success', autospec=True)
-def test_run(mock_sensu, mock_running, mock_now, mock_time, mock_sleep, batch):
+def test_run(mock_running, mock_now, mock_time, mock_sleep, batch, mock_sensu):
     mock_running.side_effect = [True, True, True, False]
     mock_time.side_effect = [101, 113, 148]
 
     batch.run_interval = 10
     batch.metrics_client = mock.MagicMock()
+    batch.options = batch_arg_parser(batch)
 
     writer_context = batch.metrics_client.get_writer.return_value
     writer = writer_context.__enter__.return_value

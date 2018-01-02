@@ -45,10 +45,11 @@ def add_start_end_args(parser, start_help, end_help):  # pragma: no cover
     )
 
 
-def add_region_arg(parser):  # pragma: no cover
+def add_region_arg(parser, required=False):  # pragma: no cover
     """ Add an --aws-region argument to a parser """
     parser.add_argument(
         '--aws-region',
+        required=required,
         help='AWS region to operate in',
     )
 
@@ -76,6 +77,15 @@ def add_env_config_path_arg(parser):  # pragma: no cover
         '--env-config-path',
         default='/nail/srv/configs/clusterman.yaml',
         help='Path to clusterman configuration file',
+    )
+
+
+def add_disable_sensu_arg(parser):  # pragma: no cover
+    """ Add a --disable-sensu argument to a parser """
+    parser.add_argument(
+        '--disable-sensu',
+        action='store_true',
+        help='Disable sensu checkins',
     )
 
 

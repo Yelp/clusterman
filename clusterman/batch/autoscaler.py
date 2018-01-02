@@ -1,6 +1,5 @@
 import time
 
-import pysensu_yelp
 import staticconf
 from yelp_batch.batch import batch_command_line_arguments
 from yelp_batch.batch import batch_configure
@@ -13,6 +12,7 @@ from clusterman.config import get_roles_watcher
 from clusterman.config import get_service_watcher
 from clusterman.config import setup_config
 from clusterman.util import get_clusterman_logger
+from clusterman.util import sensu_checkin
 
 logger = get_clusterman_logger(__name__)
 
@@ -44,20 +44,6 @@ class AutoscalerBatch(BatchDaemon):
         # conflicts with other batches (like the Kew autoscaler).
         return 'clusterman_autoscaler'
 
-    def report_success(self):
-        pysensu_yelp.send_event(
-            name='check_clusterman_autoscaler_running',
-            runbook='http://y/rb-clusterman',
-            status=pysensu_yelp.Status.OK,
-            output='OK: clusterman autoscaler is running',
-            team='distsys_compute',
-            page=False,
-            check_every='10m',
-            ttl='25m',
-            alert_after='0m',
-            source=f'{self.options.cluster}',
-        )
-
     def run(self):
         roles = staticconf.read_list('cluster_roles')
 
@@ -87,8 +73,17 @@ class AutoscalerBatch(BatchDaemon):
                 self.stop()
             else:
                 self.autoscaler.run(dry_run=self.options.dry_run)
-                if not self.options.dry_run:
-                    self.report_success()
+
+                # Report successful run to Sensu.
+                sensu_checkin(
+                    check_name='check_clusterman_autoscaler_running',
+                    output='OK: clusterman autoscaler is running',
+                    check_every='10m',
+                    source=self.options.cluster,
+                    ttl='25m',
+                    page=False,
+                    noop=self.options.dry_run,
+                )
 
 
 if __name__ == '__main__':
