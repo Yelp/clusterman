@@ -22,7 +22,7 @@ def test_empty_filters():
         mock_paginator.assert_has_calls([call().paginate(
             Filters=[],
             InstanceIds=ids,
-            PaginationConfig={'PageSize': 500}
+            PaginationConfig={'PageSize': MAX_PAGE_SIZE}
         )])
 
 
