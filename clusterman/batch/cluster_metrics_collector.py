@@ -1,4 +1,6 @@
+import socket
 import time
+from traceback import format_exc
 
 import staticconf
 from clusterman_metrics import ClustermanMetricsBotoClient
@@ -14,9 +16,13 @@ from clusterman.args import add_disable_sensu_arg
 from clusterman.args import add_env_config_path_arg
 from clusterman.config import setup_config
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
+<<<<<<< 5b842da1dfdda9e65f3b61242140118027a14e80
 from clusterman.util import sensu_checkin
+=======
+from clusterman.util import get_clusterman_logger
+>>>>>>> log and ignore timeouts
 
-
+logger = get_clusterman_logger(__name__)
 METRICS_TO_WRITE = {
     SYSTEM_METRICS: [
         ('cpus_allocated', lambda manager: manager.get_resource_allocation('cpus')),
@@ -57,10 +63,14 @@ class ClusterMetricsCollector(BatchDaemon):
     def write_metrics(self, writer, metrics_to_write):
         for metric, value_method in metrics_to_write:
             for role, manager in self.mesos_managers.items():
-                value = value_method(manager)
-                metric_name = generate_key_with_dimensions(metric, {'cluster': self.options.cluster, 'role': role})
-                data = (metric_name, int(time.time()), value)
-                writer.send(data)
+                try:
+                    value = value_method(manager)
+                    metric_name = generate_key_with_dimensions(metric, {'cluster': self.options.cluster, 'role': role})
+                    data = (metric_name, int(time.time()), value)
+                    writer.send(data)
+                except socket.timeout as e:
+                    logger.warn(f'Timed out writing {metric} for {role}: {str(e)}\n\n{format_exc()}')
+                    continue
 
     def run(self):
         while self.running:

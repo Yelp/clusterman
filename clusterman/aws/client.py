@@ -87,7 +87,7 @@ def ec2_describe_instances(instance_ids=None, filters=None):
         for page in instance_paginator.paginate(
             InstanceIds=instance_ids,
             Filters=partial_filters,
-            PaginationConfig={'PageSize': MAX_PAGE_SIZE},  # limit the page size to prevent SSL read timeouts
+            PaginationConfig={'PageSize': MAX_PAGE_SIZE},  # limit the page size to help prevent SSL read timeouts
         ):
             for reservation in page['Reservations']:
                 for i in reservation['Instances']:

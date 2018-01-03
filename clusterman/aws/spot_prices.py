@@ -20,7 +20,7 @@ def spot_price_generator(start_time, end_time):
         StartTime=start_time.datetime,
         EndTime=end_time.datetime,
         ProductDescriptions=['Linux/UNIX (Amazon VPC)'],
-        PaginationConfig={'PageSize': MAX_PAGE_SIZE},  # limit the page size to prevent SSL read timeouts
+        PaginationConfig={'PageSize': MAX_PAGE_SIZE},  # limit the page size to help prevent SSL read timeouts
     )
     for result in results:
         for price in result['SpotPriceHistory']:
