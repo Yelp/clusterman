@@ -1,6 +1,5 @@
 import argparse
 import datetime
-import socket
 
 import arrow
 import mock
@@ -102,8 +101,8 @@ def test_write_prices(mock_write, mock_price_gen, batch):
 @mock.patch('arrow.utcnow')
 @mock.patch('clusterman.batch.spot_price_collector.SpotPriceCollector.running', new_callable=mock.PropertyMock)
 def test_run(mock_running, mock_now, mock_time, mock_sleep, batch, mock_sensu):
-    mock_running.side_effect = [True, True, True, True, False]
-    mock_time.side_effect = [101, 148, 152, 188]
+    mock_running.side_effect = [True, True, True, False]
+    mock_time.side_effect = [101, 113, 148]
 
     batch.run_interval = 10
     batch.metrics_client = mock.MagicMock()
@@ -112,23 +111,14 @@ def test_run(mock_running, mock_now, mock_time, mock_sleep, batch, mock_sensu):
     writer_context = batch.metrics_client.get_writer.return_value
     writer = writer_context.__enter__.return_value
 
-    with mock.patch.object(batch, 'write_prices', autospec=True) as write_prices, \
-            mock.patch('clusterman.batch.spot_price_collector.logger') as mock_logger:
-        def mock_write_prices(end_time, writer):
-            if mock_now.call_count == 5:
-                raise socket.timeout('timed out')
-            else:
-                return
-
-        write_prices.side_effect = mock_write_prices
+    with mock.patch.object(batch, 'write_prices', autospec=True) as write_prices:
         batch.run()
 
         # Writing should have happened 3 times.
         # Each time, we create a new writer context and call write_metrics.
-        assert batch.metrics_client.get_writer.call_args_list == [mock.call(METADATA) for i in range(4)]
-        assert write_prices.call_args_list == [mock.call(mock_now.return_value, writer) for i in range(4)]
-        assert writer_context.__exit__.call_count == 4
+        assert batch.metrics_client.get_writer.call_args_list == [mock.call(METADATA) for i in range(3)]
+        assert write_prices.call_args_list == [mock.call(mock_now.return_value, writer) for i in range(3)]
+        assert writer_context.__exit__.call_count == 3
         assert mock_sensu.call_count == 3
-        assert mock_logger.warn.call_count == 1
 
-    assert mock_sleep.call_args_list == [mock.call(9), mock.call(2), mock.call(8), mock.call(2)]
+    assert mock_sleep.call_args_list == [mock.call(9), mock.call(7), mock.call(2)]

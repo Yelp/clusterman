@@ -1,6 +1,4 @@
-import socket
 import time
-from traceback import format_exc
 
 import arrow
 import staticconf
@@ -16,10 +14,7 @@ from clusterman.args import add_region_arg
 from clusterman.aws.spot_prices import spot_price_generator
 from clusterman.aws.spot_prices import write_prices_with_dedupe
 from clusterman.config import setup_config
-from clusterman.util import get_clusterman_logger
 from clusterman.util import sensu_checkin
-
-logger = get_clusterman_logger(__name__)
 
 
 class SpotPriceCollector(BatchDaemon):
@@ -62,16 +57,12 @@ class SpotPriceCollector(BatchDaemon):
             time.sleep(self.run_interval - time.time() % self.run_interval)
             now = arrow.utcnow()
             with self.metrics_client.get_writer(METADATA) as writer:
-                try:
-                    self.write_prices(now, writer)
-                except socket.timeout:
-                    logger.warn(f'Timed out getting spot prices:\n\n{format_exc()}')
-                    continue
+                self.write_prices(now, writer)
 
             # Report successful run to Sensu.
             sensu_checkin(
                 check_name='check_clusterman_spot_prices_running',
-                output='OK: clusterman spot_prices was successful',
+                output='OK: clusterman spot_prices is running',
                 check_every='1m',
                 source=self.options.aws_region,
                 ttl='5m',

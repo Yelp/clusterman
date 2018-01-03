@@ -5,7 +5,6 @@ import mock
 import pytest
 
 import clusterman.aws.spot_prices as spot_prices
-from clusterman.aws.client import MAX_PAGE_SIZE
 
 
 @pytest.fixture
@@ -63,7 +62,6 @@ def test_spot_price_generator():
         StartTime=start_time.astimezone(tz=datetime.timezone.utc),
         EndTime=end_time.astimezone(tz=datetime.timezone.utc),
         ProductDescriptions=['Linux/UNIX (Amazon VPC)'],
-        PaginationConfig={'PageSize': MAX_PAGE_SIZE},
     )]
 
 
