@@ -1,4 +1,6 @@
+import socket
 import time
+from traceback import format_exc
 
 import staticconf
 from clusterman_metrics import ClustermanMetricsBotoClient
@@ -14,9 +16,10 @@ from clusterman.args import add_disable_sensu_arg
 from clusterman.args import add_env_config_path_arg
 from clusterman.config import setup_config
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
+from clusterman.util import get_clusterman_logger
 from clusterman.util import sensu_checkin
 
-
+logger = get_clusterman_logger(__name__)
 METRICS_TO_WRITE = {
     SYSTEM_METRICS: [
         ('cpus_allocated', lambda manager: manager.get_resource_allocation('cpus')),
@@ -66,20 +69,27 @@ class ClusterMetricsCollector(BatchDaemon):
         while self.running:
             time.sleep(self.run_interval - time.time() % self.run_interval)
 
+            successful = True
             for metric_type, metrics in METRICS_TO_WRITE.items():
                 with self.metrics_client.get_writer(metric_type) as writer:
-                    self.write_metrics(writer, metrics)
+                    try:
+                        self.write_metrics(writer, metrics)
+                    except socket.timeout:
+                        logger.warn(f'Timed out getting spot prices:\n\n{format_exc()}')
+                        successful = False
+                        continue
 
             # Report successful run to Sensu.
-            sensu_checkin(
-                check_name='check_clusterman_cluster_metrics_running',
-                output='OK: clusterman cluster_metrics is running',
-                check_every='1m',
-                source=self.options.cluster,
-                ttl='5m',
-                page=False,
-                noop=self.options.disable_sensu,
-            )
+            if successful:
+                sensu_checkin(
+                    check_name='check_clusterman_cluster_metrics_running',
+                    output='OK: clusterman cluster_metrics was successful',
+                    check_every='1m',
+                    source=self.options.cluster,
+                    ttl='5m',
+                    page=False,
+                    noop=self.options.disable_sensu,
+                )
 
 
 if __name__ == '__main__':
