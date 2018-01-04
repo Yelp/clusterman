@@ -18,6 +18,7 @@ def batch(args=None):
     parser = argparse.ArgumentParser()
     batch.parse_args(parser)
     batch.options = parser.parse_args(args)
+    batch.version_checker = mock.Mock(watchers=[])
     return batch
 
 
@@ -79,7 +80,7 @@ def test_write_metrics(batch):
 @mock.patch('clusterman.batch.cluster_metrics_collector.sensu_checkin', autospec=True)
 def test_run(mock_sensu, mock_running, mock_time, mock_sleep, batch):
     mock_running.side_effect = [True, True, True, True, False]
-    mock_time.side_effect = [101, 113, 148, 188]
+    mock_time.side_effect = [100, 101, 113, 148, 188]
     batch.run_interval = 10
     batch.metrics_client = mock.MagicMock(spec_set=ClustermanMetricsBotoClient)
 

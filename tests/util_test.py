@@ -1,6 +1,5 @@
 import arrow
 import mock
-import pysensu_yelp
 import pytest
 from colorama import Fore
 from colorama import Style
@@ -10,7 +9,6 @@ from clusterman.util import ask_for_confirmation
 from clusterman.util import colored_status
 from clusterman.util import parse_time_interval_seconds
 from clusterman.util import parse_time_string
-from clusterman.util import sensu_checkin
 
 
 @pytest.mark.parametrize('inp,response', [('\n', True), ('\n', False), ('yE', True), ('n', False)])
@@ -65,32 +63,3 @@ def test_parse_time_interval_seconds():
 def test_parse_time_interval_seconds_invalid():
     with pytest.raises(ValueError):
         parse_time_interval_seconds('asdf')
-
-
-@pytest.mark.parametrize('noop', [True, False])
-@mock.patch('pysensu_yelp.send_event', autospec=True)
-def test_sensu_checkin(mock_sensu, noop):
-    sensu_checkin(
-        'my_check',
-        'output',
-        '10m',
-        '20m',
-        'my_source',
-        noop=noop,
-    )
-
-    if noop:
-        assert mock_sensu.call_count == 0
-    else:
-        assert mock_sensu.call_args_list == [mock.call(
-            name='my_check',
-            output='output',
-            check_every='10m',
-            ttl='20m',
-            source='my_source',
-            status=pysensu_yelp.Status.OK,
-            runbook=mock.ANY,
-            team=mock.ANY,
-            alert_after=mock.ANY,
-            page=mock.ANY,
-        )]

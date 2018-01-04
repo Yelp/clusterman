@@ -17,6 +17,7 @@ def batch(args=None):
     batch.parse_args(parser)
     batch.options = parser.parse_args(args)
     batch.configure_initial()
+    batch.version_checker = mock.Mock(watchers=[])
     return batch
 
 
@@ -72,7 +73,7 @@ def test_run(mock_sensu, mock_running, mock_time, mock_sleep, dry_run, mock_auto
 
     assert mock_setup_config.call_count == 1
     mock_running.side_effect = [True, True, True, False]
-    mock_time.side_effect = [101, 913, 2000]
+    mock_time.side_effect = [100, 101, 913, 2000]
 
     batch_obj.run()
     assert mock_autoscaler.call_args_list == [mock.call('mesos-test', 'bar')]

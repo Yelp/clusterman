@@ -7,7 +7,6 @@ import staticconf.testing
 import yaml
 
 import clusterman.config as config
-from clusterman.mesos.constants import DEFAULT_ROLE_DIRECTORY
 from clusterman.mesos.constants import ROLE_NAMESPACE
 from tests.conftest import mock_open
 
@@ -18,10 +17,10 @@ def config_dir():
 
 
 @pytest.fixture
-def mock_role_config_files(config_dir):
+def mock_config_files(config_dir):
     # Role 1 is in both cluster A and B, while Role 2 is only in A.
     with mock_open(
-        config.get_role_config_path(config_dir, 'role-1'),
+        config.get_role_config_path('role-1'),
         contents=yaml.dump({
             'mesos': {
                 'cluster-A': {'resource_groups': 'cluster-A'},
@@ -29,7 +28,7 @@ def mock_role_config_files(config_dir):
             'other_config': 18,
         }),
     ), mock_open(
-        config.get_role_config_path(config_dir, 'role-2'),
+        config.get_role_config_path('role-2'),
         contents=yaml.dump({
             'mesos': {
                 'cluster-A': {'resource_groups': 'cluster-A'},
@@ -37,6 +36,13 @@ def mock_role_config_files(config_dir):
             },
             'other_config': 18,
         }),
+    ), mock_open(
+        '/etc/no_cfg/clusterman.json',
+        contents=yaml.dump({
+            'accessKeyId': 'foo',
+            'secretAccessKey': 'bar',
+            'region': 'nowhere-useful',
+        })
     ):
         yield
 
@@ -54,10 +60,13 @@ def mock_config_namespaces():
         {
             'mesos_clusters': {
                 'cluster-A': {
-                    'leader_service': 'service.leader',
+                    'fqdn': 'service.leader',
                     'aws_region': 'us-test-3',
                 },
             },
+            'aws': {
+                'access_key_file': '/etc/no_cfg/clusterman.json',
+            }
         },
         namespace=staticconf.config.DEFAULT,
     ):
@@ -72,19 +81,15 @@ def mock_config_namespaces():
 ])
 @mock.patch('clusterman.config.load_role_configs_for_cluster', autospec=True)
 @mock.patch('clusterman.config.load_default_config')
-def test_setup_config(mock_service_load, mock_role_load, cluster, include_roles):
+def test_setup_config(mock_service_load, mock_role_load, cluster, include_roles, mock_config_files):
     args = argparse.Namespace(env_config_path='/nail/etc/config.yaml', cluster=cluster)
-    return_value = config.setup_config(args, include_roles=include_roles)
+    config.setup_config(args, include_roles=include_roles)
 
-    assert return_value  # Must be truthy for config watchers
     assert mock_service_load.call_args_list == [mock.call('/nail/etc/config.yaml', '/nail/etc/config.yaml')]
     if cluster is not None:
         assert staticconf.read_string('aws.region') == 'us-test-3'
         if include_roles:
-            assert mock_role_load.call_args_list == [mock.call(
-                DEFAULT_ROLE_DIRECTORY,
-                cluster,
-            )]
+            assert mock_role_load.call_args_list == [mock.call(cluster)]
         else:
             assert mock_role_load.call_args_list == []
 
@@ -95,11 +100,10 @@ def test_setup_config(mock_service_load, mock_role_load, cluster, include_roles)
     ('cluster-C', []),
 ])
 @mock.patch('os.listdir')
-def test_load_role_configs_for_cluster(mock_ls, cluster, roles, config_dir, mock_role_config_files):
+def test_load_role_configs_for_cluster(mock_ls, cluster, roles, config_dir, mock_config_files):
     mock_ls.return_value = ['role-1', 'role-2']
-    return_value = config.load_role_configs_for_cluster(config_dir, cluster)
+    config.load_role_configs_for_cluster(cluster)
 
-    assert return_value  # Must be truthy for config watchers
     for role in roles:
         role_namespace = ROLE_NAMESPACE.format(role=role)
         assert staticconf.read_int('other_config', namespace=role_namespace) == 18
