@@ -1,5 +1,4 @@
 import json
-from copy import deepcopy
 
 import boto3
 import staticconf
@@ -9,7 +8,6 @@ from clusterman.util import get_clusterman_logger
 _session = None
 logger = get_clusterman_logger(__name__)
 
-FILTER_LIMIT = 200
 MAX_PAGE_SIZE = 500
 
 
@@ -54,41 +52,18 @@ class ec2(metaclass=_BotoForwarder):
     client = 'ec2'
 
 
-def ec2_describe_instances(instance_ids=None, filters=None):
+def ec2_describe_instances(instance_ids):
+    if not instance_ids:
+        raise ValueError('instance_ids cannot be empty')
 
-    def _get_lindex_upper_bound(filter):
-        if len(filters) == 0:
-            return 1
-        return max(1, len(filters[0]['Values']))
-
-    instance_ids = instance_ids or []
-    filters = filters or []
-    filter_values = []
-    # We handle couple of special scenarios here to generate ec2 instances we want.
-    # First, if both of instance_ids and filters are none or empty, the AWS query will return
-    # all instances in the region, so we just return None. Second, multiple filters case is not
-    # implemented yet, Finally, if the number of filter value is larger than FILTER_LIMIT, we
-    # break up the requests and limit by FILTER_LIMIT per request.
-
-    if len(instance_ids) == 0 and len(filters) == 0:
-        return None
-    # TODO (CLUSTERMAN-116) need to support multiple filters case
-    elif len(filters) > 1:
-        raise NotImplementedError(f'Multiple filters is not yet supported')
-    elif len(filters) == 1 and len(filters[0]['Values']) > FILTER_LIMIT:
-        filter_values = filters[0]['Values']
-
-    instance_paginator = ec2.get_paginator('describe_instances')
-
-    for lindex in range(0, _get_lindex_upper_bound(filters), FILTER_LIMIT):
-        partial_filters = deepcopy(filters)
-        if lindex < len(filter_values):
-            partial_filters[0]['Values'] = filter_values[lindex:lindex + FILTER_LIMIT]
-        for page in instance_paginator.paginate(
-            InstanceIds=instance_ids,
-            Filters=partial_filters,
-            PaginationConfig={'PageSize': MAX_PAGE_SIZE},  # limit the page size to help prevent SSL read timeouts
-        ):
-            for reservation in page['Reservations']:
-                for i in reservation['Instances']:
-                    yield i
+    # limit the page size to help prevent SSL read timeouts
+    instance_id_pages = [
+        instance_ids[i:i + MAX_PAGE_SIZE]
+        for i in range(0, len(instance_ids), MAX_PAGE_SIZE)
+    ]
+    return [
+        instance
+        for page in instance_id_pages
+        for reservation in ec2.describe_instances(InstanceIds=page)['Reservations']
+        for instance in reservation['Instances']
+    ]
