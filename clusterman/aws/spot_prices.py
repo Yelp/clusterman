@@ -66,8 +66,8 @@ def get_data_for_price(price_object, recorded_minute):
     :param recorded_minute: The minute the data should be recorded for, as an arrow object.
     """
     dimensions = {
-        'instance_type': price_object['InstanceType'],
-        'AZ': price_object['AvailabilityZone']
+        'aws_instance_type': price_object['InstanceType'],
+        'aws_availability_zone': price_object['AvailabilityZone']
     }
     key = generate_key_with_dimensions('spot_prices', dimensions=dimensions)
     return (key, int(recorded_minute.timestamp), price_object['SpotPrice'])

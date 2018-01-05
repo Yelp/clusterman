@@ -129,7 +129,10 @@ def test_get_data_for_price(mock_generate_key):
     price_object = mock_price_object(instance_type, az, real_time, price)
     _, timestamp, value = spot_prices.get_data_for_price(price_object, rounded_up_time)
 
-    expected_dimensions = {'instance_type': instance_type, 'AZ': az}
+    expected_dimensions = {
+        'aws_instance_type': instance_type,
+        'aws_availability_zone': az,
+    }
     # Should use whatever time is passed in, not the price object's time.
     assert timestamp == int(rounded_up_time.timestamp)
     assert value == price

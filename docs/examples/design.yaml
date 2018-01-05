@@ -1,5 +1,5 @@
 metadata:
-    spot_prices|AZ=us-west-2a,instance_type=c3.8xlarge: &spot_prices
+    spot_prices|aws_availability_zone=us-west-2a,aws_instance_type=c3.8xlarge: &spot_prices
 
         # If no timezone is specified, generator will use YST
         start_time: "2017-12-01T08:00:00Z"
@@ -16,8 +16,8 @@ metadata:
                 a: 0
                 b: 1
 
-    spot_prices|AZ=us-west-2b,instance_type=c3.8xlarge: *spot_prices
-    spot_prices|AZ=us-west-2c,instance_type=c3.8xlarge: *spot_prices
+    spot_prices|aws_availability_zone=us-west-2b,aws_instance_type=c3.8xlarge: *spot_prices
+    spot_prices|aws_availability_zone=us-west-2c,aws_instance_type=c3.8xlarge: *spot_prices
 
     capacity|cluster=norcal-prod,role=seagull:
         start_time: "2017-12-01T08:00:00Z"

@@ -46,7 +46,7 @@ def _populate_cluster_capacity_events(simulator, start_time, end_time):
 def _populate_price_changes(simulator, start_time, end_time):
     for market in simulator.markets:
         __, market_prices = simulator.metrics_client.get_metric_values(
-            f'spot_prices|AZ={market.az},instance_type={market.instance}',
+            f'spot_prices|aws_availability_zone={market.az},aws_instance_type={market.instance}',
             METADATA,
             start_time.timestamp,
             end_time.timestamp,

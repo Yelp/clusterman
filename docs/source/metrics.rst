@@ -89,9 +89,9 @@ mem_allocated|cluster=norcal-prod,role=appB_role  1502405810    20
 +-----------------------------------------------------+------------+--------------------------------+-------------------------+-------------------------+
 | metric name                                         | timestamp  | value                          | <c3.xlarge, us-west-2a> | <c3.xlarge, us-west-2c> |
 +=====================================================+============+================================+=========================+=========================+
-| spot_prices|AZ=us-west-2a,instance_type=c3.xlarge   | 1502405756 | 1.30                           |                         |                         |
+| spot_prices|aws_availability_zone=us-west-2a,aws_instance_type=c3.xlarge   | 1502405756 | 1.30                           |                         |                         |
 +-----------------------------------------------------+------------+--------------------------------+-------------------------+-------------------------+
-| spot_prices|AZ=us-west-2c,instance_type=c3.xlarge   | 1502405756 | 5.27                           |                         |                         |
+| spot_prices|aws_availability_zone=us-west-2c,aws_instance_type=c3.xlarge   | 1502405756 | 5.27                           |                         |                         |
 +-----------------------------------------------------+------------+--------------------------------+-------------------------+-------------------------+
 | fulfilled_capacity|cluster=norcal-prod,role=seagull | 1502409314 |                                |                       4 |                      20 |
 +-----------------------------------------------------+------------+--------------------------------+-------------------------+-------------------------+
@@ -110,5 +110,5 @@ Metadata
 ~~~~~~~~
 * ``cpus_total|cluster=<cluster name>,role=<Mesos role>``
 * ``fulfilled_capacity|cluster=<cluster name>,role=<Mesos role>`` (separate column per InstanceMarket)
-* ``spot_prices|AZ=<availability zone>,instance_type=<AWS instance type>``
+* ``spot_prices|aws_availability_zone=<availability zone>,aws_instance_type=<AWS instance type>``
 * ``target_capacity|cluster=<cluster name>,role=<Mesos role>``
