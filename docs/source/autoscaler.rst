@@ -8,6 +8,8 @@ and the current number of resources available for the role determines how the cl
 
 .. note:: Currently, Clusterman can only handle a single role per cluster.
 
+.. _scaling_logic:
+
 Scaling logic
 -------------
 Clusterman tries to maintain a certain level of resource utilization, called the setpoint.

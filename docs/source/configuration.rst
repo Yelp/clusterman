@@ -8,7 +8,7 @@ The second provides per-role configuration, for client applications to customize
 .. _service_configuration:
 
 Service Configuration
--------------------
+----------------------
 
 The following is an example configuration file for the core Clusterman service and application::
 
