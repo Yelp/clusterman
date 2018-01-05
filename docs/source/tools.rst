@@ -1,6 +1,10 @@
 Additional Tools
 ================
 
+There are two ways to get data for simulation, if you would like to use values that are different than the actual
+values recorded in the metrics store. :ref:`generate-data` allows you to generate values as a function of pre-existing metrics
+or from a random distribution, and :ref:`signalfx_scraper` allows you to query values from SignalFX.
+
 generate-data
 -------------
 
@@ -126,6 +130,22 @@ Sample Experimental Design File
 The above design file, and a sample output file are located in ``docs/examples/design.yaml`` and
 ``docs/examples/metrics.json.gz``, respectively.
 
+.. _signalfx_scraper:
+
 SignalFX scraper
 ----------------
-TODO
+A tool for downloading data points from SignalFX and saving them in the compressed JSON format that the Clusterman simulator can use.
+This is an alternative to generating data if the data you're interested in is in SignalFX, but it's not yet in Clusterman metrics.
+
+.. note:: Only data from the last month is available from SignalFX.
+
+The tool will interactively ask you the :ref:`metric type <metric_types>` to save each metric as.
+
+.. program-output:: python -m clusterman.tools.signalfx_scraper --help
+   :cwd: ../../
+
+Sample usage::
+
+    python -m clusterman.tools.signalfx_scraper --start-time 2017-12-03 --end-time 2017-12-10
+      --src-metric-names 'seagull.fleet_miser.cluster_capacity_units' --dest-file capacity
+      --api-token <secret> --filter rollup:max region:uswest2-testopia cluster_name:releng

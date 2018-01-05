@@ -84,8 +84,8 @@ def get_parser():
         metavar='filename',
         required=True,
         help=(
-            'Filename to append the data to, in compressed JSON format. If the destination metric name ',
-            'already exists, you have the option to overwrite it.',
+            'Filename to append the data to, in compressed JSON format. If the destination metric name '
+            'already exists, you have the option to overwrite it.'
         )
     )
     required_named_args.add_argument(
