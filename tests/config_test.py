@@ -1,4 +1,5 @@
 import argparse
+import json
 
 import mock
 import pytest
@@ -38,7 +39,7 @@ def mock_config_files(config_dir):
         }),
     ), mock_open(
         '/etc/no_cfg/clusterman.json',
-        contents=yaml.dump({
+        contents=json.dumps({
             'accessKeyId': 'foo',
             'secretAccessKey': 'bar',
             'region': 'nowhere-useful',

@@ -1,5 +1,3 @@
-import json
-
 import boto3
 import staticconf
 
@@ -9,20 +7,16 @@ _session = None
 logger = get_clusterman_logger(__name__)
 
 MAX_PAGE_SIZE = 500
+CREDENTIALS_NAMESPACE = 'boto_cfg'
 
 
 def _init_session():
     global _session
 
-    boto_creds_file = staticconf.read_string('aws.access_key_file')
-    logger.info(f'initializing AWS client from {boto_creds_file}')
     if not _session:
-        with open(boto_creds_file) as f:
-            creds = json.load(f)
-
         _session = boto3.session.Session(
-            aws_access_key_id=creds['accessKeyId'],
-            aws_secret_access_key=creds['secretAccessKey'],
+            staticconf.read_string('accessKeyId', namespace=CREDENTIALS_NAMESPACE),
+            staticconf.read_string('secretAccessKey', namespace=CREDENTIALS_NAMESPACE),
             region_name=staticconf.read_string('aws.region')
         )
 

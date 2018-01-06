@@ -6,6 +6,7 @@ import yaml
 from staticconf.config import ConfigurationWatcher
 from yelp_servlib.config_util import load_default_config
 
+from clusterman.aws.client import CREDENTIALS_NAMESPACE
 from clusterman.mesos.constants import DEFAULT_ROLE_DIRECTORY
 from clusterman.mesos.constants import ROLE_CONFIG_FILENAME
 from clusterman.mesos.constants import ROLE_NAMESPACE
@@ -28,13 +29,18 @@ def setup_config(args, include_roles=True):
             load_role_configs_for_cluster(args.cluster)
 
     boto_creds_file = staticconf.read_string('aws.access_key_file')
-    staticconf.YamlConfiguration(boto_creds_file)
+    staticconf.JSONConfiguration(boto_creds_file, namespace=CREDENTIALS_NAMESPACE)
 
 
 def load_role_configs_for_cluster(cluster):
     role_config_dir = get_role_config_dir()
     all_roles = os.listdir(role_config_dir)
     cluster_roles = []
+
+    # Loop through all of the roles that we find in the role_config_dir;
+    # each role specifies a list of clusters that it operates on, so this function
+    # computes the reverse mapping and loads only the roles that are present on the
+    # cluster and which clusterman knows how to manage
     for role in all_roles:
         role_file = get_role_config_path(role)
         with open(role_file) as f:
@@ -42,10 +48,13 @@ def load_role_configs_for_cluster(cluster):
             if cluster in config['mesos']:
                 cluster_roles.append(role)
                 role_namespace = ROLE_NAMESPACE.format(role=role)
-                # Only include Mesos configuration for this cluster.
-                # TODO why??
+
+                # Only include Mesos configuration for this cluster; since a role could run
+                # on several clusters with different configurations, we don't want to load the
+                # configs for the other clusters
                 staticconf.DictConfiguration({'mesos': config['mesos'][cluster]}, namespace=role_namespace)
                 del config['mesos']
+
                 # Load all other config values.
                 staticconf.DictConfiguration(config, namespace=role_namespace)
 
