@@ -14,10 +14,11 @@ from yelp_batch.batch_daemon import BatchDaemon
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_disable_sensu_arg
 from clusterman.args import add_env_config_path_arg
+from clusterman.batch.util import BatchLoggingMixin
+from clusterman.batch.util import sensu_checkin
 from clusterman.config import setup_config
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.util import get_clusterman_logger
-from clusterman.util import sensu_checkin
 
 logger = get_clusterman_logger(__name__)
 METRICS_TO_WRITE = {
@@ -33,7 +34,7 @@ METRICS_TO_WRITE = {
 }
 
 
-class ClusterMetricsCollector(BatchDaemon):
+class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin):
     notify_emails = ['distsys-compute@yelp.com']
 
     @batch_command_line_arguments
@@ -49,11 +50,12 @@ class ClusterMetricsCollector(BatchDaemon):
 
         self.region = staticconf.read_string(f'mesos_clusters.{self.options.cluster}.aws_region')
         self.run_interval = staticconf.read_int('batches.cluster_metrics.run_interval_seconds')
+        self.logger = logger
 
-        roles = staticconf.read_list('cluster_roles')
+        self.roles = staticconf.read_list('cluster_roles')
         self.mesos_managers = {
             role: MesosRoleManager(self.options.cluster, role)
-            for role in roles
+            for role in self.roles
         }
         self.metrics_client = ClustermanMetricsBotoClient(region_name=self.region)
 

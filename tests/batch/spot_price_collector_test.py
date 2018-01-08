@@ -12,7 +12,9 @@ from clusterman.batch.spot_price_collector import SpotPriceCollector
 
 @pytest.fixture
 def batch():
-    return SpotPriceCollector()
+    batch = SpotPriceCollector()
+    batch.version_checker = mock.Mock(watchers=[])
+    return batch
 
 
 @pytest.fixture
@@ -56,7 +58,7 @@ def test_configure_initial_default(batch, mock_client_class, mock_setup_config):
     batch.options = batch_arg_parser(batch, ['--aws-region', 'us-test-2'])
     batch.configure_initial()
 
-    assert mock_setup_config.call_args_list == [mock.call(batch.options)]
+    assert mock_setup_config.call_args_list == [mock.call(batch.options, include_roles=False)]
     assert batch.region == 'us-test-2'
     assert batch.last_time_called == batch.options.start_time
     assert batch.run_interval == 120
@@ -72,7 +74,7 @@ def test_configure_initial_with_options(batch, batch_arg_parser, mock_client_cla
     batch.options.aws_region = 'us-other-1'
     batch.configure_initial()
 
-    assert mock_setup_config.call_args_list == [mock.call(batch.options)]
+    assert mock_setup_config.call_args_list == [mock.call(batch.options, include_roles=False)]
     assert batch.region == 'us-other-1'
     assert batch.last_time_called == batch.options.start_time
     assert batch.run_interval == 120

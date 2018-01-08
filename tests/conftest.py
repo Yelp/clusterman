@@ -6,6 +6,7 @@ import pytest
 import staticconf.testing
 import yelp_meteorite
 
+from clusterman.aws.client import CREDENTIALS_NAMESPACE
 from clusterman.math.piecewise import PiecewiseConstantFunction
 
 
@@ -84,7 +85,11 @@ def clusterman_role_config():
 
 @pytest.fixture(autouse=True)
 def mock_aws_client_setup():
-    with mock_open('/etc/secrets', '{"accessKeyId": "foo", "secretAccessKey": "bar"}'):
+    config = {
+        'accessKeyId': 'foo',
+        'secretAccessKey': 'bar',
+    }
+    with staticconf.testing.MockConfiguration(config, namespace=CREDENTIALS_NAMESPACE):
         yield
 
 

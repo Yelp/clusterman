@@ -18,6 +18,7 @@ def batch(args=None):
     parser = argparse.ArgumentParser()
     batch.parse_args(parser)
     batch.options = parser.parse_args(args)
+    batch.version_checker = mock.Mock(watchers=[])
     return batch
 
 
