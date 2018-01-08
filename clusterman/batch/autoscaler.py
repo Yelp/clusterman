@@ -3,22 +3,20 @@ import time
 import staticconf
 from yelp_batch.batch import batch_command_line_arguments
 from yelp_batch.batch import batch_configure
-from yelp_batch.batch import batch_context
 from yelp_batch.batch_daemon import BatchDaemon
 
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_env_config_path_arg
 from clusterman.autoscaler.autoscaler import Autoscaler
-from clusterman.batch.util import log_run_info
+from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import sensu_checkin
-from clusterman.config import add_role_watchers
 from clusterman.config import setup_config
 from clusterman.util import get_clusterman_logger
 
 logger = get_clusterman_logger(__name__)
 
 
-class AutoscalerBatch(BatchDaemon):
+class AutoscalerBatch(BatchDaemon, BatchLoggingMixin):
     notify_emails = ['distsys-compute@yelp.com']
 
     @batch_command_line_arguments
@@ -37,11 +35,7 @@ class AutoscalerBatch(BatchDaemon):
     def configure_initial(self):
         setup_config(self.options)
         self.roles = staticconf.read_list('cluster_roles')
-
-    @batch_context
-    def setup_role_watchers(self):
-        add_role_watchers(self.roles, self.version_checker.watchers)
-        yield
+        self.logger = logger
 
     def get_name(self):
         # Overrides the yelp_batch default, which is the name of the file (autoscaler in this case).
@@ -49,7 +43,6 @@ class AutoscalerBatch(BatchDaemon):
         # conflicts with other batches (like the Kew autoscaler).
         return 'clusterman_autoscaler'
 
-    @log_run_info(logger)
     def run(self):
         roles = staticconf.read_list('cluster_roles')
 

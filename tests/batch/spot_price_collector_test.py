@@ -105,7 +105,7 @@ def test_write_prices(mock_write, mock_price_gen, batch):
 @mock.patch('clusterman.batch.spot_price_collector.SpotPriceCollector.running', new_callable=mock.PropertyMock)
 def test_run(mock_running, mock_now, mock_time, mock_sleep, batch, mock_sensu):
     mock_running.side_effect = [True, True, True, True, False]
-    mock_time.side_effect = [100, 101, 148, 152, 188]
+    mock_time.side_effect = [101, 148, 152, 188]
 
     batch.run_interval = 10
     batch.metrics_client = mock.MagicMock()

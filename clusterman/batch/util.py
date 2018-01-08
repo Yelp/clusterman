@@ -1,16 +1,21 @@
 import pysensu_yelp
+from yelp_batch.batch import batch_context
+
+from clusterman.config import add_role_watchers
 
 
-def log_run_info(logger):
-    def decorator(func):
-        def wrapper(self):
-            logger.info('Starting batch {name}; watching {watched_files} for changes'.format(
-                name=type(self).__name__,
-                watched_files=[watcher.filenames for watcher in self.version_checker.watchers],
-            ))
-            func(self)
-        return wrapper
-    return decorator
+class BatchLoggingMixin:
+    @batch_context
+    def setup_watchers(self):
+        if self.roles:
+            add_role_watchers(self.roles, self.version_checker.watchers)
+
+        self.logger.info('Starting batch {name}; watching {watched_files} for changes'.format(
+            name=type(self).__name__,
+            watched_files=[watcher.filenames for watcher in self.version_checker.watchers],
+        ))
+        yield
+        self.logger.info('Batch {name} complete'.format(name=type(self).__name__))
 
 
 def sensu_checkin(check_name, output, check_every, ttl, source, page=True, alert_after='0m', noop=False):

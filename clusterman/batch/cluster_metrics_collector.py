@@ -9,15 +9,13 @@ from clusterman_metrics import METADATA
 from clusterman_metrics import SYSTEM_METRICS
 from yelp_batch.batch import batch_command_line_arguments
 from yelp_batch.batch import batch_configure
-from yelp_batch.batch import batch_context
 from yelp_batch.batch_daemon import BatchDaemon
 
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_disable_sensu_arg
 from clusterman.args import add_env_config_path_arg
-from clusterman.batch.util import log_run_info
+from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import sensu_checkin
-from clusterman.config import add_role_watchers
 from clusterman.config import setup_config
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.util import get_clusterman_logger
@@ -36,7 +34,7 @@ METRICS_TO_WRITE = {
 }
 
 
-class ClusterMetricsCollector(BatchDaemon):
+class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin):
     notify_emails = ['distsys-compute@yelp.com']
 
     @batch_command_line_arguments
@@ -52,6 +50,7 @@ class ClusterMetricsCollector(BatchDaemon):
 
         self.region = staticconf.read_string(f'mesos_clusters.{self.options.cluster}.aws_region')
         self.run_interval = staticconf.read_int('batches.cluster_metrics.run_interval_seconds')
+        self.logger = logger
 
         self.roles = staticconf.read_list('cluster_roles')
         self.mesos_managers = {
@@ -59,11 +58,6 @@ class ClusterMetricsCollector(BatchDaemon):
             for role in self.roles
         }
         self.metrics_client = ClustermanMetricsBotoClient(region_name=self.region)
-
-    @batch_context
-    def setup_role_watchers(self):
-        add_role_watchers(self.roles, self.version_checker.watchers)
-        yield
 
     def write_metrics(self, writer, metrics_to_write):
         for metric, value_method in metrics_to_write:
@@ -73,7 +67,6 @@ class ClusterMetricsCollector(BatchDaemon):
                 data = (metric_name, int(time.time()), value)
                 writer.send(data)
 
-    @log_run_info(logger)
     def run(self):
         while self.running:
             time.sleep(self.run_interval - time.time() % self.run_interval)

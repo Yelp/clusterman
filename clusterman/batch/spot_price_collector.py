@@ -15,7 +15,7 @@ from clusterman.args import add_env_config_path_arg
 from clusterman.args import add_region_arg
 from clusterman.aws.spot_prices import spot_price_generator
 from clusterman.aws.spot_prices import write_prices_with_dedupe
-from clusterman.batch.util import log_run_info
+from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import sensu_checkin
 from clusterman.config import setup_config
 from clusterman.util import get_clusterman_logger
@@ -23,7 +23,7 @@ from clusterman.util import get_clusterman_logger
 logger = get_clusterman_logger(__name__)
 
 
-class SpotPriceCollector(BatchDaemon):
+class SpotPriceCollector(BatchDaemon, BatchLoggingMixin):
     notify_emails = ['distsys-compute@yelp.com']
 
     @batch_command_line_arguments
@@ -47,6 +47,8 @@ class SpotPriceCollector(BatchDaemon):
         # Any keys in the env_config will override defaults in config.yaml.
         setup_config(self.options, include_roles=False)
 
+        self.roles = None
+        self.logger = logger
         self.region = self.options.aws_region
         self.last_time_called = self.options.start_time
         self.run_interval = staticconf.read_int('batches.spot_prices.run_interval_seconds')
@@ -58,7 +60,6 @@ class SpotPriceCollector(BatchDaemon):
         write_prices_with_dedupe(prices, writer, self.dedupe_interval)
         self.last_time_called = end_time
 
-    @log_run_info(logger)
     def run(self):
         while self.running:
             time.sleep(self.run_interval - time.time() % self.run_interval)
