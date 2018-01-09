@@ -10,6 +10,7 @@ from clusterman.args import add_env_config_path_arg
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import sensu_checkin
+from clusterman.config import get_role_config_path
 from clusterman.config import setup_config
 from clusterman.util import get_clusterman_logger
 
@@ -35,6 +36,8 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin):
     def configure_initial(self):
         setup_config(self.options)
         self.roles = staticconf.read_list('cluster_roles')
+        for role in self.roles:
+            self.config.watchers.append({role: get_role_config_path(role)})
         self.logger = logger
 
     def get_name(self):

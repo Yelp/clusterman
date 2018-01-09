@@ -1,15 +1,10 @@
 import pysensu_yelp
 from yelp_batch.batch import batch_context
 
-from clusterman.config import add_role_watchers
-
 
 class BatchLoggingMixin:
     @batch_context
     def setup_watchers(self):
-        if self.roles:
-            add_role_watchers(self.roles, self.version_checker.watchers)
-
         self.logger.info('Starting batch {name}; watching {watched_files} for changes'.format(
             name=type(self).__name__,
             watched_files=[watcher.filenames for watcher in self.version_checker.watchers],
