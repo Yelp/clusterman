@@ -1,9 +1,7 @@
 import os
-from functools import partial
 
 import staticconf
 import yaml
-from staticconf.config import ConfigurationWatcher
 from yelp_servlib.config_util import load_default_config
 
 from clusterman.aws.client import CREDENTIALS_NAMESPACE
@@ -59,13 +57,6 @@ def load_role_configs_for_cluster(cluster):
                 staticconf.DictConfiguration(config, namespace=role_namespace)
 
     staticconf.DictConfiguration({'cluster_roles': cluster_roles})
-
-
-def add_role_watchers(roles, watchers):
-    for role in roles:
-        role_file = get_role_config_path(role)
-        role_watcher = ConfigurationWatcher(partial(staticconf.YamlConfiguration, role_file), role_file)
-        watchers.append(role_watcher)
 
 
 def get_role_config_dir():

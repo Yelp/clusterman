@@ -16,6 +16,7 @@ from clusterman.args import add_disable_sensu_arg
 from clusterman.args import add_env_config_path_arg
 from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import sensu_checkin
+from clusterman.config import get_role_config_path
 from clusterman.config import setup_config
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.util import get_clusterman_logger
@@ -53,6 +54,8 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin):
         self.logger = logger
 
         self.roles = staticconf.read_list('cluster_roles')
+        for role in self.roles:
+            self.config.watchers.append({role: get_role_config_path(role)})
         self.mesos_managers = {
             role: MesosRoleManager(self.options.cluster, role)
             for role in self.roles

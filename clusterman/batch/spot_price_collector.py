@@ -47,7 +47,6 @@ class SpotPriceCollector(BatchDaemon, BatchLoggingMixin):
         # Any keys in the env_config will override defaults in config.yaml.
         setup_config(self.options, include_roles=False)
 
-        self.roles = None
         self.logger = logger
         self.region = self.options.aws_region
         self.last_time_called = self.options.start_time
