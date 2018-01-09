@@ -3,6 +3,10 @@ class ClustermanException(Exception):
     pass
 
 
+class GitError(ClustermanException):
+    pass
+
+
 class MetricsError(ClustermanException):
     pass
 

@@ -11,6 +11,7 @@ from clusterman.autoscaler.util import SignalConfig
 def signal_config_base():
     return {'autoscale_signal': {
         'name': 'BarSignal3',
+        'branch_or_tag': 'v42',
         'period_minutes': 7,
     }}
 
@@ -23,10 +24,11 @@ def test_read_config_none():
 
 def test_read_config_optional_values():
     config_dict = signal_config_base()
-    with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'):
+    with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'), \
+            mock.patch('clusterman.autoscaler.util.load_signal_metric_config'):
         config = read_signal_config('util_testing')
 
-    assert config == SignalConfig('BarSignal3', 7, [], {})
+    assert config == SignalConfig('BarSignal3', 'v42', 7, [], {})
 
 
 def test_read_config_valid_values():
@@ -49,11 +51,14 @@ def test_read_config_valid_values():
             {'otherParam': 18},
         ],
     })
-    with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'):
+    with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'), \
+            mock.patch('clusterman.autoscaler.util.load_signal_metric_config') as load_metric_config:
+        load_metric_config.return_value = MetricConfig
         config = read_signal_config('util_testing')
 
     assert config == SignalConfig(
         'BarSignal3',
+        'v42',
         7,
         mock.ANY,
         {'paramA': 'abc', 'otherParam': 18},
@@ -80,6 +85,8 @@ def test_read_signal_invalid_metrics(period_minutes):
         ],
         'period_minutes': period_minutes,
     })
-    with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'):
+    with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'), \
+            mock.patch('clusterman.autoscaler.util.load_signal_metric_config') as load_metric_config:
+        load_metric_config.return_value = MetricConfig
         with pytest.raises(Exception):
             read_signal_config('util_testing')

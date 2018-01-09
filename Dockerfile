@@ -9,10 +9,12 @@ FROM    docker-dev.yelpcorp.com/xenial_yelp:latest
 RUN     apt-get update \
         && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             dumb-init \
+            git \
             libmysqlclient20 \
             libpython3.6 \
             libxml2 \
             libyaml-0-2 \
+            openssh-client \
             python3.6 \
             tox \
             virtualenv \
@@ -24,6 +26,10 @@ RUN     apt-get update \
 # for more information (e.g., using pip-custom-platform, tox virtualenv build, etc)
 COPY    tox.ini requirements.txt /code/
 RUN     cd code && tox -e virtualenv_run
+
+RUN     mkdir -p /home/nobody/.ssh /home/nobody/.cache/clusterman && chown -R nobody /home/nobody
+RUN     usermod -d /home/nobody nobody
+RUN     echo 'Host git.yelpcorp.com\n\tStrictHostKeyChecking no\n\tUserKnownHostsFile /dev/null' > /home/nobody/.ssh/config
 
 # Code is COPY'ed here after the pip install above, so that code changes do not
 # break the preceding cache layer.

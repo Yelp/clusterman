@@ -1,5 +1,4 @@
 import time
-from importlib import import_module
 
 import arrow
 import staticconf
@@ -7,6 +6,7 @@ import yelp_meteorite
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 from clusterman.autoscaler.util import read_signal_config
+from clusterman.git import load_signal_class
 from clusterman.mesos.constants import ROLE_NAMESPACE
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.util import get_clusterman_logger
@@ -17,7 +17,7 @@ logger = get_clusterman_logger(__name__)
 
 
 class Autoscaler:
-    def __init__(self, cluster, role, role_manager=None, metrics_client=None):
+    def __init__(self, cluster, role, *, role_manager=None, metrics_client=None):
         self.cluster = cluster
         self.role = role
 
@@ -42,7 +42,6 @@ class Autoscaler:
 
         :param dry_run: Don't actually modify the fleet size, just print what would happen
         """
-        # TODO (CLUSTERMAN-122): reload signal if signals code or configs change
         timestamp = timestamp or arrow.utcnow()
         logger.info(f'Autoscaling run starting at {timestamp}')
         delta = self._compute_cluster_delta(timestamp)
@@ -81,8 +80,7 @@ class Autoscaler:
         :param signal_role: string, corresponding to the package name in clusterman_signals where the signal is defined
         :param signal_config: a SignalConfig, containing values to initialize the signal
         """
-        signal_module = import_module(f'clusterman_signals.{signal_role}')
-        signal_class = getattr(signal_module, signal_config.name)
+        signal_class = load_signal_class(signal_config.branch_or_tag, signal_role, signal_config.name)
         signal = signal_class(
             self.cluster,
             self.role,

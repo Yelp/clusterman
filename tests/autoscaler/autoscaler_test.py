@@ -59,12 +59,6 @@ def mock_gauge():
 
 
 @pytest.fixture
-def mock_import_signals():
-    with mock.patch('clusterman.autoscaler.autoscaler.import_module') as mock_import:
-        yield mock_import
-
-
-@pytest.fixture
 def mock_role_manager():
     with mock.patch('clusterman.autoscaler.autoscaler.MesosRoleManager', autospec=True) as mock_role_manager:
         yield mock_role_manager
@@ -104,6 +98,7 @@ def mock_signal():
 def signal_config():
     return SignalConfig(
         'CoolSignal',
+        'v42',
         3,
         [MetricConfig('metricA', 'system_metrics', 8)],
         {'paramA': 20, 'paramC': 'abc'},
@@ -112,7 +107,7 @@ def signal_config():
 
 @mock.patch('clusterman.autoscaler.autoscaler.Autoscaler.load_signal', autospec=True)
 def test_autoscaler_init(mock_load_signal, mock_role_manager, mock_metrics_client, mock_gauge):
-    mock_autoscaler = Autoscaler('foo', 'bar', None, mock_metrics_client())
+    mock_autoscaler = Autoscaler('foo', 'bar', role_manager=None, metrics_client=mock_metrics_client())
 
     assert mock_autoscaler.cluster == 'foo'
     assert mock_autoscaler.role == 'bar'
@@ -157,20 +152,21 @@ def test_load_signal(mock_init_signal, mock_read_config, mock_autoscaler, role_c
         assert mock_autoscaler.signal == role_signal
 
 
-def test_init_signal_from_config(mock_import_signals, mock_autoscaler):
+def test_init_signal_from_config(mock_autoscaler):
     config = signal_config()
     config_role = 'anything'
-    val = mock_autoscaler._init_signal_from_config(config_role, config)
-    assert mock_import_signals.call_args_list == [mock.call(f'clusterman_signals.{config_role}')]
-    assert mock_import_signals.return_value.CoolSignal.call_args_list == [mock.call(
-        'foo',
-        'bar',
-        period_minutes=config.period_minutes,
-        required_metrics=config.required_metrics,
-        custom_parameters=config.custom_parameters,
-        metrics_client=mock_autoscaler.metrics_client,
-    )]
-    assert val == mock_import_signals.return_value.CoolSignal.return_value
+    with mock.patch('clusterman.autoscaler.autoscaler.load_signal_class') as mock_load_signal:
+        val = mock_autoscaler._init_signal_from_config(config_role, config)
+        assert mock_load_signal.call_args == mock.call('v42', config_role, 'CoolSignal')
+        assert mock_load_signal.return_value.call_args == mock.call(
+            'foo',
+            'bar',
+            period_minutes=config.period_minutes,
+            required_metrics=config.required_metrics,
+            custom_parameters=config.custom_parameters,
+            metrics_client=mock_autoscaler.metrics_client,
+        )
+        assert val == mock_load_signal.return_value.return_value
 
 
 @pytest.mark.parametrize('dry_run', [True, False])

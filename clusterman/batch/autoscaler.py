@@ -27,10 +27,15 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin):
         add_cluster_arg(arg_group, required=True)
         add_env_config_path_arg(arg_group)
         arg_group.add_argument(
+            '-S', '--signals-branch-or-tag',
+            default=None,
+            help='Branch or tag to use for the clusterman_signals repository'
+        )
+        arg_group.add_argument(
             '--dry-run',
             default=False,
             action='store_true',
-            help='If true, will only log autoscaling decisions instead of modifying capacities.',
+            help='If true, will only log autoscaling decisions instead of modifying capacities',
         )
 
     @batch_configure
@@ -49,16 +54,14 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin):
         return LOG_STREAM_NAME
 
     def run(self):
-        roles = staticconf.read_list('cluster_roles')
-
-        if not roles:
+        if not self.roles:
             raise Exception('No roles are configured to be managed by Clusterman in this cluster')
 
         # TODO: handle multiple roles in the autoscaler (CLUSTERMAN-126)
-        if len(roles) > 1:
+        if len(self.roles) > 1:
             raise NotImplementedError('Scaling multiple roles in a cluster is not yet supported')
 
-        self.autoscaler = Autoscaler(self.options.cluster, roles[0])
+        self.autoscaler = Autoscaler(self.options.cluster, self.roles[0])
         while self.running:
             time.sleep(self.autoscaler.time_to_next_activation())
             self.autoscaler.run(dry_run=self.options.dry_run)

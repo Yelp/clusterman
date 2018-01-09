@@ -90,7 +90,7 @@ def test_setup_config(mock_service_load, mock_role_load, cluster, include_roles,
     if cluster is not None:
         assert staticconf.read_string('aws.region') == 'us-test-3'
         if include_roles:
-            assert mock_role_load.call_args_list == [mock.call(cluster)]
+            assert mock_role_load.call_args_list == [mock.call(cluster, None)]
         else:
             assert mock_role_load.call_args_list == []
 
@@ -103,7 +103,7 @@ def test_setup_config(mock_service_load, mock_role_load, cluster, include_roles,
 @mock.patch('os.listdir')
 def test_load_role_configs_for_cluster(mock_ls, cluster, roles, config_dir, mock_config_files):
     mock_ls.return_value = ['role-1', 'role-2']
-    config.load_role_configs_for_cluster(cluster)
+    config.load_role_configs_for_cluster(cluster, None)
 
     for role in roles:
         role_namespace = ROLE_NAMESPACE.format(role=role)

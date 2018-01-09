@@ -5,6 +5,7 @@ attrs==17.2.0
 aws-xray-sdk==0.93
 Babel==2.3.4.post1
 cffi==1.10.0
+clusterman-signals==2.0.0
 cookies==2.2.1
 coverage==4.4.1
 cryptography==2.0.3

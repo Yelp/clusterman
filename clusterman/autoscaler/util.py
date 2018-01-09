@@ -1,12 +1,15 @@
 from collections import namedtuple
 
 import staticconf
-from clusterman_signals.base_signal import MetricConfig
 
 from clusterman.exceptions import SignalConfigurationError
+from clusterman.git import load_signal_metric_config
 
 
-SignalConfig = namedtuple('SignalConfig', 'name period_minutes required_metrics custom_parameters')
+SignalConfig = namedtuple(
+    'SignalConfig',
+    ['name', 'branch_or_tag', 'period_minutes', 'required_metrics', 'custom_parameters'],
+)
 
 
 def read_signal_config(config_namespace):
@@ -29,6 +32,8 @@ def read_signal_config(config_namespace):
 
     parameter_dict = {key: value for param_dict in parameter_dict_list for (key, value) in param_dict.items()}
 
+    branch_or_tag = reader.read_string('autoscale_signal.branch_or_tag')
+    MetricConfig = load_signal_metric_config(branch_or_tag)
     required_metric_keys = set(MetricConfig._fields)
     metric_configs = []
     for metrics_dict in metrics_dict_list:
@@ -37,4 +42,4 @@ def read_signal_config(config_namespace):
             raise SignalConfigurationError(f'Missing required metric keys {missing} in {metrics_dict}')
         metric_config = {key: metrics_dict[key] for key in metrics_dict if key in required_metric_keys}
         metric_configs.append(MetricConfig(**metric_config))
-    return SignalConfig(name, period_minutes, metric_configs, parameter_dict)
+    return SignalConfig(name, branch_or_tag, period_minutes, metric_configs, parameter_dict)
