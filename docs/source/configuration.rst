@@ -10,7 +10,9 @@ The second provides per-role configuration, for client applications to customize
 Service Configuration
 ----------------------
 
-The following is an example configuration file for the core Clusterman service and application::
+The following is an example configuration file for the core Clusterman service and application:
+
+.. code-block:: yaml
 
     aws:
         access_key_file: /etc/boto_cfg/clusterman.json
@@ -18,25 +20,44 @@ The following is an example configuration file for the core Clusterman service a
 
     autoscale_signal:
         name: MostRecentCPU
-        period_minutes: 10  # How frequently the signal will be evaluated.
+
+        # What version of the signal to use (a branch or tag in the clusterman_signals Git repo)
+        branch_or_tag: v1.0.2
+
+        # How frequently the signal will be evaluated.
+        period_minutes: 10
+
         required_metrics:
             - name: cpus_allocated
               type: system_metrics
-              minute_range: 10  # The metric will be queried for the most recent data in this range.
+
+              # The metric will be queried for the most recent data in this range.
+              minute_range: 10
 
     autoscaling:
-        cpus_per_weight: 8  # Conversion from CPUs to capacity units.
-        default_signal_role: clusterman  # Module where the default signal is defined in clusterman_signals.
-        setpoint: 0.7  # Percentage utilization that Clusterman will try to maintain.
-        setpoint_margin: 0.1  # Clusterman will only scale if utilization is beyond this margin from the setpoint.
+        # Conversion from CPUs to capacity units.
+        cpus_per_weight: 8
+
+        # Module where the default signal is defined in clusterman_signals.
+        default_signal_role: clusterman
+
+        # Percentage utilization that Clusterman will try to maintain.
+        setpoint: 0.7
+
+        # Clusterman will only scale if utilization is beyond this margin from the setpoint.
+        setpoint_margin: 0.1
 
     batches:
         cluster_metrics:
-            run_interval_seconds: 60  # How frequently the batch should run to collect metrics.
+            # How frequently the batch should run to collect metrics.
+            run_interval_seconds: 60
 
         spot_prices:
-            dedupe_interval_seconds: 60  # # Max one price change for each (instance type, AZ) in this interval.
-            run_interval_seconds: 60  # How frequently the batch should run to collect metrics.
+            # Max one price change for each (instance type, AZ) in this interval.
+            dedupe_interval_seconds: 60
+
+            # How frequently the batch should run to collect metrics.
+            run_interval_seconds: 60
 
     mesos_clusters:
         cluster-name:
@@ -46,14 +67,21 @@ The following is an example configuration file for the core Clusterman service a
     role_config_directory: /nail/srv/configs/clusterman-roles/
 
     module_config:
-    - config:
-         log_stream_name: clusterman
-      file: /nail/srv/configs/clog.yaml
-      initialize: yelp_servlib.clog_util.initialize
-      namespace: clog
+      - namespace: clog
+        config:
+            log_stream_name: clusterman
+        file: /nail/srv/configs/clog.yaml
+        initialize: yelp_servlib.clog_util.initialize
 
-    - file: /nail/srv/configs/clusterman_metrics.yaml
-      namespace: clusterman_metrics
+      - namespace: clusterman_metrics
+        file: /nail/srv/configs/clusterman_metrics.yaml
+
+      - namespace: yelp_batch
+        config:
+            watchers:
+              - aws_key_rotation: /etc/boto_cfg/clusterman.json
+              - clusterman_yaml: /nail/srv/configs/clusterman.yaml
+
 
 The ``aws`` section provides the location of access credentials for the AWS API, as well as the region in which
 Clusterman should operate.
@@ -77,7 +105,9 @@ Role Configuration
 
 To configure a role, a directory with that role's name should be created in the ``role_config_directory``
 defined in the service configuration. Within that directory, there should be a file named ``config.yaml``.
-The following is an example configuration file for a particular Clusterman role::
+The following is an example configuration file for a particular Clusterman role:
+
+.. code-block:: yaml
 
     mesos:
         everywhere-testopia:
@@ -94,12 +124,21 @@ The following is an example configuration file for a particular Clusterman role:
 
 
     autoscale_signal:
-        name: CustomSignal  # Must exist in the clusterman_signals.<role_name> module.
-        period_minutes: 10  # How frequently the signal will be evaluated.
+        # Must exist in the clusterman_signals.<role_name> module.
+        name: CustomSignal
+
+        # What version of the signal to use (a branch or tag in the clusterman_signals Git repo)
+        branch_or_tag: v3.7
+
+        # How frequently the signal will be evaluated.
+        period_minutes: 10
+
         required_metrics:
             - name: cpus_allocated
               type: system_metrics
-              minute_range: 10  # The metric will be queried for the most recent data in this range.
+
+              # The metric will be queried for the most recent data in this range.
+              minute_range: 10
 
 
 The ``mesos`` section provides information for loading the :py:class:`MesosRoleManager <clusterman.mesos.mesos_role_manager.MesosRoleManager>` resource groups.
@@ -114,7 +153,7 @@ will be used.
 
 Reloading
 ---------
-The autoscaling batch watches for changes to the service configuration and all role configuration files.
-It only responds to signal-related changes; in those cases, it will automatically reload the signals.
-
-TODO: details on methods for loading configs?
+The Clusterman batches will automatically reload on changes to the clusterman service config file and the AWS
+credentials file.  This is specified in the ``namespace: yelp_batch`` section of the main configuration file.  The
+autoscaler batch and the metrics collector batch also will automatically reload for changes to any roles that are
+configured to run on the specified cluster.
