@@ -27,7 +27,7 @@ def _sha_from_branch_or_tag(branch_or_tag):
 def _add_clusterman_signals_to_path(branch_or_tag):
     local_repo_cache = _get_cache_location()
     sha = _sha_from_branch_or_tag(branch_or_tag)
-    local_path = f'{local_repo_cache}/clusterman_signals_{sha}'
+    local_path = os.path.join(local_repo_cache, f'clusterman_signals_{sha}')
     if local_path in sys.path:
         return
 

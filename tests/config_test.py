@@ -36,6 +36,7 @@ def mock_config_files(config_dir):
                 'cluster-B': {'resource_groups': 'cluster-B'},
             },
             'other_config': 18,
+            'autoscale_signal': {'branch_or_tag': 'v42'},
         }),
     ), mock_open(
         '/etc/no_cfg/clusterman.json',
@@ -74,25 +75,27 @@ def mock_config_namespaces():
         yield
 
 
-@pytest.mark.parametrize('cluster,include_roles', [
-    (None, True),
-    (None, False),
-    ('cluster-A', True),
-    ('cluster-A', False),
+@pytest.mark.parametrize('cluster,include_roles,tag', [
+    (None, True, None),
+    (None, True, 'v52'),
+    (None, False, None),
+    ('cluster-A', True, None),
+    ('cluster-A', True, 'v52'),
+    ('cluster-A', False, None),
 ])
 @mock.patch('clusterman.config.load_role_configs_for_cluster', autospec=True)
 @mock.patch('clusterman.config.load_default_config')
-def test_setup_config(mock_service_load, mock_role_load, cluster, include_roles, mock_config_files):
-    args = argparse.Namespace(env_config_path='/nail/etc/config.yaml', cluster=cluster)
+def test_setup_config(mock_service_load, mock_role_load, cluster, include_roles, tag, mock_config_files):
+    args = argparse.Namespace(env_config_path='/nail/etc/config.yaml', cluster=cluster, signals_branch_or_tag=tag)
     config.setup_config(args, include_roles=include_roles)
 
-    assert mock_service_load.call_args_list == [mock.call('/nail/etc/config.yaml', '/nail/etc/config.yaml')]
+    assert mock_service_load.call_args == mock.call('/nail/etc/config.yaml', '/nail/etc/config.yaml')
     if cluster is not None:
         assert staticconf.read_string('aws.region') == 'us-test-3'
         if include_roles:
-            assert mock_role_load.call_args_list == [mock.call(cluster, None)]
+            assert mock_role_load.call_args == mock.call(cluster, tag)
         else:
-            assert mock_role_load.call_args_list == []
+            assert mock_role_load.call_count == 0
 
 
 @pytest.mark.parametrize('cluster,roles', [
