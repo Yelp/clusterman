@@ -34,7 +34,12 @@ def _make_report_title(fig, report, sim_metadata, months):
     y_axis_points = AXIS_DIMENSION_INCHES[1] * FIGURE_DPI * len(months)
     subtitle_abs_y = y_axis_points * title.get_position()[1] - SUBTITLE_SPACING
     subtitle_rel_y = subtitle_abs_y / y_axis_points
-    fig.text(0.5, subtitle_rel_y, f'Cluster: {sim_metadata.cluster}; Role: {sim_metadata.role}', va='top', ha='center')
+    fig.text(
+        0.5, subtitle_rel_y,
+        f'{sim_metadata.name}\nCluster: {sim_metadata.cluster}; Role: {sim_metadata.role}',
+        va='top', ha='center',
+        fontsize=6,
+    )
 
 
 def _make_heatmap_legend_marker(color, label):

@@ -1,3 +1,4 @@
+import operator
 from datetime import timedelta
 from functools import lru_cache
 
@@ -139,3 +140,46 @@ def test_cache_invalidated(fn):
     fn.values(0, 10, 1)
     fn.values(0, 10, 1)
     assert inside_values_func.call_count == 2
+
+
+@pytest.mark.parametrize('op', [operator.add, operator.sub, operator.mul, operator.truediv])
+def test_combine_no_breakpoints(op):
+    fn1 = PiecewiseConstantFunction(1)
+    fn2 = PiecewiseConstantFunction(2)
+    fn3 = op(fn1, fn2)
+    assert fn3._initial_value == op(fn1._initial_value, fn2._initial_value)
+    assert len(fn3.breakpoints) == 0
+
+
+@pytest.mark.parametrize('op', [operator.add, operator.sub, operator.mul, operator.truediv])
+def test_combine_with_breakpoints_in_one_fn(op):
+    fn1 = PiecewiseConstantFunction(1)
+    fn1.add_breakpoint(2, 7)
+    fn1.add_breakpoint(4, 4)
+    fn1.add_breakpoint(7, 1)
+    fn2 = PiecewiseConstantFunction(2)
+    fn3 = op(fn1, fn2)
+
+    assert fn3._initial_value == op(fn1._initial_value, fn2._initial_value)
+    assert fn3.breakpoints[2] == op(fn1.breakpoints[2], fn2._initial_value)
+    assert fn3.breakpoints[4] == op(fn1.breakpoints[4], fn2._initial_value)
+    assert fn3.breakpoints[7] == op(fn1.breakpoints[7], fn2._initial_value)
+
+
+@pytest.mark.parametrize('op', [operator.add, operator.sub, operator.mul, operator.truediv])
+def test_combine_with_breakpoints_in_both_fns(op):
+    fn1 = PiecewiseConstantFunction(1)
+    fn1.add_breakpoint(2, 7)
+    fn1.add_breakpoint(4, 4)
+    fn1.add_breakpoint(7, 1)
+    fn2 = PiecewiseConstantFunction(2)
+    fn2.add_breakpoint(-1, 4)
+    fn2.add_breakpoint(6, 1)
+    fn3 = op(fn1, fn2)
+
+    assert fn3._initial_value == op(fn1._initial_value, fn2._initial_value)
+    assert fn3.breakpoints[-1] == op(fn1._initial_value, fn2.breakpoints[-1])
+    assert fn3.breakpoints[2] == op(fn1.breakpoints[2], fn2.breakpoints[-1])
+    assert fn3.breakpoints[4] == op(fn1.breakpoints[4], fn2.breakpoints[-1])
+    assert fn3.breakpoints[6] == op(fn1.breakpoints[4], fn2.breakpoints[6])
+    assert fn3.breakpoints[7] == op(fn1.breakpoints[7], fn2.breakpoints[6])

@@ -41,7 +41,7 @@ class SimulatedMesosRoleManager(MesosRoleManager):
     def modify_target_capacity(self, new_target_capacity, **kwargs):
         super().modify_target_capacity(new_target_capacity, **kwargs)
         total_cpus = sum(group.cpus for group in self.resource_groups)
-        self.simulator.cpus.add_breakpoint(self.simulator.current_time, total_cpus)
+        self.simulator.cpus.add_breakpoint(self.simulator.current_time, total_cpus, squash=True)
 
     def _idle_agents_by_market(self):
         idle_agents = [agent for agent in self.agents if allocated_cpu_resources(agent) == 0]

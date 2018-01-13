@@ -15,6 +15,10 @@ class NoSignalConfiguredException(ClustermanException):
     pass
 
 
+class ResourceGroupError(ClustermanException):
+    pass
+
+
 class SignalValidationError(ClustermanException):
     pass
 
@@ -23,5 +27,5 @@ class SignalConnectionError(ClustermanException):
     pass
 
 
-class ResourceGroupError(ClustermanException):
+class SimulationError(ClustermanException):
     pass

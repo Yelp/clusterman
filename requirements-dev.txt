@@ -21,6 +21,7 @@ mccabe==0.6.1
 mock==2.0.0
 moto==1.1.24
 nodeenv==1.1.4
+paasta-acceptance==1.0.0
 pbr==3.1.1
 pluggy==0.6.0
 pre-commit==1.6.0
