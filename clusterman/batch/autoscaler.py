@@ -14,6 +14,7 @@ from clusterman.config import get_role_config_path
 from clusterman.config import setup_config
 from clusterman.util import get_clusterman_logger
 
+LOG_STREAM_NAME = 'tmp_clusterman_scaling_decisions'
 logger = get_clusterman_logger(__name__)
 
 
@@ -40,11 +41,12 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin):
             self.config.watchers.append({role: get_role_config_path(role)})
         self.logger = logger
 
-    def get_name(self):
-        # Overrides the yelp_batch default, which is the name of the file (autoscaler in this case).
+    def _get_local_log_stream(self, clog_prefix=None):
+        # Overrides the yelp_batch default, which is tmp_batch_<filename> (autoscaler in this case)
+
         # This controls the name of the scribe log for this batch. Without this, the log
         # conflicts with other batches (like the Kew autoscaler).
-        return 'clusterman_autoscaler'
+        return LOG_STREAM_NAME
 
     def run(self):
         roles = staticconf.read_list('cluster_roles')
