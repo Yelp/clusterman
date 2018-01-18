@@ -1,3 +1,9 @@
+clusterman (0.10.1) trusty; urgency=low
+
+  * fixed bug with `clusterman manage`
+
+ -- David Morrison <drmorr@yelp.com>  Thu, 18 Jan 2018 14:35:20 -0800
+
 clusterman (0.10.0) trusty; urgency=low
 
   * added --dry-run flag to `clusterman manage`
