@@ -194,7 +194,7 @@ def test_autoscaler_dry_run(dry_run, run_timestamp, mock_autoscaler):
 @pytest.mark.parametrize('run_timestamp', [None, arrow.get(300)])
 def test_compute_cluster_delta(run_timestamp, mock_autoscaler, mock_signal,
                                mock_constrain_delta, signal_cpus, total_cpus, expected_delta):
-    mock_signal.get_signal.return_value = SignalResources(signal_cpus, None, None)
+    mock_signal.get_signal.return_value = SignalResources(cpus=signal_cpus)
     mock_autoscaler.signal = mock_signal
     mock_autoscaler.mesos_role_manager.get_resource_total.return_value = total_cpus
     delta = mock_autoscaler._compute_cluster_delta(run_timestamp)
