@@ -13,9 +13,12 @@ def main(args):
         raise NotImplementedError('Cluster recycling is not yet supported')
     manager = MesosRoleManager(args.cluster, args.role)
     if not args.dry_run:
-        ask_for_confirmation(
+        if not ask_for_confirmation(
             f'Modifying target capacity from {manager.target_capacity} to {args.target_capacity}.  Proceed? '
-        )
+        ):
+            print('Aborting operation.')
+            return
+
     new_target_capacity = manager.modify_target_capacity(args.target_capacity, args.dry_run)
     print(f'Operation complete.  New target capacity set to {new_target_capacity}')
 
