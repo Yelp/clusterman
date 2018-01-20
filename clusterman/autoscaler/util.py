@@ -3,13 +3,13 @@ from collections import namedtuple
 import staticconf
 
 from clusterman.exceptions import SignalConfigurationError
-from clusterman.git import load_signal_metric_config
 
 
 SignalConfig = namedtuple(
     'SignalConfig',
-    ['name', 'branch_or_tag', 'period_minutes', 'required_metrics', 'custom_parameters'],
+    ['name', 'branch_or_tag', 'period_minutes', 'required_metrics', 'parameters'],
 )
+MetricConfig = namedtuple('MetricConfig', ['name', 'type', 'minute_range'])  # duplicated from clusterman_signals repo
 
 
 def read_signal_config(config_namespace):
@@ -33,7 +33,6 @@ def read_signal_config(config_namespace):
     parameter_dict = {key: value for param_dict in parameter_dict_list for (key, value) in param_dict.items()}
 
     branch_or_tag = reader.read_string('autoscale_signal.branch_or_tag')
-    MetricConfig = load_signal_metric_config(branch_or_tag)
     required_metric_keys = set(MetricConfig._fields)
     metric_configs = []
     for metrics_dict in metrics_dict_list:

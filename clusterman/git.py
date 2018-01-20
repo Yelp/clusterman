@@ -1,13 +1,13 @@
 import os
+import socket
 import subprocess
-import sys
-from importlib import import_module
 
 from clusterman.exceptions import GitError
 from clusterman.util import get_clusterman_logger
 
 logger = get_clusterman_logger(__name__)
 SIGNALS_REPO = 'git@git.yelpcorp.com:clusterman_signals'
+SIGNAL_SOCK_NAME = 'clusterman-signal-socket'
 
 
 def _get_cache_location():
@@ -28,27 +28,29 @@ def _add_clusterman_signals_to_path(branch_or_tag):
     local_repo_cache = _get_cache_location()
     sha = _sha_from_branch_or_tag(branch_or_tag)
     local_path = os.path.join(local_repo_cache, f'clusterman_signals_{sha}')
-    if local_path in sys.path:
-        return
 
     if not os.path.exists(local_path):
         subprocess.run(['git', 'clone', '--depth', '1', '--branch', branch_or_tag, SIGNALS_REPO, local_path])
+        subprocess.run(['make', 'venv'], cwd=local_path)
+        # TODO should check returncodes
     else:
         logger.debug(f'signal version {sha} exists in cache, not re-cloning')
 
-    # TODO (CLUSTERMAN-126) if there are multiple roles on a cluster that each specify different versions of
-    # the signal, this will break; we should have some mechanism to load a different signal version for each
-    # role.
-    sys.path.append(local_path)
+    return local_path
 
 
-def load_signal_class(branch_or_tag, role, signal_name):
-    _add_clusterman_signals_to_path(branch_or_tag)
-    signal_module = import_module(f'clusterman_signals.{role}')
-    return getattr(signal_module, signal_name)
-
-
-def load_signal_metric_config(branch_or_tag):
-    _add_clusterman_signals_to_path(branch_or_tag)
-    base_signal_module = import_module(f'clusterman_signals.base_signal')
-    return base_signal_module.MetricConfig
+def load_signal_connection(branch_or_tag, role, signal_name):
+    signal_dir = _add_clusterman_signals_to_path(branch_or_tag)
+    s = socket.socket(socket.AF_UNIX)
+    s.bind(f'\0{SIGNAL_SOCK_NAME}')  # this creates an abstract namespace socket which is auto-cleaned on program exit
+    s.listen(1)
+    subprocess.Popen([
+        os.path.join(signal_dir, 'venv', 'bin', 'python'),
+        '-m',
+        'clusterman_signals.run',
+        role,
+        signal_name,
+        'clusterman-signal-socket',
+    ])
+    conn, __ = s.accept()
+    return conn
