@@ -1,3 +1,3 @@
 FROM    docker-dev.yelpcorp.com/trusty_pkgbuild
-RUN     apt-get -yq update && apt-get install -yq --no-install-recommends libfreetype6
+RUN     apt-get -yq update && apt-get install -yq --no-install-recommends libfreetype6 libatlas-base-dev
 WORKDIR /work
