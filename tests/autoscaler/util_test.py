@@ -4,11 +4,11 @@ import mock
 import pytest
 import staticconf.testing
 
+from clusterman.autoscaler.util import _get_local_signal_directory
+from clusterman.autoscaler.util import _sha_from_branch_or_tag
 from clusterman.autoscaler.util import MetricConfig
 from clusterman.autoscaler.util import read_signal_config
 from clusterman.autoscaler.util import SignalConfig
-from clusterman.git import _get_local_signal_directory
-from clusterman.git import _sha_from_branch_or_tag
 
 
 @pytest.fixture
@@ -22,14 +22,14 @@ def signal_config_base():
 
 @pytest.fixture
 def mock_sha():
-    with mock.patch('clusterman.git._sha_from_branch_or_tag') as m:
+    with mock.patch('clusterman.autoscaler.util._sha_from_branch_or_tag') as m:
         m.return_value = 'abcdefabcdefabcdefabcdefabcdefabcdefabcd'
         yield
 
 
 @pytest.fixture
 def mock_cache():
-    with mock.patch('clusterman.git._get_cache_location') as m:
+    with mock.patch('clusterman.autoscaler.util._get_cache_location') as m:
         m.return_value = '/foo'
         yield
 
@@ -105,16 +105,16 @@ def test_read_signal_invalid_metrics(period_minutes):
             read_signal_config('util_testing')
 
 
-@mock.patch('clusterman.git.subprocess.run')
+@mock.patch('clusterman.autoscaler.util.subprocess.run')
 def test_sha_from_branch_or_tag(mock_run):
     mock_run.return_value.returncode = 0
     mock_run.return_value.stdout = 'abcdefabcdefabcdefabcdefabcdefabcdefabcd\trefs/heads/a_branch'.encode()
     assert _sha_from_branch_or_tag('a_branch') == 'abcdefabcdefabcdefabcdefabcdefabcdefabcd'
 
 
-@mock.patch('clusterman.git.os.path.exists')
-@mock.patch('clusterman.git.logger')
-@mock.patch('clusterman.git.subprocess.run')
+@mock.patch('clusterman.autoscaler.util.os.path.exists')
+@mock.patch('clusterman.autoscaler.util.logger')
+@mock.patch('clusterman.autoscaler.util.subprocess.run')
 class TestMakeVenv:
     def test_already_built(self, mock_run, mock_logger, mock_exists, mock_sha, mock_cache):
         mock_exists.return_value = True
