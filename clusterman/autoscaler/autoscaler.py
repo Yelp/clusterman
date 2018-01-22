@@ -9,8 +9,8 @@ from clusterman_metrics import generate_key_with_dimensions
 from clusterman_metrics import SYSTEM_METRICS
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
+from clusterman.autoscaler.util import load_signal_connection
 from clusterman.autoscaler.util import read_signal_config
-from clusterman.git import load_signal_connection
 from clusterman.mesos.constants import ROLE_NAMESPACE
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.util import get_clusterman_logger

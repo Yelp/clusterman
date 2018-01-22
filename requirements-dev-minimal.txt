@@ -1,4 +1,3 @@
-clusterman-signals
 coverage
 flake8
 livereload

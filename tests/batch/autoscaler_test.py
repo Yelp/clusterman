@@ -42,7 +42,7 @@ def mock_watcher():
 @pytest.fixture
 def mock_autoscaler():
     with mock.patch('clusterman.batch.autoscaler.Autoscaler', signal=mock.Mock()) as autoscaler:
-        autoscaler.signal.period_minutes = 10
+        autoscaler.signal_config.period_minutes = 10
         autoscaler.return_value.time_to_next_activation = partial(
             Autoscaler.time_to_next_activation,
             self=autoscaler,

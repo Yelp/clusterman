@@ -1,10 +1,14 @@
+import os
+
 import mock
 import pytest
 import staticconf.testing
-from clusterman_signals.base_signal import MetricConfig
 
+from clusterman.autoscaler.util import MetricConfig
 from clusterman.autoscaler.util import read_signal_config
 from clusterman.autoscaler.util import SignalConfig
+from clusterman.git import _get_local_signal_directory
+from clusterman.git import _sha_from_branch_or_tag
 
 
 @pytest.fixture
@@ -16,6 +20,20 @@ def signal_config_base():
     }}
 
 
+@pytest.fixture
+def mock_sha():
+    with mock.patch('clusterman.git._sha_from_branch_or_tag') as m:
+        m.return_value = 'abcdefabcdefabcdefabcdefabcdefabcdefabcd'
+        yield
+
+
+@pytest.fixture
+def mock_cache():
+    with mock.patch('clusterman.git._get_cache_location') as m:
+        m.return_value = '/foo'
+        yield
+
+
 def test_read_config_none():
     with staticconf.testing.MockConfiguration({}, namespace='util_testing'):
         config = read_signal_config('util_testing')
@@ -24,8 +42,7 @@ def test_read_config_none():
 
 def test_read_config_optional_values():
     config_dict = signal_config_base()
-    with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'), \
-            mock.patch('clusterman.autoscaler.util.load_signal_metric_config'):
+    with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'):
         config = read_signal_config('util_testing')
 
     assert config == SignalConfig('BarSignal3', 'v42', 7, [], {})
@@ -51,9 +68,7 @@ def test_read_config_valid_values():
             {'otherParam': 18},
         ],
     })
-    with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'), \
-            mock.patch('clusterman.autoscaler.util.load_signal_metric_config') as load_metric_config:
-        load_metric_config.return_value = MetricConfig
+    with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'):
         config = read_signal_config('util_testing')
 
     assert config == SignalConfig(
@@ -85,8 +100,34 @@ def test_read_signal_invalid_metrics(period_minutes):
         ],
         'period_minutes': period_minutes,
     })
-    with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'), \
-            mock.patch('clusterman.autoscaler.util.load_signal_metric_config') as load_metric_config:
-        load_metric_config.return_value = MetricConfig
+    with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'):
         with pytest.raises(Exception):
             read_signal_config('util_testing')
+
+
+@mock.patch('clusterman.git.subprocess.run')
+def test_sha_from_branch_or_tag(mock_run):
+    mock_run.return_value.returncode = 0
+    mock_run.return_value.stdout = 'abcdefabcdefabcdefabcdefabcdefabcdefabcd\trefs/heads/a_branch'.encode()
+    assert _sha_from_branch_or_tag('a_branch') == 'abcdefabcdefabcdefabcdefabcdefabcdefabcd'
+
+
+@mock.patch('clusterman.git.os.path.exists')
+@mock.patch('clusterman.git.logger')
+@mock.patch('clusterman.git.subprocess.run')
+class TestMakeVenv:
+    def test_already_built(self, mock_run, mock_logger, mock_exists, mock_sha, mock_cache):
+        mock_exists.return_value = True
+        _get_local_signal_directory('a_branch')
+        assert mock_exists.call_args == \
+            mock.call(os.path.join('/', 'foo', 'clusterman_signals_abcdefabcdefabcdefabcdefabcdefabcdefabcd'))
+        assert mock_run.call_count == 0
+        assert mock_logger.debug.call_count == 1
+
+    def test_not_present(self, mock_run, mock_logger, mock_exists, mock_sha, mock_cache):
+        mock_exists.return_value = False
+        _get_local_signal_directory('a_branch')
+        assert mock_exists.call_args == \
+            mock.call(os.path.join('/', 'foo', 'clusterman_signals_abcdefabcdefabcdefabcdefabcdefabcdefabcd'))
+        assert mock_run.call_count == 2
+        assert mock_logger.debug.call_count == 0
