@@ -1,3 +1,9 @@
+clusterman (0.10.2) trusty; urgency=low
+
+  * Improved output for autoscaler/manage logging
+
+ -- David Morrison <drmorr@yelp.com>  Mon, 22 Jan 2018 15:39:48 -0800
+
 clusterman (0.10.1) trusty; urgency=low
 
   * fixed bug with `clusterman manage`
