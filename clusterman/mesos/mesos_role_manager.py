@@ -87,6 +87,7 @@ class MesosRoleManager:
             self.resource_groups[i].modify_target_capacity(target, dry_run=dry_run)
         if new_target_capacity <= orig_target_capacity:
             self.prune_excess_fulfilled_capacity(res_group_targets, dry_run)
+        logger.info(f'Target capacity for {self.role} changed from {orig_target_capacity} to {new_target_capacity}')
         return new_target_capacity
 
     def get_resource_allocation(self, resource_name):

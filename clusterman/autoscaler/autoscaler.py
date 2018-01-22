@@ -1,6 +1,7 @@
 import time
 from importlib import import_module
 
+import arrow
 import staticconf
 import yelp_meteorite
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
@@ -42,6 +43,7 @@ class Autoscaler:
         :param dry_run: Don't actually modify the fleet size, just print what would happen
         """
         # TODO (CLUSTERMAN-122): reload signal if signals code or configs change
+        timestamp = timestamp or arrow.utcnow()
         logger.info(f'Autoscaling run starting at {timestamp}')
         delta = self._compute_cluster_delta(timestamp)
         self.delta_gauge.set(delta, {'dry_run': dry_run})
@@ -109,11 +111,15 @@ class Autoscaler:
         cpus_per_weight = staticconf.read_int('autoscaling.cpus_per_weight')
 
         # If the percentage allocated differs by more than the allowable margin from the setpoint,
-        # we scale up/down to reach the setpoint.
-        total_cpus = self.mesos_role_manager.get_resource_total('cpus')
+        # we scale up/down to reach the setpoint.  We want to use target_capacity here instead of
+        # get_resource_total to protect against short-term fluctuations in the cluster.
+        total_cpus = self.mesos_role_manager.target_capacity * cpus_per_weight
         cpus_difference_from_setpoint = signal_cpus - setpoint * total_cpus
 
-        logger.info(f'Signal requested {signal_cpus} CPUs, current total is {total_cpus} CPUs')
+        window_size = setpoint_margin * total_cpus
+        lb, ub = total_cpus - window_size, total_cpus + window_size
+        logger.info(f'Current CPU total is {total_cpus}; setpoint window is [{lb}, {ub}]')
+        logger.info(f'Signal {self.signal.__name__} requested {signal_cpus} CPUs')
         capacity_delta = 0
         if abs(cpus_difference_from_setpoint / total_cpus) >= setpoint_margin:
             # We want signal_cpus / new_total_cpus = setpoint.
@@ -128,7 +134,9 @@ class Autoscaler:
 
             # Finally, convert CPUs to capacity units.
             capacity_delta = self._constrain_cluster_delta(cpus_delta / cpus_per_weight)
-        logger.info(f'Computed capacity delta is {capacity_delta} units ({capacity_delta * cpus_per_weight} CPUs)')
+            logger.info(f'Computed capacity delta is {capacity_delta} units ({cpus_delta} CPUs)')
+        else:
+            logger.info('Requested CPUs within setpoint margin, capacity_delta is 0')
         return capacity_delta
 
     def _constrain_cluster_delta(self, delta):

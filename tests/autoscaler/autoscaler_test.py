@@ -98,7 +98,7 @@ def mock_constrain_delta():
 
 @pytest.fixture
 def mock_signal():
-    return mock.Mock(spec=BaseSignal)
+    return mock.Mock(spec=BaseSignal, __name__='FakeSignal')
 
 
 def signal_config():
@@ -177,10 +177,12 @@ def test_init_signal_from_config(mock_import_signals, mock_autoscaler):
 @pytest.mark.parametrize('run_timestamp', [None, arrow.get(300)])
 def test_autoscaler_dry_run(dry_run, run_timestamp, mock_autoscaler):
     mock_autoscaler._compute_cluster_delta = mock.Mock(return_value=100)
-    mock_autoscaler.run(dry_run=dry_run, timestamp=run_timestamp)
-    assert mock_autoscaler.delta_gauge.set.call_args_list == [mock.call(100, {'dry_run': dry_run})]
-    assert mock_autoscaler._compute_cluster_delta.call_args_list == [mock.call(run_timestamp)]
-    assert mock_autoscaler.mesos_role_manager.modify_target_capacity.call_count == 1
+    with mock.patch('clusterman.autoscaler.autoscaler.arrow') as mock_arrow:
+        mock_autoscaler.run(dry_run=dry_run, timestamp=run_timestamp)
+        run_timestamp = run_timestamp or mock_arrow.utcnow.return_value
+        assert mock_autoscaler.delta_gauge.set.call_args == mock.call(100, {'dry_run': dry_run})
+        assert mock_autoscaler._compute_cluster_delta.call_args == mock.call(run_timestamp)
+        assert mock_autoscaler.mesos_role_manager.modify_target_capacity.call_count == 1
 
 
 @pytest.mark.parametrize('signal_cpus,total_cpus,expected_delta', [
@@ -196,7 +198,7 @@ def test_compute_cluster_delta(run_timestamp, mock_autoscaler, mock_signal,
                                mock_constrain_delta, signal_cpus, total_cpus, expected_delta):
     mock_signal.get_signal.return_value = SignalResources(cpus=signal_cpus)
     mock_autoscaler.signal = mock_signal
-    mock_autoscaler.mesos_role_manager.get_resource_total.return_value = total_cpus
+    mock_autoscaler.mesos_role_manager.target_capacity = total_cpus / staticconf.read_int('autoscaling.cpus_per_weight')
     delta = mock_autoscaler._compute_cluster_delta(run_timestamp)
     assert delta == pytest.approx(expected_delta)
     if delta != 0:
