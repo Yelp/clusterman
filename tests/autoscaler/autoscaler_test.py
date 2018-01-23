@@ -98,7 +98,7 @@ def mock_constrain_delta():
 
 @pytest.fixture
 def mock_signal():
-    return mock.Mock(spec=BaseSignal, __name__='FakeSignal')
+    return mock.Mock(spec=BaseSignal)
 
 
 def signal_config():
