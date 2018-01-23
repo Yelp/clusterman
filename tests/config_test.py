@@ -96,6 +96,8 @@ def test_setup_config(mock_service_load, mock_role_load, cluster, include_roles,
             assert mock_role_load.call_args == mock.call(cluster, tag)
         else:
             assert mock_role_load.call_count == 0
+            if tag:
+                assert staticconf.read_string('autoscale_signal.branch_or_tag') == tag
 
 
 @pytest.mark.parametrize('cluster,roles', [

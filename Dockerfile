@@ -27,6 +27,9 @@ RUN     apt-get update \
 COPY    tox.ini requirements.txt /code/
 RUN     cd code && tox -e virtualenv_run
 
+# User "nobody" needs to check out the clusterman_signals Git repo so it needs SSH
+# keys and a place to put the repo; the SSH keys get mounted as an extra_volumes
+# parameter in yelpsoa_configs
 RUN     mkdir -p /home/nobody/.ssh /home/nobody/.cache/clusterman && chown -R nobody /home/nobody
 RUN     usermod -d /home/nobody nobody
 RUN     echo 'Host git.yelpcorp.com\n\tStrictHostKeyChecking no\n\tUserKnownHostsFile /dev/null' > /home/nobody/.ssh/config

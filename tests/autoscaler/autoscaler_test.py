@@ -161,18 +161,18 @@ def test_load_signal(mock_init_signal, mock_read_config, mock_autoscaler, role_c
         assert mock_autoscaler.signal_config == role_config
 
 
-def test_init_signal_from_config(mock_autoscaler):
+@mock.patch('clusterman.autoscaler.autoscaler.logger')
+@mock.patch('clusterman.autoscaler.autoscaler.load_signal_connection')
+def test_init_signal_from_config(mock_load_signal, mock_logger, mock_autoscaler):
     config_role = 'anything'
-    with mock.patch('clusterman.autoscaler.autoscaler.load_signal_connection') as mock_load_signal, \
-            mock.patch('clusterman.autoscaler.autoscaler.logger') as mock_logger:
-        mock_autoscaler._init_signal_from_config(config_role)
-        assert mock_load_signal.call_args == mock.call('v42', config_role, 'CoolSignal')
-        assert json.loads(mock_load_signal.return_value.send.call_args[0][0]) == {
-            'cluster': 'foo',
-            'role': 'bar',
-            'parameters': mock_autoscaler.signal_config.parameters,
-        }
-        assert mock_logger.info.call_count == 1
+    mock_autoscaler._init_signal_from_config(config_role)
+    assert mock_load_signal.call_args == mock.call('v42', config_role, 'CoolSignal')
+    assert json.loads(mock_load_signal.return_value.send.call_args[0][0]) == {
+        'cluster': 'foo',
+        'role': 'bar',
+        'parameters': mock_autoscaler.signal_config.parameters,
+    }
+    assert mock_logger.info.call_count == 1
 
 
 @pytest.mark.parametrize('dry_run', [True, False])

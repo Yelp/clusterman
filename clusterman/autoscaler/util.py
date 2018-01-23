@@ -19,10 +19,12 @@ MetricConfig = namedtuple('MetricConfig', ['name', 'type', 'minute_range'])  # d
 
 
 def _get_cache_location():
+    """ Store clusterman-specific cached data in ~/.cache/clusterman """
     return os.path.join(os.path.expanduser("~"), '.cache', 'clusterman')
 
 
 def _sha_from_branch_or_tag(branch_or_tag):
+    """ Convert a branch or tag for clusterman_signals into a git SHA """
     result = subprocess.run(
         ['git', 'ls-remote', '--exit-code', SIGNALS_REPO, branch_or_tag],
         stdout=subprocess.PIPE,
@@ -34,15 +36,23 @@ def _sha_from_branch_or_tag(branch_or_tag):
 
 
 def _get_local_signal_directory(branch_or_tag):
+    """ Get the directory path for the local version of clusterman_signals corresponding to a
+    particular branch or tag.  Stores the signal in ~/.cache/clusterman/clusterman_signals_{git_sha}
+    """
     local_repo_cache = _get_cache_location()
     sha = _sha_from_branch_or_tag(branch_or_tag)
     local_path = os.path.join(local_repo_cache, f'clusterman_signals_{sha}')
 
+    # If we don't have a local copy of the signal, clone it
     if not os.path.exists(local_path):
+        # clone the clusterman_signals repo with a specific version into the path at local_path
+        # --depth 1 says to squash all the commits to minimize data transfer/disk space
         subprocess.run(
             ['git', 'clone', '--depth', '1', '--branch', branch_or_tag, SIGNALS_REPO, local_path],
             check=True,
         )
+
+        # Build the signal's virtualenv
         subprocess.run(['make', 'venv'], cwd=local_path, check=True)
     else:
         logger.debug(f'signal version {sha} exists in cache, not re-cloning')
@@ -83,10 +93,21 @@ def read_signal_config(config_namespace):
 
 
 def load_signal_connection(branch_or_tag, role, signal_name):
+    """ Create a connection to the specified signal over a unix socket
+
+    :param branch_or_tag: the git branch or tag for the version of the signal to use
+    :param role: the role we are loading the signal for
+    :param signal_name: the name of the signal we want to load
+    :returns: a socket connection which can read/write data to the specified signal
+    """
     signal_dir = _get_local_signal_directory(branch_or_tag)
     s = socket.socket(socket.AF_UNIX)
     s.bind(f'\0{SIGNAL_SOCK_NAME}')  # this creates an abstract namespace socket which is auto-cleaned on program exit
     s.listen(1)
+
+    # We have to *create* the socket before starting the subprocess so that the subprocess
+    # will be able to connect to it, but we have to start the subprocess before trying to
+    # accept connections, because accept blocks
     subprocess.Popen([
         os.path.join(signal_dir, 'venv', 'bin', 'python'),
         '-m',

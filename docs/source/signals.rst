@@ -70,7 +70,7 @@ Within this section, the following keys are available:
               type: metric type, e.g. system_metrics
               minute_range: minutes of data for the metric to query
             - ...
-        custom_parameters: (optional)
+        parameters: (optional)
             - paramA: 'typeA'
             - paramB: 10
               ...
@@ -151,8 +151,7 @@ These are the steps to test signal changes against the service autoscaler.
 
             cp -r /nail/srv/configs/clusterman-roles/ .
             <editor> ./clusterman-roles/<role>/config.yaml
-            clusterman simulate --role-config-dir ./clusterman-roles/<role>/config.yaml \
-                    <remaining arguments> ...
+            clusterman simulate --role-config-dir ./clusterman-roles <remaining arguments> ...
 
 #. Then run a simulation with the same arguments against your existing signal version:
 
@@ -182,12 +181,12 @@ to have the changes take effect in the production autoscaler.
    .. code-block:: text
 
        make version-bump
-       git push origin HEAD && git push --tags
+       git push origin HEAD --tags
 
    .. note:: The ``version-bump`` make target will automatically prompt you to update the version of the
       ``clusterman_signals`` repo, and will tag your commit with that version (e.g., 'v1.0.3').  However, you may find
-      it useful to tag specific versions of your signal with a more meaningful/human-readable tag to use in the
-      ``branch_or_tag``
+      it useful to also tag specific versions of your signal with a more meaningful/human-readable tag to use in the
+      ``branch_or_tag`` field.
 
    .. warning:: It is *possible* for you to reference a branch of ``clusterman_metrics`` that hasn't yet been merged to
       master for the production version of your signal.  However, this is not a recommended method of deployment, as
@@ -208,3 +207,48 @@ See the configuration file and the ``clusterman`` package within ``clusterman_si
 definitions.  In general, the default signal uses recent values of ``cpus_allocated`` to estimate the amount of
 resources required, and does not consider any other metrics.  ``cpus_allocated`` is the number of CPUs that Mesos has
 allocated to tasks, from agents in the cluster with the specified role.
+
+Under the hood
+--------------
+
+In order to ensure that the autoscaler can work with multiple clients that specify different versions of the
+``clusterman_signals`` repo, we do not import ``clusterman_signals`` into the autoscaler.  Instead, the autoscaler (and
+the simulator) will clone the commit referenced by ``branch_or_tag`` into a local directory, build the virtualenv for
+the signal, and then open a Unix abstract namespace socket to communicate with the signal.  All communication between
+the autoscaler and the signal is done in JSON.
+
+To initialize the signal, ``run.py`` is called in the ``clusterman_signals`` repo; this script takes three command-line
+arguments: the name of the socket to connect to, the role of the signal to load, and the name of the signal to load.
+The script then connects to the specified Unix socket and waits for the autoscaler to initialize the signal.  The JSON
+object for signal initialization looks like the following:
+
+.. code-block:: json
+
+    {
+        "cluster": what cluster this signal is operating on,
+        "role": what role this signal is operating on for the specified cluster,
+        "parameters": the values for any parameters from srv-configs that the signal should reference
+    }
+
+Once the signal is properly initialized, the ``run.py`` script waits for input from the autoscaler indefinitely.  This
+input takes the form of the following JSON blob:
+
+.. code-block:: json
+
+    {
+        "metrics": {
+            "metric-name-1": [[timestamp, value1], [timestamp, value2], ...],
+            "metric-name-2": [[timestamp, value1], [timestamp, value2], ...],
+            ...
+        }
+    }
+
+In other words, the autoscaler passes in all of the ``required_metrics`` values for the signal, which have been
+collected over the last ``period_minutes`` window for each metric.  The signal then will give the following response to
+the autoscaler:
+
+ .. code-block:: json
+
+    { "Resources": { "cpus": num_requested_cpus, ... } }
+
+The value in this response is the result from running the signal with the specified data.
