@@ -119,7 +119,7 @@ class Autoscaler:
         window_size = setpoint_margin * total_cpus
         lb, ub = total_cpus - window_size, total_cpus + window_size
         logger.info(f'Current CPU total is {total_cpus}; setpoint window is [{lb}, {ub}]')
-        logger.info(f'Signal {self.signal.__name__} requested {signal_cpus} CPUs')
+        logger.info(f'Signal {self.signal.__class__.__name__} requested {signal_cpus} CPUs')
         capacity_delta = 0
         if abs(cpus_difference_from_setpoint / total_cpus) >= setpoint_margin:
             # We want signal_cpus / new_total_cpus = setpoint.
