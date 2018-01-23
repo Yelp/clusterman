@@ -216,7 +216,7 @@ def test_get_metrics(end_time, mock_autoscaler):
 def test_compute_cluster_delta(mock_autoscaler, mock_constrain_delta, signal_cpus, total_cpus, expected_delta,
                                run_timestamp):
     mock_autoscaler._get_metrics = mock.Mock(return_value=[])
-    mock_autoscaler.mesos_role_manager.get_resource_total.return_value = total_cpus
+    mock_autoscaler.mesos_role_manager.target_capacity = total_cpus / staticconf.read_int('autoscaling.cpus_per_weight')
     mock_autoscaler.signal_conn.recv.return_value = ('{"Resources": {"cpus": ' + str(signal_cpus) + '}}').encode()
     delta = mock_autoscaler._compute_cluster_delta(run_timestamp)
     assert delta == pytest.approx(expected_delta)

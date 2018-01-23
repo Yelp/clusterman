@@ -15,5 +15,9 @@ class SignalConfigurationError(ClustermanException):
     pass
 
 
+class SignalConnectionError(ClustermanException):
+    pass
+
+
 class ResourceGroupError(ClustermanException):
     pass

@@ -70,7 +70,7 @@ class Simulator:
         if autoscaler_config_file:
             self._make_autoscaler(autoscaler_config_file)
             self.aws_clusters = self.autoscaler.mesos_role_manager.resource_groups
-            print(f'Autoscaler configured; will run every frequency {self.autoscaler.signal.period_minutes} minutes')
+            print(f'Autoscaler configured; will run every {self.autoscaler.signal_config.period_minutes} minutes')
         else:
             self.autoscaler = None
             self.aws_clusters = [SimulatedAWSCluster(self)]
@@ -240,6 +240,6 @@ class Simulator:
         self.autoscaler = Autoscaler(
             self.metadata.cluster,
             self.metadata.role,
-            role_manager,
-            self.metrics_client,
+            role_manager=role_manager,
+            metrics_client=self.metrics_client,
         )

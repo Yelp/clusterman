@@ -14,6 +14,7 @@ RUN     apt-get update \
             libpython3.6 \
             libxml2 \
             libyaml-0-2 \
+            make \
             openssh-client \
             python3.6 \
             tox \

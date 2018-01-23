@@ -5,6 +5,7 @@ from yelp_batch.batch import batch_command_line_arguments
 from yelp_batch.batch import batch_configure
 from yelp_batch.batch_daemon import BatchDaemon
 
+from clusterman.args import add_branch_or_tag_arg
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_env_config_path_arg
 from clusterman.autoscaler.autoscaler import Autoscaler
@@ -26,11 +27,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin):
         arg_group = parser.add_argument_group('AutoscalerBatch options')
         add_cluster_arg(arg_group, required=True)
         add_env_config_path_arg(arg_group)
-        arg_group.add_argument(
-            '-S', '--signals-branch-or-tag',
-            default=None,
-            help='Branch or tag to use for the clusterman_signals repository'
-        )
+        add_branch_or_tag_arg(arg_group)
         arg_group.add_argument(
             '--dry-run',
             default=False,

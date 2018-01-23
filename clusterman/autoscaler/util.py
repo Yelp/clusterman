@@ -1,16 +1,17 @@
 import os
 import socket
 import subprocess
+import time
 from collections import namedtuple
 
 import staticconf
 
 from clusterman.exceptions import SignalConfigurationError
+from clusterman.exceptions import SignalConnectionError
 from clusterman.util import get_clusterman_logger
 
 logger = get_clusterman_logger(__name__)
 SIGNALS_REPO = 'git@git.yelpcorp.com:clusterman_signals'
-SIGNAL_SOCK_NAME = 'clusterman-signal-socket'
 SignalConfig = namedtuple(
     'SignalConfig',
     ['name', 'branch_or_tag', 'period_minutes', 'required_metrics', 'parameters'],
@@ -101,20 +102,27 @@ def load_signal_connection(branch_or_tag, role, signal_name):
     :returns: a socket connection which can read/write data to the specified signal
     """
     signal_dir = _get_local_signal_directory(branch_or_tag)
+
+    # this creates an abstract namespace socket which is auto-cleaned on program exit
     s = socket.socket(socket.AF_UNIX)
-    s.bind(f'\0{SIGNAL_SOCK_NAME}')  # this creates an abstract namespace socket which is auto-cleaned on program exit
+    s.bind(f'\0{role}-{signal_name}-socket')
     s.listen(1)
 
     # We have to *create* the socket before starting the subprocess so that the subprocess
     # will be able to connect to it, but we have to start the subprocess before trying to
     # accept connections, because accept blocks
-    subprocess.Popen([
-        os.path.join(signal_dir, 'venv', 'bin', 'python'),
-        '-m',
-        'clusterman_signals.run',
-        role,
-        signal_name,
-        'clusterman-signal-socket',
-    ])
+    signal_process = subprocess.Popen(
+        [
+            os.path.join(signal_dir, 'venv', 'bin', 'python'),
+            '-m',
+            'clusterman_signals.run',
+            role,
+            signal_name,
+        ],
+    )
+    time.sleep(2)  # Give the signal subprocess time to start, then check to see if it's running
+    return_code = signal_process.poll()
+    if return_code:
+        raise SignalConnectionError(f'Could not load signal {signal_name}; aborting')
     conn, __ = s.accept()
     return conn
