@@ -59,12 +59,14 @@ def _populate_price_changes(simulator, start_time, end_time):
 def main(args):
     args.start_time = parse_time_string(args.start_time)
     args.end_time = parse_time_string(args.end_time)
+    if args.role_config_dir:
+        staticconf.DictConfiguration({'role_config_directory': args.role_config_dir})
     setup_config(args)
 
     metrics = {}
     if args.metrics_data_file:
         try:
-            metrics = read_metrics_from_compressed_json(args.metrics_data_file, unix_timestamp=True)
+            metrics = read_metrics_from_compressed_json(args.metrics_data_file)
         except OSError as e:
             logger.warn(f'{str(e)}: no metrics loaded')
 
@@ -113,4 +115,9 @@ def add_simulate_parser(subparser, required_named_args, optional_named_args):  #
         '--metrics-data-file',
         metavar='filename',
         help='provide simulated values for one or more metric time series',
+    )
+    optional_named_args.add_argument(
+        '--role-config-dir',
+        metavar='directory',
+        help='specify role configuration directory for simulation',
     )

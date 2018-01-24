@@ -4,7 +4,7 @@ from yelp_batch.batch import batch_context
 
 class BatchLoggingMixin:
     @batch_context
-    def setup_watchers(self):  # pragma: no cover
+    def setup_watchers(self):
         self.logger.info('Starting batch {name}; watching {watched_files} for changes'.format(
             name=type(self).__name__,
             watched_files=[watcher.filenames for watcher in self.version_checker.watchers],

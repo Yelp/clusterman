@@ -1,7 +1,7 @@
 import gzip
-import json
 import sys
 
+import simplejson as json
 from arrow import Arrow
 from clusterman_metrics import METRIC_TYPES
 
@@ -50,7 +50,7 @@ class TimeSeriesDecoder:
         return obj
 
 
-def read_metrics_from_compressed_json(filename, unix_timestamp=False):
+def read_metrics_from_compressed_json(filename, unix_timestamp=True):
     """ Read a metric timeseries from a gzipped JSON file """
     with gzip.open(filename) as f:
         return json.load(f, object_hook=TimeSeriesDecoder(unix_timestamp))
@@ -67,7 +67,7 @@ def write_metrics_to_compressed_json(new_metrics, filename):
     :param filename: the file to write to
     """
     try:
-        metrics = read_metrics_from_compressed_json(filename)
+        metrics = read_metrics_from_compressed_json(filename, unix_timestamp=False)
     except OSError as e:
         metrics = {}
 

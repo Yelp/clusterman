@@ -32,7 +32,8 @@ class Autoscaler:
 
         self.mesos_role_manager = role_manager or MesosRoleManager(self.cluster, self.role)
 
-        self.metrics_client = metrics_client or ClustermanMetricsBotoClient('us-west-2', app_identifier=self.role)
+        mesos_region = staticconf.read_string(f'mesos_clusters.{self.cluster}.aws_region')
+        self.metrics_client = metrics_client or ClustermanMetricsBotoClient(mesos_region, app_identifier=self.role)
         self.load_signal()
 
         logger.info('Initialization complete')
@@ -80,7 +81,6 @@ class Autoscaler:
         """Initialize a signal object, given the role where the signal class is defined and config values for the signal.
 
         :param signal_role: string, corresponding to the package name in clusterman_signals where the signal is defined
-        :param signal_config: a SignalConfig, containing values to initialize the signal
         """
         self.signal_conn = load_signal_connection(self.signal_config.branch_or_tag, signal_role, self.signal_config.name)
         signal_kwargs = json.dumps({

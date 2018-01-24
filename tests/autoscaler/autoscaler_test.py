@@ -79,7 +79,7 @@ def mock_metrics_client():
 @mock.patch('clusterman.autoscaler.autoscaler.Autoscaler.load_signal', autospec=True)
 def mock_autoscaler(mock_load_signal, mock_metrics_client, mock_role_manager, mock_gauge):
     with mock.patch('clusterman.autoscaler.autoscaler.ClustermanMetricsBotoClient', autospec=True):
-        mock_autoscaler = Autoscaler('foo', 'bar')
+        mock_autoscaler = Autoscaler('mesos-test', 'bar')
     mock_autoscaler.signal_config = SignalConfig(
         'CoolSignal',
         'v42',
@@ -117,15 +117,15 @@ def signal_config():
 
 @mock.patch('clusterman.autoscaler.autoscaler.Autoscaler.load_signal', autospec=True)
 def test_autoscaler_init(mock_load_signal, mock_role_manager, mock_metrics_client, mock_gauge):
-    mock_autoscaler = Autoscaler('foo', 'bar', role_manager=None, metrics_client=mock_metrics_client())
+    mock_autoscaler = Autoscaler('mesos-test', 'bar', role_manager=None, metrics_client=mock_metrics_client())
 
-    assert mock_autoscaler.cluster == 'foo'
+    assert mock_autoscaler.cluster == 'mesos-test'
     assert mock_autoscaler.role == 'bar'
 
-    assert mock_gauge.call_args_list == [mock.call(DELTA_GAUGE_NAME, {'cluster': 'foo', 'role': 'bar'})]
+    assert mock_gauge.call_args_list == [mock.call(DELTA_GAUGE_NAME, {'cluster': 'mesos-test', 'role': 'bar'})]
     assert mock_autoscaler.delta_gauge == mock_gauge.return_value
 
-    assert mock_role_manager.call_args_list == [mock.call('foo', 'bar')]
+    assert mock_role_manager.call_args_list == [mock.call('mesos-test', 'bar')]
     assert mock_autoscaler.mesos_role_manager == mock_role_manager.return_value
     assert mock_autoscaler.metrics_client == mock_metrics_client.return_value
 
@@ -168,7 +168,7 @@ def test_init_signal_from_config(mock_load_signal, mock_logger, mock_autoscaler)
     mock_autoscaler._init_signal_from_config(config_role)
     assert mock_load_signal.call_args == mock.call('v42', config_role, 'CoolSignal')
     assert json.loads(mock_load_signal.return_value.send.call_args[0][0]) == {
-        'cluster': 'foo',
+        'cluster': 'mesos-test',
         'role': 'bar',
         'parameters': mock_autoscaler.signal_config.parameters,
     }
@@ -189,7 +189,7 @@ def test_get_metrics(end_time, mock_autoscaler):
     metrics = mock_autoscaler._get_metrics(end_time)
     assert mock_autoscaler.metrics_client.get_metric_values.call_args_list == [
         mock.call(
-            'cpus_allocated|cluster=foo,role=bar',
+            'cpus_allocated|cluster=mesos-test,role=bar',
             SYSTEM_METRICS,
             end_time.shift(minutes=-10).timestamp,
             end_time.timestamp,

@@ -1,6 +1,6 @@
-import json
 from collections import defaultdict
 
+import simplejson as json
 from cached_property import timed_cached_property
 
 from clusterman.aws.client import ec2

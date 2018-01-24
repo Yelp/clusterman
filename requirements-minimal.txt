@@ -12,8 +12,9 @@ parsedatetime
 pysensu-yelp
 PyYAML
 requests
-sortedcontainers
 signalfx
+simplejson
+sortedcontainers
 yelp-batch
 yelp-meteorite
 yelp-servlib
