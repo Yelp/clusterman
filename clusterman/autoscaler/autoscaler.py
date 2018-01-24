@@ -9,6 +9,7 @@ from clusterman_metrics import generate_key_with_dimensions
 from clusterman_metrics import SYSTEM_METRICS
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
+from clusterman.autoscaler.util import evaluate_signal
 from clusterman.autoscaler.util import load_signal_connection
 from clusterman.autoscaler.util import read_signal_config
 from clusterman.mesos.constants import ROLE_NAMESPACE
@@ -17,7 +18,6 @@ from clusterman.util import get_clusterman_logger
 
 
 DELTA_GAUGE_NAME = 'clusterman.autoscaler.delta'
-SOCK_MESG_SIZE = 4096
 logger = get_clusterman_logger(__name__)
 
 
@@ -113,14 +113,11 @@ class Autoscaler:
 
         :returns: a capacity delta for the role
         """
-        signal_kwargs = json.dumps({'metrics': self._get_metrics(timestamp)})
-        self.signal_conn.send(signal_kwargs.encode())
-        response = json.loads(self.signal_conn.recv(SOCK_MESG_SIZE))
-        resources = response['Resources']
-        if resources['cpus'] is None:
+        resource_request = evaluate_signal(self._get_metrics(timestamp), self.signal_conn)
+        if resource_request['cpus'] is None:
             logger.info(f'No data from signal, not changing capacity')
             return 0
-        signal_cpus = float(resources['cpus'])
+        signal_cpus = float(resource_request['cpus'])
 
         # Get autoscaling settings.
         setpoint = staticconf.read_float('autoscaling.setpoint')

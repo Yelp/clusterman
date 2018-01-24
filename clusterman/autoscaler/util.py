@@ -1,9 +1,11 @@
 import os
 import socket
+import struct
 import subprocess
 import time
 from collections import namedtuple
 
+import simplejson as json
 import staticconf
 
 from clusterman.exceptions import SignalConfigurationError
@@ -11,12 +13,15 @@ from clusterman.exceptions import SignalConnectionError
 from clusterman.util import get_clusterman_logger
 
 logger = get_clusterman_logger(__name__)
-SIGNALS_REPO = 'git@git.yelpcorp.com:clusterman_signals'
 SignalConfig = namedtuple(
     'SignalConfig',
     ['name', 'branch_or_tag', 'period_minutes', 'required_metrics', 'parameters'],
 )
-MetricConfig = namedtuple('MetricConfig', ['name', 'type', 'minute_range'])  # duplicated from clusterman_signals repo
+MetricConfig = namedtuple('MetricConfig', ['name', 'type', 'minute_range'])
+SIGNALS_REPO = 'git@git.yelpcorp.com:clusterman_signals'
+SOCKET_TIMEOUT_SECONDS = 5
+SOCK_MESG_SIZE = 4096
+ACK = bytes([1])
 
 
 def _get_cache_location():
@@ -52,11 +57,12 @@ def _get_local_signal_directory(branch_or_tag):
             ['git', 'clone', '--depth', '1', '--branch', branch_or_tag, SIGNALS_REPO, local_path],
             check=True,
         )
-
-        # Build the signal's virtualenv
-        subprocess.run(['make', 'venv'], cwd=local_path, check=True)
     else:
         logger.debug(f'signal version {sha} exists in cache, not re-cloning')
+
+    # Alwasy re-build the signal's virtualenv
+    subprocess.run(['make', 'clean'], cwd=local_path, check=True)
+    subprocess.run(['make', 'prod'], cwd=local_path, check=True)
 
     return local_path
 
@@ -106,19 +112,21 @@ def load_signal_connection(branch_or_tag, role, signal_name):
     # this creates an abstract namespace socket which is auto-cleaned on program exit
     s = socket.socket(socket.AF_UNIX)
     s.bind(f'\0{role}-{signal_name}-socket')
-    s.listen(1)
+    s.listen(1)  # only allow one connection at a time
+    s.settimeout(SOCKET_TIMEOUT_SECONDS)
 
     # We have to *create* the socket before starting the subprocess so that the subprocess
     # will be able to connect to it, but we have to start the subprocess before trying to
     # accept connections, because accept blocks
     signal_process = subprocess.Popen(
         [
-            os.path.join(signal_dir, 'venv', 'bin', 'python'),
+            os.path.join(signal_dir, 'prodenv', 'bin', 'python'),
             '-m',
             'clusterman_signals.run',
             role,
             signal_name,
         ],
+        cwd=signal_dir,
     )
     time.sleep(2)  # Give the signal subprocess time to start, then check to see if it's running
     return_code = signal_process.poll()
@@ -126,3 +134,27 @@ def load_signal_connection(branch_or_tag, role, signal_name):
         raise SignalConnectionError(f'Could not load signal {signal_name}; aborting')
     conn, __ = s.accept()
     return conn
+
+
+def evaluate_signal(metrics, signal_conn):
+    """ Communicate over a Unix socket with the signal to evaluate its result
+
+    :param metrics: a dict of metric_name -> timeseries data to send to the signal
+    :param signal_conn: an active Unix socket connection
+    :returns: a dict of resource_name -> requested resources from the signal
+    :raises SignalConnectionError: if the signal connection fails for some reason
+    """
+    # First send the length of the metrics data
+    metric_bytes = json.dumps({'metrics': metrics}).encode()
+    len_metrics = struct.pack('>I', len(metric_bytes))  # bytes representation of the length, packed big-endian
+    signal_conn.send(len_metrics)
+    if signal_conn.recv(SOCK_MESG_SIZE) != ACK:
+        raise SignalConnectionError('Unknown error occurred with signal')
+
+    # Then send the actual metrics data, broken up into chunks
+    for i in range(0, len(metric_bytes), SOCK_MESG_SIZE):
+        signal_conn.send(metric_bytes[i:i + SOCK_MESG_SIZE])
+    if signal_conn.recv(SOCK_MESG_SIZE) != ACK:
+        raise SignalConnectionError('Unknown error occurred with signal')
+    response = json.loads(signal_conn.recv(SOCK_MESG_SIZE))
+    return response['Resources']

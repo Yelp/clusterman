@@ -206,23 +206,24 @@ def test_get_metrics(end_time, mock_autoscaler):
 
 
 @pytest.mark.parametrize('signal_cpus,total_cpus,expected_delta', [
-    ('null', 500, 0),
+    (None, 500, 0),
     (799, 1000, 0),  # above setpoint, but within setpoint delta
     (980, 1000, 50),  # above setpoint delta
     (601, 1000, 0),  # below setpoint, but within setpoint delta
     (490, 1000, -37.5),  # below setpoint delta
     (1400, 1000, 125),  # above setpoint delta and total
 ])
-def test_compute_cluster_delta(mock_autoscaler, mock_constrain_delta, signal_cpus, total_cpus, expected_delta,
-                               run_timestamp):
-    mock_autoscaler._get_metrics = mock.Mock(return_value=[])
+@mock.patch('clusterman.autoscaler.autoscaler.evaluate_signal')
+def test_compute_cluster_delta(mock_evaluate_signal, mock_autoscaler, mock_constrain_delta, signal_cpus, total_cpus,
+                               expected_delta, run_timestamp):
+    mock_autoscaler._get_metrics = mock.Mock(return_value=[[1234, 3.5]])
     mock_autoscaler.mesos_role_manager.target_capacity = total_cpus / staticconf.read_int('autoscaling.cpus_per_weight')
-    mock_autoscaler.signal_conn.recv.return_value = ('{"Resources": {"cpus": ' + str(signal_cpus) + '}}').encode()
+    mock_evaluate_signal.return_value = {'cpus': signal_cpus}
     delta = mock_autoscaler._compute_cluster_delta(run_timestamp)
     assert delta == pytest.approx(expected_delta)
     if delta != 0:
         assert mock_constrain_delta.call_count == 1
-    assert mock_autoscaler.signal_conn.send.call_args == mock.call(b'{"metrics": []}')
+    assert mock_evaluate_signal.call_args == mock.call([[1234, 3.5]], mock_autoscaler.signal_conn)
 
 
 def test_constrain_cluster_delta_normal_scale_up(mock_autoscaler):
