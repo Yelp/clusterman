@@ -33,7 +33,7 @@ Pygments==2.2.0
 pytest==3.3.2
 requirements-tools==1.1.2
 snowballstemmer==1.2.0
-Sphinx==1.6.5
+Sphinx==1.6.6
 sphinx-rtd-theme==0.2.4
 sphinxcontrib-programoutput==0.8
 sphinxcontrib-websupport==1.0.1

@@ -23,7 +23,7 @@ Experimental Design File Specification
 An experimental design file contains details for how to generate experimental metric data for use in a simulation.  The
 specification for the experimental design is as follows:
 
-.. code-block:: text
+.. code-block:: yaml
 
     metric_type:
         metric_name:

@@ -3,12 +3,13 @@ import staticconf
 from clusterman_metrics import ClustermanMetricsSimulationClient
 from clusterman_metrics import METADATA
 
+from clusterman.args import add_branch_or_tag_arg
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_role_arg
 from clusterman.args import add_start_end_args
 from clusterman.args import subparser
 from clusterman.aws.markets import InstanceMarket
-from clusterman.config import load_role_configs_for_cluster
+from clusterman.config import setup_config
 from clusterman.reports.report_types import REPORT_TYPES
 from clusterman.reports.reports import make_report
 from clusterman.simulator.event import AutoscalingEvent
@@ -58,14 +59,14 @@ def _populate_price_changes(simulator, start_time, end_time):
 def main(args):
     args.start_time = parse_time_string(args.start_time)
     args.end_time = parse_time_string(args.end_time)
-
-    if args.role_config_dir is not None:
-        load_role_configs_for_cluster(args.role_config_dir, args.cluster)
+    if args.role_config_dir:
+        staticconf.DictConfiguration({'role_config_directory': args.role_config_dir})
+    setup_config(args)
 
     metrics = {}
     if args.metrics_data_file:
         try:
-            metrics = read_metrics_from_compressed_json(args.metrics_data_file, unix_timestamp=True)
+            metrics = read_metrics_from_compressed_json(args.metrics_data_file)
         except OSError as e:
             logger.warn(f'{str(e)}: no metrics loaded')
 
@@ -98,6 +99,7 @@ def add_simulate_parser(subparser, required_named_args, optional_named_args):  #
     )
     add_cluster_arg(required_named_args, required=True)
     add_role_arg(required_named_args, required=True)
+    add_branch_or_tag_arg(optional_named_args)
     optional_named_args.add_argument(
         '--autoscaler-config',
         default=None,
@@ -116,5 +118,6 @@ def add_simulate_parser(subparser, required_named_args, optional_named_args):  #
     )
     optional_named_args.add_argument(
         '--role-config-dir',
+        metavar='directory',
         help='specify role configuration directory for simulation',
     )

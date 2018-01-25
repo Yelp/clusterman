@@ -17,6 +17,8 @@ def setup_config(args, include_roles=True):
     # changing 'module_env_config'. We use the same file for both keys.
     load_default_config(args.env_config_path, args.env_config_path)
 
+    signals_branch_or_tag = getattr(args, 'signals_branch_or_tag', None)
+
     # If a cluster is specified, any AWS calls should go to the corresponding region.
     # We can also load the role configs in that cluster, if include_roles is True.
     if getattr(args, 'cluster', None):
@@ -24,13 +26,16 @@ def setup_config(args, include_roles=True):
         staticconf.DictConfiguration({'aws': {'region': cluster_region}})
 
         if include_roles:
-            load_role_configs_for_cluster(args.cluster)
+            load_role_configs_for_cluster(args.cluster, signals_branch_or_tag)
 
     boto_creds_file = staticconf.read_string('aws.access_key_file')
     staticconf.JSONConfiguration(boto_creds_file, namespace=CREDENTIALS_NAMESPACE)
 
+    if signals_branch_or_tag:
+        staticconf.DictConfiguration({'autoscale_signal': {'branch_or_tag': signals_branch_or_tag}})
 
-def load_role_configs_for_cluster(cluster):
+
+def load_role_configs_for_cluster(cluster, signals_branch_or_tag):
     role_config_dir = get_role_config_dir()
     all_roles = os.listdir(role_config_dir)
     cluster_roles = []
@@ -55,6 +60,12 @@ def load_role_configs_for_cluster(cluster):
 
                 # Load all other config values.
                 staticconf.DictConfiguration(config, namespace=role_namespace)
+
+                if signals_branch_or_tag:
+                    staticconf.DictConfiguration(
+                        {'autoscale_signal': {'branch_or_tag': signals_branch_or_tag}},
+                        namespace=role_namespace,
+                    )
 
     staticconf.DictConfiguration({'cluster_roles': cluster_roles})
 

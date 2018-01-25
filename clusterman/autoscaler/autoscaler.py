@@ -1,11 +1,16 @@
 import time
-from importlib import import_module
 
 import arrow
+import simplejson as json
 import staticconf
 import yelp_meteorite
+from clusterman_metrics import ClustermanMetricsBotoClient
+from clusterman_metrics import generate_key_with_dimensions
+from clusterman_metrics import SYSTEM_METRICS
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
+from clusterman.autoscaler.util import evaluate_signal
+from clusterman.autoscaler.util import load_signal_connection
 from clusterman.autoscaler.util import read_signal_config
 from clusterman.mesos.constants import ROLE_NAMESPACE
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
@@ -17,7 +22,7 @@ logger = get_clusterman_logger(__name__)
 
 
 class Autoscaler:
-    def __init__(self, cluster, role, role_manager=None, metrics_client=None):
+    def __init__(self, cluster, role, *, role_manager=None, metrics_client=None):
         self.cluster = cluster
         self.role = role
 
@@ -27,14 +32,15 @@ class Autoscaler:
 
         self.mesos_role_manager = role_manager or MesosRoleManager(self.cluster, self.role)
 
-        self.metrics_client = metrics_client
+        mesos_region = staticconf.read_string(f'mesos_clusters.{self.cluster}.aws_region')
+        self.metrics_client = metrics_client or ClustermanMetricsBotoClient(mesos_region, app_identifier=self.role)
         self.load_signal()
 
         logger.info('Initialization complete')
 
     def time_to_next_activation(self, timestamp=None):
         timestamp = timestamp or time.time()
-        period_seconds = self.signal.period_minutes * 60
+        period_seconds = self.signal_config.period_minutes * 60
         return period_seconds - timestamp % period_seconds
 
     def run(self, dry_run=False, timestamp=None):
@@ -42,7 +48,6 @@ class Autoscaler:
 
         :param dry_run: Don't actually modify the fleet size, just print what would happen
         """
-        # TODO (CLUSTERMAN-122): reload signal if signals code or configs change
         timestamp = timestamp or arrow.utcnow()
         logger.info(f'Autoscaling run starting at {timestamp}')
         delta = self._compute_cluster_delta(timestamp)
@@ -60,50 +65,59 @@ class Autoscaler:
 
         role_namespace = ROLE_NAMESPACE.format(role=self.role)
         try:
-            signal_config = read_signal_config(role_namespace)
-            if signal_config:
-                self.signal = self._init_signal_from_config(self.role, signal_config)
+            self.signal_config = read_signal_config(role_namespace)
+            if self.signal_config:
+                self.signal_conn = self._init_signal_from_config(self.role)
                 return
             else:
                 logger.info(f'No signal configured for {self.role}, falling back to default')
         except Exception:
             logger.exception(f'Error loading signal for {self.role}, falling back to default')
 
-        signal_config = read_signal_config(DEFAULT_NAMESPACE)
-        self.signal = self._init_signal_from_config(
-            staticconf.read_string('autoscaling.default_signal_role'),
-            signal_config,
-        )
+        self.signal_config = read_signal_config(DEFAULT_NAMESPACE)
+        self._init_signal_from_config(staticconf.read_string('autoscaling.default_signal_role'))
 
-    def _init_signal_from_config(self, signal_role, signal_config):
+    def _init_signal_from_config(self, signal_role):
         """Initialize a signal object, given the role where the signal class is defined and config values for the signal.
 
         :param signal_role: string, corresponding to the package name in clusterman_signals where the signal is defined
-        :param signal_config: a SignalConfig, containing values to initialize the signal
         """
-        signal_module = import_module(f'clusterman_signals.{signal_role}')
-        signal_class = getattr(signal_module, signal_config.name)
-        signal = signal_class(
-            self.cluster,
-            self.role,
-            period_minutes=signal_config.period_minutes,
-            required_metrics=signal_config.required_metrics,
-            custom_parameters=signal_config.custom_parameters,
-            metrics_client=self.metrics_client,
-        )
-        logger.info(f'Loaded signal {signal_config.name} from role {signal_role}')
-        return signal
+        self.signal_conn = load_signal_connection(self.signal_config.branch_or_tag, signal_role, self.signal_config.name)
+        signal_kwargs = json.dumps({
+            'cluster': self.cluster,
+            'role': self.role,
+            'parameters': self.signal_config.parameters
+        })
+        self.signal_conn.send(signal_kwargs.encode())
+        logger.info(f'Loaded signal {self.signal_config.name} from role {signal_role}')
+
+    def _get_metrics(self, end_time):
+        metrics = {}
+        for metric in self.signal_config.required_metrics:
+            start_time = end_time.shift(minutes=-metric.minute_range)
+            metric_key = (
+                generate_key_with_dimensions(metric.name, {'cluster': self.cluster, 'role': self.role})
+                if metric.type == SYSTEM_METRICS
+                else metric.name
+            )
+            metrics[metric.name] = self.metrics_client.get_metric_values(
+                metric_key,
+                metric.type,
+                start_time.timestamp,
+                end_time.timestamp
+            )[1]
+        return metrics
 
     def _compute_cluster_delta(self, timestamp):
         """ Compare signal to the resources allocated and compute appropriate capacity change.
 
         :returns: a capacity delta for the role
         """
-        resources = self.signal.get_signal(timestamp)
-        if resources.cpus is None:
+        resource_request = evaluate_signal(self._get_metrics(timestamp), self.signal_conn)
+        if resource_request['cpus'] is None:
             logger.info(f'No data from signal, not changing capacity')
             return 0
-        signal_cpus = float(resources.cpus)
+        signal_cpus = float(resource_request['cpus'])
 
         # Get autoscaling settings.
         setpoint = staticconf.read_float('autoscaling.setpoint')
@@ -119,7 +133,7 @@ class Autoscaler:
         window_size = setpoint_margin * total_cpus
         lb, ub = total_cpus - window_size, total_cpus + window_size
         logger.info(f'Current CPU total is {total_cpus}; setpoint window is [{lb}, {ub}]')
-        logger.info(f'Signal {self.signal.__class__.__name__} requested {signal_cpus} CPUs')
+        logger.info(f'Signal {self.signal_config.name} requested {signal_cpus} CPUs')
         capacity_delta = 0
         if abs(cpus_difference_from_setpoint / total_cpus) >= setpoint_margin:
             # We want signal_cpus / new_total_cpus = setpoint.

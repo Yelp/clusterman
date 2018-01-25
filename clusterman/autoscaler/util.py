@@ -1,12 +1,70 @@
+import os
+import socket
+import struct
+import subprocess
+import time
 from collections import namedtuple
 
+import simplejson as json
 import staticconf
-from clusterman_signals.base_signal import MetricConfig
 
 from clusterman.exceptions import SignalConfigurationError
+from clusterman.exceptions import SignalConnectionError
+from clusterman.util import get_clusterman_logger
+
+logger = get_clusterman_logger(__name__)
+SignalConfig = namedtuple(
+    'SignalConfig',
+    ['name', 'branch_or_tag', 'period_minutes', 'required_metrics', 'parameters'],
+)
+MetricConfig = namedtuple('MetricConfig', ['name', 'type', 'minute_range'])
+SIGNALS_REPO = 'git@git.yelpcorp.com:clusterman_signals'
+SOCKET_TIMEOUT_SECONDS = 5
+SOCK_MESG_SIZE = 4096
+ACK = bytes([1])
 
 
-SignalConfig = namedtuple('SignalConfig', 'name period_minutes required_metrics custom_parameters')
+def _get_cache_location():
+    """ Store clusterman-specific cached data in ~/.cache/clusterman """
+    return os.path.join(os.path.expanduser("~"), '.cache', 'clusterman')
+
+
+def _sha_from_branch_or_tag(branch_or_tag):
+    """ Convert a branch or tag for clusterman_signals into a git SHA """
+    result = subprocess.run(
+        ['git', 'ls-remote', '--exit-code', SIGNALS_REPO, branch_or_tag],
+        stdout=subprocess.PIPE,
+        check=True,
+    )
+    output = result.stdout.decode()
+    sha = output.split('\t')[0]
+    return sha
+
+
+def _get_local_signal_directory(branch_or_tag):
+    """ Get the directory path for the local version of clusterman_signals corresponding to a
+    particular branch or tag.  Stores the signal in ~/.cache/clusterman/clusterman_signals_{git_sha}
+    """
+    local_repo_cache = _get_cache_location()
+    sha = _sha_from_branch_or_tag(branch_or_tag)
+    local_path = os.path.join(local_repo_cache, f'clusterman_signals_{sha}')
+
+    # If we don't have a local copy of the signal, clone it
+    if not os.path.exists(local_path):
+        # clone the clusterman_signals repo with a specific version into the path at local_path
+        # --depth 1 says to squash all the commits to minimize data transfer/disk space
+        subprocess.run(
+            ['git', 'clone', '--depth', '1', '--branch', branch_or_tag, SIGNALS_REPO, local_path],
+            check=True,
+        )
+    else:
+        logger.debug(f'signal version {sha} exists in cache, not re-cloning')
+
+    # Alwasy re-build the signal's virtualenv
+    subprocess.run(['make', 'clean'], cwd=local_path, check=True)
+    subprocess.run(['make', 'prod'], cwd=local_path, check=True)
+
+    return local_path
 
 
 def read_signal_config(config_namespace):
@@ -29,6 +87,7 @@ def read_signal_config(config_namespace):
 
     parameter_dict = {key: value for param_dict in parameter_dict_list for (key, value) in param_dict.items()}
 
+    branch_or_tag = reader.read_string('autoscale_signal.branch_or_tag')
     required_metric_keys = set(MetricConfig._fields)
     metric_configs = []
     for metrics_dict in metrics_dict_list:
@@ -37,4 +96,65 @@ def read_signal_config(config_namespace):
             raise SignalConfigurationError(f'Missing required metric keys {missing} in {metrics_dict}')
         metric_config = {key: metrics_dict[key] for key in metrics_dict if key in required_metric_keys}
         metric_configs.append(MetricConfig(**metric_config))
-    return SignalConfig(name, period_minutes, metric_configs, parameter_dict)
+    return SignalConfig(name, branch_or_tag, period_minutes, metric_configs, parameter_dict)
+
+
+def load_signal_connection(branch_or_tag, role, signal_name):
+    """ Create a connection to the specified signal over a unix socket
+
+    :param branch_or_tag: the git branch or tag for the version of the signal to use
+    :param role: the role we are loading the signal for
+    :param signal_name: the name of the signal we want to load
+    :returns: a socket connection which can read/write data to the specified signal
+    """
+    signal_dir = _get_local_signal_directory(branch_or_tag)
+
+    # this creates an abstract namespace socket which is auto-cleaned on program exit
+    s = socket.socket(socket.AF_UNIX)
+    s.bind(f'\0{role}-{signal_name}-socket')
+    s.listen(1)  # only allow one connection at a time
+    s.settimeout(SOCKET_TIMEOUT_SECONDS)
+
+    # We have to *create* the socket before starting the subprocess so that the subprocess
+    # will be able to connect to it, but we have to start the subprocess before trying to
+    # accept connections, because accept blocks
+    signal_process = subprocess.Popen(
+        [
+            os.path.join(signal_dir, 'prodenv', 'bin', 'python'),
+            '-m',
+            'clusterman_signals.run',
+            role,
+            signal_name,
+        ],
+        cwd=signal_dir,
+    )
+    time.sleep(2)  # Give the signal subprocess time to start, then check to see if it's running
+    return_code = signal_process.poll()
+    if return_code:
+        raise SignalConnectionError(f'Could not load signal {signal_name}; aborting')
+    conn, __ = s.accept()
+    return conn
+
+
+def evaluate_signal(metrics, signal_conn):
+    """ Communicate over a Unix socket with the signal to evaluate its result
+
+    :param metrics: a dict of metric_name -> timeseries data to send to the signal
+    :param signal_conn: an active Unix socket connection
+    :returns: a dict of resource_name -> requested resources from the signal
+    :raises SignalConnectionError: if the signal connection fails for some reason
+    """
+    # First send the length of the metrics data
+    metric_bytes = json.dumps({'metrics': metrics}).encode()
+    len_metrics = struct.pack('>I', len(metric_bytes))  # bytes representation of the length, packed big-endian
+    signal_conn.send(len_metrics)
+    if signal_conn.recv(SOCK_MESG_SIZE) != ACK:
+        raise SignalConnectionError('Unknown error occurred sending metric length to signal')
+
+    # Then send the actual metrics data, broken up into chunks
+    for i in range(0, len(metric_bytes), SOCK_MESG_SIZE):
+        signal_conn.send(metric_bytes[i:i + SOCK_MESG_SIZE])
+    if signal_conn.recv(SOCK_MESG_SIZE) != ACK:
+        raise SignalConnectionError('Unknown error occurred sending metric data to signal')
+    response = json.loads(signal_conn.recv(SOCK_MESG_SIZE))
+    return response['Resources']

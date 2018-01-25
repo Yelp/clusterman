@@ -25,6 +25,14 @@ def subparser(command, help, entrypoint):  # pragma: no cover
     return decorator
 
 
+def add_branch_or_tag_arg(parser):  # pragma: no cover
+    parser.add_argument(
+        '-S', '--signals-branch-or-tag',
+        default=None,
+        help='Branch or tag to use for the clusterman_signals repository'
+    )
+
+
 def add_start_end_args(parser, start_help, end_help):  # pragma: no cover
     """ Add --start-time and --end-time args to a parser
 
