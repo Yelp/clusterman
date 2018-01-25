@@ -217,10 +217,11 @@ the simulator) will clone the commit referenced by ``branch_or_tag`` into a loca
 the signal, and then open a Unix abstract namespace socket to communicate with the signal.  All communication between
 the autoscaler and the signal is done in JSON.
 
-To initialize the signal, ``run.py`` is called in the ``clusterman_signals`` repo; this script takes three command-line
-arguments: the name of the socket to connect to, the role of the signal to load, and the name of the signal to load.
-The script then connects to the specified Unix socket and waits for the autoscaler to initialize the signal.  The JSON
-object for signal initialization looks like the following:
+To initialize the signal, ``run.py`` is called in the ``clusterman_signals`` repo; this script takes two command-line
+arguments: the role of the signal to load, and the name of the signal to load.  The socket name is constructed from
+these two parameters, which (should) guarantee that different roles communicate over different processes.  The script
+then connects to the specified Unix socket and waits for the autoscaler to initialize the signal.  The JSON object for
+signal initialization looks like the following:
 
 .. code-block:: json
 
@@ -230,8 +231,18 @@ object for signal initialization looks like the following:
         "parameters": the values for any parameters from srv-configs that the signal should reference
     }
 
-Once the signal is properly initialized, the ``run.py`` script waits for input from the autoscaler indefinitely.  This
-input takes the form of the following JSON blob:
+Once the signal is properly initialized, the ``run.py`` script waits for input from the autoscaler indefinitely.  Since
+metrics data could be arbitrarily large, the communication protocol for this data looks like the following:
+
+#. First the autoscaler must send the length of the encoded metrics data object as an unsigned integer
+#. The signal run loop must ACK the length by sending ``0x1`` back to the autoscaler
+#. The autoscaler then must send the actual metrics data, broken up into chunks if necessary
+#. When the signal run loop has received all data, it must ACK the data by sending ``0x1`` back to the autoscaler,
+   unless the run loop detects some error in the communication; in this case, it must send ``0x2`` to the autoscaler
+#. If the autoscaler receives ``0x2`` from the signal, it will throw an exception; otherwise, it will wait for a
+   response from the signal
+
+The metrics input data takes the form of the following JSON blob:
 
 .. code-block:: json
 
