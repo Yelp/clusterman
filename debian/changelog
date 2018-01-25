@@ -1,3 +1,10 @@
+clusterman (1.0.0) trusty; urgency=low
+
+  * reload on signal code changes
+  * use sockets layer to communicate with signals
+
+ -- David Morrison <drmorr@yelp.com>  Thu, 25 Jan 2018 12:55:18 -0800
+
 clusterman (0.10.2) trusty; urgency=low
 
   * Improved output for autoscaler/manage logging
