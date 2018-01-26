@@ -1,3 +1,9 @@
+clusterman (1.0.1) trusty; urgency=low
+
+  * minor bugfixes and doc updates
+
+ -- David Morrison <drmorr@yelp.com>  Fri, 26 Jan 2018 10:29:41 -0800
+
 clusterman (1.0.0) trusty; urgency=low
 
   * reload on signal code changes
