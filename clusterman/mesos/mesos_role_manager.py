@@ -175,7 +175,7 @@ class MesosRoleManager:
             market_to_shrink, available_capacity = find_largest_capacity_market(idle_market_capacities)
             # It's possible too many agents have allocated resources, so we conservatively do not kill any running jobs
             if available_capacity == 0:
-                logger.debug('No idle instances left to remove; aborting')
+                logger.warn('No idle instances left to remove, aborting (fulfilled capacity at {fulfilled_capacity})')
                 break
 
             # Try to mark the instance for removal; this could fail in a few different ways:

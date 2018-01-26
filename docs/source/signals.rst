@@ -38,12 +38,10 @@ values to return a :py:class:`SignalResources <clusterman_signals.base_signal.Si
 of the ``SignalResources`` tuple should match the Mesos units: shares for CPUs, MB for memory and disk.
 
 When you :ref:`configure your custom signal <signal_configuration>`, you specify the metric names that your signal
-requires and how far back the data for each metric should be queried. ``BaseSignal`` handles the querying of metrics for
-you.  In ``value``, you can assume that each metric timeseries configured is available in the signal via::
-
-    self.metrics_cache['my_metric_name']
-
-where each metric timeseries is a list of ``(unix_timestamp_seconds, value)`` pairs, sorted from oldest to most recent.
+requires and how far back the data for each metric should be queried. The autoscaler handles the querying of metrics for
+you, and passes these into the ``value`` method as its only argument.  The format of this argument is a dictionary of
+metric timeseries data, keyed by the timeseries name and where where each metric timeseries is a list of
+``(unix_timestamp_seconds, value)`` pairs, sorted from oldest to most recent.
 
 .. note:: The autoscaler only responds to the ``cpus`` resource, but that may change in the future.
 
@@ -82,11 +80,11 @@ Within this section, the following keys are available:
 For required metrics, there can be any number of sections, each defining one desired metric.  The metric type must be
 one of :ref:`metric_types`.
 
-Custom parameters are optional. If defined, they are passed as a dictionary to the signal, in
-``self.custom_parameters``. For example, if you wanted to use the value of ``paramA`` in ``value``::
+Custom parameters are optional. If defined, they are passed as a dictionary to the signal, in ``self.parameters``. For
+example, if you wanted to use the value of ``paramA`` in ``value``::
 
     def value(self):
-        my_param = self.custom_parameters['paramA']
+        my_param = self.parameters['paramA']
         ...
 
 Use the regular srv-configs workflow to deploy changes to these values.
@@ -188,7 +186,7 @@ to have the changes take effect in the production autoscaler.
       it useful to also tag specific versions of your signal with a more meaningful/human-readable tag to use in the
       ``branch_or_tag`` field.
 
-   .. warning:: It is *possible* for you to reference a branch of ``clusterman_metrics`` that hasn't yet been merged to
+   .. warning:: It is *possible* for you to reference a branch of ``clusterman_signals`` that hasn't yet been merged to
       master for the production version of your signal.  However, this is not a recommended method of deployment, as
       this may introduce significant divergence from the master branch, including new features that are added to the
       ``BaseSignal`` class.
