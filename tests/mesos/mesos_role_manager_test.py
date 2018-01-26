@@ -80,7 +80,7 @@ class TestPruneFulfilledCapacity:
         mock_find_res_group.return_value = -1, None
         assert not mock_role_manager.prune_excess_fulfilled_capacity()
         assert mock_find_largest_capacity_market.call_count == 3
-        assert mock_logger.warn.call_count == 1
+        assert mock_logger.warn.call_count == 2
 
     def test_protected_market(self, mock_idle_agents_by_market, mock_find_res_group,
                               mock_find_largest_capacity_market, mock_logger, mock_role_manager):
