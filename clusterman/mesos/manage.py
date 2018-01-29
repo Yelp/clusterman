@@ -1,7 +1,12 @@
+from getpass import getuser
+from socket import gethostname
+
+import arrow
+
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_role_arg
 from clusterman.args import subparser
-from clusterman.batch.autoscaler import LOG_STREAM_NAME
+from clusterman.autoscaler.util import LOG_STREAM_NAME
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.util import ask_for_confirmation
 from clusterman.util import get_clusterman_logger
@@ -22,11 +27,13 @@ def main(args):
             return
 
     new_target = manager.modify_target_capacity(args.target_capacity, args.dry_run)
-    log_message = f'Target capacity for {args.role} manually changed from {old_target} to {new_target}'
+    log_message = (f'Target capacity for {args.role} on {args.cluster} manually changed '
+                   f'from {old_target} to {new_target} by {getuser()}')
     print(log_message)
     try:
         import clog
-        clog.log_line(LOG_STREAM_NAME, log_message)  # manual modifications show up in the scribe history
+        # manual modifications show up in the scribe history
+        clog.log_line(LOG_STREAM_NAME, f'{arrow.now()} {gethostname()} {__name__} {log_message}')
     except ModuleNotFoundError:
         logger.warn('clog not found, are you running on a Yelp host?')
 
