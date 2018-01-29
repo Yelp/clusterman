@@ -9,13 +9,13 @@ from clusterman.args import add_branch_or_tag_arg
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_env_config_path_arg
 from clusterman.autoscaler.autoscaler import Autoscaler
+from clusterman.autoscaler.util import LOG_STREAM_NAME
 from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import sensu_checkin
 from clusterman.config import get_role_config_path
 from clusterman.config import setup_config
 from clusterman.util import get_clusterman_logger
 
-LOG_STREAM_NAME = 'tmp_clusterman_scaling_decisions'
 logger = get_clusterman_logger(__name__)
 
 
