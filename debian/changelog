@@ -1,3 +1,9 @@
+clusterman (1.0.2) trusty; urgency=low
+
+  * Fixed/improved logging output
+
+ -- David Morrison <drmorr@yelp.com>  Mon, 29 Jan 2018 15:44:15 -0800
+
 clusterman (1.0.1) trusty; urgency=low
 
   * minor bugfixes and doc updates
