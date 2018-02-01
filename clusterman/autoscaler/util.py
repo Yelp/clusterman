@@ -140,6 +140,7 @@ def load_signal_connection(branch_or_tag, role, signal_name):
     if return_code:
         raise SignalConnectionError(f'Could not load signal {signal_name}; aborting')
     conn, __ = s.accept()
+    conn.settimeout(SOCKET_TIMEOUT_SECONDS)
     return conn
 
 
@@ -155,13 +156,16 @@ def evaluate_signal(metrics, signal_conn):
     metric_bytes = json.dumps({'metrics': metrics}).encode()
     len_metrics = struct.pack('>I', len(metric_bytes))  # bytes representation of the length, packed big-endian
     signal_conn.send(len_metrics)
-    if signal_conn.recv(SOCK_MESG_SIZE) != ACK:
-        raise SignalConnectionError('Unknown error occurred sending metric length to signal')
+    response = signal_conn.recv(SOCK_MESG_SIZE)
+    if response != ACK:
+        raise SignalConnectionError('Unknown error occurred sending metric length to signal (response={response})')
 
     # Then send the actual metrics data, broken up into chunks
     for i in range(0, len(metric_bytes), SOCK_MESG_SIZE):
         signal_conn.send(metric_bytes[i:i + SOCK_MESG_SIZE])
-    if signal_conn.recv(SOCK_MESG_SIZE) != ACK:
-        raise SignalConnectionError('Unknown error occurred sending metric data to signal')
+    response = signal_conn.recv(SOCK_MESG_SIZE)
+    if response != ACK:
+        raise SignalConnectionError('Unknown error occurred sending metric data to signal (response={response})')
+
     response = json.loads(signal_conn.recv(SOCK_MESG_SIZE))
     return response['Resources']
