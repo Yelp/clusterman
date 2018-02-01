@@ -8,10 +8,14 @@ from clusterman_metrics import ClustermanMetricsBotoClient
 from clusterman_metrics import generate_key_with_dimensions
 from clusterman_metrics import SYSTEM_METRICS
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
+from staticconf.errors import ConfigurationError
 
 from clusterman.autoscaler.util import evaluate_signal
 from clusterman.autoscaler.util import load_signal_connection
 from clusterman.autoscaler.util import read_signal_config
+from clusterman.exceptions import NoSignalConfiguredException
+from clusterman.exceptions import SignalConnectionError
+from clusterman.exceptions import SignalValidationError
 from clusterman.mesos.constants import ROLE_NAMESPACE
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.util import get_clusterman_logger
@@ -56,40 +60,54 @@ class Autoscaler:
         self.mesos_role_manager.modify_target_capacity(new_target_capacity, dry_run=dry_run)
 
     def load_signal(self):
-        """Load the signal object to use for autoscaling.
-
-        First try to load the custom signal configured by the role.
-        If that fails, or doesn't exist, use the default signal defined by the service.
-        """
+        """Load the signal object to use for autoscaling."""
         logger.info(f'Loading autoscaling signal for {self.role} in {self.cluster}')
 
         role_namespace = ROLE_NAMESPACE.format(role=self.role)
+        self.signal_config = read_signal_config(DEFAULT_NAMESPACE)
+        use_default = True
         try:
+            # see if the role has set up a custom signal correctly; if not, fall back to the default
+            # signal configuration (preloaded above)
             self.signal_config = read_signal_config(role_namespace)
-            if self.signal_config:
-                self.signal_conn = self._init_signal_from_config(self.role)
-                return
-            else:
-                logger.info(f'No signal configured for {self.role}, falling back to default')
-        except Exception:
+            use_default = False
+        except NoSignalConfiguredException:
+            logger.info(f'No signal configured for {self.role}, falling back to default')
+        except (ConfigurationError, SignalValidationError):
             logger.exception(f'Error loading signal for {self.role}, falling back to default')
 
-        self.signal_config = read_signal_config(DEFAULT_NAMESPACE)
-        self._init_signal_from_config(staticconf.read_string('autoscaling.default_signal_role'))
+        self._init_signal_connection(use_default)
 
-    def _init_signal_from_config(self, signal_role):
-        """Initialize a signal object, given the role where the signal class is defined and config values for the signal.
+    def _init_signal_connection(self, use_default):
+        """ Initialize the signal socket connection/communication layer.
 
-        :param signal_role: string, corresponding to the package name in clusterman_signals where the signal is defined
+        :param use_default: use the default signal with whatever parameters are stored in self.signal_config
         """
-        self.signal_conn = load_signal_connection(self.signal_config.branch_or_tag, signal_role, self.signal_config.name)
+        if not use_default:
+            # Try to set up the (non-default) signal specified in the signal_config
+            #
+            # If it fails, it might be because the signal_config is requesting a different signal (or different
+            # configuration) for a signal in the default role, so we fall back to the default in that case
+            try:
+                # Look for the signal name under the "role" directory in clusterman_signals
+                self.signal_conn = load_signal_connection(self.signal_config.branch_or_tag, self.role, self.signal_config.name)
+            except SignalConnectionError:
+                # If it's not there, see if the signal is one of our default signals
+                logger.info(f'Signal {self.signal_config.name} not found in {self.role}, falling back to default')
+                use_default = True
+
+        # This is not an "else" because the value of use_default may have changed in the above block
+        if use_default:
+            default_role = staticconf.read_string('autoscaling.default_signal_role')
+            self.signal_conn = load_signal_connection(self.signal_config.branch_or_tag, default_role, self.signal_config.name)
+
         signal_kwargs = json.dumps({
             'cluster': self.cluster,
             'role': self.role,
             'parameters': self.signal_config.parameters
         })
         self.signal_conn.send(signal_kwargs.encode())
-        logger.info(f'Loaded signal {self.signal_config.name} from role {signal_role}')
+        logger.info(f'Loaded signal {self.signal_config.name}')
 
     def _get_metrics(self, end_time):
         metrics = {}

@@ -13,6 +13,7 @@ from clusterman.autoscaler.util import evaluate_signal
 from clusterman.autoscaler.util import MetricConfig
 from clusterman.autoscaler.util import read_signal_config
 from clusterman.autoscaler.util import SignalConfig
+from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.exceptions import SignalConnectionError
 
 
@@ -40,9 +41,8 @@ def mock_cache():
 
 
 def test_read_config_none():
-    with staticconf.testing.MockConfiguration({}, namespace='util_testing'):
-        config = read_signal_config('util_testing')
-    assert config is None
+    with staticconf.testing.MockConfiguration({}, namespace='util_testing'), pytest.raises(NoSignalConfiguredException):
+        read_signal_config('util_testing')
 
 
 def test_read_config_optional_values():
@@ -68,7 +68,7 @@ def test_read_config_valid_values():
                 'minute_range': 12,
             },
         ],
-        'custom_parameters': [
+        'parameters': [
             {'paramA': 'abc'},
             {'otherParam': 18},
         ],
