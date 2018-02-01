@@ -7,9 +7,11 @@ from collections import namedtuple
 
 import simplejson as json
 import staticconf
+from staticconf.errors import ConfigurationError
 
-from clusterman.exceptions import SignalConfigurationError
+from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.exceptions import SignalConnectionError
+from clusterman.exceptions import SignalValidationError
 from clusterman.util import get_clusterman_logger
 
 logger = get_clusterman_logger(__name__)
@@ -71,20 +73,24 @@ def _get_local_signal_directory(branch_or_tag):
 def read_signal_config(config_namespace):
     """Validate and return autoscaling signal config from the given namespace.
 
-    If namespace does not contain a signal config, returns None.
-
     :param config_namespace: namespace to read values from
-    :returns SignalConfig
+    :returns: SignalConfig object with the values filled in
+    :raises staticconf.errors.ConfigurationError: if the config namespace is missing a required value
+    :raises NoSignalConfiguredException: if the config namespace doesn't define a custom signal
+    :raises SignalValidationError: if some signal parameter is incorrectly set
     """
     reader = staticconf.NamespaceReaders(config_namespace)
-    name = reader.read_string('autoscale_signal.name', default=None)
-    if not name:
-        return None
+
+    try:
+        name = reader.read_string('autoscale_signal.name')
+    except ConfigurationError:
+        raise NoSignalConfiguredException(f'No signal was configured in {config_namespace}')
+
     period_minutes = reader.read_int('autoscale_signal.period_minutes')
     if period_minutes <= 0:
-        raise SignalConfigurationError(f'Length of signal period must be positive, got {period_minutes}')
+        raise SignalValidationError(f'Length of signal period must be positive, got {period_minutes}')
     metrics_dict_list = reader.read_list('autoscale_signal.required_metrics', default=[])
-    parameter_dict_list = reader.read_list('autoscale_signal.custom_parameters', default=[])
+    parameter_dict_list = reader.read_list('autoscale_signal.parameters', default=[])
 
     parameter_dict = {key: value for param_dict in parameter_dict_list for (key, value) in param_dict.items()}
 
@@ -94,7 +100,7 @@ def read_signal_config(config_namespace):
     for metrics_dict in metrics_dict_list:
         missing = required_metric_keys - set(metrics_dict.keys())
         if missing:
-            raise SignalConfigurationError(f'Missing required metric keys {missing} in {metrics_dict}')
+            raise SignalValidationError(f'Missing required metric keys {missing} in {metrics_dict}')
         metric_config = {key: metrics_dict[key] for key in metrics_dict if key in required_metric_keys}
         metric_configs.append(MetricConfig(**metric_config))
     return SignalConfig(name, branch_or_tag, period_minutes, metric_configs, parameter_dict)

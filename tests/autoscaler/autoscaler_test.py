@@ -12,6 +12,9 @@ from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.autoscaler.autoscaler import DELTA_GAUGE_NAME
 from clusterman.autoscaler.util import MetricConfig
 from clusterman.autoscaler.util import SignalConfig
+from clusterman.exceptions import NoSignalConfiguredException
+from clusterman.exceptions import SignalConnectionError
+from clusterman.exceptions import SignalValidationError
 from clusterman.mesos.constants import ROLE_NAMESPACE
 
 
@@ -132,47 +135,65 @@ def test_autoscaler_init(mock_load_signal, mock_role_manager, mock_metrics_clien
     assert mock_load_signal.call_count == 1
 
 
-@pytest.mark.parametrize('role_config,role_signal,expected_default', [
-    (None, Exception, True),  # no role signal
-    (Exception, Exception, True),  # invalid role signal config
-    (signal_config(), Exception, True),  # loading role signal fails
-    (signal_config(), mock.Mock(), False),  # Custom role signal successful
+@pytest.mark.parametrize('read_config,expected_default', [
+    (NoSignalConfiguredException, True),  # no role signal
+    (SignalValidationError, True),  # invalid role signal config
+    (mock.Mock(), False),  # Custom role signal successful
 ])
 @mock.patch('clusterman.autoscaler.autoscaler.read_signal_config', autospec=True)
-@mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._init_signal_from_config', autospec=True)
-def test_load_signal(mock_init_signal, mock_read_config, mock_autoscaler, role_config, role_signal, expected_default):
-    # Set up mocks according to test parameters
+@mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._init_signal_connection', autospec=True)
+def test_load_signal(mock_init_signal, mock_read_config, mock_autoscaler, read_config, expected_default):
     default_config = signal_config()
-    if isinstance(role_config, SignalConfig):
-        mock_init_signal.side_effect = [role_signal, mock.Mock()]
-    else:
-        mock_init_signal.side_effect = [mock.Mock()]
-    mock_read_config.side_effect = [role_config, default_config]
-
+    mock_read_config.side_effect = [default_config, read_config]
     mock_autoscaler.load_signal()
-    mock_read_config.assert_any_call(ROLE_NAMESPACE.format(role='bar'))
-    if expected_default:
-        # call args is most recent call
-        assert mock_init_signal.call_args == mock.call(mock_autoscaler, 'clusterman')
-        assert mock_read_config.call_args == mock.call(DEFAULT_NAMESPACE)
-        assert mock_autoscaler.signal_config == default_config
-    else:
-        assert mock_init_signal.call_args == mock.call(mock_autoscaler, 'bar')
-        assert mock_autoscaler.signal_config == role_config
+    assert mock_read_config.call_args_list == [
+        mock.call(DEFAULT_NAMESPACE),
+        mock.call(ROLE_NAMESPACE.format(role='bar')),
+    ]
+
+    assert mock_autoscaler.signal_config == (default_config if expected_default else read_config)
 
 
 @mock.patch('clusterman.autoscaler.autoscaler.logger')
 @mock.patch('clusterman.autoscaler.autoscaler.load_signal_connection')
-def test_init_signal_from_config(mock_load_signal, mock_logger, mock_autoscaler):
-    config_role = 'anything'
-    mock_autoscaler._init_signal_from_config(config_role)
-    assert mock_load_signal.call_args == mock.call('v42', config_role, 'CoolSignal')
-    assert json.loads(mock_load_signal.return_value.send.call_args[0][0]) == {
-        'cluster': 'mesos-test',
-        'role': 'bar',
-        'parameters': mock_autoscaler.signal_config.parameters,
-    }
-    assert mock_logger.info.call_count == 1
+class TestInitSignalConnection:
+    @pytest.mark.parametrize('use_default', [True, False])
+    def test_init_signal_from_role(self, mock_load_signal, mock_logger, use_default, mock_autoscaler):
+        mock_autoscaler._init_signal_connection(use_default)
+        role = staticconf.read_string('autoscaling.default_signal_role') if use_default else mock_autoscaler.role
+        assert mock_load_signal.call_args == mock.call('v42', role, 'CoolSignal')
+        assert json.loads(mock_load_signal.return_value.send.call_args[0][0]) == {
+            'cluster': 'mesos-test',
+            'role': 'bar',
+            'parameters': mock_autoscaler.signal_config.parameters,
+        }
+        assert mock_logger.info.call_count == 1
+
+    def test_init_signal_fallback_to_default(self, mock_load_signal, mock_logger, mock_autoscaler):
+        default_role = staticconf.read_string('autoscaling.default_signal_role')
+        mock_signal_conn = mock.Mock()
+        mock_load_signal.side_effect = [SignalConnectionError(), mock_signal_conn]
+        mock_autoscaler._init_signal_connection(use_default=False)
+        assert mock_load_signal.call_args_list == [
+            mock.call('v42', mock_autoscaler.role, 'CoolSignal'),
+            mock.call('v42', default_role, 'CoolSignal'),
+        ]
+        assert json.loads(mock_signal_conn.send.call_args[0][0]) == {
+            'cluster': 'mesos-test',
+            'role': 'bar',
+            'parameters': mock_autoscaler.signal_config.parameters,
+        }
+        assert mock_logger.info.call_count == 2
+
+    def test_init_signal_error(self, mock_load_signal, mock_logger, mock_autoscaler):
+        default_role = staticconf.read_string('autoscaling.default_signal_role')
+        mock_load_signal.side_effect = SignalConnectionError()
+        with pytest.raises(SignalConnectionError):
+            mock_autoscaler._init_signal_connection(use_default=False)
+        assert mock_load_signal.call_args_list == [
+            mock.call('v42', mock_autoscaler.role, 'CoolSignal'),
+            mock.call('v42', default_role, 'CoolSignal'),
+        ]
 
 
 @pytest.mark.parametrize('dry_run', [True, False])
