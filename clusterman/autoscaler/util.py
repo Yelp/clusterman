@@ -158,14 +158,14 @@ def evaluate_signal(metrics, signal_conn):
     signal_conn.send(len_metrics)
     response = signal_conn.recv(SOCK_MESG_SIZE)
     if response != ACK:
-        raise SignalConnectionError('Unknown error occurred sending metric length to signal (response={response})')
+        raise SignalConnectionError(f'Unknown error occurred sending metric length to signal (response={response})')
 
     # Then send the actual metrics data, broken up into chunks
     for i in range(0, len(metric_bytes), SOCK_MESG_SIZE):
         signal_conn.send(metric_bytes[i:i + SOCK_MESG_SIZE])
     response = signal_conn.recv(SOCK_MESG_SIZE)
     if response != ACK:
-        raise SignalConnectionError('Unknown error occurred sending metric data to signal (response={response})')
+        raise SignalConnectionError(f'Unknown error occurred sending metric data to signal (response={response})')
 
     response = json.loads(signal_conn.recv(SOCK_MESG_SIZE))
     return response['Resources']
