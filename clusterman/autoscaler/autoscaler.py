@@ -93,7 +93,7 @@ class Autoscaler:
                 self.signal_conn = load_signal_connection(self.signal_config.branch_or_tag, self.role, self.signal_config.name)
             except SignalConnectionError:
                 # If it's not there, see if the signal is one of our default signals
-                logger.info(f'Signal {self.signal_config.name} not found in {self.role}, falling back to default')
+                logger.info(f'Signal {self.signal_config.name} not found in {self.role}, checking default signals')
                 use_default = True
 
         # This is not an "else" because the value of use_default may have changed in the above block
