@@ -45,11 +45,9 @@ class MesosRoleManager:
 
         role_config = staticconf.NamespaceReaders(ROLE_NAMESPACE.format(role=self.role))
 
-        mesos_master_fqdn = staticconf.read_string(f'mesos_clusters.{cluster}.fqdn')
+        mesos_master_fqdn = staticconf.read_string('cluster.fqdn')
         self.min_capacity = role_config.read_int('scaling_limits.min_capacity')
         self.max_capacity = role_config.read_int('scaling_limits.max_capacity')
-        self.max_weight_to_add = role_config.read_int('scaling_limits.max_weight_to_add')
-        self.max_weight_to_remove = role_config.read_int('scaling_limits.max_weight_to_remove')
 
         self.api_endpoint = f'http://{mesos_master_fqdn}:5050/'
         logger.info(f'Connecting to Mesos masters at {self.api_endpoint}')
@@ -120,11 +118,19 @@ class MesosRoleManager:
 
     def _constrain_target_capacity(self, requested_target_capacity):
         """ Signals can return arbitrary values, so make sure we don't add or remove too much capacity """
+
+        # TODO (CLUSTERMAN-126) max_weight_to_add and max_weight_to_remove are clusterwide settings,
+        # not per-role settings.  Right now we read them from the cluster-wide srv-configs, but the only
+        # place to apply the limits are in the role-manager.  When we start to support multiple roles
+        # per cluster this will need to change.
+        max_weight_to_add = staticconf.read_int('cluster.scaling_limits.max_weight_to_add')
+        max_weight_to_remove = staticconf.read_int('cluster.scaling_limits.max_weight_to_remove')
+
         requested_delta = requested_target_capacity - self.target_capacity
         if requested_delta > 0:
-            delta = min(self.max_capacity - self.target_capacity, self.max_weight_to_add, requested_delta)
+            delta = min(self.max_capacity - self.target_capacity, max_weight_to_add, requested_delta)
         elif requested_delta < 0:
-            delta = max(self.min_capacity - self.target_capacity, -self.max_weight_to_remove, requested_delta)
+            delta = max(self.min_capacity - self.target_capacity, -max_weight_to_remove, requested_delta)
 
         constrained_target_capacity = self.target_capacity + delta
         if requested_delta != delta:
