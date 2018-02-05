@@ -48,6 +48,8 @@ class MesosRoleManager:
         mesos_master_fqdn = staticconf.read_string(f'mesos_clusters.{cluster}.fqdn')
         self.min_capacity = role_config.read_int('scaling_limits.min_capacity')
         self.max_capacity = role_config.read_int('scaling_limits.max_capacity')
+        self.max_weight_to_add = role_config.read_int('scaling_limits.max_weight_to_add')
+        self.max_weight_to_remove = role_config.read_int('scaling_limits.max_weight_to_remove')
 
         self.api_endpoint = f'http://{mesos_master_fqdn}:5050/'
         logger.info(f'Connecting to Mesos masters at {self.api_endpoint}')
@@ -116,19 +118,21 @@ class MesosRoleManager:
         used = self.get_resource_allocation(resource_name)
         return used / total if total else 0
 
-    def _constrain_target_capacity(self, target_capacity):
-        """ Ensure that the desired target capacity is within the specified bounds for the cluster """
-        min_capacity = max(self.min_capacity, MIN_CAPACITY_PER_GROUP * len(self.resource_groups))
-        if target_capacity > self.max_capacity:
-            new_target_capacity = self.max_capacity
-        elif target_capacity < min_capacity:
-            new_target_capacity = min_capacity
-        else:
-            new_target_capacity = target_capacity
+    def _constrain_target_capacity(self, requested_target_capacity):
+        """ Signals can return arbitrary values, so make sure we don't add or remove too much capacity """
+        requested_delta = requested_target_capacity - self.target_capacity
+        if requested_delta > 0:
+            delta = min(self.max_capacity - self.target_capacity, self.max_weight_to_add, requested_delta)
+        elif requested_delta < 0:
+            delta = max(self.min_capacity - self.target_capacity, -self.max_weight_to_remove, requested_delta)
 
-        if target_capacity != new_target_capacity:
-            logger.warn(f'Requested target capacity {target_capacity}; constraining to {new_target_capacity}')
-        return new_target_capacity
+        constrained_target_capacity = self.target_capacity + delta
+        if requested_delta != delta:
+            logger.warn(
+                f'Requested target capacity {requested_target_capacity}; '
+                f'restricting to {constrained_target_capacity} due to scaling limits.'
+            )
+        return constrained_target_capacity
 
     def prune_excess_fulfilled_capacity(self, group_targets=None, dry_run=False):
         """ Decrease the capacity in the cluster

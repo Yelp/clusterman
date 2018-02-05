@@ -101,13 +101,6 @@ def mock_autoscaler(mock_load_signal, mock_metrics_client, mock_role_manager, mo
     return mock_autoscaler
 
 
-@pytest.fixture
-def mock_constrain_delta():
-    with mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._constrain_cluster_delta', autospec=True) as mock_constrain:
-        mock_constrain.side_effect = lambda cls, x: x
-        yield mock_constrain
-
-
 def signal_config():
     return SignalConfig(
         'CoolSignal',
@@ -235,50 +228,11 @@ def test_get_metrics(end_time, mock_autoscaler):
     (1400, 1000, 125),  # above setpoint delta and total
 ])
 @mock.patch('clusterman.autoscaler.autoscaler.evaluate_signal')
-def test_compute_cluster_delta(mock_evaluate_signal, mock_autoscaler, mock_constrain_delta, signal_cpus, total_cpus,
+def test_compute_cluster_delta(mock_evaluate_signal, mock_autoscaler, signal_cpus, total_cpus,
                                expected_delta, run_timestamp):
     mock_autoscaler._get_metrics = mock.Mock(return_value=[[1234, 3.5]])
     mock_autoscaler.mesos_role_manager.target_capacity = total_cpus / staticconf.read_int('autoscaling.cpus_per_weight')
     mock_evaluate_signal.return_value = {'cpus': signal_cpus}
     delta = mock_autoscaler._compute_cluster_delta(run_timestamp)
     assert delta == pytest.approx(expected_delta)
-    if delta != 0:
-        assert mock_constrain_delta.call_count == 1
     assert mock_evaluate_signal.call_args == mock.call([[1234, 3.5]], mock_autoscaler.signal_conn)
-
-
-def test_constrain_cluster_delta_normal_scale_up(mock_autoscaler):
-    delta = mock_autoscaler._constrain_cluster_delta(100)
-    assert delta == 100
-
-
-def test_constrain_cluster_delta_normal_scale_down(mock_autoscaler):
-    delta = mock_autoscaler._constrain_cluster_delta(-5)
-    assert delta == -5
-
-
-def test_constrain_cluster_delta_zero(mock_autoscaler):
-    delta = mock_autoscaler._constrain_cluster_delta(0)
-    assert delta == 0
-
-
-def test_constrain_cluster_delta_normal_scale_down_when_signal_delta_is_too_high(mock_autoscaler):
-    delta = mock_autoscaler._constrain_cluster_delta(-4000)
-    assert delta == -10
-
-
-def test_constrain_cluster_delta_normal_scale_up_when_signal_delta_is_too_high(mock_autoscaler):
-    delta = mock_autoscaler._constrain_cluster_delta(4000)
-    assert delta == 200
-
-
-def test_constrain_cluster_delta_restrict_scale_up_above_maximum(mock_autoscaler):
-    mock_autoscaler.mesos_role_manager.target_capacity = 4900
-    delta = mock_autoscaler._constrain_cluster_delta(150)
-    assert delta == 100
-
-
-def test_constrain_cluster_delta_restrict_scale_down_below_minimum(mock_autoscaler):
-    mock_autoscaler.mesos_role_manager.target_capacity = 30
-    delta = mock_autoscaler._constrain_cluster_delta(-40)
-    assert delta == -6
