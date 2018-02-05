@@ -149,12 +149,16 @@ def test_evaluate_signal_connection_errors(conn_response):
 
 
 @mock.patch('clusterman.autoscaler.util.SOCK_MESG_SIZE', 2)
-def test_evaluate_sending_message():
+@pytest.mark.parametrize('signal_recv', [
+    [ACK, ACK, b'{"Resources": {"cpus": 5.2}}'],
+    [ACK, b'\x01{"Resources": {"cpus": 5.2}}'],
+])
+def test_evaluate_sending_message(signal_recv):
     metrics = {'cpus_allocated': [(1234, 3.5), (1235, 6)]}
     num_messages = math.ceil(len(json.dumps({'metrics': metrics})) / 2) + 1
     mock_signal_conn = mock.Mock()
-    mock_signal_conn.recv.side_effect = [ACK, ACK, b'{"Resources": {"cpus": 5.2}}']
+    mock_signal_conn.recv.side_effect = signal_recv
     resp = evaluate_signal(metrics, mock_signal_conn)
     assert mock_signal_conn.send.call_count == num_messages
-    assert mock_signal_conn.recv.call_count == 3
+    assert mock_signal_conn.recv.call_count == len(signal_recv)
     assert resp == {'cpus': 5.2}

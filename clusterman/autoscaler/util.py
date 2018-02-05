@@ -164,8 +164,12 @@ def evaluate_signal(metrics, signal_conn):
     for i in range(0, len(metric_bytes), SOCK_MESG_SIZE):
         signal_conn.send(metric_bytes[i:i + SOCK_MESG_SIZE])
     response = signal_conn.recv(SOCK_MESG_SIZE)
-    if response != ACK:
+    ack_bit = response[:1]
+    if ack_bit != ACK:
         raise SignalConnectionError(f'Unknown error occurred sending metric data to signal (response={response})')
 
-    response = json.loads(signal_conn.recv(SOCK_MESG_SIZE))
-    return response['Resources']
+    # Sometimes the signal sends the ack and the reponse "too quickly" so when we call
+    # recv above it gets both values.  This should handle that case, or call recv again
+    # if there's no more data in the previous message
+    response = response[1:] or signal_conn.recv(SOCK_MESG_SIZE)
+    return json.loads(response)['Resources']
