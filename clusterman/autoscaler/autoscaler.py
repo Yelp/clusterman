@@ -36,7 +36,7 @@ class Autoscaler:
 
         self.mesos_role_manager = role_manager or MesosRoleManager(self.cluster, self.role)
 
-        mesos_region = staticconf.read_string(f'aws.region')
+        mesos_region = staticconf.read_string('cluster.aws_region')
         self.metrics_client = metrics_client or ClustermanMetricsBotoClient(mesos_region, app_identifier=self.role)
         self.load_signal()
 
@@ -165,25 +165,8 @@ class Autoscaler:
             cpus_delta = cpus_difference_from_setpoint / setpoint
 
             # Finally, convert CPUs to capacity units.
-            capacity_delta = self._constrain_cluster_delta(cpus_delta / cpus_per_weight)
+            capacity_delta = cpus_delta / cpus_per_weight
             logger.info(f'Computed capacity delta is {capacity_delta} units ({cpus_delta} CPUs)')
         else:
             logger.info('Requested CPUs within setpoint margin, capacity_delta is 0')
         return capacity_delta
-
-    def _constrain_cluster_delta(self, delta):
-        """ Signals can return arbitrary values, so make sure we don't add or remove too much capacity """
-        if delta > 0:
-            return min(
-                self.mesos_role_manager.max_capacity - self.mesos_role_manager.target_capacity,
-                self.role_config.read_int('scaling_limits.max_weight_to_add'),
-                delta,
-            )
-        elif delta < 0:
-            return max(
-                self.mesos_role_manager.min_capacity - self.mesos_role_manager.target_capacity,
-                -self.role_config.read_int('scaling_limits.max_weight_to_remove'),
-                delta,
-            )
-        else:
-            return 0

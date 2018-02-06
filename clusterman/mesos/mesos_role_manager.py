@@ -45,7 +45,7 @@ class MesosRoleManager:
 
         role_config = staticconf.NamespaceReaders(ROLE_NAMESPACE.format(role=self.role))
 
-        mesos_master_fqdn = staticconf.read_string(f'mesos_clusters.{cluster}.fqdn')
+        mesos_master_fqdn = staticconf.read_string('cluster.fqdn')
         self.min_capacity = role_config.read_int('scaling_limits.min_capacity')
         self.max_capacity = role_config.read_int('scaling_limits.max_capacity')
 
@@ -116,19 +116,29 @@ class MesosRoleManager:
         used = self.get_resource_allocation(resource_name)
         return used / total if total else 0
 
-    def _constrain_target_capacity(self, target_capacity):
-        """ Ensure that the desired target capacity is within the specified bounds for the cluster """
-        min_capacity = max(self.min_capacity, MIN_CAPACITY_PER_GROUP * len(self.resource_groups))
-        if target_capacity > self.max_capacity:
-            new_target_capacity = self.max_capacity
-        elif target_capacity < min_capacity:
-            new_target_capacity = min_capacity
-        else:
-            new_target_capacity = target_capacity
+    def _constrain_target_capacity(self, requested_target_capacity):
+        """ Signals can return arbitrary values, so make sure we don't add or remove too much capacity """
 
-        if target_capacity != new_target_capacity:
-            logger.warn(f'Requested target capacity {target_capacity}; constraining to {new_target_capacity}')
-        return new_target_capacity
+        # TODO (CLUSTERMAN-126) max_weight_to_add and max_weight_to_remove are clusterwide settings,
+        # not per-role settings.  Right now we read them from the cluster-wide srv-configs, but the only
+        # place to apply the limits are in the role-manager.  When we start to support multiple roles
+        # per cluster this will need to change.
+        max_weight_to_add = staticconf.read_int('cluster.scaling_limits.max_weight_to_add')
+        max_weight_to_remove = staticconf.read_int('cluster.scaling_limits.max_weight_to_remove')
+
+        requested_delta = requested_target_capacity - self.target_capacity
+        if requested_delta > 0:
+            delta = min(self.max_capacity - self.target_capacity, max_weight_to_add, requested_delta)
+        elif requested_delta < 0:
+            delta = max(self.min_capacity - self.target_capacity, -max_weight_to_remove, requested_delta)
+
+        constrained_target_capacity = self.target_capacity + delta
+        if requested_delta != delta:
+            logger.warn(
+                f'Requested target capacity {requested_target_capacity}; '
+                f'restricting to {constrained_target_capacity} due to scaling limits.'
+            )
+        return constrained_target_capacity
 
     def prune_excess_fulfilled_capacity(self, group_targets=None, dry_run=False):
         """ Decrease the capacity in the cluster
