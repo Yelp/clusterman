@@ -37,6 +37,7 @@ def main_clusterman_config():
     config = {
         'aws': {
             'access_key_file': '/etc/secrets',
+            'region': 'us-west-2',
         },
         'batches': {
             'spot_prices': {
@@ -48,20 +49,14 @@ def main_clusterman_config():
             },
         },
         'mesos_clusters': {
-            'mesos-test': [{
+            'mesos-test': {
                 'fqdn': 'the.mesos.leader',
                 'aws_region': 'us-west-2',
-            }],
-        },
-        'cluster_roles': ['bar'],
-        'cluster': {
-            'scaling_limits': {
                 'max_weight_to_add': 200,
                 'max_weight_to_remove': 10,
             },
-            'aws_region': 'us-west-2',
-            'fqdn': 'the.mesos.leader',
-        }
+        },
+        'cluster_roles': ['bar'],
     }
 
     with staticconf.testing.MockConfiguration(config):

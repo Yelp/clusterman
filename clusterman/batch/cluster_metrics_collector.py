@@ -49,7 +49,7 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin):
     def configure_initial(self):
         setup_config(self.options)
 
-        self.region = staticconf.read_string('cluster.aws_region')
+        self.region = staticconf.read_string('aws.region')
         self.run_interval = staticconf.read_int('batches.cluster_metrics.run_interval_seconds')
         self.logger = logger
 

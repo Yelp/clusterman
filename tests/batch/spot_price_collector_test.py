@@ -19,7 +19,7 @@ def batch():
 
 @pytest.fixture
 def batch_arg_parser(batch, args=None):
-    args = args or ['--aws-region', 'testing']
+    args = args or ['--aws-region', 'us-west-1']
     parser = argparse.ArgumentParser()
     batch.parse_args(parser)
     return parser.parse_args(args)
@@ -44,7 +44,7 @@ def mock_sensu():
 
 
 def test_start_time_parsing(batch):
-    args = batch_arg_parser(batch, ['--aws-region', 'testing', '--start-time', '2017-09-12T12:11:23'])
+    args = batch_arg_parser(batch, ['--aws-region', 'us-west-1', '--start-time', '2017-09-12T12:11:23'])
     assert args.start_time == datetime.datetime(2017, 9, 12, 12, 11, 23, tzinfo=datetime.timezone.utc)
 
 
@@ -55,15 +55,15 @@ def test_start_time_default(mock_now, batch):
 
 
 def test_configure_initial_default(batch, mock_client_class, mock_setup_config):
-    batch.options = batch_arg_parser(batch, ['--aws-region', 'us-test-2'])
+    batch.options = batch_arg_parser(batch, ['--aws-region', 'us-west-2'])
     batch.configure_initial()
 
     assert mock_setup_config.call_args_list == [mock.call(batch.options, include_roles=False)]
-    assert batch.region == 'us-test-2'
+    assert batch.region == 'us-west-2'
     assert batch.last_time_called == batch.options.start_time
     assert batch.run_interval == 120
     assert batch.dedupe_interval == 60
-    assert mock_client_class.call_args_list == [mock.call(region_name='us-test-2')]
+    assert mock_client_class.call_args_list == [mock.call(region_name='us-west-2')]
     assert batch.metrics_client == mock_client_class.return_value
 
 
@@ -71,15 +71,13 @@ def test_configure_initial_with_options(batch, batch_arg_parser, mock_client_cla
     batch.options = batch_arg_parser  # just to set up options object, will override
     batch.options.env_config_path = 'custom.yaml'
     batch.options.start_time = arrow.get(2017, 9, 1, 1, 1, 0)
-    batch.options.aws_region = 'us-other-1'
     batch.configure_initial()
 
     assert mock_setup_config.call_args_list == [mock.call(batch.options, include_roles=False)]
-    assert batch.region == 'us-other-1'
     assert batch.last_time_called == batch.options.start_time
     assert batch.run_interval == 120
     assert batch.dedupe_interval == 60
-    assert mock_client_class.call_args_list == [mock.call(region_name='us-other-1')]
+    assert mock_client_class.call_args_list == [mock.call(region_name='us-west-2')]
     assert batch.metrics_client == mock_client_class.return_value
 
 

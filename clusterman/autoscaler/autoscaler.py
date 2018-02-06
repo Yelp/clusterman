@@ -36,7 +36,7 @@ class Autoscaler:
 
         self.mesos_role_manager = role_manager or MesosRoleManager(self.cluster, self.role)
 
-        mesos_region = staticconf.read_string('cluster.aws_region')
+        mesos_region = staticconf.read_string('aws.region')
         self.metrics_client = metrics_client or ClustermanMetricsBotoClient(mesos_region, app_identifier=self.role)
         self.load_signal()
 

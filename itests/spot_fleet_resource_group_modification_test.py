@@ -69,7 +69,7 @@ def test_scale_up(mock_prune, mock_manager, mock_sfrs):
 def test_scale_down(mock_manager, mock_sfrs):
     mock_manager.max_capacity = 101
     mock_manager.modify_target_capacity(1000)
-    patched_config = {'cluster': {'scaling_limits': {'max_weight_to_remove': 1000}}}
+    patched_config = {'mesos_clusters': {'mesos-test': {'max_weight_to_remove': 1000}}}
     with mock.patch('clusterman.mesos.mesos_role_manager.MesosRoleManager._idle_agents_by_market') as mock_idle, \
             PatchConfiguration(patched_config):
         # Everything is idle

@@ -61,10 +61,14 @@ def mock_config_namespaces():
     ), staticconf.testing.MockConfiguration(
         {
             'mesos_clusters': {
-                'cluster-A': [{
+                'cluster-A': {
                     'fqdn': 'service.leader',
                     'aws_region': 'us-test-3',
-                }],
+                    'config': [{
+                        'max_weight_to_add': 10,
+                        'max_weight_to_remove': 10,
+                    }],
+                },
             },
             'aws': {
                 'access_key_file': '/etc/no_cfg/clusterman.json',
@@ -91,7 +95,7 @@ def test_setup_config(mock_service_load, mock_role_load, cluster, include_roles,
 
     assert mock_service_load.call_args == mock.call('/nail/etc/config.yaml', '/nail/etc/config.yaml')
     if cluster is not None:
-        assert staticconf.read_string('cluster.aws_region') == 'us-test-3'
+        assert staticconf.read_string('aws.region') == 'us-test-3'
         if include_roles:
             assert mock_role_load.call_args == mock.call(cluster, tag)
         else:

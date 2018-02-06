@@ -45,7 +45,7 @@ class MesosRoleManager:
 
         role_config = staticconf.NamespaceReaders(ROLE_NAMESPACE.format(role=self.role))
 
-        mesos_master_fqdn = staticconf.read_string('cluster.fqdn')
+        mesos_master_fqdn = staticconf.read_string(f'mesos_clusters.{self.cluster}.fqdn')
         self.min_capacity = role_config.read_int('scaling_limits.min_capacity')
         self.max_capacity = role_config.read_int('scaling_limits.max_capacity')
 
@@ -123,8 +123,8 @@ class MesosRoleManager:
         # not per-role settings.  Right now we read them from the cluster-wide srv-configs, but the only
         # place to apply the limits are in the role-manager.  When we start to support multiple roles
         # per cluster this will need to change.
-        max_weight_to_add = staticconf.read_int('cluster.scaling_limits.max_weight_to_add')
-        max_weight_to_remove = staticconf.read_int('cluster.scaling_limits.max_weight_to_remove')
+        max_weight_to_add = staticconf.read_int(f'mesos_clusters.{self.cluster}.max_weight_to_add')
+        max_weight_to_remove = staticconf.read_int(f'mesos_clusters.{self.cluster}.max_weight_to_remove')
 
         requested_delta = requested_target_capacity - self.target_capacity
         if requested_delta > 0:
