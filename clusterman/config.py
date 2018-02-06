@@ -19,17 +19,11 @@ def setup_config(args, include_roles=True):
 
     signals_branch_or_tag = getattr(args, 'signals_branch_or_tag', None)
 
-    # If there is a cluster specified via --cluster, load cluster-specific attributes
-    # into staticconf.  These values are not specified using hiera in srv-configs because
-    # we might want to be operating on a cluster in one region while running from a
-    # different region.  This code therefore takes the 'mesos_clusters.<cluster>.<key>' values
-    # and maps them to 'cluster.<key>' in staticconf.
+    # If a cluster is specified, any AWS calls should go to the corresponding region.
+    # We can also load the role configs in that cluster, if include_roles is True.
     if getattr(args, 'cluster', None):
-
-        # Using a list is a hack to preserve the dict structure of the cluster attributes when
-        # reading from staticconf.
-        cluster_attrs = staticconf.read_list(f'mesos_clusters.{args.cluster}')[0]
-        staticconf.DictConfiguration({'cluster': cluster_attrs})
+        cluster_region = staticconf.read_string('mesos_clusters.{cluster}.aws_region'.format(cluster=args.cluster))
+        staticconf.DictConfiguration({'aws': {'region': cluster_region}})
 
         if include_roles:
             load_role_configs_for_cluster(args.cluster, signals_branch_or_tag)
