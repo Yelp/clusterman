@@ -52,6 +52,8 @@ def main_clusterman_config():
             'mesos-test': {
                 'fqdn': 'the.mesos.leader',
                 'aws_region': 'us-west-2',
+                'max_weight_to_add': 200,
+                'max_weight_to_remove': 10,
             },
         },
         'cluster_roles': ['bar'],
@@ -75,8 +77,6 @@ def clusterman_role_config():
         'scaling_limits': {
             'min_capacity': 3,
             'max_capacity': 345,
-            'max_weight_to_add': 200,
-            'max_weight_to_remove': 10,
         },
     }
     with staticconf.testing.MockConfiguration(config, namespace='bar_config'):

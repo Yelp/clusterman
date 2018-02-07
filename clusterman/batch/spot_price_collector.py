@@ -12,7 +12,6 @@ from yelp_batch.batch_daemon import BatchDaemon
 
 from clusterman.args import add_disable_sensu_arg
 from clusterman.args import add_env_config_path_arg
-from clusterman.args import add_region_arg
 from clusterman.aws.spot_prices import spot_price_generator
 from clusterman.aws.spot_prices import write_prices_with_dedupe
 from clusterman.batch.util import BatchLoggingMixin
@@ -29,7 +28,12 @@ class SpotPriceCollector(BatchDaemon, BatchLoggingMixin):
     @batch_command_line_arguments
     def parse_args(self, parser):
         arg_group = parser.add_argument_group('SpotPriceCollector options')
-        add_region_arg(arg_group, required=True)
+        parser.add_argument(
+            '--aws-region',
+            required=True,
+            choices=['us-west-1', 'us-west-2', 'us-east-1'],
+            help='AWS region to collect spot pricing data for',
+        )
         add_env_config_path_arg(arg_group)
         add_disable_sensu_arg(arg_group)
         arg_group.add_argument(
@@ -48,7 +52,7 @@ class SpotPriceCollector(BatchDaemon, BatchLoggingMixin):
         setup_config(self.options, include_roles=False)
 
         self.logger = logger
-        self.region = self.options.aws_region
+        self.region = staticconf.read_string('aws.region')
         self.last_time_called = self.options.start_time
         self.run_interval = staticconf.read_int('batches.spot_prices.run_interval_seconds')
         self.dedupe_interval = staticconf.read_int('batches.spot_prices.dedupe_interval_seconds')

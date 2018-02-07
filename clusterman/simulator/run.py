@@ -70,7 +70,7 @@ def main(args):
         except OSError as e:
             logger.warn(f'{str(e)}: no metrics loaded')
 
-    region_name = staticconf.read_string(f'mesos_clusters.{args.cluster}.aws_region')
+    region_name = staticconf.read_string('aws.cluster')
     metrics_client = ClustermanMetricsSimulationClient(metrics, region_name=region_name)
 
     metadata = SimulationMetadata(args.cluster, args.role)

@@ -64,6 +64,10 @@ def mock_config_namespaces():
                 'cluster-A': {
                     'fqdn': 'service.leader',
                     'aws_region': 'us-test-3',
+                    'config': [{
+                        'max_weight_to_add': 10,
+                        'max_weight_to_remove': 10,
+                    }],
                 },
             },
             'aws': {
@@ -85,7 +89,7 @@ def mock_config_namespaces():
 ])
 @mock.patch('clusterman.config.load_role_configs_for_cluster', autospec=True)
 @mock.patch('clusterman.config.load_default_config')
-def test_setup_config(mock_service_load, mock_role_load, cluster, include_roles, tag, mock_config_files):
+def test_setup_config_cluster(mock_service_load, mock_role_load, cluster, include_roles, tag, mock_config_files):
     args = argparse.Namespace(env_config_path='/nail/etc/config.yaml', cluster=cluster, signals_branch_or_tag=tag)
     config.setup_config(args, include_roles=include_roles)
 
@@ -98,6 +102,20 @@ def test_setup_config(mock_service_load, mock_role_load, cluster, include_roles,
             assert mock_role_load.call_count == 0
             if tag:
                 assert staticconf.read_string('autoscale_signal.branch_or_tag') == tag
+
+
+def test_setup_config_region_and_cluster():
+    args = argparse.Namespace(env_config_path='/nail/etc/config.yaml', cluster='foo', aws_region='bar')
+    with mock.patch('clusterman.config.load_default_config'), pytest.raises(argparse.ArgumentError):
+        config.setup_config(args)
+
+
+def test_setup_config_region(mock_config_files):
+    args = argparse.Namespace(env_config_path='/nail/etc/config.yaml', aws_region='fake-region-A')
+    with mock.patch('clusterman.config.load_default_config'), \
+            mock.patch('clusterman.config.load_role_configs_for_cluster'):
+        config.setup_config(args)
+    assert staticconf.read_string('aws.region') == 'fake-region-A'
 
 
 @pytest.mark.parametrize('cluster,roles', [

@@ -1,4 +1,5 @@
 import os
+from argparse import ArgumentError
 
 import staticconf
 import yaml
@@ -19,14 +20,23 @@ def setup_config(args, include_roles=True):
 
     signals_branch_or_tag = getattr(args, 'signals_branch_or_tag', None)
 
-    # If a cluster is specified, any AWS calls should go to the corresponding region.
-    # We can also load the role configs in that cluster, if include_roles is True.
-    if getattr(args, 'cluster', None):
-        cluster_region = staticconf.read_string('mesos_clusters.{cluster}.aws_region'.format(cluster=args.cluster))
-        staticconf.DictConfiguration({'aws': {'region': cluster_region}})
+    aws_region = getattr(args, 'aws_region', None)
+    cluster = getattr(args, 'cluster', None)
+    if aws_region and cluster:
+        raise ArgumentError(None, 'Cannot specify both cluster and aws_region')
+
+    # If there is a cluster specified via --cluster, load cluster-specific attributes
+    # into staticconf.  These values are not specified using hiera in srv-configs because
+    # we might want to be operating on a cluster in one region while running from a
+    # different region.
+    elif cluster:
+        aws_region = staticconf.read_string(f'mesos_clusters.{cluster}.aws_region')
 
         if include_roles:
             load_role_configs_for_cluster(args.cluster, signals_branch_or_tag)
+
+    if aws_region:
+        staticconf.DictConfiguration({'aws': {'region': aws_region}})
 
     boto_creds_file = staticconf.read_string('aws.access_key_file')
     staticconf.JSONConfiguration(boto_creds_file, namespace=CREDENTIALS_NAMESPACE)
