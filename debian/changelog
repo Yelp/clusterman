@@ -1,3 +1,11 @@
+clusterman (1.1.0) trusty; urgency=low
+
+  * apply scaling limits to "manage" command
+  * fix up issues around aws.region
+  * other minor bugfixes
+
+ -- David Morrison <drmorr@yelp.com>  Wed, 07 Feb 2018 15:04:44 -0800
+
 clusterman (1.0.2) trusty; urgency=low
 
   * Fixed/improved logging output
