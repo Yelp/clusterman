@@ -93,6 +93,7 @@ clean:
 	-unlink dist
 	-find . -name '*.pyc' -delete
 	-find . -name '__pycache__' -delete
+	-rm -rf yelp_package/dist/*
 
 clean-cache:
 	find -name '*.pyc' -delete

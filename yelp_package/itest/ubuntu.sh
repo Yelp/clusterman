@@ -18,20 +18,22 @@ highlight_exec() {
 
 PACKAGE_NAME="$1"
 PACKAGE_VERSION="$2"
+SHA="$3"
 
 # This will get DISTRIB_CODENAME
 source /etc/lsb-release
 
-# This will set us up to install our package through apt-get
-highlight "Creating new apt source"
-echo "deb file:/dist/${DISTRIB_CODENAME} ./" | tee "/etc/apt/sources.list.d/itest-${PACKAGE_NAME}.list"
-
+# Install the package from our pre-built deb; this will fail because of dependencies, but ignore
+# the error and then run apt-get to fix up the dependencies
 highlight_exec apt-get update
+highlight_exec dpkg -i "/dist/${DISTRIB_CODENAME}/${PACKAGE_NAME}_${PACKAGE_VERSION}-${SHA}_amd64.deb" || true
+highlight_exec apt-get install -y --force-yes  -f
 
-# The package should install ok
-highlight_exec apt-get install -y --force-yes "${PACKAGE_NAME}=${PACKAGE_VERSION}"
-
-# TODO: implement your integration tests for Ubuntu here.
+# Run the critical clusterman CLI commands
 highlight_exec /usr/bin/clusterman --version
+highlight_exec /usr/bin/clusterman status --cluster everywhere-testopia --role jolt -v
+highlight_exec /usr/bin/clusterman manage --cluster everywhere-testopia --role jolt --target-capacity 100 --dry-run
+# TODO (CLUSTERMAN-160) -- this is broken because of the metrics reader right now
+# highlight_exec /usr/bin/clusterman simulate --cluster everywhere-testopia --role jolt
 
 highlight "$0:" 'success!'

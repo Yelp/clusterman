@@ -221,9 +221,9 @@ def test_get_metrics(end_time, mock_autoscaler):
 
 @pytest.mark.parametrize('signal_cpus,total_cpus,expected_capacity', [
     (None, 1000, 125),
-    (799, 1000, 125),  # above setpoint, but within setpoint margin
+    (701, 1000, 125),  # above setpoint, but within setpoint margin
     (980, 1000, 175),  # above setpoint margin
-    (601, 1000, 125),  # below setpoint, but within setpoint margin
+    (699, 1000, 125),  # below setpoint, but within setpoint margin
     (490, 1000, 87.5),  # below setpoint margin
     (1400, 1000, 250),  # above setpoint margin and total
 ])

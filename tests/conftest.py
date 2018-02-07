@@ -39,6 +39,11 @@ def main_clusterman_config():
             'access_key_file': '/etc/secrets',
             'region': 'us-west-2',
         },
+        'autoscaling': {
+            'setpoint': 0.7,
+            'setpoint_margin': 0.1,
+            'cpus_per_weight': 4,
+        },
         'batches': {
             'spot_prices': {
                 'run_interval_seconds': 120,
