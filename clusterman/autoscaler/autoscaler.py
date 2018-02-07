@@ -21,7 +21,7 @@ from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.util import get_clusterman_logger
 
 
-DELTA_GAUGE_NAME = 'clusterman.autoscaler.delta'
+CAPACITY_GAUGE_NAME = 'clusterman.autoscaler.target_capacity'
 logger = get_clusterman_logger(__name__)
 
 
@@ -32,7 +32,7 @@ class Autoscaler:
 
         logger.info(f'Initializing autoscaler engine for {self.role} in {self.cluster}...')
         self.role_config = staticconf.NamespaceReaders(ROLE_NAMESPACE.format(role=self.role))
-        self.delta_gauge = yelp_meteorite.create_gauge(DELTA_GAUGE_NAME, {'cluster': cluster, 'role': role})
+        self.capacity_gauge = yelp_meteorite.create_gauge(CAPACITY_GAUGE_NAME, {'cluster': cluster, 'role': role})
 
         self.mesos_role_manager = role_manager or MesosRoleManager(self.cluster, self.role)
 
@@ -54,9 +54,8 @@ class Autoscaler:
         """
         timestamp = timestamp or arrow.utcnow()
         logger.info(f'Autoscaling run starting at {timestamp}')
-        delta = self._compute_cluster_delta(timestamp)
-        self.delta_gauge.set(delta, {'dry_run': dry_run})
-        new_target_capacity = self.mesos_role_manager.target_capacity + delta
+        new_target_capacity = self._compute_target_capacity(timestamp)
+        self.capacity_gauge.set(new_target_capacity, {'dry_run': dry_run})
         self.mesos_role_manager.modify_target_capacity(new_target_capacity, dry_run=dry_run)
 
     def load_signal(self):
@@ -126,10 +125,10 @@ class Autoscaler:
             )[1]
         return metrics
 
-    def _compute_cluster_delta(self, timestamp):
+    def _compute_target_capacity(self, timestamp):
         """ Compare signal to the resources allocated and compute appropriate capacity change.
 
-        :returns: a capacity delta for the role
+        :returns: the new target capacity we should scale to
         """
         resource_request = evaluate_signal(self._get_metrics(timestamp), self.signal_conn)
         if resource_request['cpus'] is None:
@@ -152,21 +151,15 @@ class Autoscaler:
         lb, ub = total_cpus - window_size, total_cpus + window_size
         logger.info(f'Current CPU total is {total_cpus}; setpoint window is [{lb}, {ub}]')
         logger.info(f'Signal {self.signal_config.name} requested {signal_cpus} CPUs')
-        capacity_delta = 0
         if abs(cpus_difference_from_setpoint / total_cpus) >= setpoint_margin:
             # We want signal_cpus / new_total_cpus = setpoint.
             # So new_total_cpus should be signal_cpus / setpoint.
-
-            # The number of cpus to add/remove, cpus_delta, is new_total_cpus - total_cpus.
-            # cpus_delta = signal_cpus / setpoint - total_cpus
-
-            # We already have cpus_difference_from_setpoint = signal_cpus - setpoint * total_cpus.
-            # Dividing by setpoint, we get signal_cpus / setpoint - total_cpus, which is the desired cpus_delta above.
-            cpus_delta = cpus_difference_from_setpoint / setpoint
+            new_target_cpus = signal_cpus / setpoint
 
             # Finally, convert CPUs to capacity units.
-            capacity_delta = cpus_delta / cpus_per_weight
-            logger.info(f'Computed capacity delta is {capacity_delta} units ({cpus_delta} CPUs)')
+            new_target_capacity = new_target_cpus / cpus_per_weight
+            logger.info(f'Computed target capacity is {new_target_capacity} units ({new_target_cpus} CPUs)')
         else:
-            logger.info('Requested CPUs within setpoint margin, capacity_delta is 0')
-        return capacity_delta
+            logger.info('Requested CPUs within setpoint margin, not changing target capacity')
+            new_target_capacity = self.mesos_role_manager.target_capacity
+        return new_target_capacity

@@ -131,6 +131,8 @@ class MesosRoleManager:
             delta = min(self.max_capacity - self.target_capacity, max_weight_to_add, requested_delta)
         elif requested_delta < 0:
             delta = max(self.min_capacity - self.target_capacity, -max_weight_to_remove, requested_delta)
+        else:
+            delta = 0
 
         constrained_target_capacity = self.target_capacity + delta
         if requested_delta != delta:
