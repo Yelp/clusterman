@@ -133,7 +133,7 @@ class Autoscaler:
         resource_request = evaluate_signal(self._get_metrics(timestamp), self.signal_conn)
         if resource_request['cpus'] is None:
             logger.info(f'No data from signal, not changing capacity')
-            return 0
+            return self.mesos_role_manager.target_capacity
         signal_cpus = float(resource_request['cpus'])
 
         # Get autoscaling settings.
