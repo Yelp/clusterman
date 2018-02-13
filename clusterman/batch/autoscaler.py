@@ -11,6 +11,7 @@ from clusterman.args import add_env_config_path_arg
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.autoscaler.util import LOG_STREAM_NAME
 from clusterman.batch.util import BatchLoggingMixin
+from clusterman.batch.util import BatchRunningSentinelMixin
 from clusterman.batch.util import sensu_checkin
 from clusterman.config import get_role_config_path
 from clusterman.config import setup_config
@@ -19,7 +20,7 @@ from clusterman.util import get_clusterman_logger
 logger = get_clusterman_logger(__name__)
 
 
-class AutoscalerBatch(BatchDaemon, BatchLoggingMixin):
+class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
     notify_emails = ['distsys-compute@yelp.com']
 
     @batch_command_line_arguments
@@ -42,6 +43,14 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin):
         for role in self.roles:
             self.config.watchers.append({role: get_role_config_path(role)})
         self.logger = logger
+        if not self.roles:
+            raise Exception('No roles are configured to be managed by Clusterman in this cluster')
+
+        # TODO: handle multiple roles in the autoscaler (CLUSTERMAN-126)
+        if len(self.roles) > 1:
+            raise NotImplementedError('Scaling multiple roles in a cluster is not yet supported')
+
+        self.autoscaler = Autoscaler(self.options.cluster, self.roles[0])
 
     def _get_local_log_stream(self, clog_prefix=None):
         # Overrides the yelp_batch default, which is tmp_batch_<filename> (autoscaler in this case)
@@ -51,14 +60,6 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin):
         return LOG_STREAM_NAME
 
     def run(self):
-        if not self.roles:
-            raise Exception('No roles are configured to be managed by Clusterman in this cluster')
-
-        # TODO: handle multiple roles in the autoscaler (CLUSTERMAN-126)
-        if len(self.roles) > 1:
-            raise NotImplementedError('Scaling multiple roles in a cluster is not yet supported')
-
-        self.autoscaler = Autoscaler(self.options.cluster, self.roles[0])
         while self.running:
             time.sleep(self.autoscaler.time_to_next_activation())
             self.autoscaler.run(dry_run=self.options.dry_run)

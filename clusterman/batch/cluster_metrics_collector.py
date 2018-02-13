@@ -15,6 +15,7 @@ from clusterman.args import add_cluster_arg
 from clusterman.args import add_disable_sensu_arg
 from clusterman.args import add_env_config_path_arg
 from clusterman.batch.util import BatchLoggingMixin
+from clusterman.batch.util import BatchRunningSentinelMixin
 from clusterman.batch.util import sensu_checkin
 from clusterman.config import get_role_config_path
 from clusterman.config import setup_config
@@ -39,7 +40,7 @@ METRICS_TO_WRITE = {
 }
 
 
-class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin):
+class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
     notify_emails = ['distsys-compute@yelp.com']
 
     @batch_command_line_arguments

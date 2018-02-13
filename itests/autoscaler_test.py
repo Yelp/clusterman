@@ -37,10 +37,10 @@ def autoscaler(resource_groups):
 
 @pytest.mark.parametrize('signal_value', ['56', 'null', '51', '60'])
 def test_autoscaler_no_change(autoscaler, signal_value):
-    """ The current target capacity is 80 CPUs (setpoint of 0.7 -> 56 CPUs to maintain capacity
+    """ The current target capacity is 10 units = 80 CPUs (setpoint of 0.7 -> 56 CPUs to maintain capacity)
 
     We ensure that repeated calls with a null resource request or with a constant resource request
-    do not change the capacity of the cluster.
+    (within the setpoint window) do not change the capacity of the cluster.
     """
     autoscaler.signal_conn.recv.side_effect = [ACK, ACK, '{"Resources": {"cpus": ' + signal_value + '}}'] * 2
     autoscaler.run()

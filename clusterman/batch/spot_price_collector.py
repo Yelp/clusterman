@@ -15,6 +15,7 @@ from clusterman.args import add_env_config_path_arg
 from clusterman.aws.spot_prices import spot_price_generator
 from clusterman.aws.spot_prices import write_prices_with_dedupe
 from clusterman.batch.util import BatchLoggingMixin
+from clusterman.batch.util import BatchRunningSentinelMixin
 from clusterman.batch.util import sensu_checkin
 from clusterman.config import setup_config
 from clusterman.util import get_clusterman_logger
@@ -22,7 +23,7 @@ from clusterman.util import get_clusterman_logger
 logger = get_clusterman_logger(__name__)
 
 
-class SpotPriceCollector(BatchDaemon, BatchLoggingMixin):
+class SpotPriceCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
     notify_emails = ['distsys-compute@yelp.com']
 
     @batch_command_line_arguments
