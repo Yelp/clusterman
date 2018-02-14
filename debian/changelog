@@ -1,3 +1,9 @@
+clusterman (1.2.0) trusty; urgency=low
+
+  * add "min/max" commands to clusterman manage
+
+ -- David Morrison <drmorr@yelp.com>  Tue, 13 Feb 2018 16:22:05 -0800
+
 clusterman (1.1.0) trusty; urgency=low
 
   * apply scaling limits to "manage" command
