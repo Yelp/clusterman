@@ -25,9 +25,13 @@ logger = get_clusterman_logger(__name__)
 METRICS_TO_WRITE = {
     SYSTEM_METRICS: [
         ('cpus_allocated', lambda manager: manager.get_resource_allocation('cpus')),
+        ('mem_allocated', lambda manager: manager.get_resource_allocation('mem')),
+        ('disk_allocated', lambda manager: manager.get_resource_allocation('disk')),
     ],
     METADATA: [
         ('cpus_total', lambda manager: manager.get_resource_total('cpus')),
+        ('mem_total', lambda manager: manager.get_resource_total('mem')),
+        ('disk_total', lambda manager: manager.get_resource_total('disk')),
         ('target_capacity', lambda manager: manager.target_capacity),
         ('fulfilled_capacity', lambda manager: {str(market): value for market,
                                                 value in manager._get_market_capacities().items()}),
