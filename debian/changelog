@@ -1,3 +1,9 @@
+clusterman (1.3.0) trusty; urgency=low
+
+  * improve clusterman logging from signals
+
+ -- David Morrison <drmorr@yelp.com>  Wed, 21 Feb 2018 16:14:02 -0800
+
 clusterman (1.2.0) trusty; urgency=low
 
   * add "min/max" commands to clusterman manage
