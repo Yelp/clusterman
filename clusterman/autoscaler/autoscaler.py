@@ -145,11 +145,15 @@ class Autoscaler:
         # we scale up/down to reach the setpoint.  We want to use target_capacity here instead of
         # get_resource_total to protect against short-term fluctuations in the cluster.
         total_cpus = self.mesos_role_manager.target_capacity * cpus_per_weight
-        cpus_difference_from_setpoint = signal_cpus - setpoint * total_cpus
+        setpoint_cpus = setpoint * total_cpus
+        cpus_difference_from_setpoint = signal_cpus - setpoint_cpus
 
+        # Note that the setpoint window is based on the value of total_cpus, not setpoint_cpus
+        # This is so that, if you have a setpoint of 70% and a margin of 10%, you know that the
+        # window is going to be between 60% and 80%, not 63% and 77%.
         window_size = setpoint_margin * total_cpus
-        lb, ub = total_cpus - window_size, total_cpus + window_size
-        logger.info(f'Current CPU total is {total_cpus}; setpoint window is [{lb}, {ub}]')
+        lb, ub = setpoint_cpus - window_size, setpoint_cpus + window_size
+        logger.info(f'Current CPU total is {total_cpus} (setpoint={setpoint_cpus}); setpoint window is [{lb}, {ub}]')
         logger.info(f'Signal {self.signal_config.name} requested {signal_cpus} CPUs')
         if abs(cpus_difference_from_setpoint / total_cpus) >= setpoint_margin:
             # We want signal_cpus / new_total_cpus = setpoint.

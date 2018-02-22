@@ -131,7 +131,8 @@ class TestMakeVenv:
 
     def test_not_present(self, mock_run, mock_logger, mock_exists, mock_sha, mock_cache):
         mock_exists.return_value = False
-        _get_local_signal_directory('a_branch')
+        with mock.patch('clusterman.autoscaler.util.os.makedirs'):
+            _get_local_signal_directory('a_branch')
         assert mock_exists.call_args == \
             mock.call(os.path.join('/', 'foo', 'clusterman_signals_abcdefabcdefabcdefabcdefabcdefabcdefabcd'))
         assert mock_run.call_count == 3

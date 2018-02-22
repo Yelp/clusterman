@@ -4,6 +4,7 @@ import struct
 import subprocess
 import time
 from collections import namedtuple
+from threading import Thread
 
 import simplejson as json
 import staticconf
@@ -25,6 +26,38 @@ SIGNALS_REPO = 'git@git.yelpcorp.com:clusterman_signals'
 SOCKET_TIMEOUT_SECONDS = 5
 SOCK_MESG_SIZE = 4096
 ACK = bytes([1])
+
+
+def _get_signal_loggers(signal_name):
+    return get_clusterman_logger(f'{signal_name}.stdout'), get_clusterman_logger(f'{signal_name}.stderr')
+
+
+def _log_subprocess_run(*args, **kwargs):
+    result = subprocess.run(*args, **kwargs)
+    logger.info(result.stdout.decode().strip())
+    result.check_returncode()
+
+
+def _log_signal_output(fd, log_fn):
+    while True:
+        line = fd.readline().decode().strip()
+        if not line:
+            break
+        log_fn(line)
+
+
+def _init_signal_monitoring_threads(signal_name, signal_process):
+    stdout_logger, stderr_logger = _get_signal_loggers(signal_name)
+    stdout_thread = Thread(
+        target=_log_signal_output,
+        kwargs={'fd': signal_process.stdout, 'log_fn': stdout_logger.info},
+    )
+    stderr_thread = Thread(
+        target=_log_signal_output,
+        kwargs={'fd': signal_process.stderr, 'log_fn': stderr_logger.warn},
+    )
+    stdout_thread.start()
+    stderr_thread.start()
 
 
 def _get_cache_location():
@@ -51,21 +84,23 @@ def _get_local_signal_directory(branch_or_tag):
     local_repo_cache = _get_cache_location()
     sha = _sha_from_branch_or_tag(branch_or_tag)
     local_path = os.path.join(local_repo_cache, f'clusterman_signals_{sha}')
+    subprocess_kwargs = {'cwd': local_path, 'stdout': subprocess.PIPE, 'stderr': subprocess.STDOUT}
 
     # If we don't have a local copy of the signal, clone it
     if not os.path.exists(local_path):
         # clone the clusterman_signals repo with a specific version into the path at local_path
         # --depth 1 says to squash all the commits to minimize data transfer/disk space
-        subprocess.run(
+        os.makedirs(local_path)
+        _log_subprocess_run(
             ['git', 'clone', '--depth', '1', '--branch', branch_or_tag, SIGNALS_REPO, local_path],
-            check=True,
+            **subprocess_kwargs,
         )
     else:
         logger.debug(f'signal version {sha} exists in cache, not re-cloning')
 
     # Alwasy re-build the signal's virtualenv
-    subprocess.run(['make', 'clean'], cwd=local_path, check=True)
-    subprocess.run(['make', 'prod'], cwd=local_path, check=True)
+    _log_subprocess_run(['make', 'clean'], **subprocess_kwargs)
+    _log_subprocess_run(['make', 'prod'], **subprocess_kwargs)
 
     return local_path
 
@@ -134,14 +169,17 @@ def load_signal_connection(branch_or_tag, role, signal_name):
             signal_name,
         ],
         cwd=signal_dir,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
+    _init_signal_monitoring_threads(signal_name, signal_process)
     time.sleep(2)  # Give the signal subprocess time to start, then check to see if it's running
     return_code = signal_process.poll()
     if return_code:
         raise SignalConnectionError(f'Could not load signal {signal_name}; aborting')
-    conn, __ = s.accept()
-    conn.settimeout(SOCKET_TIMEOUT_SECONDS)
-    return conn
+    signal_conn, __ = s.accept()
+    signal_conn.settimeout(SOCKET_TIMEOUT_SECONDS)
+    return signal_conn
 
 
 def evaluate_signal(metrics, signal_conn):
