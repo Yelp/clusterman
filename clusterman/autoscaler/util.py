@@ -51,10 +51,12 @@ def _init_signal_monitoring_threads(signal_name, signal_process):
     stdout_thread = Thread(
         target=_log_signal_output,
         kwargs={'fd': signal_process.stdout, 'log_fn': stdout_logger.info},
+        daemon=True,
     )
     stderr_thread = Thread(
         target=_log_signal_output,
         kwargs={'fd': signal_process.stderr, 'log_fn': stderr_logger.warn},
+        daemon=True,
     )
     stdout_thread.start()
     stderr_thread.start()
