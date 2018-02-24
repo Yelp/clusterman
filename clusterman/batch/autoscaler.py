@@ -41,7 +41,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
         setup_config(self.options)
         self.roles = staticconf.read_list('cluster_roles')
         for role in self.roles:
-            self.config.watchers.append({role: get_role_config_path(role)})
+            self.config.watchers.append({role: get_role_config_path(self.options.cluster, role)})
         self.logger = logger
         if not self.roles:
             raise Exception('No roles are configured to be managed by Clusterman in this cluster')

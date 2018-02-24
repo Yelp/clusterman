@@ -53,8 +53,8 @@ class MesosRoleManager:
         logger.info(f'Connecting to Mesos masters at {self.api_endpoint}')
 
         self.resource_groups = load_spot_fleets_from_s3(
-            role_config.read_string('mesos.resource_groups.s3.bucket'),
-            role_config.read_string('mesos.resource_groups.s3.prefix'),
+            role_config.read_string('resource_groups.s3.bucket'),
+            role_config.read_string('resource_groups.s3.prefix'),
             role=self.role,
         )
 

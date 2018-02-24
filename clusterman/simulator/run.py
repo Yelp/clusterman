@@ -59,8 +59,8 @@ def _populate_price_changes(simulator, start_time, end_time):
 def main(args):
     args.start_time = parse_time_string(args.start_time)
     args.end_time = parse_time_string(args.end_time)
-    if args.role_config_dir:
-        staticconf.DictConfiguration({'role_config_directory': args.role_config_dir})
+    if args.cluster_config_dir:
+        staticconf.DictConfiguration({'cluster_config_directory': args.cluster_config_dir})
     setup_config(args)
 
     metrics = {}

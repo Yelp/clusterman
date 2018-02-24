@@ -6,8 +6,7 @@ import yaml
 from yelp_servlib.config_util import load_default_config
 
 from clusterman.aws.client import CREDENTIALS_NAMESPACE
-from clusterman.mesos.constants import DEFAULT_ROLE_DIRECTORY
-from clusterman.mesos.constants import ROLE_CONFIG_FILENAME
+from clusterman.mesos.constants import DEFAULT_CLUSTER_DIRECTORY
 from clusterman.mesos.constants import ROLE_NAMESPACE
 
 
@@ -35,7 +34,7 @@ def setup_config(args, include_roles=True):
         aws_region = staticconf.read_string(f'mesos_clusters.{cluster}.aws_region')
 
         if include_roles:
-            load_role_configs_for_cluster(args.cluster, signals_branch_or_tag)
+            load_cluster_role_configs(args.cluster, signals_branch_or_tag)
 
     staticconf.DictConfiguration({'aws': {'region': aws_region}})
 
@@ -46,44 +45,34 @@ def setup_config(args, include_roles=True):
         staticconf.DictConfiguration({'autoscale_signal': {'branch_or_tag': signals_branch_or_tag}})
 
 
-def load_role_configs_for_cluster(cluster, signals_branch_or_tag):
-    role_config_dir = get_role_config_dir()
-    all_roles = os.listdir(role_config_dir)
+def load_cluster_role_configs(cluster, signals_branch_or_tag):
+    cluster_config_dir = get_cluster_config_dir(cluster)
+    role_config_files = os.listdir(cluster_config_dir)
     cluster_roles = []
 
-    # Loop through all of the roles that we find in the role_config_dir;
-    # each role specifies a list of clusters that it operates on, so this function
-    # computes the reverse mapping and loads only the roles that are present on the
-    # cluster and which clusterman knows how to manage
-    for role in all_roles:
-        role_file = get_role_config_path(role)
-        with open(role_file) as f:
+    for role_file in role_config_files:
+        role = os.path.splitext(role_file)[0]
+        cluster_roles.append(role)
+        with open(os.path.join(cluster_config_dir, role_file)) as f:
             config = yaml.load(f)
-            if cluster in config['mesos']:
-                cluster_roles.append(role)
-                role_namespace = ROLE_NAMESPACE.format(role=role)
+            role_namespace = ROLE_NAMESPACE.format(role=role)
+            staticconf.DictConfiguration(config, namespace=role_namespace)
 
-                # Only include Mesos configuration for this cluster; since a role could run
-                # on several clusters with different configurations, we don't want to load the
-                # configs for the other clusters
-                staticconf.DictConfiguration({'mesos': config['mesos'][cluster]}, namespace=role_namespace)
-                del config['mesos']
-
-                # Load all other config values.
-                staticconf.DictConfiguration(config, namespace=role_namespace)
-
-                if signals_branch_or_tag:
-                    staticconf.DictConfiguration(
-                        {'autoscale_signal': {'branch_or_tag': signals_branch_or_tag}},
-                        namespace=role_namespace,
-                    )
+            if signals_branch_or_tag:
+                staticconf.DictConfiguration(
+                    {'autoscale_signal': {'branch_or_tag': signals_branch_or_tag}},
+                    namespace=role_namespace,
+                )
 
     staticconf.DictConfiguration({'cluster_roles': cluster_roles})
 
 
-def get_role_config_dir():
-    return staticconf.read_string('role_config_directory', default=DEFAULT_ROLE_DIRECTORY)
+def get_cluster_config_dir(cluster):
+    return os.path.join(
+        staticconf.read_string('cluster_config_directory', default=DEFAULT_CLUSTER_DIRECTORY),
+        cluster,
+    )
 
 
-def get_role_config_path(role):
-    return os.path.join(get_role_config_dir(), role, ROLE_CONFIG_FILENAME)
+def get_role_config_path(cluster, role):
+    return os.path.join(get_cluster_config_dir(cluster), f'{role}.yaml')
