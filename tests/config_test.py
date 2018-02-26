@@ -21,21 +21,22 @@ def config_dir():
 def mock_config_files(config_dir):
     # Role 1 is in both cluster A and B, while Role 2 is only in A.
     with mock_open(
-        config.get_role_config_path('role-1'),
+        config.get_role_config_path('cluster-A', 'role-1'),
         contents=yaml.dump({
-            'mesos': {
-                'cluster-A': {'resource_groups': 'cluster-A'},
-            },
+            'resource_groups': 'cluster-A',
             'other_config': 18,
         }),
     ), mock_open(
-        config.get_role_config_path('role-2'),
+        config.get_role_config_path('cluster-A', 'role-2'),
         contents=yaml.dump({
-            'mesos': {
-                'cluster-A': {'resource_groups': 'cluster-A'},
-                'cluster-B': {'resource_groups': 'cluster-B'},
-            },
-            'other_config': 18,
+            'resource_groups': 'cluster-A',
+            'other_config': 20,
+        }),
+    ), mock_open(
+        config.get_role_config_path('cluster-B', 'role-1'),
+        contents=yaml.dump({
+            'resource_groups': 'cluster-B',
+            'other_config': 200,
             'autoscale_signal': {'branch_or_tag': 'v42'},
         }),
     ), mock_open(
@@ -84,7 +85,7 @@ def mock_config_namespaces():
     ('cluster-A', True, 'v52'),
     ('cluster-A', False, None),
 ])
-@mock.patch('clusterman.config.load_role_configs_for_cluster', autospec=True)
+@mock.patch('clusterman.config.load_cluster_role_configs', autospec=True)
 @mock.patch('clusterman.config.load_default_config')
 def test_setup_config_cluster(mock_service_load, mock_role_load, cluster, include_roles, tag, mock_config_files):
     args = argparse.Namespace(env_config_path='/nail/etc/config.yaml', cluster=cluster, signals_branch_or_tag=tag)
@@ -120,19 +121,19 @@ def test_setup_config_no_region_or_cluster():
         config.setup_config(args)
 
 
-@pytest.mark.parametrize('cluster,roles', [
-    ('cluster-A', ['role-1', 'role-2']),
-    ('cluster-B', ['role-2']),
-    ('cluster-C', []),
+@pytest.mark.parametrize('cluster,roles,role_other_config', [
+    ('cluster-A', ['role-1', 'role-2'], [18, 20]),
+    ('cluster-B', ['role-1'], [200]),
+    ('cluster-C', [], []),
 ])
 @mock.patch('os.listdir')
-def test_load_role_configs_for_cluster(mock_ls, cluster, roles, config_dir, mock_config_files):
-    mock_ls.return_value = ['role-1', 'role-2']
-    config.load_role_configs_for_cluster(cluster, None)
+def test_load_cluster_role_configs(mock_ls, cluster, roles, role_other_config, config_dir, mock_config_files):
+    mock_ls.return_value = [f'{role}.yaml' for role in roles]
+    config.load_cluster_role_configs(cluster, None)
 
-    for role in roles:
+    for i, role in enumerate(roles):
         role_namespace = ROLE_NAMESPACE.format(role=role)
-        assert staticconf.read_int('other_config', namespace=role_namespace) == 18
-        assert staticconf.read_string(f'mesos.resource_groups', namespace=role_namespace) == cluster
+        assert staticconf.read_int('other_config', namespace=role_namespace) == role_other_config[i]
+        assert staticconf.read_string(f'resource_groups', namespace=role_namespace) == cluster
 
     assert sorted(staticconf.read_list('cluster_roles')) == sorted(roles)

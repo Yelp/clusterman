@@ -64,7 +64,7 @@ The following is an example configuration file for the core Clusterman service a
             aws_region: us-west-2
             fqdn: <Mesos cluster FQDN>
 
-    role_config_directory: /nail/srv/configs/clusterman-roles/
+    cluster_config_directory: /nail/srv/configs/clusterman-roles/
 
     module_config:
       - namespace: clog
@@ -103,18 +103,16 @@ The ``module_config`` section loads additional configuration values for Clusterm
 Role Configuration
 ------------------
 
-To configure a role, a directory with that role's name should be created in the ``role_config_directory``
-defined in the service configuration. Within that directory, there should be a file named ``config.yaml``.
+To configure a role, a directory with the cluster's name should be created in the ``cluster_config_directory``
+defined in the service configuration. Within that directory, there should be a file named ``<role>.yaml``.
 The following is an example configuration file for a particular Clusterman role:
 
 .. code-block:: yaml
 
-    mesos:
-        everywhere-testopia:
-            resource_groups:
-                s3:
-                    bucket: clusterman-s3-bucket
-                    prefix: cluster-name
+    resource_groups:
+        s3:
+            bucket: clusterman-s3-bucket
+            prefix: cluster-name
 
     scaling_limits:
         min_capacity: 1
@@ -141,8 +139,10 @@ The following is an example configuration file for a particular Clusterman role:
               minute_range: 10
 
 
-The ``mesos`` section provides information for loading the :py:class:`MesosRoleManager <clusterman.mesos.mesos_role_manager.MesosRoleManager>` resource groups.
-There must be one section for each Mesos cluster with this role that should be managed by Clusterman.
+The ``resource-groups`` section provides information for loading the
+:py:class:`MesosRoleManager <clusterman.mesos.mesos_role_manager.MesosRoleManager>` resource groups.
+Currently, the only supported way to load resource groups is to read the groups from Amazon S3, given the specified
+``bucket`` and ``prefix``.
 
 The ``scaling_limits`` section provides global role-level limits on scaling that the autoscaler and
 other Clusterman commands should respect.

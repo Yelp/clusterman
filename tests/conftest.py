@@ -71,13 +71,11 @@ def main_clusterman_config():
 @pytest.fixture(autouse=True)
 def clusterman_role_config():
     config = {
-        'mesos': {
-            'resource_groups': {
-                's3': {
-                    'bucket': 'fake-bucket',
-                    'prefix': 'none',
-                }
-            },
+        'resource_groups': {
+            's3': {
+                'bucket': 'fake-bucket',
+                'prefix': 'none',
+            }
         },
         'scaling_limits': {
             'min_capacity': 3,

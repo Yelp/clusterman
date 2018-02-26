@@ -60,7 +60,7 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
 
         self.roles = staticconf.read_list('cluster_roles')
         for role in self.roles:
-            self.config.watchers.append({role: get_role_config_path(role)})
+            self.config.watchers.append({role: get_role_config_path(self.options.cluster, role)})
         self.mesos_managers = {
             role: MesosRoleManager(self.options.cluster, role)
             for role in self.roles
