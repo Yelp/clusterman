@@ -117,7 +117,7 @@ def add_simulate_parser(subparser, required_named_args, optional_named_args):  #
         help='provide simulated values for one or more metric time series',
     )
     optional_named_args.add_argument(
-        '--role-config-dir',
+        '--cluster-config-dir',
         metavar='directory',
         help='specify role configuration directory for simulation',
     )
