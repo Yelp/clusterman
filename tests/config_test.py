@@ -80,9 +80,6 @@ def mock_config_namespaces():
 
 
 @pytest.mark.parametrize('cluster,include_roles,tag', [
-    (None, True, None),
-    (None, True, 'v52'),
-    (None, False, None),
     ('cluster-A', True, None),
     ('cluster-A', True, 'v52'),
     ('cluster-A', False, None),
@@ -94,14 +91,13 @@ def test_setup_config_cluster(mock_service_load, mock_role_load, cluster, includ
     config.setup_config(args, include_roles=include_roles)
 
     assert mock_service_load.call_args == mock.call('/nail/etc/config.yaml', '/nail/etc/config.yaml')
-    if cluster is not None:
-        assert staticconf.read_string('aws.region') == 'us-test-3'
-        if include_roles:
-            assert mock_role_load.call_args == mock.call(cluster, tag)
-        else:
-            assert mock_role_load.call_count == 0
-            if tag:
-                assert staticconf.read_string('autoscale_signal.branch_or_tag') == tag
+    assert staticconf.read_string('aws.region') == 'us-test-3'
+    if include_roles:
+        assert mock_role_load.call_args == mock.call(cluster, tag)
+    else:
+        assert mock_role_load.call_count == 0
+        if tag:
+            assert staticconf.read_string('autoscale_signal.branch_or_tag') == tag
 
 
 def test_setup_config_region_and_cluster():
@@ -110,12 +106,18 @@ def test_setup_config_region_and_cluster():
         config.setup_config(args)
 
 
-def test_setup_config_region(mock_config_files):
+@mock.patch('clusterman.config.load_default_config')
+def test_setup_config_region(mock_service_load, mock_config_files):
     args = argparse.Namespace(env_config_path='/nail/etc/config.yaml', aws_region='fake-region-A')
-    with mock.patch('clusterman.config.load_default_config'), \
-            mock.patch('clusterman.config.load_role_configs_for_cluster'):
-        config.setup_config(args)
+    config.setup_config(args)
     assert staticconf.read_string('aws.region') == 'fake-region-A'
+    assert mock_service_load.call_args == mock.call('/nail/etc/config.yaml', '/nail/etc/config.yaml')
+
+
+def test_setup_config_no_region_or_cluster():
+    args = argparse.Namespace(env_config_path='/nail/etc/config.yaml')
+    with mock.patch('clusterman.config.load_default_config'), pytest.raises(argparse.ArgumentError):
+        config.setup_config(args)
 
 
 @pytest.mark.parametrize('cluster,roles', [

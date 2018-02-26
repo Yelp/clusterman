@@ -34,9 +34,9 @@ test: clean-cache
 
 .PHONY: itest
 itest: cook-image
-	paasta local-run -s ${PKG_NAME} -c norcal-devc -i spot_prices --healthcheck-only
-	paasta local-run -s ${PKG_NAME} -c norcal-devc -i cluster_metrics --healthcheck-only
-	paasta local-run -s ${PKG_NAME} -c norcal-devc -i autoscaler --healthcheck-only
+	paasta local-run -s clusterman -c norcal-devc -i spot_prices --healthcheck-only
+	paasta local-run -s clusterman -c norcal-devc -i cluster_metrics --healthcheck-only
+	paasta local-run -s clusterman -c norcal-devc -i autoscaler --healthcheck-only
 
 .PHONY: cook-image
 cook-image:
@@ -93,6 +93,7 @@ clean:
 	-unlink dist
 	-find . -name '*.pyc' -delete
 	-find . -name '__pycache__' -delete
+	-rm -rf yelp_package/dist/*
 
 clean-cache:
 	find -name '*.pyc' -delete
