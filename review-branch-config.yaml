@@ -1,0 +1,3 @@
+summary_prefix: '[clusterman]'
+testing_done: |
+    python -m tools.acceptance [-y <soaconfigs directory] [-s <srv-configs directory>] [--srv-configs-args "--test-ecosystem testopia"] |& fpb
