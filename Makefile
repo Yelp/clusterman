@@ -51,7 +51,7 @@ virtualenv_run: $(VIRTUALENV_RUN_REQUIREMENTS)
 	tox -e $(VIRTUALENV_RUN_TARGET)
 
 .PHONY: version-bump
-version-bump: test itest package
+version-bump:
 	@set -e; \
 	if [ -z ${EDITOR} ]; then \
 		echo "EDITOR environment variable not set, please set and try again"; \
