@@ -1,3 +1,9 @@
+clusterman (2.0.3) trusty; urgency=low
+
+  * Use clusterman_metrics v1.0.1
+
+ -- Chien-An Lai <chl@yelp.com>  Wed, 28 Feb 2018 13:15:14 -0800
+
 clusterman (2.0.2) trusty; urgency=low
 
   * Dummy version bump 2
