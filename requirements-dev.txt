@@ -23,7 +23,7 @@ moto==1.1.24
 nodeenv==1.1.4
 pbr==3.1.1
 pluggy==0.6.0
-pre-commit==1.4.5
+pre-commit==1.6.0
 py==1.5.2
 pyaml==17.8.0
 pycodestyle==2.3.1
