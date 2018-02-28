@@ -33,7 +33,6 @@ highlight_exec apt-get install -y --force-yes  -f
 highlight_exec /usr/bin/clusterman --version
 highlight_exec /usr/bin/clusterman status --cluster everywhere-testopia --role jolt -v
 highlight_exec /usr/bin/clusterman manage --cluster everywhere-testopia --role jolt --target-capacity 100 --dry-run
-# TODO (CLUSTERMAN-160) -- this is broken because of the metrics reader right now
-# highlight_exec /usr/bin/clusterman simulate --cluster everywhere-testopia --role jolt
+highlight_exec /usr/bin/clusterman simulate --cluster everywhere-testopia --role jolt
 
 highlight "$0:" 'success!'
