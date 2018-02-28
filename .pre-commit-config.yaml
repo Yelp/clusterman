@@ -37,13 +37,6 @@ repos:
             --remove-import, 'from __future__ import unicode_literals',
         ]
         language_version: python3.6
--   repo: git@git.yelpcorp.com:packages/swagger-tools
-    sha: v7.6.2
-    hooks:
-    -   id: validate-swagger
-        args: [--service, 'clusterman']
-        files: api_docs/swagger.json
-        language_version: python3.6
 -   repo: git@git.yelpcorp.com:mirrors/asottile/pyupgrade
     sha: v1.2.0
     hooks:
