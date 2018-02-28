@@ -38,7 +38,7 @@ repos:
         ]
         language_version: python3.6
 -   repo: git@git.yelpcorp.com:packages/swagger-tools
-    sha: v5.2.0
+    sha: v7.6.2
     hooks:
     -   id: validate-swagger
         args: [--service, 'clusterman']
