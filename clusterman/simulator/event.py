@@ -40,11 +40,11 @@ class AutoscalingEvent(Event):
         simulator.autoscaler.run(timestamp=simulator.current_time)
 
 
-class ModifyClusterCapacityEvent(Event):
+class ModifyClusterSizeEvent(Event):
     def __init__(self, time, instance_types, msg=None):
-        """ Directly modify the capacity of an AWS cluster
+        """ Directly modify the size of an AWS cluster
 
-        :param instance_types: a dict of InstanceMarket -> integer indicating the new (desired) capacity for the market
+        :param instance_types: a dict of InstanceMarket -> integer indicating the new (desired) size for the market
         """
         super().__init__(time, msg=msg)
         self.instance_types = dict(instance_types)
@@ -77,6 +77,6 @@ class InstancePriceChangeEvent(Event):
 EVENT_PRIORITIES = {
     Event: 0,
     AutoscalingEvent: 1,
-    ModifyClusterCapacityEvent: 1,
+    ModifyClusterSizeEvent: 1,
     InstancePriceChangeEvent: 2,
 }
