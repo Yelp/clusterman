@@ -7,7 +7,11 @@ from matplotlib.dates import DateFormatter
 from matplotlib.gridspec import GridSpec
 from matplotlib.ticker import FuncFormatter
 
+from clusterman.reports.constants import COLORMAP
 from clusterman.reports.constants import MAGNITUDE_STRINGS
+from clusterman.reports.constants import TREND_LINE_COLOR
+from clusterman.reports.constants import TREND_RANGE_ALPHA
+from clusterman.reports.constants import TREND_RANGE_COLOR
 
 
 GRID_COLUMNS = 2
@@ -68,7 +72,7 @@ def _plot_heatmap(ax, x, y, z, mstart, mend, tz, show_ylabel, **kwargs):
         alpha=0.5,
         linewidths=0,
         s=3,
-        cmap='plasma',
+        cmap=COLORMAP,
         **kwargs,
     )
     # Global plot settings
@@ -94,10 +98,10 @@ def _plot_trend(ax, x, q1, y, q3, xlim, ylim, ylabel, ytick_formatter):
     fit_fn = np.poly1d(fit)
 
     # plot the data, the trendlines, and the interquartile range (if given)
-    ax.plot(x, y, '-b')
-    ax.plot(x, fit_fn(x), '--k', dashes=(1, 1))
+    ax.plot(x, y, color=TREND_LINE_COLOR)
+    ax.plot(x, fit_fn(x), '--k', dashes=(1, 1), linewidth=0.75)
     if all(q1) and all(q3):
-        ax.fill_between(x, q1, q3, facecolor='lightblue', alpha=0.5, linewidths=0)
+        ax.fill_between(x, q1, q3, facecolor=TREND_RANGE_COLOR, alpha=TREND_RANGE_ALPHA, linewidths=0)
 
     # x-axis settings
     ax.set_xlim(*xlim)
