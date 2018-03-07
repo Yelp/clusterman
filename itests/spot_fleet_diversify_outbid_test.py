@@ -129,7 +129,7 @@ def test_spot_fleet_refill_capacity(target_capacity, spot_fleet, spot_prices):
     # Outbid event happens
     spot_prices[MARKETS[outbid_market]].add_breakpoint(arrow.get(300), 3.0)
     spot_fleet.simulator.current_time = arrow.get(480)
-    terminate_ids = list(spot_fleet._instance_ids_by_market[MARKETS[outbid_market]])
+    terminate_ids = list(spot_fleet.instance_ids_by_market[MARKETS[outbid_market]])
     spot_fleet.terminate_instances_by_id(terminate_ids)
     assert spot_fleet.market_size(MARKETS[outbid_market]) == 0
     assert spot_fleet.fulfilled_capacity >= spot_fleet.target_capacity
@@ -150,7 +150,7 @@ def test_spot_fleet_cost_for_outbid_instances(target_capacity, spot_fleet, spot_
     spot_prices[MARKETS[outbid_market]].add_breakpoint(arrow.get(3000), 3.0)
     spot_fleet.simulator.current_time = arrow.get(3120)
     instances = list(spot_fleet.instances.values())
-    terminate_ids = list(spot_fleet._instance_ids_by_market[MARKETS[outbid_market]])
+    terminate_ids = list(spot_fleet.instance_ids_by_market[MARKETS[outbid_market]])
     spot_fleet.terminate_instances_by_id(terminate_ids)
     for instance in instances:
         spot_fleet.simulator.compute_instance_cost(instance)

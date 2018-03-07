@@ -24,7 +24,7 @@ from clusterman.util import get_clusterman_logger
 logger = get_clusterman_logger(__name__)
 
 
-class SimulationMetadata:
+class SimulationMetadata:  # pragma: no cover
     def __init__(self, cluster_name, role):
         self.cluster = cluster_name
         self.role = role
@@ -61,7 +61,7 @@ class Simulator:
 
         self.instance_prices = defaultdict(lambda: PiecewiseConstantFunction())
         self.cost_per_hour = PiecewiseConstantFunction()
-        self.capacity = PiecewiseConstantFunction()
+        self.cpus = PiecewiseConstantFunction()
         self.markets = set()
 
         self.billing_frequency = billing_frequency
@@ -183,7 +183,7 @@ class Simulator:
         end_time = end_time or self.end_time
         return self.cost_per_hour.integrals(start_time, end_time, step, transform=hour_transform)
 
-    def capacity_data(self, start_time=None, end_time=None, step=None):
+    def cpus_data(self, start_time=None, end_time=None, step=None):
         """ Compute the capacity for the cluster in the specified time range, grouped into chunks
 
         :param start_time: the lower bound of the range (if None, use simulation start time)
@@ -193,7 +193,7 @@ class Simulator:
         """
         start_time = start_time or self.start_time
         end_time = end_time or self.end_time
-        return self.capacity.values(start_time, end_time, step)
+        return self.cpus.values(start_time, end_time, step)
 
     def cost_per_cpu_data(self, start_time=None, end_time=None, step=None):
         """ Compute the cost per CPU for the cluster in the specified time range, grouped into chunks
@@ -206,11 +206,11 @@ class Simulator:
         start_time = start_time or self.start_time
         end_time = end_time or self.end_time
         cost_data = self.cost_data(start_time, end_time, step)
-        capacity_data = self.capacity_data(start_time, end_time, step)
+        cpus_data = self.cpus_data(start_time, end_time, step)
         return SortedDict([
-            (timestamp, cost / capacity)
-            for ((timestamp, cost), capacity) in zip(cost_data.items(), capacity_data.values())
-            if capacity != 0
+            (timestamp, cost / cpus)
+            for ((timestamp, cost), cpus) in zip(cost_data.items(), cpus_data.values())
+            if cpus != 0
         ])
 
     def _make_autoscaler(self, autoscaler_config_file):
@@ -233,7 +233,7 @@ class Simulator:
         )
         # take the earliest data point available - this is a Decimal, which doesn't play nicely, so convert to an int
         actual_target_capacity = int(metric_values[1][0][1])
-        role_manager.modify_target_capacity(actual_target_capacity)
+        role_manager.modify_target_capacity(actual_target_capacity, force=True)
         for config in configs:
             for spec in config['LaunchSpecifications']:
                 self.markets |= {get_instance_market(spec)}

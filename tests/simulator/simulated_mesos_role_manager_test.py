@@ -30,22 +30,16 @@ def mock_ssfrg(ssfrg_config):
 
 
 @pytest.fixture
-def mock_role_manager(mock_ssfrg):
-    role_manager = SimulatedMesosRoleManager('foo', 'bar', [], mock.Mock())
+def mock_role_manager(mock_ssfrg, simulator):
+    role_manager = SimulatedMesosRoleManager('foo', 'bar', [], simulator)
     role_manager.resource_groups = [mock_ssfrg]
     return role_manager
 
 
-def test_prune_excess_fulfilled_capacity(mock_role_manager, mock_ssfrg):
-    with mock.patch(
-        'clusterman.simulator.simulated_mesos_role_manager.MesosRoleManager.prune_excess_fulfilled_capacity'
-    ) as mock_super:
-        mock_super.return_value = mock_ssfrg.instance_ids
-        mock_role_manager.prune_excess_fulfilled_capacity()
-        assert mock_super.call_count == 1
-        assert {arg[0][0] for arg in mock_role_manager.simulator.compute_instance_cost.call_args_list} == {
-            instance for instance in mock_ssfrg.instances.values()
-        }
+def test_modify_target_capacity(mock_role_manager):
+    with mock.patch('clusterman.simulator.simulated_mesos_role_manager.MesosRoleManager.modify_target_capacity'):
+        mock_role_manager.modify_target_capacity(10)
+    assert mock_role_manager.simulator.cpus.add_breakpoint.call_args == mock.call(arrow.get(0), 160)
 
 
 def test_simulated_agents(mock_role_manager):

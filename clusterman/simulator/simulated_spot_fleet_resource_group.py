@@ -124,7 +124,7 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, MesosRoleResourceGrou
         """ Given a target capacity and current spot market prices, find instances to add to achieve the target capacity
 
         :param target_capacity: the desired total capacity of the fleet
-        :returns: a dictionary suitable for passing to Cluster.modify_size
+        :returns: a dictionary suitable for passing to SimulatedAWSCluster.modify_size
         :raises ValueError: if target_capacity is less than the current self.target_capacity
         """
         if target_capacity < self.target_capacity:
@@ -134,7 +134,10 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, MesosRoleResourceGrou
         residuals = self._compute_market_residuals(target_capacity, available_markets)
 
         residual_correction = 0  # If we overflow in one market, correct the residuals in the remaining markets
-        new_market_counts = {}
+        new_market_counts = {
+            market: len(ids)
+            for market, ids in self.instance_ids_by_market.items()
+        }
 
         for i, (market, residual) in enumerate(residuals):
             remaining_markets = len(residuals) - (i + 1)
@@ -211,7 +214,7 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, MesosRoleResourceGrou
     def market_capacities(self):
         return {
             market: len(instance_ids) * self.market_weight(market)
-            for market, instance_ids in self._instance_ids_by_market.items()
+            for market, instance_ids in self.instance_ids_by_market.items()
             if market.az
         }
 

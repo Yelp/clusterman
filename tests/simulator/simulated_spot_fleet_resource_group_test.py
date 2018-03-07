@@ -80,23 +80,22 @@ def test_instances_by_market():
 
 @pytest.mark.parametrize('residuals,result', [
     # no overflow -- all weights evenly divide residuals
-    ([(MARKETS[0], 4), (MARKETS[3], 3)], {MARKETS[0]: 5.0, MARKETS[3]: 6.0}),
+    ([(MARKETS[0], 4), (MARKETS[3], 3)], {MARKETS[0]: 4.0, MARKETS[3]: 6.0}),
     # weight of MARKETS[0] does not divide its residual
-    ([(MARKETS[0], 2.5), (MARKETS[3], 3), (MARKETS[1], 3)], {MARKETS[0]: 4.0, MARKETS[1]: 3.0, MARKETS[3]: 6.0}),
+    ([(MARKETS[0], 2.5), (MARKETS[3], 3), (MARKETS[1], 4.5)], {MARKETS[0]: 3.0, MARKETS[1]: 2.0, MARKETS[3]: 6.0}),
     # MARKETS[0] residual is covered by overflow
-    ([(MARKETS[2], 7), (MARKETS[1], 5), (MARKETS[0], 1)], {MARKETS[1]: 3.0, MARKETS[2]: 3.0}),
+    ([(MARKETS[2], 7), (MARKETS[1], 5), (MARKETS[0], 1)], {MARKETS[1]: 2.0, MARKETS[2]: 3.0}),
     # MARKETS[0] residual goes negative because of overflow
     ([(MARKETS[1], 9), (MARKETS[2], 7), (MARKETS[0], 1), (MARKETS[3], 3)],
-        {MARKETS[1]: 6.0, MARKETS[2]: 3.0, MARKETS[3]: 3.0}),
+        {MARKETS[1]: 5.0, MARKETS[2]: 3.0, MARKETS[3]: 3.0}),
     # MARKET[0] residual is negative, MARKET[1] residual goes negative because of overflow
     ([(MARKETS[0], -6), (MARKETS[1], 1), (MARKETS[2], 3), (MARKETS[3], 6)],
         {MARKETS[2]: 1.0, MARKETS[3]: 2.0}),
 ])
 def test_get_new_market_counts(residuals, result, spot_fleet):
-    spot_fleet.modify_size({MARKETS[0]: 1, MARKETS[1]: 1})
     spot_fleet._find_available_markets = mock.Mock()
     spot_fleet._compute_market_residuals = mock.Mock(return_value=residuals)
-    assert spot_fleet._get_new_market_counts(10) == result
+    assert spot_fleet._get_new_market_counts(12345678) == result
 
 
 def test_compute_market_residuals_new_fleet(spot_fleet, test_instances_by_market):
@@ -142,23 +141,33 @@ def test_terminate_instance(spot_fleet, test_instances_by_market):
         assert instance.id in remain_instances
 
 
-def test_modify_target_capacity(spot_fleet):
-    spot_fleet.modify_target_capacity(10)
+@pytest.mark.parametrize('dry_run', [True, False])
+def test_modify_target_capacity(dry_run, spot_fleet):
+    spot_fleet.modify_target_capacity(10, dry_run=dry_run)
     capacity = spot_fleet.target_capacity
     set1 = set(spot_fleet.instances)
-    spot_fleet.modify_target_capacity(capacity * 2)
+    spot_fleet.modify_target_capacity(capacity * 2, dry_run=dry_run)
     set2 = set(spot_fleet.instances)
     # Because of FIFO strategy, this should remove all instances in set1
-    spot_fleet.modify_target_capacity(spot_fleet.target_capacity - capacity, terminate_excess_capacity=True)
+    spot_fleet.modify_target_capacity(
+        spot_fleet.target_capacity - capacity,
+        terminate_excess_capacity=True,
+        dry_run=dry_run
+    )
     set3 = set(spot_fleet.instances)
-    assert set3 == (set2 - set1)
+    if not dry_run:
+        assert set3 == (set2 - set1)
+    else:
+        assert set3 == set1
 
 
 def test_downsize_capacity_by_small_weight(spot_fleet):
+    market_composition = {MARKETS[1]: 1, MARKETS[2]: 3}
     spot_fleet.simulator.current_time.shift(seconds=+100)
-    spot_fleet.modify_size({MARKETS[1]: 1, MARKETS[2]: 3})
+    spot_fleet.modify_size(market_composition)
     spot_fleet.simulator.current_time.shift(seconds=+50)
-    spot_fleet.modify_size({MARKETS[0]: 1})
+    market_composition.update({MARKETS[0]: 1})
+    spot_fleet.modify_size(market_composition)
     spot_fleet._target_capacity = 12
     # This should remove the last instance to meet capacity requirements
     spot_fleet.modify_target_capacity(11, terminate_excess_capacity=True)
