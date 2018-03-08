@@ -1,3 +1,10 @@
+clusterman (2.1.0) trusty; urgency=low
+
+  * Improve reports output from simulator
+  * Bugfixes in the simulated autoscaler
+
+ -- David Morrison <drmorr@yelp.com>  Thu, 08 Mar 2018 14:52:00 -0800
+
 clusterman (2.0.3) trusty; urgency=low
 
   * Use clusterman_metrics v1.0.1
