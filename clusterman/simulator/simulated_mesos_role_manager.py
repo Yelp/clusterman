@@ -38,13 +38,10 @@ class SimulatedMesosRoleManager(MesosRoleManager):
         self.min_capacity = role_config.read_int('scaling_limits.min_capacity')
         self.max_capacity = role_config.read_int('scaling_limits.max_capacity')
 
-    def prune_excess_fulfilled_capacity(self, group_targets=None, dry_run=None):
-        terminated_instance_ids = super().prune_excess_fulfilled_capacity(group_targets, dry_run)
-        if terminated_instance_ids:
-            for group in self.resource_groups:
-                for instance_id in set(terminated_instance_ids) & set(group.instance_ids):
-                    self.simulator.compute_instance_cost(group.instances[instance_id])
-        return terminated_instance_ids
+    def modify_target_capacity(self, new_target_capacity, **kwargs):
+        super().modify_target_capacity(new_target_capacity, **kwargs)
+        total_cpus = sum(group.cpus for group in self.resource_groups)
+        self.simulator.cpus.add_breakpoint(self.simulator.current_time, total_cpus)
 
     def _idle_agents_by_market(self):
         idle_agents = [agent for agent in self.agents if allocated_cpu_resources(agent) == 0]

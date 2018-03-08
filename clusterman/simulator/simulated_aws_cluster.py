@@ -24,7 +24,7 @@ class SimulatedAWSCluster:
     def __init__(self, simulator):
         self.simulator = simulator
         self.instances = {}
-        self._instance_ids_by_market = defaultdict(list)
+        self.instance_ids_by_market = defaultdict(list)
         self.ebs_storage = 0
 
     def __len__(self):
@@ -34,25 +34,31 @@ class SimulatedAWSCluster:
         """ Modify the capacity of the cluster to match a specified state
 
         :param instances_by_market: a dict from InstanceMarket -> num, representing the desired number of
-            instances in each specified market; unspecified markets are left unchanged
+            instances in each specified market; unspecified markets are set to 0
         :returns: a tuple (added_instances, removed_instances)
         """
         added_instances, removed_instances = [], []
+        instances_by_market.update({
+            market_to_empty: 0
+            for market_to_empty in set(self.instance_ids_by_market) - set(instances_by_market)
+        })
         for market, num in instances_by_market.items():
             delta = int(num - self.market_size(market))
 
             if delta > 0:
                 instances = [Instance(market, self.simulator.current_time) for i in range(delta)]
-                self._instance_ids_by_market[market].extend([instance.id for instance in instances])
+                self.instance_ids_by_market[market].extend([instance.id for instance in instances])
                 added_instances.extend(instances)
 
             if delta < 0:
                 to_del = abs(delta)
-                for id in self._instance_ids_by_market[market][:to_del]:
+                for id in self.instance_ids_by_market[market][:to_del]:
                     self.instances[id].end_time = self.simulator.current_time
                     removed_instances.append(self.instances[id])
                     del self.instances[id]
-                del self._instance_ids_by_market[market][:to_del]
+                del self.instance_ids_by_market[market][:to_del]
+                if not self.instance_ids_by_market[market]:
+                    del self.instance_ids_by_market[market]
 
         self.instances.update({instance.id: instance for instance in added_instances})
         return added_instances, removed_instances
@@ -63,13 +69,15 @@ class SimulatedAWSCluster:
         :param ids: a list of IDs to be terminated
         """
         for terminate_id in ids:
-            self.instances[terminate_id].end_time = self.simulator.current_time
-            market = self.instances[terminate_id].market
+            instance = self.instances[terminate_id]
+            instance.end_time = self.simulator.current_time
+            self.simulator.compute_instance_cost(instance)
+            market = instance.market
             del self.instances[terminate_id]
-            self._instance_ids_by_market[market].remove(terminate_id)
+            self.instance_ids_by_market[market].remove(terminate_id)
 
     def market_size(self, market):
-        return len(self._instance_ids_by_market[market])
+        return len(self.instance_ids_by_market[market])
 
     @property
     def cpus(self):

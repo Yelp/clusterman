@@ -85,7 +85,7 @@ def main(args):
             logger.warn(f'{str(e)}: no metrics loaded')
 
     region_name = staticconf.read_string('aws.region')
-    metrics_client = ClustermanMetricsSimulationClient(metrics, region_name=region_name)
+    metrics_client = ClustermanMetricsSimulationClient(metrics, region_name=region_name, app_identifier=args.role)
 
     metadata = SimulationMetadata(args.cluster, args.role)
     simulator = Simulator(metadata, args.start_time, args.end_time, args.autoscaler_config, metrics_client)

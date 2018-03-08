@@ -34,6 +34,7 @@ def simulator(start_time, end_time):
         end_time,
         None, None,
         billing_frequency=timedelta(hours=1),
+        refund_outbid=True,
     )
 
 

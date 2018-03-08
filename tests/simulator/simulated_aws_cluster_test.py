@@ -36,15 +36,15 @@ def test_invalid_market():
         InstanceMarket('foo', 'bar')
 
 
-def test_modify_cluster_capacity(cluster):
+def test_modify_size(cluster):
     cluster.simulator.current_time.shift(seconds=+76)
     added_instances, removed_instances = cluster.modify_size({
         InstanceMarket('m4.4xlarge', 'us-west-1a'): 1,
         InstanceMarket('i2.8xlarge', 'us-west-1a'): 4,
     })
     assert len(added_instances) == 2
-    assert len(removed_instances) == 3
-    assert len(cluster) == 6
+    assert len(removed_instances) == 4
+    assert len(cluster) == 5
 
 
 def test_cpu_mem_disk(cluster):
@@ -61,10 +61,10 @@ def test_remove_instances(cluster):
         InstanceMarket('i2.8xlarge', 'us-west-1a'): 1,
     })
 
-    assert len(cluster) == 3
-    assert cluster.cpus == 80
-    assert cluster.mem == 552
-    assert cluster.disk == 15800
+    assert len(cluster) == 2
+    assert cluster.cpus == 48
+    assert cluster.mem == 308
+    assert cluster.disk == 9400
 
 
 def test_terminate_instances_by_id(cluster):

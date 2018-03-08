@@ -60,13 +60,15 @@ class MesosRoleManager:
 
         logger.info('Loaded resource groups: {ids}'.format(ids=[group.id for group in self.resource_groups]))
 
-    def modify_target_capacity(self, new_target_capacity, dry_run=False):
+    def modify_target_capacity(self, new_target_capacity, dry_run=False, force=False):
         """ Change the desired :attr:`target_capacity` of the resource groups belonging to this role.
 
         Capacity changes are roughly evenly distributed across the resource groups to ensure that
         instances are diversified in the cluster
 
         :param new_target_capacity: the desired target capacity for the cluster and role
+        :param dry_run: boolean indicating whether the cluster should actually be modified
+        :param force: boolean indicating whether to override the scaling limits
 
         .. note:: It may take some time (up to a few minutes) for changes in the target capacity to be reflected in
            :attr:`fulfilled_capacity`.  Once the capacity has equilibrated, the fulfilled capacity and the target
@@ -80,7 +82,7 @@ class MesosRoleManager:
             raise MesosRoleManagerError('No resource groups available')
 
         orig_target_capacity = self.target_capacity
-        new_target_capacity = self._constrain_target_capacity(new_target_capacity)
+        new_target_capacity = self._constrain_target_capacity(new_target_capacity, force)
 
         res_group_targets = self._compute_new_resource_group_targets(new_target_capacity)
         for i, target in enumerate(res_group_targets):
@@ -116,7 +118,7 @@ class MesosRoleManager:
         used = self.get_resource_allocation(resource_name)
         return used / total if total else 0
 
-    def _constrain_target_capacity(self, requested_target_capacity):
+    def _constrain_target_capacity(self, requested_target_capacity, force=False):
         """ Signals can return arbitrary values, so make sure we don't add or remove too much capacity """
 
         # TODO (CLUSTERMAN-126) max_weight_to_add and max_weight_to_remove are clusterwide settings,
@@ -136,10 +138,18 @@ class MesosRoleManager:
 
         constrained_target_capacity = self.target_capacity + delta
         if requested_delta != delta:
-            logger.warn(
-                f'Requested target capacity {requested_target_capacity}; '
-                f'restricting to {constrained_target_capacity} due to scaling limits.'
-            )
+            if force:
+                forced_target_capacity = self.target_capacity + requested_delta
+                logger.warn(
+                    'Forcing target capacity to {forced_target_capacity} even though '
+                    'scaling limits would restrict to {constrained_target_capacity}.'
+                )
+                return forced_target_capacity
+            else:
+                logger.warn(
+                    f'Requested target capacity {requested_target_capacity}; '
+                    f'restricting to {constrained_target_capacity} due to scaling limits.'
+                )
         return constrained_target_capacity
 
     def prune_excess_fulfilled_capacity(self, group_targets=None, dry_run=False):

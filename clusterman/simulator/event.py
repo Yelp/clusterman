@@ -33,7 +33,6 @@ class Event(object):
 class AutoscalingEvent(Event):
     def __init__(self, time, msg=None):
         """ Trigger this event whenever the autoscaler should be called """
-
         super().__init__(time, msg=msg)
 
     def handle(self, simulator):
@@ -52,7 +51,7 @@ class ModifyClusterSizeEvent(Event):
     def handle(self, simulator):
         aws_cluster = simulator.aws_clusters[0]
         __, removed_instances = aws_cluster.modify_size(self.instance_types)
-        simulator.capacity.add_breakpoint(self.time, aws_cluster.cpus)
+        simulator.cpus.add_breakpoint(simulator.current_time, aws_cluster.cpus)
 
         for instance in removed_instances:
             simulator.compute_instance_cost(instance)

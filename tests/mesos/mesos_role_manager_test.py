@@ -44,15 +44,15 @@ def test_modify_target_capacity_no_resource_groups(mock_role_manager):
         mock_role_manager.modify_target_capacity(1234)
 
 
-@pytest.mark.parametrize('constrain_return', [100, 50])
-def test_modify_target_capacity(constrain_return, mock_role_manager):
+@pytest.mark.parametrize('new_target,constrain_return', ((100, 90), (10, 49)))
+def test_modify_target_capacity(new_target, constrain_return, mock_role_manager):
     mock_role_manager.prune_excess_fulfilled_capacity = mock.Mock()
 
     mock_role_manager._constrain_target_capacity = mock.Mock(return_value=constrain_return)
     mock_role_manager._compute_new_resource_group_targets = mock.Mock(return_value=[0, 1, 2, 3, 4, 5, 6])
-    assert mock_role_manager.modify_target_capacity(100) == constrain_return
+    assert mock_role_manager.modify_target_capacity(new_target) == constrain_return
     assert mock_role_manager._constrain_target_capacity.call_count == 1
-    assert mock_role_manager.prune_excess_fulfilled_capacity.call_count == 0
+    assert mock_role_manager.prune_excess_fulfilled_capacity.call_count == int(new_target <= 49)
     assert mock_role_manager._compute_new_resource_group_targets.call_count == 1
     for i, group in enumerate(mock_role_manager.resource_groups):
         assert group.modify_target_capacity.call_count == 1
@@ -108,6 +108,18 @@ class TestPruneFulfilledCapacity:
         mock_find_res_group.return_value = index, res_group
         assert set(mock_role_manager.prune_excess_fulfilled_capacity()) == {'agent-1', 'agent-2', 'agent-3'}
         assert mock_find_largest_capacity_market.call_count == 6
+
+    def test_nothing_to_prune(self, mock_idle_agents_by_market, mock_find_res_group,
+                              mock_find_largest_capacity_market, mock_logger, mock_role_manager):
+        # Override global PropertyMock above
+        with mock.patch(
+            'clusterman.mesos.mesos_role_manager.MesosRoleManager.fulfilled_capacity',
+            mock.PropertyMock(return_value=10),
+        ):
+            mock_role_manager.prune_excess_fulfilled_capacity()
+
+        for group in mock_role_manager.resource_groups:
+            assert group.terminate_instances_by_id.call_count == 0
 
 
 def test_compute_new_resource_group_targets_no_unfilled_capacity(mock_role_manager):
@@ -191,21 +203,21 @@ def test_compute_new_resource_group_targets_below_delta_equal_scale_down_2(mock_
     assert sorted(new_targets) == [1, 1, 1, 1, 1, 2, 2]
 
 
-def test_constrain_target_capacity_positive_delta(mock_role_manager):
-    with mock.patch('clusterman.mesos.mesos_role_manager.logger') as mock_logger:
-        assert mock_role_manager._constrain_target_capacity(100) == 100
-        assert mock_role_manager._constrain_target_capacity(1000) == 249
+@mock.patch('clusterman.mesos.mesos_role_manager.logger')
+@pytest.mark.parametrize('force', [True, False])
+class TestConstrainTargetCapacity:
+    def test_positive_delta(self, mock_logger, force, mock_role_manager):
+        assert mock_role_manager._constrain_target_capacity(100, force) == 100
+        assert mock_role_manager._constrain_target_capacity(1000, force) == (1000 if force else 249)
         mock_role_manager.max_capacity = 97
-        assert mock_role_manager._constrain_target_capacity(1000) == 97
+        assert mock_role_manager._constrain_target_capacity(1000, force) == (1000 if force else 97)
         assert mock_logger.warn.call_count == 2
 
-
-def test_constrain_target_capacity_negative_delta(mock_role_manager):
-    with mock.patch('clusterman.mesos.mesos_role_manager.logger') as mock_logger:
-        assert mock_role_manager._constrain_target_capacity(40) == 40
-        assert mock_role_manager._constrain_target_capacity(20) == 39
+    def test_negative_delta(self, mock_logger, force, mock_role_manager):
+        assert mock_role_manager._constrain_target_capacity(40, force) == 40
+        assert mock_role_manager._constrain_target_capacity(20, force) == (20 if force else 39)
         mock_role_manager.min_capacity = 45
-        assert mock_role_manager._constrain_target_capacity(20) == 45
+        assert mock_role_manager._constrain_target_capacity(20, force) == (20 if force else 45)
         assert mock_logger.warn.call_count == 2
 
 

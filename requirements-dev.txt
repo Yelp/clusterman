@@ -1,12 +1,12 @@
 alabaster==0.7.10
 asn1crypto==0.22.0
 aspy.yaml==0.3.0
-attrs==17.2.0
+attrs==17.4.0
 aws-xray-sdk==0.93
 Babel==2.3.4.post1
-cffi==1.10.0
+cffi==1.11.4
 cookies==2.2.1
-coverage==4.4.1
+coverage==4.4.2
 cryptography==2.0.3
 docker==2.7.0
 docker-pycreds==0.2.1
@@ -30,7 +30,7 @@ pycodestyle==2.3.1
 pycparser==2.18
 pyflakes==1.6.0
 Pygments==2.2.0
-pytest==3.3.2
+pytest==3.4.0
 requirements-tools==1.1.2
 snowballstemmer==1.2.0
 Sphinx==1.6.6
