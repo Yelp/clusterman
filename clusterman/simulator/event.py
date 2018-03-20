@@ -51,7 +51,7 @@ class ModifyClusterSizeEvent(Event):
     def handle(self, simulator):
         aws_cluster = simulator.aws_clusters[0]
         __, removed_instances = aws_cluster.modify_size(self.instance_types)
-        simulator.cpus.add_breakpoint(simulator.current_time, aws_cluster.cpus, squash=True)
+        simulator.cpus.add_breakpoint(simulator.current_time, aws_cluster.cpus)
 
         for instance in removed_instances:
             simulator.compute_instance_cost(instance)
@@ -68,7 +68,7 @@ class InstancePriceChangeEvent(Event):
 
     def handle(self, simulator):
         for market, price in self.prices.items():
-            simulator.instance_prices[market].add_breakpoint(self.time, price, squash=True)
+            simulator.instance_prices[market].add_breakpoint(self.time, price)
 
 
 # Event priorities are used for secondary sorting of events; if event A and B are scheduled at the same

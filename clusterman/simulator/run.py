@@ -54,7 +54,7 @@ def _populate_cluster_size_events(simulator, start_time, end_time):
         simulator.add_event(ModifyClusterSizeEvent(arrow.get(timestamp), market_data))
 
 
-def _populate_price_changes(simulator, start_time, end_time, data_start_time, discount):
+def _populate_price_changes(simulator, start_time, end_time, discount):
     for market in simulator.markets:
         __, market_prices = simulator.metrics_client.get_metric_values(
             f'spot_prices|aws_availability_zone={market.az},aws_instance_type={market.instance}',
@@ -70,13 +70,11 @@ def _populate_price_changes(simulator, start_time, end_time, data_start_time, di
             end_time.timestamp,
         )
         market_prices.extend(old_market_prices)
-        data_shift = (data_start_time - start_time).total_seconds()
-        print(data_shift, start_time, data_start_time)
         for timestamp, price in market_prices:
             price = float(price) * (discount or 1.0)
             simulator.add_event(InstancePriceChangeEvent(
-                arrow.get(timestamp).shift(seconds=data_shift),
-                {market: price}
+                arrow.get(timestamp),
+                {market: price},
             ))
 
 
@@ -114,10 +112,7 @@ def main(args):
         else:
             _populate_cluster_size_events(simulator, args.start_time, args.end_time)
 
-        price_start_time = parse_time_string(args.price_start_time_override) or args.start_time
-        price_time_range = (args.end_time - args.start_time).total_seconds()
-        price_end_time = price_start_time.shift(seconds=price_time_range)
-        _populate_price_changes(simulator, price_start_time, price_end_time, args.start_time, args.discount)
+        _populate_price_changes(simulator, args.start_time, args.end_time, args.discount)
 
         simulator.run()
         sims.insert(0, simulator)
@@ -201,10 +196,4 @@ def add_simulate_parser(subparser, required_named_args, optional_named_args):  #
         choices=['add', 'sub', 'mul', 'truediv'],
         default='truediv',
         help='operation to use for comparing simulations; valid choices are binary functions from the operator module',
-    )
-    optional_named_args.add_argument(
-        '--price-start-time-override',
-        metavar='timestamp',
-        default='-1h',
-        help=f'Override start time for spot price time series (try "yesterday", "-5m", "3 months ago"; use quotes)',
     )

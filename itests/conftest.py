@@ -29,7 +29,7 @@ def end_time(start_time):
 def simulator(start_time, end_time):
     setup_logging()
     return Simulator(
-        SimulationMetadata('Testing', 'test-tag'),
+        SimulationMetadata('test', 'Testing', 'test-tag'),
         start_time,
         end_time,
         None, None,

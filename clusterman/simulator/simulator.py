@@ -256,7 +256,8 @@ class Simulator:
         return _make_comparison_sim(self, other, operator.truediv, opcode)
 
     def __getstate__(self):
-        serialized_keys = ['start_time', 'current_time', 'end_time', 'instance_prices', 'cost_per_hour', 'cpus', 'metadata']
+        serialized_keys = ['metadata', 'start_time', 'current_time', 'end_time'] + \
+            ['instance_prices', 'cost_per_hour', 'cpus']
         states = {}
         for key in serialized_keys:
             states[key] = self.__dict__[key]

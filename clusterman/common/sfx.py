@@ -38,6 +38,9 @@ class Aggregation:
             args=args
         )
 
+    def __eq__(self, other):
+        return self.method == other.method and self.by == other.by and self.over == other.over
+
 
 def _make_ts_label(raw_data, tsid, dimensions):
     """ Make a label for a timeseries data point returned from SignalFX

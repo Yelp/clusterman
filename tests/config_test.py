@@ -115,12 +115,6 @@ def test_setup_config_region(mock_service_load, mock_config_files):
     assert mock_service_load.call_args == mock.call('/nail/etc/config.yaml', '/nail/etc/config.yaml')
 
 
-def test_setup_config_no_region_or_cluster():
-    args = argparse.Namespace(env_config_path='/nail/etc/config.yaml')
-    with mock.patch('clusterman.config.load_default_config'), pytest.raises(argparse.ArgumentError):
-        config.setup_config(args)
-
-
 @pytest.mark.parametrize('cluster,roles,role_other_config', [
     ('cluster-A', ['role-1', 'role-2'], [18, 20]),
     ('cluster-B', ['role-1'], [200]),
@@ -128,7 +122,7 @@ def test_setup_config_no_region_or_cluster():
 ])
 @mock.patch('os.listdir')
 def test_load_cluster_role_configs(mock_ls, cluster, roles, role_other_config, config_dir, mock_config_files):
-    mock_ls.return_value = [f'{role}.yaml' for role in roles]
+    mock_ls.return_value = [f'{role}.yaml' for role in roles] + ['.foo.yaml']
     config.load_cluster_role_configs(cluster, None)
 
     for i, role in enumerate(roles):
