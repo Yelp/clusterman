@@ -10,6 +10,7 @@ RUN     apt-get update \
         && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             dumb-init \
             git \
+            libatlas-base-dev \
             libmysqlclient20 \
             libpython3.6 \
             libxml2 \
