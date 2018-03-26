@@ -30,6 +30,20 @@ from clusterman.util import parse_time_string
 logger = get_clusterman_logger(__name__)
 
 
+def _load_metrics(metrics_data_files, role):
+    metrics = defaultdict(dict)
+    for metrics_file in (metrics_data_files or []):
+        try:
+            data = read_object_from_compressed_json(metrics_file, raw_timestamps=True)
+            for metric_type, values in data.items():
+                metrics[metric_type].update(values)
+        except OSError as e:
+            logger.warn(f'{str(e)}: no metrics loaded')
+    region_name = staticconf.read_string('aws.region')
+    metrics_client = ClustermanMetricsSimulationClient(metrics, region_name=region_name, app_identifier=role)
+    return metrics_client
+
+
 def _populate_autoscaling_events(simulator, start_time, end_time):
     current_time = start_time.shift(seconds=simulator.autoscaler.time_to_next_activation(start_time.timestamp))
     while current_time < end_time:
@@ -78,10 +92,27 @@ def _populate_price_changes(simulator, start_time, end_time, discount):
             ))
 
 
+def _run_simulation(args, metrics_client):
+    metadata = SimulationMetadata(args.name, args.cluster, args.role)
+    simulator = Simulator(metadata, args.start_time, args.end_time, args.autoscaler_config, metrics_client)
+    if simulator.autoscaler:
+        _populate_autoscaling_events(simulator, args.start_time, args.end_time)
+    else:
+        _populate_cluster_size_events(simulator, args.start_time, args.end_time)
+
+    _populate_price_changes(simulator, args.start_time, args.end_time, args.discount)
+
+    simulator.run()
+    return simulator
+
+
 def main(args):
     args.start_time = parse_time_string(args.start_time)
     args.end_time = parse_time_string(args.end_time)
 
+    # We can provide up to two simulation objects to compare.  If we load two simulator objects to compare,
+    # we don't need to run a simulation here.  If the user specifies --compare but only gives one object,
+    # then we need to run a simulation now, and use that to compare to the saved sim
     sims = []
     if args.compare:
         if len(args.compare) > 2:
@@ -92,29 +123,8 @@ def main(args):
         if args.cluster_config_dir:
             staticconf.DictConfiguration({'cluster_config_directory': args.cluster_config_dir})
         setup_config(args)
-
-        metrics = defaultdict(dict)
-        for metrics_file in (args.metrics_data_files or []):
-            try:
-                data = read_object_from_compressed_json(metrics_file, raw_timestamps=True)
-                for metric_type, values in data.items():
-                    metrics[metric_type].update(values)
-            except OSError as e:
-                logger.warn(f'{str(e)}: no metrics loaded')
-
-        region_name = staticconf.read_string('aws.region')
-        metrics_client = ClustermanMetricsSimulationClient(metrics, region_name=region_name, app_identifier=args.role)
-
-        metadata = SimulationMetadata(args.name, args.cluster, args.role)
-        simulator = Simulator(metadata, args.start_time, args.end_time, args.autoscaler_config, metrics_client)
-        if simulator.autoscaler:
-            _populate_autoscaling_events(simulator, args.start_time, args.end_time)
-        else:
-            _populate_cluster_size_events(simulator, args.start_time, args.end_time)
-
-        _populate_price_changes(simulator, args.start_time, args.end_time, args.discount)
-
-        simulator.run()
+        metrics_client = _load_metrics(args.metrics_data_files, args.role)
+        simulator = _run_simulation(args, metrics_client)
         sims.insert(0, simulator)
 
     if len(sims) == 2:

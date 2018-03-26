@@ -106,6 +106,9 @@ def execute_sfx_program(api_token, program, start_time, end_time, dimensions=Non
                 Arrow.utcfromtimestamp(msg.logical_timestamp_ms / 1000),
                 {_make_ts_label(raw_data, key, dimensions): value for key, value in msg.data.items()}
             ) for msg in data_messages])
+
+            # SignalFX sometimes gives us duplicate datapoints at the beginning of one chunk/the start of
+            # the next chunk.  This doesn't play nicely with the metrics client so detect and remove those here
             if datapoints and new_datapoints[0][0] == datapoints[-1][0]:
                 new_datapoints = new_datapoints[1:]
             datapoints.extend(new_datapoints)
@@ -131,10 +134,12 @@ def basic_sfx_query(api_token, metric, start_time, end_time,
     :param end_time: end of program execution range, as an Arrow object
     :param rollup: a valid SignalFX rollup string, or None for the default
     :param extrapolation: one of 'null', 'zero', or 'last_value'
+    :param max_extrapolations: how many times to apply the extrapolation policy
     :param filters: a list of (filter_name, filter_value) tuples
     :param resolution: smallest time interval (in seconds) to evaluate the program on
         note: SignalFX has a maximum resolution of 1 minute, and only for the most recent data;
               setting a resolution higher than this (or even 1 minute for older data) will be ignored
+    :param aggregation: an Aggregation object describing how to group the results
     :returns: a list of (timestamp, value) tuples
     """
     rollup = f'"{rollup}"' if rollup else 'None'
@@ -153,5 +158,5 @@ def basic_sfx_query(api_token, metric, start_time, end_time,
         start_time,
         end_time,
         resolution=resolution,
-        dimensions=aggregation.by
+        dimensions=(aggregation.by if aggregation else [])
     )

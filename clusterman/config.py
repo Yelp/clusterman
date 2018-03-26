@@ -45,14 +45,10 @@ def setup_config(args, include_roles=True):
 
 def load_cluster_role_configs(cluster, signals_branch_or_tag):
     cluster_config_dir = get_cluster_config_dir(cluster)
-    role_config_files = os.listdir(cluster_config_dir)
+    role_config_files = [f for f in os.listdir(cluster_config_dir) if f[0] != '.']  # skip dotfiles
     cluster_roles = []
 
     for role_file in role_config_files:
-        # skip dotfiles
-        if role_file[0] == '.':
-            continue
-
         role = os.path.splitext(role_file)[0]
         cluster_roles.append(role)
         with open(os.path.join(cluster_config_dir, role_file)) as f:
