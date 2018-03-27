@@ -9,6 +9,7 @@ from matplotlib.patches import Patch
 
 from clusterman.reports.constants import AXIS_DIMENSION_INCHES
 from clusterman.reports.constants import COLORMAP
+from clusterman.reports.constants import ERROR_COLOR
 from clusterman.reports.constants import FIGURE_DPI
 from clusterman.reports.constants import SUBTITLE_SPACING
 from clusterman.reports.constants import TREND_LINE_COLOR
@@ -19,6 +20,40 @@ from clusterman.reports.data_transforms import transform_trend_data
 from clusterman.reports.plots import generate_heatmap_trend_grid
 from clusterman.reports.plots import PlotStruct
 from clusterman.reports.report_types import REPORT_TYPES
+
+
+def _get_error_threshold_function(error_threshold, simulator):
+    """ Returns a boolean-valued function that indicates whether a particular (x,y) pair is
+    outside a specified threshold
+
+    :param error_threshold: can be None or a string; if this is a string, the first character MAY be '+' or '-', to
+        indicate whether values above or below the threshold (respectively) are considered "bad".  If nothing is
+        specified, this defaults to '+'.  The remainder of the string MUST either be a constant value convertible to a
+        float, or the name of a piecewise constant function in the simulator.  In the former case, any value above/below
+        the constant is considered "bad", and in the latter, any value above/below the value of the piecewise constant
+        function at that point in time is considered "bad".
+
+        Examples:
+          * '100', '+100' => values greater than 100 exceed the threshold
+          * '-0' => values below 0 exceed the threshold
+          * 'cost_per_hour' => values above the simulator's cost_per_hour function exceed the threshold
+          * '-cpus' => values below the simulator's cpu function exceed the threshold
+    :param simulator: a Simulator object
+    :returns: a boolean-valued threshold function
+    """
+    if not error_threshold:
+        return lambda x, y: False
+
+    reverse = False
+    if error_threshold[0] in ('-', '+'):
+        reverse = error_threshold[0] == '-'
+        error_threshold = error_threshold[1:]
+    try:
+        constant = float(error_threshold)
+        return lambda x, y: ((y > constant) if not reverse else (y < constant))
+    except ValueError:
+        piecewise = getattr(simulator, error_threshold)
+        return lambda x, y: ((y > piecewise.call(x)) if not reverse else (y < piecewise.call(x)))
 
 
 def _make_report_title(fig, report, sim_metadata, months):
@@ -51,12 +86,16 @@ def _make_heatmap_legend_marker(color, label):
     )
 
 
-def _make_legend(fig, heatmap_range, legend_formatter):
+def _make_legend(fig, heatmap_range, has_errors, legend_formatter):
     cmap = get_cmap(COLORMAP)
     low, high = cmap(0.0), cmap(1.0)
     low_marker = _make_heatmap_legend_marker(low, 'min (p5): ' + legend_formatter(heatmap_range[0]))
     high_marker = _make_heatmap_legend_marker(high, 'max (p95): ' + legend_formatter(heatmap_range[1]))
-    fig.legend(handles=[low_marker, high_marker], loc='upper left', fontsize=6)
+    handles = [low_marker, high_marker]
+    if has_errors:
+        error_marker = _make_heatmap_legend_marker(ERROR_COLOR, 'exceeds threshold')
+        handles.append(error_marker)
+    fig.legend(handles=handles, loc='upper left', fontsize=6)
 
     trend_line = Line2D([0, 1], [0, 0], color=TREND_LINE_COLOR, label='average')
     bestfit_line = Line2D([0, 1], [0, 0], color='black', dashes=(1, 1), linewidth=0.75, label='best fit line')
@@ -100,14 +139,17 @@ def make_report(name, simulator, start_time, end_time, output_prefix='', tz='US/
     fig = Figure(figsize=(AXIS_DIMENSION_INCHES[0], AXIS_DIMENSION_INCHES[1] * len(months)))
     _make_report_title(fig, report, simulator.metadata, months)
 
-    heatmap_data, *heatmap_range = transform_heatmap_data(report_data, months, tz)
+    error_threshold_fn = _get_error_threshold_function(report.error_threshold, simulator)
+
+    heatmap_data, error_data, *heatmap_range = transform_heatmap_data(report_data, error_threshold_fn, months, tz)
     trend_data, *trend_range = transform_trend_data(report_data, months, report.trend_rollup)
 
-    heatmap = PlotStruct(heatmap_data, heatmap_range, _make_axis_titles(report, report_data, months))
-    trend = PlotStruct(trend_data, trend_range, report.trend_label, report.trend_axis_formatter)
+    heatmap = PlotStruct(heatmap_data, error_data, heatmap_range, _make_axis_titles(report, report_data, months))
+    trend = PlotStruct(trend_data, None, trend_range, report.trend_label, report.trend_axis_formatter)
 
     generate_heatmap_trend_grid(fig, heatmap, trend, months, tz)
-    _make_legend(fig, heatmap_range, report.legend_formatter)
+    has_errors = len(list(error_data.values())[0]) > 0
+    _make_legend(fig, heatmap_range, has_errors, report.legend_formatter)
 
     if output_prefix:
         output_prefix += '_'

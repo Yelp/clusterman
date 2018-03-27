@@ -18,6 +18,8 @@ def setup_config(args, include_roles=True):
     load_default_config(args.env_config_path, args.env_config_path)
 
     signals_branch_or_tag = getattr(args, 'signals_branch_or_tag', None)
+    cluster_config_directory = getattr(args, 'cluster_config_directory', None) or DEFAULT_CLUSTER_DIRECTORY
+    staticconf.DictConfiguration({'cluster_config_directory': cluster_config_directory})
 
     aws_region = getattr(args, 'aws_region', None)
     cluster = getattr(args, 'cluster', None)
@@ -44,14 +46,14 @@ def setup_config(args, include_roles=True):
 
 
 def load_cluster_role_configs(cluster, signals_branch_or_tag):
-    cluster_config_dir = get_cluster_config_dir(cluster)
-    role_config_files = [f for f in os.listdir(cluster_config_dir) if f[0] != '.']  # skip dotfiles
+    cluster_config_directory = get_cluster_config_directory(cluster)
+    role_config_files = [f for f in os.listdir(cluster_config_directory) if f[0] != '.']  # skip dotfiles
     cluster_roles = []
 
     for role_file in role_config_files:
         role = os.path.splitext(role_file)[0]
         cluster_roles.append(role)
-        with open(os.path.join(cluster_config_dir, role_file)) as f:
+        with open(os.path.join(cluster_config_directory, role_file)) as f:
             config = yaml.load(f)
             role_namespace = ROLE_NAMESPACE.format(role=role)
             staticconf.DictConfiguration(config, namespace=role_namespace)
@@ -65,12 +67,9 @@ def load_cluster_role_configs(cluster, signals_branch_or_tag):
     staticconf.DictConfiguration({'cluster_roles': cluster_roles})
 
 
-def get_cluster_config_dir(cluster):
-    return os.path.join(
-        staticconf.read_string('cluster_config_directory', default=DEFAULT_CLUSTER_DIRECTORY),
-        cluster,
-    )
+def get_cluster_config_directory(cluster):
+    return os.path.join(staticconf.read_string('cluster_config_directory'), cluster)
 
 
 def get_role_config_path(cluster, role):
-    return os.path.join(get_cluster_config_dir(cluster), f'{role}.yaml')
+    return os.path.join(get_cluster_config_directory(cluster), f'{role}.yaml')

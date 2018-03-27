@@ -64,6 +64,7 @@ class Simulator:
         self.instance_prices = defaultdict(lambda: PiecewiseConstantFunction())
         self.cost_per_hour = PiecewiseConstantFunction()
         self.cpus = PiecewiseConstantFunction()
+        self.cpus_allocated = PiecewiseConstantFunction()
         self.markets = set()
 
         self.billing_frequency = billing_frequency
@@ -173,6 +174,43 @@ class Simulator:
     def total_cost(self):
         return self.cost_data().values()[0]
 
+    def cpus_data(self, start_time=None, end_time=None, step=None):
+        """ Compute the capacity for the cluster in the specified time range, grouped into chunks
+
+        :param start_time: the lower bound of the range (if None, use simulation start time)
+        :param end_time: the upper bound of the range (if None, use simulation end time)
+        :param step: the width of time for each chunk
+        :returns: a list of CPU capacities for the cluster from start_time to end_time
+        """
+        start_time = start_time or self.start_time
+        end_time = end_time or self.end_time
+        return self.cpus.values(start_time, end_time, step)
+
+    def cpus_allocated_data(self, start_time=None, end_time=None, step=None):
+        """ Compute the allocated cpus for the cluster in the specified time range
+
+        :param start_time: the lower bound of the range (if None, use simulation start time)
+        :param end_time: the upper bound of the range (if None, use simulation end time)
+        :param step: the width of time for each chunk
+        :returns: a list of allocated CPUs for the cluster from start_time to end_time
+        """
+        start_time = start_time or self.start_time
+        end_time = end_time or self.end_time
+        return self.cpus_allocated.values(start_time, end_time, step)
+
+    def unused_cpus_data(self, start_time=None, end_time=None, step=None):
+        """ Compute the un-allocated cpus for the cluster in the specified time range
+
+        :param start_time: the lower bound of the range (if None, use simulation start time)
+        :param end_time: the upper bound of the range (if None, use simulation end time)
+        :param step: the width of time for each chunk
+        :returns: a list of un-allocated CPUs for the cluster from start_time to end_time
+        """
+        start_time = start_time or self.start_time
+        end_time = end_time or self.end_time
+        unused_cpus = self.cpus - self.cpus_allocated
+        return unused_cpus.values(start_time, end_time, step)
+
     def cost_data(self, start_time=None, end_time=None, step=None):
         """ Compute the cost for the cluster in the specified time range, grouped into chunks
 
@@ -185,17 +223,19 @@ class Simulator:
         end_time = end_time or self.end_time
         return self.cost_per_hour.integrals(start_time, end_time, step, transform=hour_transform)
 
-    def cpus_data(self, start_time=None, end_time=None, step=None):
-        """ Compute the capacity for the cluster in the specified time range, grouped into chunks
+    def unused_cpus_cost_data(self, start_time=None, end_time=None, step=None):
+        """ Compute the cost for the cluster in the specified time range, grouped into chunks
 
         :param start_time: the lower bound of the range (if None, use simulation start time)
         :param end_time: the upper bound of the range (if None, use simulation end time)
         :param step: the width of time for each chunk
-        :returns: a list of capacities for the cluster from start_time to end_time
+        :returns: a list of costs for the cluster from start_time to end_time
         """
         start_time = start_time or self.start_time
         end_time = end_time or self.end_time
-        return self.cpus.values(start_time, end_time, step)
+        percent_unallocated = (self.cpus - self.cpus_allocated) / self.cpus
+        percent_cost = percent_unallocated * self.cost_per_hour
+        return percent_cost.integrals(start_time, end_time, step, transform=hour_transform)
 
     def cost_per_cpu_data(self, start_time=None, end_time=None, step=None):
         """ Compute the cost per CPU for the cluster in the specified time range, grouped into chunks
@@ -205,6 +245,8 @@ class Simulator:
         :param step: the width of time for each chunk
         :returns: a list of costs per CPU for the cluster from start_time to end_time
         """
+        start_time = start_time or self.start_time
+        end_time = end_time or self.end_time
         cost_per_cpu = self.cost_per_hour / self.cpus
         return cost_per_cpu.values(start_time, end_time, step)
 
@@ -257,7 +299,7 @@ class Simulator:
 
     def __getstate__(self):
         serialized_keys = ['metadata', 'start_time', 'current_time', 'end_time'] + \
-            ['instance_prices', 'cost_per_hour', 'cpus']
+            ['instance_prices', 'cost_per_hour', 'cpus', 'cpus_allocated']
         states = {}
         for key in serialized_keys:
             states[key] = self.__dict__[key]

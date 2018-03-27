@@ -2,16 +2,18 @@ import arrow
 import numpy as np
 
 
-def transform_heatmap_data(data, months, tz):
+def transform_heatmap_data(data, error_threshold_fn, months, tz):
     """ Transform input data into positions and values for heatmap plotting
 
     :param data: a SortedDict mapping from timestamp -> value
+    :param error_threshold_fn: a function that takes an (x, y) pair and returns True if y is outside the threshold at x
     :param months: a list of (mstart, mend) tuples for grouping the output data
     :param tz: what timezone the output data should be interpreted as
     :returns: a dict of month -> [<x-data>, <y-data>, <values>] lists, as well as the p5/p95 values
         (the p5/p95 values are used to set the min/max color range of the heatmap)
     """
     data_by_month = {}
+    error_data_by_month = {}
     min_val, max_val = float('inf'), float('-inf')
     for mstart, mend in months:
         mstart_index = data.bisect_left(mstart)
@@ -20,16 +22,24 @@ def transform_heatmap_data(data, months, tz):
         # We want the y-axis to just be a date (year-month-day) and the x-axis to just be a time (hour-minute-second)
         # However, the matplotlib DatetimeFormatter won't take just date or time objects; so to get a canonical
         # datetime object we use the beginning UNIX epoch time and then replace the date/time with the correct values
-        aggregated_monthly_data = [(
-            data.keys()[i].to(tz).replace(year=1970, month=1, day=1).datetime,
-            data.keys()[i].to(tz).replace(hour=0, minute=0, second=0, microsecond=0).datetime,
-            data.values()[i],
-        ) for i in range(mstart_index, mend_index)]
+
+        mdates, mtimes, mvals = [], [], []
+        edates, etimes, evals = [], [], []
+        for i in range(mstart_index, mend_index):
+            utc_k, v = data.keys()[i], data.values()[i]
+            k = utc_k.to(tz)
+            date = k.replace(year=1970, month=1, day=1).datetime
+            time = k.replace(hour=0, minute=0, second=0, microsecond=0).datetime
+            if error_threshold_fn(utc_k, v):
+                edates.append(date), etimes.append(time), evals.append(v)
+            else:
+                mdates.append(date), mtimes.append(time), mvals.append(v)
         p5, p95 = np.percentile([data.values()[i] for i in range(mstart_index, mend_index)], [5, 95])
         min_val = min(min_val, p5)
         max_val = max(max_val, p95)
-        data_by_month[mstart] = zip(*aggregated_monthly_data)
-    return data_by_month, min_val, max_val
+        data_by_month[mstart] = (mdates, mtimes, mvals)
+        error_data_by_month[mstart] = (edates, etimes, evals)
+    return data_by_month, error_data_by_month, min_val, max_val
 
 
 def transform_trend_data(data, months, trend_rollup):
