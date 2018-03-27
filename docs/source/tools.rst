@@ -146,6 +146,6 @@ The tool will interactively ask you the :ref:`metric type <metric_types>` to sav
 
 Sample usage::
 
-    python -m clusterman.tools.signalfx_scraper --start-time 2017-12-03 --end-time 2017-12-10
-      --src-metric-names 'seagull.fleet_miser.cluster_capacity_units' --dest-file capacity
+    python -m clusterman.tools.signalfx_scraper --start-time 2017-12-03 --end-time 2017-12-10 \
+      --src-metric-names 'seagull.fleet_miser.cluster_capacity_units' --dest-file capacity \
       --api-token <secret> --filter rollup:max region:uswest2-testopia cluster_name:releng

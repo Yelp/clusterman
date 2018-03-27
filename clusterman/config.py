@@ -23,8 +23,6 @@ def setup_config(args, include_roles=True):
     cluster = getattr(args, 'cluster', None)
     if aws_region and cluster:
         raise ArgumentError(None, 'Cannot specify both cluster and aws_region')
-    elif not (aws_region or cluster):
-        raise ArgumentError(None, 'Must specify either cluster or aws_region')
 
     # If there is a cluster specified via --cluster, load cluster-specific attributes
     # into staticconf.  These values are not specified using hiera in srv-configs because
@@ -47,7 +45,7 @@ def setup_config(args, include_roles=True):
 
 def load_cluster_role_configs(cluster, signals_branch_or_tag):
     cluster_config_dir = get_cluster_config_dir(cluster)
-    role_config_files = os.listdir(cluster_config_dir)
+    role_config_files = [f for f in os.listdir(cluster_config_dir) if f[0] != '.']  # skip dotfiles
     cluster_roles = []
 
     for role_file in role_config_files:

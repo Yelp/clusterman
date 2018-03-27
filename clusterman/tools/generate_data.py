@@ -7,7 +7,7 @@ import yaml
 from clusterman_metrics import ClustermanMetricsBotoClient
 
 from clusterman.args import subparser
-from clusterman.simulator.metrics import write_metrics_to_compressed_json
+from clusterman.simulator.io import write_object_to_compressed_json
 from clusterman.util import parse_time_interval_seconds
 from clusterman.util import parse_time_string
 
@@ -121,8 +121,15 @@ def load_experimental_design(inputfile):
         for metric_name, config in metric_design.items():
             start_time = parse_time_string(config['start_time'])
             end_time = parse_time_string(config['end_time'])
+
             if config['frequency'] == 'historical':
-                metrics[metric_type][metric_name] = get_historical_data(metric_name, metric_type, config, start_time, end_time)
+                metrics[metric_type][metric_name] = get_historical_data(
+                    metric_name,
+                    metric_type,
+                    config,
+                    start_time,
+                    end_time
+                )
             else:
                 metrics[metric_type][metric_name] = get_random_data(config, start_time, end_time)
 
@@ -137,7 +144,7 @@ def main(args):
     random.seed(args.seed)
 
     metrics_data = load_experimental_design(args.input)
-    write_metrics_to_compressed_json(metrics_data, args.output)
+    write_object_to_compressed_json(metrics_data, args.output)
 
 
 @subparser('generate-data', 'generate data for a simulation based on an experimental design', main)

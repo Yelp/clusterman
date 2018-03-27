@@ -14,13 +14,13 @@ flake8==3.5.0
 identify==1.0.6
 imagesize==0.7.1
 Jinja2==2.10
-jsonpickle==0.9.5
 livereload==2.4.1
 MarkupSafe==1.0
 mccabe==0.6.1
 mock==2.0.0
 moto==1.1.24
 nodeenv==1.1.4
+paasta-acceptance==1.0.0
 pbr==3.1.1
 pluggy==0.6.0
 pre-commit==1.6.0

@@ -1,3 +1,4 @@
+import operator
 from collections import defaultdict
 from datetime import timedelta
 from heapq import heappop
@@ -7,11 +8,11 @@ import arrow
 import yaml
 from clusterman_metrics import generate_key_with_dimensions
 from clusterman_metrics import METADATA
-from sortedcontainers import SortedDict
 
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.aws.client import ec2
 from clusterman.aws.markets import get_instance_market
+from clusterman.exceptions import SimulationError
 from clusterman.math.piecewise import hour_transform
 from clusterman.math.piecewise import piecewise_breakpoint_generator
 from clusterman.math.piecewise import PiecewiseConstantFunction
@@ -25,8 +26,9 @@ logger = get_clusterman_logger(__name__)
 
 
 class SimulationMetadata:  # pragma: no cover
-    def __init__(self, cluster_name, role):
-        self.cluster = cluster_name
+    def __init__(self, name, cluster, role):
+        self.name = name
+        self.cluster = cluster
         self.role = role
         self.sim_start = None
         self.sim_end = None
@@ -42,7 +44,7 @@ class SimulationMetadata:  # pragma: no cover
 
 
 class Simulator:
-    def __init__(self, metadata, start_time, end_time, autoscaler_config_file, metrics_client,
+    def __init__(self, metadata, start_time, end_time, autoscaler_config_file=None, metrics_client=None,
                  billing_frequency=timedelta(seconds=1), refund_outbid=True):
         """ Maintains all of the state for a clusterman simulation
 
@@ -203,15 +205,8 @@ class Simulator:
         :param step: the width of time for each chunk
         :returns: a list of costs per CPU for the cluster from start_time to end_time
         """
-        start_time = start_time or self.start_time
-        end_time = end_time or self.end_time
-        cost_data = self.cost_data(start_time, end_time, step)
-        cpus_data = self.cpus_data(start_time, end_time, step)
-        return SortedDict([
-            (timestamp, cost / cpus)
-            for ((timestamp, cost), cpus) in zip(cost_data.items(), cpus_data.values())
-            if cpus != 0
-        ])
+        cost_per_cpu = self.cost_per_hour / self.cpus
+        return cost_per_cpu.values(start_time, end_time, step)
 
     def _make_autoscaler(self, autoscaler_config_file):
         with open(autoscaler_config_file) as f:
@@ -243,3 +238,48 @@ class Simulator:
             role_manager=role_manager,
             metrics_client=self.metrics_client,
         )
+
+    def __add__(self, other):
+        opcode = '+'
+        return _make_comparison_sim(self, other, operator.add, opcode)
+
+    def __sub__(self, other):
+        opcode = '-'
+        return _make_comparison_sim(self, other, operator.sub, opcode)
+
+    def __mul__(self, other):
+        opcode = '*'
+        return _make_comparison_sim(self, other, operator.mul, opcode)
+
+    def __truediv__(self, other):
+        opcode = '/'
+        return _make_comparison_sim(self, other, operator.truediv, opcode)
+
+    def __getstate__(self):
+        serialized_keys = ['metadata', 'start_time', 'current_time', 'end_time'] + \
+            ['instance_prices', 'cost_per_hour', 'cpus']
+        states = {}
+        for key in serialized_keys:
+            states[key] = self.__dict__[key]
+        return states
+
+
+def _make_comparison_sim(sim1, sim2, op, opcode):
+    metadata = SimulationMetadata(
+        f'[{sim1.metadata.name}] {opcode} [{sim2.metadata.name}]',
+
+        f'{sim1.metadata.cluster}' if
+        sim1.metadata.cluster == sim2.metadata.cluster else
+        f'{sim1.metadata.cluster}, {sim2.metadata.cluster}',
+
+        f'{sim1.metadata.role}' if
+        sim1.metadata.role == sim2.metadata.role else
+        f'{sim1.metadata.role}, {sim2.metadata.role}',
+    )
+    if sim1.start_time != sim2.start_time or sim1.end_time != sim2.end_time:
+        raise SimulationError('Compared simulators must have same time boundaries')
+
+    comp_sim = Simulator(metadata, sim1.start_time, sim1.end_time)
+    comp_sim.cost_per_hour = op(sim1.cost_per_hour, sim2.cost_per_hour)
+    comp_sim.cpus = op(sim1.cpus, sim2.cpus)
+    return comp_sim

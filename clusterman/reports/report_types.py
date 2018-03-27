@@ -33,7 +33,7 @@ REPORT_TYPES = {
         trend_rollup=DEFAULT_TREND_ROLLUP,
         plot_title_formatter=lambda data: f'Average capacity: {int(np.mean(data))} vCPUs',
         trend_axis_formatter=int,
-        legend_formatter=lambda val: f'{val} vCPUs',
+        legend_formatter=lambda val: f'{int(round(val))} vCPUs',
         trend_label='vCPUs/day',
         get_data=Simulator.cpus_data,
     ),

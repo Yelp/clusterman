@@ -4,8 +4,9 @@ from collections import defaultdict
 from clusterman_metrics.util.constants import METRIC_TYPES
 
 from clusterman.args import add_start_end_args
+from clusterman.common.sfx import Aggregation
 from clusterman.common.sfx import basic_sfx_query
-from clusterman.simulator.metrics import write_metrics_to_compressed_json
+from clusterman.simulator.io import write_object_to_compressed_json
 from clusterman.util import ask_for_choice
 from clusterman.util import parse_time_string
 
@@ -61,10 +62,13 @@ def main(args):
             start_time,
             end_time,
             filters=filters,
+            aggregation=Aggregation('sum', by=['AZ', 'inst_type']),
+            extrapolation='last_value',
+            max_extrapolations=3,
             **kwargs,
         )
 
-    write_metrics_to_compressed_json(dict(values), args.dest_file)
+    write_object_to_compressed_json(dict(values), args.dest_file)
 
 
 def get_parser():

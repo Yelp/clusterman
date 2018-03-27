@@ -141,8 +141,8 @@ class MesosRoleManager:
             if force:
                 forced_target_capacity = self.target_capacity + requested_delta
                 logger.warn(
-                    'Forcing target capacity to {forced_target_capacity} even though '
-                    'scaling limits would restrict to {constrained_target_capacity}.'
+                    f'Forcing target capacity to {forced_target_capacity} even though '
+                    f'scaling limits would restrict to {constrained_target_capacity}.'
                 )
                 return forced_target_capacity
             else:

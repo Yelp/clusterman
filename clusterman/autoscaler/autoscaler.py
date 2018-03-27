@@ -130,6 +130,7 @@ class Autoscaler:
 
         :returns: the new target capacity we should scale to
         """
+        # TODO (CLUSTERMAN-201) support other types of resource requests
         resource_request = evaluate_signal(self._get_metrics(timestamp), self.signal_conn)
         if resource_request['cpus'] is None:
             logger.info(f'No data from signal, not changing capacity')

@@ -12,9 +12,34 @@ TS_QUERY_PROGRAM_TEMPLATE = """data(
     "{metric}",
     filter={filters},
     extrapolation="{extrapolation}",
+    maxExtrapolations={max_extrapolations},
     rollup={rollup}
-).sum().publish()
+){aggregation}.publish()
 """
+
+
+class Aggregation:
+    def __init__(self, method, by=None, over=None):
+        self.method = method
+        if by and over:
+            raise ValueError(f'by and over cannot both be set: {by}, {over}')
+        self.by = by
+        self.over = over
+
+    def __str__(self):
+        if self.by:
+            args = f'by={str(self.by)}'
+        elif self.over:
+            args = f'over={self.over}'
+        else:
+            args = ''
+        return '{method}({args})'.format(
+            method=self.method,
+            args=args
+        )
+
+    def __eq__(self, other):
+        return self.method == other.method and self.by == other.by and self.over == other.over
 
 
 def _make_ts_label(raw_data, tsid, dimensions):
@@ -77,10 +102,16 @@ def execute_sfx_program(api_token, program, start_time, end_time, dimensions=Non
 
             # We can only call _make_ts_label after all of the entries in the raw_data.stream() have been processed
             data_messages = [msg for msg in raw_data.stream() if isinstance(msg, DataMessage)]
-            datapoints.extend([(
+            new_datapoints = sorted([(
                 Arrow.utcfromtimestamp(msg.logical_timestamp_ms / 1000),
                 {_make_ts_label(raw_data, key, dimensions): value for key, value in msg.data.items()}
             ) for msg in data_messages])
+
+            # SignalFX sometimes gives us duplicate datapoints at the beginning of one chunk/the start of
+            # the next chunk.  This doesn't play nicely with the metrics client so detect and remove those here
+            if datapoints and new_datapoints[0][0] == datapoints[-1][0]:
+                new_datapoints = new_datapoints[1:]
+            datapoints.extend(new_datapoints)
 
             curr_time = next_time
     return datapoints
@@ -89,8 +120,10 @@ def execute_sfx_program(api_token, program, start_time, end_time, dimensions=Non
 def basic_sfx_query(api_token, metric, start_time, end_time,
                     rollup='average',
                     extrapolation='null',
+                    max_extrapolations=0,
                     filters=None,
                     resolution=60,
+                    aggregation=Aggregation('sum')
                     ):
     """ Run the simplest of all SignalFX queries: specify a metric name to query and (optionally) some filters, and sum
     the results into a single timeseries.
@@ -101,24 +134,29 @@ def basic_sfx_query(api_token, metric, start_time, end_time,
     :param end_time: end of program execution range, as an Arrow object
     :param rollup: a valid SignalFX rollup string, or None for the default
     :param extrapolation: one of 'null', 'zero', or 'last_value'
+    :param max_extrapolations: how many times to apply the extrapolation policy
     :param filters: a list of (filter_name, filter_value) tuples
     :param resolution: smallest time interval (in seconds) to evaluate the program on
         note: SignalFX has a maximum resolution of 1 minute, and only for the most recent data;
               setting a resolution higher than this (or even 1 minute for older data) will be ignored
+    :param aggregation: an Aggregation object describing how to group the results
     :returns: a list of (timestamp, value) tuples
     """
     rollup = f'"{rollup}"' if rollup else 'None'
+    agg_string = f'.{aggregation}' if aggregation else ''
     program = TS_QUERY_PROGRAM_TEMPLATE.format(
         metric=metric,
         filters=_make_filter_string(filters),
         rollup=rollup,
         extrapolation=extrapolation,
+        max_extrapolations=max_extrapolations,
+        aggregation=agg_string,
     )
-    datapoints = execute_sfx_program(
+    return execute_sfx_program(
         api_token,
         program,
         start_time,
         end_time,
         resolution=resolution,
+        dimensions=(aggregation.by if aggregation else [])
     )
-    return [(timestamp, sum(datapoint.values())) for timestamp, datapoint in datapoints]

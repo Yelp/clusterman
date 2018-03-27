@@ -1,5 +1,7 @@
 import math
 from functools import lru_cache
+from heapq import merge
+from itertools import zip_longest
 
 from sortedcontainers import SortedDict
 
@@ -27,7 +29,7 @@ class PiecewiseConstantFunction:
         self.breakpoints = SortedDict()
         self._initial_value = initial_value
 
-    def add_breakpoint(self, xval, yval):
+    def add_breakpoint(self, xval, yval, squash=True):
         """ Add a breakpoint to the function and update the value
 
         Let f(x) be the original function, and next_bp be the first breakpoint > xval; after calling
@@ -35,7 +37,10 @@ class PiecewiseConstantFunction:
 
         :param xval: the x-position of the breakpoint to add/modify
         :param yval: the value to set the function to at xval
+        :param squash: if True and f(xval) = yval before calling this method, the function will remain unchanged
         """
+        if squash and self.call(xval) == yval:
+            return
         self.breakpoints[xval] = yval
 
     def add_delta(self, xval, delta):
@@ -192,3 +197,48 @@ class PiecewiseConstantFunction:
         for xval, yval in self.breakpoints.items():
             ret += f'{yval}, x >= {xval}\n'
         return ret
+
+    def __add__(self, other):
+        new_func = PiecewiseConstantFunction(self._initial_value + other._initial_value)
+        for xval, y0, y1 in _merged_breakpoints(self, other):
+            new_func.add_breakpoint(xval, y0 + y1)
+        return new_func
+
+    def __sub__(self, other):
+        new_func = PiecewiseConstantFunction(self._initial_value - other._initial_value)
+        for xval, y0, y1 in _merged_breakpoints(self, other):
+            new_func.add_breakpoint(xval, y0 - y1)
+        return new_func
+
+    def __mul__(self, other):
+        new_func = PiecewiseConstantFunction(self._initial_value * other._initial_value)
+        for xval, y0, y1 in _merged_breakpoints(self, other):
+            new_func.add_breakpoint(xval, y0 * y1)
+        return new_func
+
+    def __truediv__(self, other):
+        try:
+            new_func = PiecewiseConstantFunction(self._initial_value / other._initial_value)
+        except ZeroDivisionError:
+            new_func = PiecewiseConstantFunction()
+
+        for xval, y0, y1 in _merged_breakpoints(self, other):
+            try:
+                new_func.add_breakpoint(xval, y0 / y1)
+            except ZeroDivisionError:
+                new_func.add_breakpoint(xval, 0)
+        return new_func
+
+
+def _merged_breakpoints(fn0, fn1):
+    bp0 = zip_longest(fn0.breakpoints.items(), [], fillvalue=0)
+    bp1 = zip_longest(fn1.breakpoints.items(), [], fillvalue=1)
+    yprev0, yprev1 = fn0._initial_value, fn1._initial_value
+
+    for (x, y), fnnum in merge(bp0, bp1):
+        if fnnum == 0:
+            yield x, y, yprev1
+            yprev0 = y
+        elif fnnum == 1:
+            yield x, yprev0, y
+            yprev1 = y

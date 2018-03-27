@@ -1,6 +1,7 @@
 coverage
 flake8
 livereload
+paasta-acceptance
 pre-commit
 pytest
 requirements-tools
