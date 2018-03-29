@@ -1,3 +1,10 @@
+clusterman (2.2.0) trusty; urgency=low
+
+  * Add simulation compare feature
+  * Add "allocated CPUs" feature to the simulator
+
+ -- David Morrison <drmorr@yelp.com>  Thu, 29 Mar 2018 16:44:06 -0700
+
 clusterman (2.1.0) trusty; urgency=low
 
   * Improve reports output from simulator
