@@ -128,7 +128,7 @@ def make_report(name, simulator, start_time, end_time, output_prefix='', tz='US/
     begin = arrow.now()
     print(f'Generating {name} report...')
     report = REPORT_TYPES[name]
-    report_data = report.get_data(simulator, start_time, end_time, timedelta(seconds=60))
+    report_data = simulator.get_data(name, start_time, end_time, timedelta(seconds=60))
 
     if not isinstance(tz, tzinfo):
         tz = arrow.parser.TzinfoParser.parse(tz)
@@ -148,7 +148,9 @@ def make_report(name, simulator, start_time, end_time, output_prefix='', tz='US/
     trend = PlotStruct(trend_data, None, trend_range, report.trend_label, report.trend_axis_formatter)
 
     generate_heatmap_trend_grid(fig, heatmap, trend, months, tz)
-    has_errors = len(list(error_data.values())[0]) > 0
+    # This ugly bit of code is just checking every month of error data (things that exceeded their threshold);
+    # if any month has a datapoint that exceeded its threshold, display the red dot in the legend.  Otherwise don't.
+    has_errors = any([len(data_points[0]) > 0 for data_points in error_data.values()])
     _make_legend(fig, heatmap_range, has_errors, report.legend_formatter)
 
     if output_prefix:
