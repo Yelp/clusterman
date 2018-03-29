@@ -13,14 +13,11 @@ from tests.conftest import mock_open
 
 
 @pytest.fixture
-def config_dir():
-    return '/nail/whatever'
-
-
-@pytest.fixture
-def mock_config_files(config_dir):
+def mock_config_files():
     # Role 1 is in both cluster A and B, while Role 2 is only in A.
-    with mock_open(
+    with staticconf.testing.PatchConfiguration(
+        {'cluster_config_directory': '/nail/whatever'}
+    ), mock_open(
         config.get_role_config_path('cluster-A', 'role-1'),
         contents=yaml.dump({
             'resource_groups': 'cluster-A',
@@ -121,7 +118,7 @@ def test_setup_config_region(mock_service_load, mock_config_files):
     ('cluster-C', [], []),
 ])
 @mock.patch('os.listdir')
-def test_load_cluster_role_configs(mock_ls, cluster, roles, role_other_config, config_dir, mock_config_files):
+def test_load_cluster_role_configs(mock_ls, cluster, roles, role_other_config, mock_config_files):
     mock_ls.return_value = [f'{role}.yaml' for role in roles] + ['.foo.yaml']
     config.load_cluster_role_configs(cluster, None)
 

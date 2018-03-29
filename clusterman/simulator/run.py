@@ -6,6 +6,7 @@ import arrow
 import staticconf
 from clusterman_metrics import ClustermanMetricsSimulationClient
 from clusterman_metrics import METADATA
+from clusterman_metrics import SYSTEM_METRICS
 
 from clusterman.args import add_branch_or_tag_arg
 from clusterman.args import add_cluster_arg
@@ -14,7 +15,6 @@ from clusterman.args import add_start_end_args
 from clusterman.args import subparser
 from clusterman.aws.markets import get_market_resources
 from clusterman.aws.markets import InstanceMarket
-from clusterman.config import setup_config
 from clusterman.reports.report_types import REPORT_TYPES
 from clusterman.reports.reports import make_report
 from clusterman.simulator.event import AutoscalingEvent
@@ -68,6 +68,22 @@ def _populate_cluster_size_events(simulator, start_time, end_time):
         simulator.add_event(ModifyClusterSizeEvent(arrow.get(timestamp), market_data))
 
 
+def _populate_allocated_resources(simulator, start_time, end_time):
+    __, allocated_ts = simulator.metrics_client.get_metric_values(
+        f'cpus_allocated|cluster={simulator.metadata.cluster},role={simulator.metadata.role}',
+        SYSTEM_METRICS,
+        start_time.timestamp,
+        end_time.timestamp,
+    )
+    # It's OK to just directly set up the timeseries here, instead of using events; if the autoscaler
+    # depends on these values it will re-read it from the metrics client anyways.
+    #
+    # In the future, we may want to make the simulator smarter (if the value of cpus_allocated exceeds the
+    # simulated total cpus, for example), but for right now I don't care (CLUSTERMAN-145)
+    for timestamp, data in allocated_ts:
+        simulator.cpus_allocated.add_breakpoint(arrow.get(timestamp), float(data))
+
+
 def _populate_price_changes(simulator, start_time, end_time, discount):
     for market in simulator.markets:
         __, market_prices = simulator.metrics_client.get_metric_values(
@@ -100,6 +116,7 @@ def _run_simulation(args, metrics_client):
     else:
         _populate_cluster_size_events(simulator, args.start_time, args.end_time)
 
+    _populate_allocated_resources(simulator, args.start_time, args.end_time)
     _populate_price_changes(simulator, args.start_time, args.end_time, args.discount)
 
     simulator.run()
@@ -120,9 +137,6 @@ def main(args):
         sims = [read_object_from_compressed_json(sim_file) for sim_file in args.compare]
 
     if len(sims) < 2:
-        if args.cluster_config_dir:
-            staticconf.DictConfiguration({'cluster_config_directory': args.cluster_config_dir})
-        setup_config(args)
         metrics_client = _load_metrics(args.metrics_data_files, args.role)
         simulator = _run_simulation(args, metrics_client)
         sims.insert(0, simulator)
@@ -136,7 +150,10 @@ def main(args):
     if args.simulation_result_file:
         write_object_to_compressed_json(final_simulator, args.simulation_result_file)
 
-    if args.reports is not None:
+    if hasattr(args, 'reports'):
+        if 'all' in args.reports:
+            args.reports = REPORT_TYPES.keys()
+
         for report in args.reports:
             make_report(report, final_simulator, args.start_time, args.end_time, args.output_prefix)
 
@@ -164,7 +181,8 @@ def add_simulate_parser(subparser, required_named_args, optional_named_args):  #
     optional_named_args.add_argument(
         '--reports',
         nargs='+',
-        choices=REPORT_TYPES.keys(),
+        choices=list(REPORT_TYPES.keys()) + ['all'],
+        default=[],
         help='type(s) of reports to generate from the simulation',
     )
     optional_named_args.add_argument(
@@ -174,7 +192,7 @@ def add_simulate_parser(subparser, required_named_args, optional_named_args):  #
         help='provide simulated values for one or more metric time series',
     )
     optional_named_args.add_argument(
-        '--cluster-config-dir',
+        '--cluster-config-directory',
         metavar='directory',
         help='specify role configuration directory for simulation',
     )

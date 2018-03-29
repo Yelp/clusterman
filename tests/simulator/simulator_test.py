@@ -5,6 +5,7 @@ import mock
 import pytest
 
 from clusterman.aws.markets import InstanceMarket
+from clusterman.reports.report_types import REPORT_TYPES
 from clusterman.simulator.event import Event
 from clusterman.simulator.simulated_aws_cluster import Instance
 from clusterman.simulator.simulator import SimulationMetadata
@@ -104,3 +105,13 @@ def test_compute_instance_cost_outbid_refund_irrelevant(simulator, mock_instance
     simulator.refund_outbid = refund
     simulator.compute_instance_cost(mock_instance)
     assert simulator.total_cost == 1
+
+
+@pytest.mark.parametrize('report_type', list(REPORT_TYPES.keys()))
+def test_get_data(simulator, report_type):
+    simulator.get_data(report_type)
+
+
+def test_get_data_invalid(simulator):
+    with pytest.raises(ValueError):
+        simulator.get_data('asdf')

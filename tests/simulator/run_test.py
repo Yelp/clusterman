@@ -17,8 +17,8 @@ def args():
         cluster_config_dir='baz',
         metrics_data_files=None,
         simulation_result_file=None,
-        reports=None,
         comparison_operator='div',
+        output_prefix='',
     )
 
 
@@ -33,13 +33,12 @@ def test_main_compare_param(compare, args):
     args.compare = compare
     with mock.patch('clusterman.simulator.run.read_object_from_compressed_json') as mock_read, \
             mock.patch('clusterman.simulator.run.write_object_to_compressed_json') as mock_write, \
-            mock.patch('clusterman.simulator.run.setup_config') as mock_config, \
             mock.patch('clusterman.simulator.run._load_metrics') as mock_load_metrics, \
             mock.patch('clusterman.simulator.run._run_simulation') as mock_run_simulation, \
-            mock.patch('clusterman.simulator.run.operator') as mock_operator:
+            mock.patch('clusterman.simulator.run.operator') as mock_operator, \
+            mock.patch('clusterman.simulator.run.make_report'):
         main(args)
         expected_call_count = 1 if len(compare) < 2 else 0
-        assert mock_config.call_count == expected_call_count
         assert mock_load_metrics.call_count == expected_call_count
         assert mock_run_simulation.call_count == expected_call_count
         assert mock_read.call_count == len(compare)

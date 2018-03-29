@@ -12,7 +12,6 @@ from clusterman_metrics import METADATA
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.aws.client import ec2
 from clusterman.aws.markets import get_instance_market
-from clusterman.exceptions import SimulationError
 from clusterman.math.piecewise import hour_transform
 from clusterman.math.piecewise import piecewise_breakpoint_generator
 from clusterman.math.piecewise import PiecewiseConstantFunction
@@ -64,6 +63,7 @@ class Simulator:
         self.instance_prices = defaultdict(lambda: PiecewiseConstantFunction())
         self.cost_per_hour = PiecewiseConstantFunction()
         self.cpus = PiecewiseConstantFunction()
+        self.cpus_allocated = PiecewiseConstantFunction()
         self.markets = set()
 
         self.billing_frequency = billing_frequency
@@ -171,42 +171,37 @@ class Simulator:
 
     @property
     def total_cost(self):
-        return self.cost_data().values()[0]
+        return self.get_data('cost').values()[0]
 
-    def cost_data(self, start_time=None, end_time=None, step=None):
-        """ Compute the cost for the cluster in the specified time range, grouped into chunks
-
-        :param start_time: the lower bound of the range (if None, use simulation start time)
-        :param end_time: the upper bound of the range (if None, use simulation end time)
-        :param step: the width of time for each chunk
-        :returns: a list of costs for the cluster from start_time to end_time
-        """
-        start_time = start_time or self.start_time
-        end_time = end_time or self.end_time
-        return self.cost_per_hour.integrals(start_time, end_time, step, transform=hour_transform)
-
-    def cpus_data(self, start_time=None, end_time=None, step=None):
+    def get_data(self, key, start_time=None, end_time=None, step=None):
         """ Compute the capacity for the cluster in the specified time range, grouped into chunks
 
+        :param key: the type of data to retreive; must correspond to a key in REPORT_TYPES
         :param start_time: the lower bound of the range (if None, use simulation start time)
         :param end_time: the upper bound of the range (if None, use simulation end time)
         :param step: the width of time for each chunk
-        :returns: a list of capacities for the cluster from start_time to end_time
+        :returns: a list of CPU capacities for the cluster from start_time to end_time
         """
         start_time = start_time or self.start_time
         end_time = end_time or self.end_time
-        return self.cpus.values(start_time, end_time, step)
-
-    def cost_per_cpu_data(self, start_time=None, end_time=None, step=None):
-        """ Compute the cost per CPU for the cluster in the specified time range, grouped into chunks
-
-        :param start_time: the lower bound of the range (if None, use simulation start time)
-        :param end_time: the upper bound of the range (if None, use simulation end time)
-        :param step: the width of time for each chunk
-        :returns: a list of costs per CPU for the cluster from start_time to end_time
-        """
-        cost_per_cpu = self.cost_per_hour / self.cpus
-        return cost_per_cpu.values(start_time, end_time, step)
+        if key == 'cpus':
+            return self.cpus.values(start_time, end_time, step)
+        elif key == 'cpus_allocated':
+            return self.cpus_allocated.values(start_time, end_time, step)
+        elif key == 'unused_cpus':
+            unused_cpus = self.cpus - self.cpus_allocated
+            return unused_cpus.values(start_time, end_time, step)
+        elif key == 'cost':
+            return self.cost_per_hour.integrals(start_time, end_time, step, transform=hour_transform)
+        elif key == 'unused_cpus_cost':
+            percent_unallocated = (self.cpus - self.cpus_allocated) / self.cpus
+            percent_cost = percent_unallocated * self.cost_per_hour
+            return percent_cost.integrals(start_time, end_time, step, transform=hour_transform)
+        elif key == 'cost_per_cpu':
+            cost_per_cpu = self.cost_per_hour / self.cpus
+            return cost_per_cpu.values(start_time, end_time, step)
+        else:
+            raise ValueError(f'Data key {key} is not recognized')
 
     def _make_autoscaler(self, autoscaler_config_file):
         with open(autoscaler_config_file) as f:
@@ -257,7 +252,7 @@ class Simulator:
 
     def __getstate__(self):
         serialized_keys = ['metadata', 'start_time', 'current_time', 'end_time'] + \
-            ['instance_prices', 'cost_per_hour', 'cpus']
+            ['instance_prices', 'cost_per_hour', 'cpus', 'cpus_allocated']
         states = {}
         for key in serialized_keys:
             states[key] = self.__dict__[key]
@@ -277,7 +272,10 @@ def _make_comparison_sim(sim1, sim2, op, opcode):
         f'{sim1.metadata.role}, {sim2.metadata.role}',
     )
     if sim1.start_time != sim2.start_time or sim1.end_time != sim2.end_time:
-        raise SimulationError('Compared simulators must have same time boundaries')
+        logger.warn('Compared simulators do not have the same time boundaries; '
+                    'results outside the common window will be incorrect.')
+        logger.warn(f'{sim1.metadata.name}: [{sim1.start_time}, {sim1.end_time}]')
+        logger.warn(f'{sim2.metadata.name}: [{sim2.start_time}, {sim2.end_time}]')
 
     comp_sim = Simulator(metadata, sim1.start_time, sim1.end_time)
     comp_sim.cost_per_hour = op(sim1.cost_per_hour, sim2.cost_per_hour)

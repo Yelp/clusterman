@@ -8,6 +8,7 @@ from matplotlib.gridspec import GridSpec
 from matplotlib.ticker import FuncFormatter
 
 from clusterman.reports.constants import COLORMAP
+from clusterman.reports.constants import ERROR_COLOR
 from clusterman.reports.constants import MAGNITUDE_STRINGS
 from clusterman.reports.constants import TREND_LINE_COLOR
 from clusterman.reports.constants import TREND_RANGE_ALPHA
@@ -24,7 +25,7 @@ TICK_SIZE = 8
 PADDING = 5
 
 
-PlotStruct = namedtuple('PlotStruct', ['data', 'range_', 'labels', 'ytick_formatter'])
+PlotStruct = namedtuple('PlotStruct', ['data', 'error_data', 'range_', 'labels', 'ytick_formatter'])
 PlotStruct.__new__.__defaults__ = (lambda x: x,)  # ytick_formatter defaults to the identity function
 
 
@@ -39,6 +40,7 @@ def generate_heatmap_trend_grid(fig, heatmap, trend, months, tz):
         _plot_heatmap(
             heatmap_ax,
             *heatmap.data[mstart],
+            *heatmap.error_data[mstart],
             mstart,
             mend,
             tz=tz,
@@ -65,14 +67,22 @@ def generate_heatmap_trend_grid(fig, heatmap, trend, months, tz):
     fig.tight_layout(rect=GRID_LAYOUT_RECT)
 
 
-def _plot_heatmap(ax, x, y, z, mstart, mend, tz, show_ylabel, **kwargs):
-    ax.scatter(
+def _plot_heatmap(ax, x, y, z, ex, ey, ez, mstart, mend, tz, show_ylabel, **kwargs):
+    ax.scatter(  # plot the "valid" points
         x, y,
         c=z,
         alpha=0.5,
         linewidths=0,
         s=3,
         cmap=COLORMAP,
+        **kwargs,
+    )
+    ax.scatter(  # plot the "invalid" (i.e., above/below the threshold) points
+        ex, ey,
+        c=ERROR_COLOR,
+        alpha=0.5,
+        linewidths=0,
+        s=3,
         **kwargs,
     )
     # Global plot settings
