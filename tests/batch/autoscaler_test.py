@@ -8,7 +8,7 @@ from clusterman.batch.autoscaler import AutoscalerBatch
 
 
 @pytest.fixture
-def batch(args=None):
+def batch(args=None, mock_sensu=True):
     with mock.patch('clusterman.batch.autoscaler.setup_config'), \
             mock.patch('clusterman.batch.autoscaler.Autoscaler', signal=mock.Mock()):
         batch = AutoscalerBatch()
@@ -16,6 +16,8 @@ def batch(args=None):
         parser = argparse.ArgumentParser()
         batch.parse_args(parser)
         batch.options = parser.parse_args(args)
+        if mock_sensu:
+            batch._do_sensu_checkins = mock.Mock()
         batch.configure_initial()
         batch.autoscaler.run_frequency = 600
         batch.version_checker = mock.Mock(watchers=[])
@@ -36,9 +38,10 @@ def mock_watcher():
 
 @pytest.mark.parametrize('roles_in_cluster', [[], ['role_A', 'role_B']])
 def test_invalid_role_numbers(roles_in_cluster):
-    with staticconf.testing.PatchConfiguration({'cluster_roles': roles_in_cluster}), \
-            pytest.raises(Exception):
-        batch()
+    with staticconf.testing.PatchConfiguration({'cluster_roles': roles_in_cluster}):
+        b = batch()
+        assert b._do_sensu_checkins.call_args[0][0] is False
+        assert b._do_sensu_checkins.call_args[0][1] is True
 
 
 @mock.patch('time.sleep')
@@ -50,7 +53,7 @@ def test_run(mock_sensu, mock_running, mock_time, mock_sleep, dry_run):
     args = ['--cluster', 'mesos-test']
     if dry_run:
         args.append('--dry-run')
-    batch_obj = batch(args)
+    batch_obj = batch(args, mock_sensu=False)
 
     mock_running.side_effect = [True, True, True, False]
     mock_time.side_effect = [101, 913, 2000]
@@ -60,4 +63,4 @@ def test_run(mock_sensu, mock_running, mock_time, mock_sleep, dry_run):
         batch_obj.run()
     assert batch_obj.autoscaler.run.call_args_list == [mock.call(dry_run=dry_run) for i in range(3)]
     assert mock_sleep.call_args_list == [mock.call(499), mock.call(287), mock.call(400)]
-    assert mock_sensu.call_count == 3
+    assert mock_sensu.call_count == 8

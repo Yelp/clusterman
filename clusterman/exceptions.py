@@ -19,11 +19,15 @@ class ResourceGroupError(ClustermanException):
     pass
 
 
-class SignalValidationError(ClustermanException):
+class ClustermanSignalError(ClustermanException):
     pass
 
 
-class SignalConnectionError(ClustermanException):
+class SignalValidationError(ClustermanSignalError):
+    pass
+
+
+class SignalConnectionError(ClustermanSignalError):
     pass
 
 

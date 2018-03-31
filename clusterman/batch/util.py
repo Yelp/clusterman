@@ -2,6 +2,7 @@ import inspect
 import os
 
 import pysensu_yelp
+from pysensu_yelp import Status
 from yelp_batch.batch import batch_context
 
 
@@ -26,16 +27,17 @@ class BatchRunningSentinelMixin:
         yield
 
 
-def sensu_checkin(check_name, output, check_every, ttl, source, page=True, alert_after='0m', noop=False):
+def sensu_checkin(check_name, output, check_every, ttl, source, owner='distsys-compute', status=Status.OK,
+                  runbook='http://y/rb-clusterman', page=True, alert_after='0m', noop=False):
     if noop:
         return
 
     pysensu_yelp.send_event(
         name=check_name,
-        runbook='http://y/rb-clusterman',
-        status=pysensu_yelp.Status.OK,
+        runbook=runbook,
+        status=status,
         output=output,
-        team='distsys_compute',
+        team=owner,
         page=page,
         check_every=check_every,
         ttl=ttl,
