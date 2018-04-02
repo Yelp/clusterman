@@ -21,6 +21,7 @@ from clusterman.config import get_role_config_path
 from clusterman.config import setup_config
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.util import get_clusterman_logger
+from clusterman.util import splay_time_start
 
 logger = get_clusterman_logger(__name__)
 METRICS_TO_WRITE = {
@@ -77,7 +78,11 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
 
     def run(self):
         while self.running:
-            time.sleep(self.run_interval - time.time() % self.run_interval)
+            time.sleep(splay_time_start(
+                self.run_interval,
+                self.get_simple_name(),
+                staticconf.read_string('aws.region'),
+            ))
 
             successful = True
             for metric_type, metrics in METRICS_TO_WRITE.items():

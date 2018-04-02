@@ -87,7 +87,8 @@ def test_run(mock_sensu, mock_running, mock_time, mock_sleep, batch):
     writer_context = batch.metrics_client.get_writer.return_value
     writer = writer_context.__enter__.return_value
 
-    with mock.patch.object(batch, 'write_metrics', autospec=True) as write_metrics, \
+    with mock.patch('builtins.hash') as mock_hash, \
+            mock.patch.object(batch, 'write_metrics', autospec=True) as write_metrics, \
             mock.patch('clusterman.batch.cluster_metrics_collector.logger') as mock_logger:
         def mock_write_metrics(end_time, writer):
             if mock_time.call_count == 4:
@@ -95,6 +96,7 @@ def test_run(mock_sensu, mock_running, mock_time, mock_sleep, batch):
             else:
                 return
 
+        mock_hash.return_value = 0
         write_metrics.side_effect = mock_write_metrics
         batch.run()
 

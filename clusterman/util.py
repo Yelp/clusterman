@@ -1,3 +1,4 @@
+import time
 from datetime import datetime
 
 import arrow
@@ -103,3 +104,9 @@ def parse_time_interval_seconds(time_str):
     if parse_result[1] == 0:
         raise ValueError('Could not understand time {time}'.format(time=time_str))
     return (parse_result[0] - datetime.min).total_seconds()
+
+
+def splay_time_start(frequency, batch_name, region, timestamp=None):
+    timestamp = timestamp or time.time()
+    random_wait_time = hash(batch_name + region) % 60
+    return frequency - timestamp % frequency + random_wait_time

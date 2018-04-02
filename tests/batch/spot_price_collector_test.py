@@ -112,7 +112,8 @@ def test_run(mock_running, mock_now, mock_time, mock_sleep, batch, mock_sensu):
     writer_context = batch.metrics_client.get_writer.return_value
     writer = writer_context.__enter__.return_value
 
-    with mock.patch.object(batch, 'write_prices', autospec=True) as write_prices, \
+    with mock.patch('builtins.hash') as mock_hash, \
+            mock.patch.object(batch, 'write_prices', autospec=True) as write_prices, \
             mock.patch('clusterman.batch.spot_price_collector.logger') as mock_logger:
         def mock_write_prices(end_time, writer):
             if mock_now.call_count == 5:
@@ -120,6 +121,7 @@ def test_run(mock_running, mock_now, mock_time, mock_sleep, batch, mock_sensu):
             else:
                 return
 
+        mock_hash.return_value = 0
         write_prices.side_effect = mock_write_prices
         batch.run()
 

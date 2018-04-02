@@ -1,29 +1,23 @@
 import argparse
-from functools import partial
 
 import mock
 import pytest
 import staticconf.testing
 
-from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.batch.autoscaler import AutoscalerBatch
 
 
 @pytest.fixture
 def batch(args=None):
     with mock.patch('clusterman.batch.autoscaler.setup_config'), \
-            mock.patch('clusterman.batch.autoscaler.Autoscaler', signal=mock.Mock()) as autoscaler:
-        autoscaler.signal_config.period_minutes = 10
-        autoscaler.return_value.time_to_next_activation = partial(
-            Autoscaler.time_to_next_activation,
-            self=autoscaler,
-        )
+            mock.patch('clusterman.batch.autoscaler.Autoscaler', signal=mock.Mock()):
         batch = AutoscalerBatch()
         args = args or ['--cluster', 'mesos-test']
         parser = argparse.ArgumentParser()
         batch.parse_args(parser)
         batch.options = parser.parse_args(args)
         batch.configure_initial()
+        batch.autoscaler.run_frequency = 600
         batch.version_checker = mock.Mock(watchers=[])
         return batch
 
@@ -61,7 +55,9 @@ def test_run(mock_sensu, mock_running, mock_time, mock_sleep, dry_run):
     mock_running.side_effect = [True, True, True, False]
     mock_time.side_effect = [101, 913, 2000]
 
-    batch_obj.run()
+    with mock.patch('builtins.hash') as mock_hash:
+        mock_hash.return_value = 0
+        batch_obj.run()
     assert batch_obj.autoscaler.run.call_args_list == [mock.call(dry_run=dry_run) for i in range(3)]
     assert mock_sleep.call_args_list == [mock.call(499), mock.call(287), mock.call(400)]
     assert mock_sensu.call_count == 3
