@@ -1,5 +1,3 @@
-import time
-
 import arrow
 import simplejson as json
 import staticconf
@@ -42,10 +40,9 @@ class Autoscaler:
 
         logger.info('Initialization complete')
 
-    def time_to_next_activation(self, timestamp=None):
-        timestamp = timestamp or time.time()
-        period_seconds = self.signal_config.period_minutes * 60
-        return period_seconds - timestamp % period_seconds
+    @property
+    def run_frequency(self):
+        return self.signal_config.period_minutes * 60
 
     def run(self, dry_run=False, timestamp=None):
         """ Do a single check to scale the fleet up or down if necessary.

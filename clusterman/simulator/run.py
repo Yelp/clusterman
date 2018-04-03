@@ -26,6 +26,7 @@ from clusterman.simulator.simulator import SimulationMetadata
 from clusterman.simulator.simulator import Simulator
 from clusterman.util import get_clusterman_logger
 from clusterman.util import parse_time_string
+from clusterman.util import splay_time_start
 
 logger = get_clusterman_logger(__name__)
 
@@ -45,10 +46,20 @@ def _load_metrics(metrics_data_files, role):
 
 
 def _populate_autoscaling_events(simulator, start_time, end_time):
-    current_time = start_time.shift(seconds=simulator.autoscaler.time_to_next_activation(start_time.timestamp))
+    current_time = start_time.shift(seconds=splay_time_start(
+        simulator.autoscaler.run_frequency,
+        'autoscaler',
+        staticconf.read_string('aws.region'),
+        timestamp=start_time.timestamp,
+    ))
     while current_time < end_time:
         simulator.add_event(AutoscalingEvent(current_time))
-        current_time = current_time.shift(seconds=simulator.autoscaler.time_to_next_activation(current_time.timestamp))
+        current_time = current_time.shift(seconds=splay_time_start(
+            simulator.autoscaler.run_frequency,
+            'autoscaler',
+            staticconf.read_string('aws.region'),
+            timestamp=current_time.timestamp,
+        ))
 
 
 def _populate_cluster_size_events(simulator, start_time, end_time):

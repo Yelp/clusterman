@@ -19,6 +19,7 @@ from clusterman.batch.util import BatchRunningSentinelMixin
 from clusterman.batch.util import sensu_checkin
 from clusterman.config import setup_config
 from clusterman.util import get_clusterman_logger
+from clusterman.util import splay_time_start
 
 logger = get_clusterman_logger(__name__)
 
@@ -66,7 +67,11 @@ class SpotPriceCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMix
 
     def run(self):
         while self.running:
-            time.sleep(self.run_interval - time.time() % self.run_interval)
+            time.sleep(splay_time_start(
+                self.run_interval,
+                self.get_simple_name(),
+                staticconf.read_string('aws.region'),
+            ))
             now = arrow.utcnow()
             with self.metrics_client.get_writer(METADATA) as writer:
                 try:

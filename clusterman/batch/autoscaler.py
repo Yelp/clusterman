@@ -16,6 +16,7 @@ from clusterman.batch.util import sensu_checkin
 from clusterman.config import get_role_config_path
 from clusterman.config import setup_config
 from clusterman.util import get_clusterman_logger
+from clusterman.util import splay_time_start
 
 logger = get_clusterman_logger(__name__)
 
@@ -61,7 +62,11 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
 
     def run(self):
         while self.running:
-            time.sleep(self.autoscaler.time_to_next_activation())
+            time.sleep(splay_time_start(
+                self.autoscaler.run_frequency,
+                self.get_simple_name(),
+                staticconf.read_string('aws.region'),
+            ))
             self.autoscaler.run(dry_run=self.options.dry_run)
 
             # Report successful run to Sensu.
