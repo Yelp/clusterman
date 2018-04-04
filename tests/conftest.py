@@ -6,7 +6,7 @@ import pytest
 import staticconf.testing
 import yelp_meteorite
 
-from clusterman.aws.client import CREDENTIALS_NAMESPACE
+from clusterman.config import CREDENTIALS_NAMESPACE
 from clusterman.math.piecewise import PiecewiseConstantFunction
 
 
@@ -62,6 +62,12 @@ def main_clusterman_config():
             },
         },
         'cluster_roles': ['bar'],
+        'sensu_config': [
+            {
+                'team': 'my_team',
+                'runbook': 'y/my-runbook',
+            }
+        ]
     }
 
     with staticconf.testing.MockConfiguration(config):
@@ -81,6 +87,12 @@ def clusterman_role_config():
             'min_capacity': 3,
             'max_capacity': 345,
         },
+        'sensu_config': [
+            {
+                'team': 'other-team',
+                'runbook': 'y/their-runbook',
+            }
+        ]
     }
     with staticconf.testing.MockConfiguration(config, namespace='bar_config'):
         yield

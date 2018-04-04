@@ -18,6 +18,7 @@ def batch(args=None):
     parser = argparse.ArgumentParser()
     batch.parse_args(parser)
     batch.options = parser.parse_args(args)
+    batch.options.instance_name = 'foo'
     batch.version_checker = mock.Mock(watchers=[])
     return batch
 
@@ -96,7 +97,7 @@ def test_run(mock_sensu, mock_running, mock_time, mock_sleep, batch):
             else:
                 return
 
-        mock_hash.return_value = 0
+        mock_hash.return_value = 0  # patch hash to avoid splaying
         write_metrics.side_effect = mock_write_metrics
         batch.run()
 

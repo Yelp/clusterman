@@ -5,17 +5,21 @@ import yelp_meteorite
 from clusterman_metrics import ClustermanMetricsBotoClient
 from clusterman_metrics import generate_key_with_dimensions
 from clusterman_metrics import SYSTEM_METRICS
+from pysensu_yelp import Status
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
+from staticconf.errors import ConfigurationError
 
 from clusterman.autoscaler.util import evaluate_signal
 from clusterman.autoscaler.util import load_signal_connection
 from clusterman.autoscaler.util import read_signal_config
+from clusterman.config import ROLE_NAMESPACE
 from clusterman.exceptions import ClustermanSignalError
 from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.exceptions import SignalConnectionError
-from clusterman.mesos.constants import ROLE_NAMESPACE
+from clusterman.exceptions import SignalValidationError
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.util import get_clusterman_logger
+from clusterman.util import sensu_checkin
 
 
 CAPACITY_GAUGE_NAME = 'clusterman.autoscaler.target_capacity'
@@ -68,8 +72,19 @@ class Autoscaler:
             use_default = False
         except NoSignalConfiguredException:
             logger.info(f'No signal configured for {self.role}, falling back to default')
+        except (ConfigurationError, SignalValidationError):
+            msg = f'WARNING: loading signal for {self.role} failed, falling back to default'
+            logger.exception(msg)
+            sensu_checkin(
+                check_name='signal_configuration_failed',
+                status=Status.WARNING,
+                output=msg,
+                source='clusterman_autoscaler',
+                page=False,
+                ttl=None,
+            )
         except Exception as e:
-            raise ClustermanSignalError('Signal load failed') from e
+            raise ClustermanSignalError from e
 
         try:
             self._init_signal_connection(use_default)
@@ -133,7 +148,6 @@ class Autoscaler:
         try:
             resource_request = evaluate_signal(self._get_metrics(timestamp), self.signal_conn)
         except Exception as e:
-            print(e)
             raise ClustermanSignalError('Signal evaluation failed') from e
 
         if resource_request['cpus'] is None:

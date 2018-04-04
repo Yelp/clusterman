@@ -16,10 +16,10 @@ def batch(args=None, mock_sensu=True):
         parser = argparse.ArgumentParser()
         batch.parse_args(parser)
         batch.options = parser.parse_args(args)
+        batch.options.instance_name = 'foo'
         if mock_sensu:
             batch._do_sensu_checkins = mock.Mock()
         batch.configure_initial()
-        batch.autoscaler.run_frequency = 600
         batch.version_checker = mock.Mock(watchers=[])
         return batch
 
@@ -54,12 +54,13 @@ def test_run(mock_sensu, mock_running, mock_time, mock_sleep, dry_run):
     if dry_run:
         args.append('--dry-run')
     batch_obj = batch(args, mock_sensu=False)
+    batch_obj.autoscaler.run_frequency = 600
 
     mock_running.side_effect = [True, True, True, False]
     mock_time.side_effect = [101, 913, 2000]
 
     with mock.patch('builtins.hash') as mock_hash:
-        mock_hash.return_value = 0
+        mock_hash.return_value = 0  # patch hash to ignore splaying
         batch_obj.run()
     assert batch_obj.autoscaler.run.call_args_list == [mock.call(dry_run=dry_run) for i in range(3)]
     assert mock_sleep.call_args_list == [mock.call(499), mock.call(287), mock.call(400)]

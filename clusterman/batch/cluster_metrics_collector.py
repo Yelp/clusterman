@@ -16,11 +16,11 @@ from clusterman.args import add_disable_sensu_arg
 from clusterman.args import add_env_config_path_arg
 from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import BatchRunningSentinelMixin
-from clusterman.batch.util import sensu_checkin
 from clusterman.config import get_role_config_path
 from clusterman.config import setup_config
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.util import get_clusterman_logger
+from clusterman.util import sensu_checkin
 from clusterman.util import splay_time_start
 
 logger = get_clusterman_logger(__name__)
@@ -80,7 +80,7 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
         while self.running:
             time.sleep(splay_time_start(
                 self.run_interval,
-                self.get_simple_name(),
+                self.get_name(),
                 staticconf.read_string('aws.region'),
             ))
 
@@ -90,21 +90,24 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
                     try:
                         self.write_metrics(writer, metrics)
                     except socket.timeout:
-                        logger.warn(f'Timed out getting spot prices:\n\n{format_exc()}')
+                        # Try to get metrics for the rest of the clusters, but make sure we know this failed
+                        logger.warn(f'Timed out getting cluster metric data:\n\n{format_exc()}')
                         successful = False
                         continue
 
             # Report successful run to Sensu.
             if successful:
-                sensu_checkin(
+                sensu_config = staticconf.read_list('sensu_config', [{}]).pop()
+                sensu_args = dict(
                     check_name='check_clusterman_cluster_metrics_running',
                     output='OK: clusterman cluster_metrics was successful',
                     check_every='1m',
                     source=self.options.cluster,
                     ttl='5m',
-                    page=False,
                     noop=self.options.disable_sensu,
                 )
+                sensu_args.update(sensu_config)
+                sensu_checkin(**sensu_args)
 
 
 if __name__ == '__main__':

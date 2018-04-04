@@ -7,9 +7,9 @@ from cached_property import timed_cached_property
 
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import get_instance_market
+from clusterman.config import ROLE_NAMESPACE
 from clusterman.exceptions import MesosRoleManagerError
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
-from clusterman.mesos.constants import ROLE_NAMESPACE
 from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_s3
 from clusterman.mesos.util import find_largest_capacity_market
 from clusterman.mesos.util import get_mesos_state

@@ -8,7 +8,7 @@ import staticconf.testing
 import yaml
 
 import clusterman.config as config
-from clusterman.mesos.constants import ROLE_NAMESPACE
+from clusterman.config import ROLE_NAMESPACE
 from tests.conftest import mock_open
 
 

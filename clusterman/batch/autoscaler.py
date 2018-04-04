@@ -13,16 +13,18 @@ from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.autoscaler.util import LOG_STREAM_NAME
 from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import BatchRunningSentinelMixin
-from clusterman.batch.util import sensu_checkin
 from clusterman.config import get_role_config_path
 from clusterman.config import setup_config
 from clusterman.exceptions import ClustermanSignalError
 from clusterman.util import get_clusterman_logger
+from clusterman.util import sensu_checkin
 from clusterman.util import splay_time_start
 
 logger = get_clusterman_logger(__name__)
 SIGNAL_CHECK_NAME = 'check_clusterman_autoscaler_signal'
 SERVICE_CHECK_NAME = 'check_clusterman_autoscaler_service'
+DEFAULT_TTL = '25m'
+DEFAULT_CHECK_EVERY = '10m'
 
 
 def sensu_alert_triage(fn):
@@ -61,6 +63,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
     @sensu_alert_triage
     def configure_initial(self):
         setup_config(self.options)
+        self.autoscaler = None
         self.roles = staticconf.read_list('cluster_roles')
         for role in self.roles:
             self.config.watchers.append({role: get_role_config_path(self.options.cluster, role)})
@@ -85,7 +88,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
     def _autoscale(self):
         time.sleep(splay_time_start(
             self.autoscaler.run_frequency,
-            self.get_simple_name(),
+            self.get_name(),
             staticconf.read_string('aws.region'),
         ))
         self.autoscaler.run(dry_run=self.options.dry_run)
@@ -95,56 +98,41 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
             self._autoscale()
 
     def _do_sensu_checkins(self, signal_failed, service_failed, msg):
-        signal_owner = 'releng'  # TODO (CLUSTERMAN-199)
-        check_every = '10m'
+        check_every = ('{minutes}m'.format(minutes=int(self.autoscaler.run_frequency // 60))
+                       if self.autoscaler else DEFAULT_CHECK_EVERY)
 
         # Check in for the signal
+        signal_sensu_args = dict(
+            check_name=SIGNAL_CHECK_NAME,
+            check_every=check_every,
+            source=self.options.cluster,
+            ttl=DEFAULT_TTL,
+            signal_role=self.roles[0],
+            noop=self.options.dry_run,
+        )
+
         if signal_failed:
-            sensu_checkin(
-                check_name=SIGNAL_CHECK_NAME,
-                output=f'FAILED: clusterman autoscaler signal failed ({msg})',
-                status=Status.CRITICAL,
-                owner=signal_owner,
-                check_every=check_every,
-                source=self.options.cluster,
-                page=False,
-                ttl='25m',
-                noop=self.options.dry_run,
-            )
+            signal_sensu_args['output'] = f'FAILED: clusterman autoscaler signal failed ({msg})'
+            signal_sensu_args['status'] = Status.CRITICAL
         else:
-            sensu_checkin(
-                check_name=SIGNAL_CHECK_NAME,
-                output=f'OK: clusterman autoscaler signal is fine',
-                owner=signal_owner,
-                check_every=check_every,
-                source=self.options.cluster,
-                page=False,
-                ttl='25m',
-                noop=self.options.dry_run,
-            )
+            signal_sensu_args['output'] = f'OK: clusterman autoscaler signal is fine',
+        sensu_checkin(**signal_sensu_args)
 
         # Check in for the service
+        service_sensu_args = dict(
+            check_name=SERVICE_CHECK_NAME,
+            check_every=check_every,
+            source=self.options.cluster,
+            ttl=DEFAULT_TTL,
+            noop=self.options.dry_run,
+        )
+
         if service_failed:
-            sensu_checkin(
-                check_name=SERVICE_CHECK_NAME,
-                output=f'FAILED: clusterman autoscaler failed ({msg})',
-                status=Status.CRITICAL,
-                check_every=check_every,
-                source=self.options.cluster,
-                page=False,
-                ttl='25m',
-                noop=self.options.dry_run,
-            )
+            service_sensu_args['output'] = f'FAILED: clusterman autoscaler failed ({msg})'
+            service_sensu_args['status'] = Status.CRITICAL
         else:
-            sensu_checkin(
-                check_name=SERVICE_CHECK_NAME,
-                output=f'OK: clusterman autoscaler is fine',
-                check_every=check_every,
-                source=self.options.cluster,
-                page=False,
-                ttl='25m',
-                noop=self.options.dry_run,
-            )
+            service_sensu_args['output'] = f'OK: clusterman autoscaler is fine'
+        sensu_checkin(**service_sensu_args)
 
 
 if __name__ == '__main__':

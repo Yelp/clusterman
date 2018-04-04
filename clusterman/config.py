@@ -5,9 +5,9 @@ import staticconf
 import yaml
 from yelp_servlib.config_util import load_default_config
 
-from clusterman.aws.client import CREDENTIALS_NAMESPACE
-from clusterman.mesos.constants import DEFAULT_CLUSTER_DIRECTORY
-from clusterman.mesos.constants import ROLE_NAMESPACE
+CREDENTIALS_NAMESPACE = 'boto_cfg'
+DEFAULT_CLUSTER_DIRECTORY = '/nail/srv/configs/clusterman-clusters'
+ROLE_NAMESPACE = '{role}_config'
 
 
 def setup_config(args, include_roles=True):
