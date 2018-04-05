@@ -9,8 +9,11 @@ from clusterman.args import add_region_arg
 from clusterman.aws.client import dynamodb
 from clusterman.config import setup_config
 
+BATCH_WRITE_SIZE = 25
+
 
 # Print iterations progress
+# Borrowed from https://gist.github.com/aubricus/f91fb55dc6ba5557fbab06119420dd6a
 def print_progress(iteration, total, prefix='', suffix='', decimals=1, bar_length=100):
     """
     Call in a loop to create terminal progress bar
@@ -53,9 +56,9 @@ def main(args):
                 request_item_list = [{'PutRequest': {'Item': item}} for item in page['Items']] + \
                     [{'DeleteRequest': {'Key': {'key': {'S': old}, 'timestamp': item['timestamp']}}}
                         for item in page['Items']]
-                for i in range(0, len(request_item_list), 25):
+                for i in range(0, len(request_item_list), BATCH_WRITE_SIZE):
                     request_items = {
-                        table_name: request_item_list[i:min(i + 25, len(request_item_list))]
+                        table_name: request_item_list[i:min(i + BATCH_WRITE_SIZE, len(request_item_list))]
                     }
                     print_progress(i, len(request_item_list), prefix='Page progress')
                     while request_items:
