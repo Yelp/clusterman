@@ -103,14 +103,6 @@ def _populate_price_changes(simulator, start_time, end_time, discount):
             start_time.timestamp,
             end_time.timestamp,
         )
-        # TODO (CLUSTERMAN-161) delete this once we've updated all the old data in DynamoDB
-        __, old_market_prices = simulator.metrics_client.get_metric_values(
-            f'spot_prices|AZ={market.az},instance_type={market.instance}',
-            METADATA,
-            start_time.timestamp,
-            end_time.timestamp,
-        )
-        market_prices.extend(old_market_prices)
         for timestamp, price in market_prices:
             price = float(price) * (discount or 1.0)
             simulator.add_event(InstancePriceChangeEvent(

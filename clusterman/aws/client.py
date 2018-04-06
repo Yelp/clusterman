@@ -46,6 +46,10 @@ class ec2(metaclass=_BotoForwarder):
     client = 'ec2'
 
 
+class dynamodb(metaclass=_BotoForwarder):
+    client = 'dynamodb'
+
+
 def ec2_describe_instances(instance_ids):
     if not instance_ids:
         raise ValueError('instance_ids cannot be empty')
