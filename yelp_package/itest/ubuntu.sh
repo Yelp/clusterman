@@ -31,8 +31,8 @@ highlight_exec apt-get install -y --force-yes  -f
 
 # Run the critical clusterman CLI commands
 highlight_exec /usr/bin/clusterman --version
-highlight_exec /usr/bin/clusterman status --cluster mesosstage --role default -v
-highlight_exec /usr/bin/clusterman manage --cluster mesosstage --role default --target-capacity 10 --dry-run
-highlight_exec /usr/bin/clusterman simulate --cluster mesosstage --role default
+highlight_exec /usr/bin/clusterman status --cluster everywhere-testopia --role jolt -v
+highlight_exec /usr/bin/clusterman manage --cluster everywhere-testopia --role jolt --target-capacity 10 --dry-run
+highlight_exec /usr/bin/clusterman simulate --cluster everywhere-testopia --role jolt
 
 highlight "$0:" 'success!'

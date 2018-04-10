@@ -1,6 +1,7 @@
 import time
 
 import staticconf
+from pysensu_yelp import Status
 from yelp_batch.batch import batch_command_line_arguments
 from yelp_batch.batch import batch_configure
 from yelp_batch.batch_daemon import BatchDaemon
@@ -12,13 +13,34 @@ from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.autoscaler.util import LOG_STREAM_NAME
 from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import BatchRunningSentinelMixin
-from clusterman.batch.util import sensu_checkin
 from clusterman.config import get_role_config_path
 from clusterman.config import setup_config
+from clusterman.exceptions import ClustermanSignalError
 from clusterman.util import get_clusterman_logger
+from clusterman.util import sensu_checkin
 from clusterman.util import splay_time_start
 
 logger = get_clusterman_logger(__name__)
+SIGNAL_CHECK_NAME = 'check_clusterman_autoscaler_signal'
+SERVICE_CHECK_NAME = 'check_clusterman_autoscaler_service'
+DEFAULT_TTL = '25m'
+DEFAULT_CHECK_EVERY = '10m'
+
+
+def sensu_alert_triage(fn):
+    def wrapper(self):
+        msg = ''
+        signal_failed, service_failed = False, False
+        try:
+            fn(self)
+        except ClustermanSignalError as e:
+            msg = str(e)
+            signal_failed = True
+        except Exception as e:
+            msg = str(e)
+            service_failed = True
+        self._do_sensu_checkins(signal_failed, service_failed, msg)
+    return wrapper
 
 
 class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
@@ -38,8 +60,10 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
         )
 
     @batch_configure
+    @sensu_alert_triage
     def configure_initial(self):
         setup_config(self.options)
+        self.autoscaler = None
         self.roles = staticconf.read_list('cluster_roles')
         for role in self.roles:
             self.config.watchers.append({role: get_role_config_path(self.options.cluster, role)})
@@ -60,25 +84,58 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
         # conflicts with other batches (like the Kew autoscaler).
         return LOG_STREAM_NAME
 
+    @sensu_alert_triage
+    def _autoscale(self):
+        time.sleep(splay_time_start(
+            self.autoscaler.run_frequency,
+            self.get_name(),
+            staticconf.read_string('aws.region'),
+        ))
+        self.autoscaler.run(dry_run=self.options.dry_run)
+
     def run(self):
         while self.running:
-            time.sleep(splay_time_start(
-                self.autoscaler.run_frequency,
-                self.get_simple_name(),
-                staticconf.read_string('aws.region'),
-            ))
-            self.autoscaler.run(dry_run=self.options.dry_run)
+            self._autoscale()
 
-            # Report successful run to Sensu.
-            sensu_checkin(
-                check_name='check_clusterman_autoscaler_running',
-                output='OK: clusterman autoscaler is running',
-                check_every='10m',
-                source=self.options.cluster,
-                ttl='25m',
-                page=False,
-                noop=self.options.dry_run,
-            )
+    def _do_sensu_checkins(self, signal_failed, service_failed, msg):
+        check_every = ('{minutes}m'.format(minutes=int(self.autoscaler.run_frequency // 60))
+                       if self.autoscaler else DEFAULT_CHECK_EVERY)
+        # magic-y numbers here; an alert will time out after two autoscaler run periods plus a five minute buffer
+        ttl = ('{minutes}m'.format(minutes=int(self.autoscaler.run_frequency // 60) * 2 + 5)
+               if self.autoscaler else DEFAULT_TTL)
+
+        # Check in for the signal
+        signal_sensu_args = dict(
+            check_name=SIGNAL_CHECK_NAME,
+            check_every=check_every,
+            source=self.options.cluster,
+            ttl=ttl,
+            signal_role=self.roles[0],
+            noop=self.options.dry_run,
+        )
+
+        if signal_failed:
+            signal_sensu_args['output'] = f'FAILED: clusterman autoscaler signal failed ({msg})'
+            signal_sensu_args['status'] = Status.CRITICAL
+        else:
+            signal_sensu_args['output'] = f'OK: clusterman autoscaler signal is fine',
+        sensu_checkin(**signal_sensu_args)
+
+        # Check in for the service
+        service_sensu_args = dict(
+            check_name=SERVICE_CHECK_NAME,
+            check_every=check_every,
+            source=self.options.cluster,
+            ttl=DEFAULT_TTL,
+            noop=self.options.dry_run,
+        )
+
+        if service_failed:
+            service_sensu_args['output'] = f'FAILED: clusterman autoscaler failed ({msg})'
+            service_sensu_args['status'] = Status.CRITICAL
+        else:
+            service_sensu_args['output'] = f'OK: clusterman autoscaler is fine'
+        sensu_checkin(**service_sensu_args)
 
 
 if __name__ == '__main__':

@@ -1,13 +1,13 @@
 import boto3
 import staticconf
 
+from clusterman.config import CREDENTIALS_NAMESPACE
 from clusterman.util import get_clusterman_logger
 
 _session = None
 logger = get_clusterman_logger(__name__)
 
 MAX_PAGE_SIZE = 500
-CREDENTIALS_NAMESPACE = 'boto_cfg'
 
 
 def _init_session():

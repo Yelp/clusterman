@@ -1,5 +1,6 @@
 import arrow
 import mock
+import pysensu_yelp
 import pytest
 from colorama import Fore
 from colorama import Style
@@ -9,6 +10,7 @@ from clusterman.util import ask_for_confirmation
 from clusterman.util import colored_status
 from clusterman.util import parse_time_interval_seconds
 from clusterman.util import parse_time_string
+from clusterman.util import sensu_checkin
 
 
 @pytest.mark.parametrize('inp,response', [('\n', True), ('\n', False), ('yE', True), ('n', False)])
@@ -63,3 +65,62 @@ def test_parse_time_interval_seconds():
 def test_parse_time_interval_seconds_invalid():
     with pytest.raises(ValueError):
         parse_time_interval_seconds('asdf')
+
+
+@mock.patch('pysensu_yelp.send_event', autospec=True)
+class TestSensu:
+    @pytest.mark.parametrize('noop', [True, False])
+    def test_sensu_checkin(self, mock_sensu, noop):
+        sensu_checkin(
+            check_name='my_check',
+            output='output',
+            source='my_source',
+            noop=noop,
+        )
+
+        if noop:
+            assert mock_sensu.call_count == 0
+        else:
+            assert mock_sensu.call_args == mock.call(
+                name='my_check',
+                output='output',
+                source='my_source',
+                status=pysensu_yelp.Status.OK,
+                runbook='y/my-runbook',
+                team='my_team',
+            )
+
+    @pytest.mark.parametrize('signal_role', [None, 'bar'])
+    def test_args_overrides_config(self, mock_sensu, signal_role):
+        sensu_checkin(
+            check_name='my_check',
+            output='output',
+            source='my_source',
+            team='a_different_team',
+            signal_role=signal_role,
+        )
+        expected_runbook = 'y/my-runbook' if not signal_role else 'y/their-runbook'
+        assert mock_sensu.call_args == mock.call(
+            name='my_check',
+            output='output',
+            source='my_source',
+            status=pysensu_yelp.Status.OK,
+            runbook=expected_runbook,
+            team='a_different_team',
+        )
+
+    def test_fallback(self, mock_sensu):
+        sensu_checkin(
+            check_name='my_check',
+            output='output',
+            source='my_source',
+            signal_role='non-existent',
+        )
+        assert mock_sensu.call_args == mock.call(
+            name='my_check',
+            output='output',
+            source='my_source',
+            status=pysensu_yelp.Status.OK,
+            runbook='y/my-runbook',
+            team='my_team',
+        )

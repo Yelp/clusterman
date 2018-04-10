@@ -4,8 +4,14 @@ from datetime import datetime
 import arrow
 import colorlog
 import parsedatetime
+import pysensu_yelp
+import staticconf
 from colorama import Fore
 from colorama import Style
+from pysensu_yelp import Status
+from staticconf.errors import ConfigurationError
+
+from clusterman.config import ROLE_NAMESPACE
 
 
 def ask_for_confirmation(prompt='Are you sure? ', default=True):
@@ -104,6 +110,30 @@ def parse_time_interval_seconds(time_str):
     if parse_result[1] == 0:
         raise ValueError('Could not understand time {time}'.format(time=time_str))
     return (parse_result[0] - datetime.min).total_seconds()
+
+
+def sensu_checkin(*, check_name, output, source, status=Status.OK, signal_role=None, noop=False, **kwargs):
+    if noop:
+        return
+
+    # read the sensu configuration from srv-configs; signals are not required to define this, so in the case
+    # that they do not define anything, we fall back to the default config.  The default config _is_ required
+    # to define this, so we know that someone is going to get the notification
+    role_namespace = ROLE_NAMESPACE.format(role=signal_role) if signal_role else None
+    try:
+        sensu_config = staticconf.read_list('sensu_config', namespace=role_namespace).pop()
+    except ConfigurationError:
+        sensu_config = staticconf.read_list('sensu_config').pop()
+    sensu_config.update(kwargs)  # values passed in to this function override config file values
+
+    # team and runbook are required entries in srv-configs, so we know this will go to the "right" place
+    pysensu_yelp.send_event(
+        name=check_name,
+        output=output,
+        source=source,
+        status=status,
+        **sensu_config,
+    )
 
 
 def splay_time_start(frequency, batch_name, region, timestamp=None):

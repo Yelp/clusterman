@@ -108,6 +108,7 @@ def test_run(mock_running, mock_now, mock_time, mock_sleep, batch, mock_sensu):
     batch.run_interval = 10
     batch.metrics_client = mock.MagicMock()
     batch.options = batch_arg_parser(batch)
+    batch.options.instance_name = 'foo'
 
     writer_context = batch.metrics_client.get_writer.return_value
     writer = writer_context.__enter__.return_value
@@ -121,7 +122,7 @@ def test_run(mock_running, mock_now, mock_time, mock_sleep, batch, mock_sensu):
             else:
                 return
 
-        mock_hash.return_value = 0
+        mock_hash.return_value = 0  # patch hash to avoid splaying
         write_prices.side_effect = mock_write_prices
         batch.run()
 

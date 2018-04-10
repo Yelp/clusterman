@@ -8,7 +8,7 @@ from clusterman.args import add_cluster_arg
 from clusterman.args import add_role_arg
 from clusterman.args import subparser
 from clusterman.autoscaler.util import LOG_STREAM_NAME
-from clusterman.mesos.constants import ROLE_NAMESPACE
+from clusterman.config import ROLE_NAMESPACE
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.util import ask_for_confirmation
 from clusterman.util import get_clusterman_logger

@@ -2,7 +2,7 @@ from collections import defaultdict
 
 import staticconf
 
-from clusterman.mesos.constants import ROLE_NAMESPACE
+from clusterman.config import ROLE_NAMESPACE
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.mesos.util import allocated_cpu_resources
 from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSpotFleetResourceGroup
