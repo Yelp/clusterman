@@ -75,7 +75,7 @@ class Autoscaler:
             msg = f'WARNING: loading signal for {self.role} failed, falling back to default'
             logger.exception(msg)
             sensu_checkin(
-                check_name='signal_configuration_failed',
+                check_name=SIGNAL_LOAD_CHECK_NAME,
                 status=Status.WARNING,
                 output=msg,
                 source=self.cluster,
