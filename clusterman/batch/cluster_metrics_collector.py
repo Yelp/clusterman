@@ -97,7 +97,6 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
 
             # Report successful run to Sensu.
             if successful:
-                sensu_config = staticconf.read_list('sensu_config', [{}]).pop()
                 sensu_args = dict(
                     check_name='check_clusterman_cluster_metrics_running',
                     output='OK: clusterman cluster_metrics was successful',
@@ -106,7 +105,6 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
                     ttl='5m',
                     noop=self.options.disable_sensu,
                 )
-                sensu_args.update(sensu_config)
                 sensu_checkin(**sensu_args)
 
 

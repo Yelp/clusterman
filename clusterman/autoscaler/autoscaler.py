@@ -7,7 +7,6 @@ from clusterman_metrics import generate_key_with_dimensions
 from clusterman_metrics import SYSTEM_METRICS
 from pysensu_yelp import Status
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
-from staticconf.errors import ConfigurationError
 
 from clusterman.autoscaler.util import evaluate_signal
 from clusterman.autoscaler.util import load_signal_connection
@@ -16,12 +15,12 @@ from clusterman.config import ROLE_NAMESPACE
 from clusterman.exceptions import ClustermanSignalError
 from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.exceptions import SignalConnectionError
-from clusterman.exceptions import SignalValidationError
 from clusterman.mesos.mesos_role_manager import MesosRoleManager
 from clusterman.util import get_clusterman_logger
 from clusterman.util import sensu_checkin
 
 
+SIGNAL_LOAD_CHECK_NAME = 'signal_configuration_failed'
 CAPACITY_GAUGE_NAME = 'clusterman.autoscaler.target_capacity'
 logger = get_clusterman_logger(__name__)
 
@@ -72,19 +71,18 @@ class Autoscaler:
             use_default = False
         except NoSignalConfiguredException:
             logger.info(f'No signal configured for {self.role}, falling back to default')
-        except (ConfigurationError, SignalValidationError):
+        except Exception:
             msg = f'WARNING: loading signal for {self.role} failed, falling back to default'
             logger.exception(msg)
             sensu_checkin(
                 check_name='signal_configuration_failed',
                 status=Status.WARNING,
                 output=msg,
-                source='clusterman_autoscaler',
+                source=self.cluster,
                 page=False,
                 ttl=None,
+                signal_role=self.role,
             )
-        except Exception as e:
-            raise ClustermanSignalError from e
 
         try:
             self._init_signal_connection(use_default)

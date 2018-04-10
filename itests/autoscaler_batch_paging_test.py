@@ -5,6 +5,7 @@ import pytest
 import staticconf
 from pysensu_yelp import Status
 
+from clusterman.autoscaler.autoscaler import SIGNAL_LOAD_CHECK_NAME
 from clusterman.autoscaler.util import ACK
 from clusterman.batch.autoscaler import AutoscalerBatch
 from clusterman.batch.autoscaler import SERVICE_CHECK_NAME
@@ -16,7 +17,7 @@ from tests.conftest import main_clusterman_config
 pytest.mark.usefixtures(main_clusterman_config, clusterman_role_config, mock_setup_config_directory)
 
 
-def check_sensu_args(call_args, *, signal_role=None, status=Status.OK):
+def check_sensu_args(call_args, *, name=None, signal_role=None, status=Status.OK):
     __, args = call_args
     signal_sensu_config = staticconf.read_list(
         'sensu_config', [{}],
@@ -24,11 +25,11 @@ def check_sensu_args(call_args, *, signal_role=None, status=Status.OK):
     ).pop()
     service_sensu_config = staticconf.read_list('sensu_config', [{}]).pop()
     if signal_role:
-        name = SIGNAL_CHECK_NAME
+        name = name or SIGNAL_CHECK_NAME
         team = signal_sensu_config['team'] if signal_sensu_config else service_sensu_config['team']
         runbook = signal_sensu_config['runbook'] if signal_sensu_config else service_sensu_config['runbook']
     else:
-        name = SERVICE_CHECK_NAME
+        name = name or SERVICE_CHECK_NAME
         team = service_sensu_config['team']
         runbook = service_sensu_config['runbook']
 
@@ -62,21 +63,31 @@ def autoscaler_batch():
 
 
 @pytest.mark.parametrize('signal_type', ['default', 'client'])
-def test_signal_setup(signal_type, autoscaler_batch):
+def test_signal_setup_fallback(signal_type, autoscaler_batch):
     with mock.patch('clusterman.autoscaler.autoscaler.read_signal_config') as mock_signal_config, \
+            mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._init_signal_connection'), \
             mock.patch('clusterman.util.pysensu_yelp.send_event') as mock_sensu:
 
         # Autoscaler reads the "default" signal config first and then the client signal config
-        mock_signal_config.side_effect = [{}, ValueError] if signal_type == 'client' else [ValueError]
+        mock_signal_config.side_effect = [mock.MagicMock(), ValueError] if signal_type == 'client' else [ValueError]
         autoscaler_batch.configure_initial()
 
+        i = 0
+        if signal_type == 'client':
+            check_sensu_args(
+                mock_sensu.call_args_list[i],
+                name=SIGNAL_LOAD_CHECK_NAME,
+                signal_role='bar',
+                status=(Status.OK if signal_type == 'default' else Status.WARNING),
+            )
+            i += 1
         check_sensu_args(
-            mock_sensu.call_args_list[0],
+            mock_sensu.call_args_list[i],
             signal_role='bar',
-            status=(Status.OK if signal_type == 'default' else Status.CRITICAL),
+            status=Status.OK,
         )
         check_sensu_args(
-            mock_sensu.call_args_list[1],
+            mock_sensu.call_args_list[i + 1],
             status=(Status.OK if signal_type == 'client' else Status.CRITICAL),
         )
 

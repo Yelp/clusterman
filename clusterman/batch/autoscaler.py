@@ -100,13 +100,16 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
     def _do_sensu_checkins(self, signal_failed, service_failed, msg):
         check_every = ('{minutes}m'.format(minutes=int(self.autoscaler.run_frequency // 60))
                        if self.autoscaler else DEFAULT_CHECK_EVERY)
+        # magic-y numbers here; an alert will time out after two autoscaler run periods plus a five minute buffer
+        ttl = ('{minutes}m'.format(minutes=int(self.autoscaler.run_frequency // 60) * 2 + 5)
+               if self.autoscaler else DEFAULT_TTL)
 
         # Check in for the signal
         signal_sensu_args = dict(
             check_name=SIGNAL_CHECK_NAME,
             check_every=check_every,
             source=self.options.cluster,
-            ttl=DEFAULT_TTL,
+            ttl=ttl,
             signal_role=self.roles[0],
             noop=self.options.dry_run,
         )

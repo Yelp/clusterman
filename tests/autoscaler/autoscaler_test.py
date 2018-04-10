@@ -13,7 +13,6 @@ from clusterman.autoscaler.autoscaler import CAPACITY_GAUGE_NAME
 from clusterman.autoscaler.util import MetricConfig
 from clusterman.autoscaler.util import SignalConfig
 from clusterman.config import ROLE_NAMESPACE
-from clusterman.exceptions import ClustermanSignalError
 from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.exceptions import SignalConnectionError
 from clusterman.exceptions import SignalValidationError
@@ -145,15 +144,6 @@ def test_load_signal(mock_init_signal, mock_read_config, mock_autoscaler, read_c
     ]
 
     assert mock_autoscaler.signal_config == (default_config if expected_default else read_config)
-
-
-@mock.patch('clusterman.autoscaler.autoscaler.read_signal_config', autospec=True)
-def test_load_signal_failed(mock_read_config, mock_autoscaler):
-    mock_read_config.side_effect = [mock.Mock(), ValueError]
-    mock_autoscaler._init_signal_connection = mock.Mock()
-    with pytest.raises(ClustermanSignalError):
-        mock_autoscaler.load_signal()
-    assert mock_autoscaler._init_signal_connection.call_count == 0
 
 
 @mock.patch('clusterman.autoscaler.autoscaler.sensu_checkin', autospec=True)

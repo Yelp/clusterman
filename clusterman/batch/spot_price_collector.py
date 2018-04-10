@@ -82,7 +82,6 @@ class SpotPriceCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMix
                     continue
 
             # Report successful run to Sensu.
-            sensu_config = staticconf.read_list('sensu_config', [{}]).pop()
             sensu_args = dict(
                 check_name='check_clusterman_spot_prices_running',
                 output='OK: clusterman spot_prices was successful',
@@ -91,7 +90,6 @@ class SpotPriceCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMix
                 ttl='5m',
                 noop=self.options.disable_sensu,
             )
-            sensu_args.update(sensu_config)
             sensu_checkin(**sensu_args)
 
 
