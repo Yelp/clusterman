@@ -1,3 +1,9 @@
+clusterman (2.2.1) trusty; urgency=low
+
+  * added new aws instance types, some other small changes, sensu alerting
+
+ -- David Morrison <drmorr@yelp.com>  Tue, 10 Apr 2018 13:23:37 -0700
+
 clusterman (2.2.0) trusty; urgency=low
 
   * Add simulation compare feature
