@@ -118,7 +118,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
             signal_sensu_args['output'] = f'FAILED: clusterman autoscaler signal failed ({msg})'
             signal_sensu_args['status'] = Status.CRITICAL
         else:
-            signal_sensu_args['output'] = f'OK: clusterman autoscaler signal is fine',
+            signal_sensu_args['output'] = f'OK: clusterman autoscaler signal is fine'
         sensu_checkin(**signal_sensu_args)
 
         # Check in for the service
@@ -126,7 +126,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
             check_name=SERVICE_CHECK_NAME,
             check_every=check_every,
             source=self.options.cluster,
-            ttl=DEFAULT_TTL,
+            ttl=ttl,
             noop=self.options.dry_run,
         )
 
