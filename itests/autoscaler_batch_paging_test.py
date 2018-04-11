@@ -13,20 +13,20 @@ from clusterman.batch.autoscaler import SERVICE_CHECK_NAME
 from clusterman.batch.autoscaler import SIGNAL_CHECK_NAME
 from clusterman.exceptions import AutoscalerError
 from tests.batch.conftest import mock_setup_config_directory
-from tests.conftest import clusterman_role_config
+from tests.conftest import clusterman_pool_config
 from tests.conftest import main_clusterman_config
 
-pytest.mark.usefixtures(main_clusterman_config, clusterman_role_config, mock_setup_config_directory)
+pytest.mark.usefixtures(main_clusterman_config, clusterman_pool_config, mock_setup_config_directory)
 
 
-def check_sensu_args(call_args, *, name=None, signal_role=None, status=Status.OK):
+def check_sensu_args(call_args, *, name=None, app_name=None, status=Status.OK):
     __, args = call_args
     signal_sensu_config = staticconf.read_list(
         'sensu_config', [{}],
         namespace='bar_config',
     ).pop()
     service_sensu_config = staticconf.read_list('sensu_config', [{}]).pop()
-    if signal_role:
+    if app_name:
         name = name or SIGNAL_CHECK_NAME
         team = signal_sensu_config['team'] if signal_sensu_config else service_sensu_config['team']
         runbook = signal_sensu_config['runbook'] if signal_sensu_config else service_sensu_config['runbook']
@@ -44,7 +44,7 @@ def check_sensu_args(call_args, *, name=None, signal_role=None, status=Status.OK
 @pytest.fixture(autouse=True)
 def autoscaler_batch_patches():
     with mock.patch('clusterman.batch.autoscaler.setup_config'), \
-            mock.patch('clusterman.autoscaler.autoscaler.MesosRoleManager'), \
+            mock.patch('clusterman.autoscaler.autoscaler.MesosPoolManager'), \
             mock.patch('clusterman.autoscaler.autoscaler.yelp_meteorite'), \
             mock.patch('clusterman.autoscaler.autoscaler.ClustermanMetricsBotoClient'), \
             mock.patch('clusterman.batch.autoscaler.splay_time_start') as mock_splay, \
@@ -82,13 +82,13 @@ def test_signal_setup_fallback(signal_type, autoscaler_batch):
             check_sensu_args(
                 mock_sensu.call_args_list[i],
                 name=SIGNAL_LOAD_CHECK_NAME,
-                signal_role='bar',
+                app_name='bar',
                 status=(Status.OK if signal_type == 'default' else Status.WARNING),
             )
             i += 1
         check_sensu_args(
             mock_sensu.call_args_list[i],
-            signal_role='bar',
+            app_name='bar',
             status=Status.OK,
         )
         check_sensu_args(
@@ -106,7 +106,7 @@ def test_signal_connection_failed(autoscaler_batch):
         with pytest.raises(AutoscalerError):
             autoscaler_batch.configure_initial()
 
-        check_sensu_args(mock_sensu.call_args_list[0], signal_role='bar', status=Status.CRITICAL)
+        check_sensu_args(mock_sensu.call_args_list[0], app_name='bar', status=Status.CRITICAL)
         check_sensu_args(mock_sensu.call_args_list[1])
 
 
@@ -122,9 +122,9 @@ def test_signal_broke(autoscaler_batch):
         autoscaler_batch.run()
 
         # sensu is called twice for configure but we care about checks 3 and 4
-        check_sensu_args(mock_sensu.call_args_list[0], signal_role='bar')
+        check_sensu_args(mock_sensu.call_args_list[0], app_name='bar')
         check_sensu_args(mock_sensu.call_args_list[1])
-        check_sensu_args(mock_sensu.call_args_list[2], signal_role='bar', status=Status.CRITICAL)
+        check_sensu_args(mock_sensu.call_args_list[2], app_name='bar', status=Status.CRITICAL)
         check_sensu_args(mock_sensu.call_args_list[3])
 
 
@@ -141,9 +141,9 @@ def test_no_signal_config_fallback(autoscaler_batch):
         autoscaler_batch.run()
 
         # sensu is called twice for configure but we care about checks 3 and 4
-        check_sensu_args(mock_sensu.call_args_list[0], signal_role='bar')
+        check_sensu_args(mock_sensu.call_args_list[0], app_name='bar')
         check_sensu_args(mock_sensu.call_args_list[1])
-        check_sensu_args(mock_sensu.call_args_list[2], signal_role='bar', status=Status.CRITICAL)
+        check_sensu_args(mock_sensu.call_args_list[2], app_name='bar', status=Status.CRITICAL)
         check_sensu_args(mock_sensu.call_args_list[3])
 
 
@@ -159,9 +159,9 @@ def test_service_broke(autoscaler_batch):
         autoscaler_batch.run()
 
         # sensu is called twice for configure but we care about checks 3 and 4
-        check_sensu_args(mock_sensu.call_args_list[0], signal_role='bar')
+        check_sensu_args(mock_sensu.call_args_list[0], app_name='bar')
         check_sensu_args(mock_sensu.call_args_list[1])
-        check_sensu_args(mock_sensu.call_args_list[2], signal_role='bar')
+        check_sensu_args(mock_sensu.call_args_list[2], app_name='bar')
         check_sensu_args(mock_sensu.call_args_list[3], status=Status.CRITICAL)
 
 
@@ -175,7 +175,7 @@ def test_everything_is_fine(autoscaler_batch):
         autoscaler_batch.autoscaler.signal_conn.recv.side_effect = [ACK, ACK, '{"Resources": {"cpus": null}}']
         autoscaler_batch.run()
 
-        check_sensu_args(mock_sensu.call_args_list[0], signal_role='bar')
+        check_sensu_args(mock_sensu.call_args_list[0], app_name='bar')
         check_sensu_args(mock_sensu.call_args_list[1])
-        check_sensu_args(mock_sensu.call_args_list[2], signal_role='bar')
+        check_sensu_args(mock_sensu.call_args_list[2], app_name='bar')
         check_sensu_args(mock_sensu.call_args_list[3])

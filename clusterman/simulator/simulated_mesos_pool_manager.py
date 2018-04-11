@@ -2,8 +2,8 @@ from collections import defaultdict
 
 import staticconf
 
-from clusterman.config import ROLE_NAMESPACE
-from clusterman.mesos.mesos_role_manager import MesosRoleManager
+from clusterman.config import POOL_NAMESPACE
+from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.mesos.util import allocated_cpu_resources
 from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSpotFleetResourceGroup
 
@@ -24,19 +24,19 @@ def _make_agent(instance):
     }
 
 
-class SimulatedMesosRoleManager(MesosRoleManager):
+class SimulatedMesosPoolManager(MesosPoolManager):
 
-    def __init__(self, cluster, role, configs, simulator):
+    def __init__(self, cluster, pool, configs, simulator):
         self.cluster = cluster
-        self.role = role
+        self.pool = pool
         self.simulator = simulator
         self.resource_groups = [
             SimulatedSpotFleetResourceGroup(config, self.simulator)
             for config in configs
         ]
-        role_config = staticconf.NamespaceReaders(ROLE_NAMESPACE.format(role=self.role))
-        self.min_capacity = role_config.read_int('scaling_limits.min_capacity')
-        self.max_capacity = role_config.read_int('scaling_limits.max_capacity')
+        pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool))
+        self.min_capacity = pool_config.read_int('scaling_limits.min_capacity')
+        self.max_capacity = pool_config.read_int('scaling_limits.max_capacity')
 
     def modify_target_capacity(self, new_target_capacity, **kwargs):
         super().modify_target_capacity(new_target_capacity, **kwargs)

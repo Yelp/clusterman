@@ -11,11 +11,11 @@ from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 from clusterman.autoscaler.util import evaluate_signal
 from clusterman.autoscaler.util import load_signal_connection
 from clusterman.autoscaler.util import read_signal_config
-from clusterman.config import ROLE_NAMESPACE
+from clusterman.config import POOL_NAMESPACE
 from clusterman.exceptions import ClustermanSignalError
 from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.exceptions import SignalConnectionError
-from clusterman.mesos.mesos_role_manager import MesosRoleManager
+from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.util import get_clusterman_logger
 from clusterman.util import sensu_checkin
 
@@ -26,19 +26,25 @@ logger = get_clusterman_logger(__name__)
 
 
 class Autoscaler:
-    def __init__(self, cluster, role, *, role_manager=None, metrics_client=None):
+    def __init__(self, cluster, pool, apps, *, pool_manager=None, metrics_client=None):
         self.cluster = cluster
-        self.role = role
+        self.pool = pool
+        self.apps = apps
 
-        logger.info(f'Initializing autoscaler engine for {self.role} in {self.cluster}...')
-        self.role_config = staticconf.NamespaceReaders(ROLE_NAMESPACE.format(role=self.role))
-        self.capacity_gauge = yelp_meteorite.create_gauge(CAPACITY_GAUGE_NAME, {'cluster': cluster, 'role': role})
+        # TODO: handle multiple applications in the autoscaler (CLUSTERMAN-126)
+        if len(self.apps) > 1:
+            raise NotImplementedError('Scaling multiple applications in a cluster is not yet supported')
 
-        self.mesos_role_manager = role_manager or MesosRoleManager(self.cluster, self.role)
+        logger.info(f'Initializing autoscaler engine for {self.pool} in {self.cluster}...')
+        self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool))
+        self.capacity_gauge = yelp_meteorite.create_gauge(CAPACITY_GAUGE_NAME, {'cluster': cluster, 'pool': pool})
+
+        self.mesos_pool_manager = pool_manager or MesosPoolManager(self.cluster, self.pool)
 
         mesos_region = staticconf.read_string('aws.region')
-        self.metrics_client = metrics_client or ClustermanMetricsBotoClient(mesos_region, app_identifier=self.role)
-        self.load_signal()
+        self.metrics_client = metrics_client or ClustermanMetricsBotoClient(mesos_region, app_identifier=self.pool)
+        for app in self.apps:
+            self.load_signal_for_app(app)
 
         logger.info('Initialization complete')
 
@@ -55,24 +61,25 @@ class Autoscaler:
         logger.info(f'Autoscaling run starting at {timestamp}')
         new_target_capacity = self._compute_target_capacity(timestamp)
         self.capacity_gauge.set(new_target_capacity, {'dry_run': dry_run})
-        self.mesos_role_manager.modify_target_capacity(new_target_capacity, dry_run=dry_run)
+        self.mesos_pool_manager.modify_target_capacity(new_target_capacity, dry_run=dry_run)
 
-    def load_signal(self):
+    def load_signal_for_app(self, app_name):
         """Load the signal object to use for autoscaling."""
-        logger.info(f'Loading autoscaling signal for {self.role} in {self.cluster}')
+        logger.info(f'Loading autoscaling signal for {self.apps[0]} on {self.pool} in {self.cluster}')
 
-        role_namespace = ROLE_NAMESPACE.format(role=self.role)
+        # TODO (CLUSTERMAN-126) apps will eventually be independent of pools
+        pool_namespace = POOL_NAMESPACE.format(pool=app_name)
         self.signal_config = read_signal_config(DEFAULT_NAMESPACE)
         use_default = True
         try:
-            # see if the role has set up a custom signal correctly; if not, fall back to the default
+            # see if the pool has set up a custom signal correctly; if not, fall back to the default
             # signal configuration (preloaded above)
-            self.signal_config = read_signal_config(role_namespace)
+            self.signal_config = read_signal_config(pool_namespace)
             use_default = False
         except NoSignalConfiguredException:
-            logger.info(f'No signal configured for {self.role}, falling back to default')
+            logger.info(f'No signal configured for {self.pool}, falling back to default')
         except Exception:
-            msg = f'WARNING: loading signal for {self.role} failed, falling back to default'
+            msg = f'WARNING: loading signal for {self.pool} failed, falling back to default'
             logger.exception(msg)
             sensu_checkin(
                 check_name=SIGNAL_LOAD_CHECK_NAME,
@@ -81,15 +88,15 @@ class Autoscaler:
                 source=self.cluster,
                 page=False,
                 ttl=None,
-                signal_role=self.role,
+                app_name=app_name,
             )
 
         try:
-            self._init_signal_connection(use_default)
+            self._init_signal_connection(app_name, use_default)
         except Exception as e:
             raise ClustermanSignalError('Signal connection initialization failed') from e
 
-    def _init_signal_connection(self, use_default):
+    def _init_signal_connection(self, app_name, use_default):
         """ Initialize the signal socket connection/communication layer.
 
         :param use_default: use the default signal with whatever parameters are stored in self.signal_config
@@ -100,21 +107,29 @@ class Autoscaler:
             # If it fails, it might be because the signal_config is requesting a different signal (or different
             # configuration) for a signal in the default role, so we fall back to the default in that case
             try:
-                # Look for the signal name under the "role" directory in clusterman_signals
-                self.signal_conn = load_signal_connection(self.signal_config.branch_or_tag, self.role, self.signal_config.name)
+                # Look for the signal name under the "pool" directory in clusterman_signals
+                self.signal_conn = load_signal_connection(
+                    self.signal_config.branch_or_tag,
+                    app_name,
+                    self.signal_config.name,
+                )
             except SignalConnectionError:
                 # If it's not there, see if the signal is one of our default signals
-                logger.info(f'Signal {self.signal_config.name} not found in {self.role}, checking default signals')
+                logger.info(f'Signal {self.signal_config.name} not found in {self.pool}.yaml, checking default signals')
                 use_default = True
 
         # This is not an "else" because the value of use_default may have changed in the above block
         if use_default:
             default_role = staticconf.read_string('autoscaling.default_signal_role')
-            self.signal_conn = load_signal_connection(self.signal_config.branch_or_tag, default_role, self.signal_config.name)
+            self.signal_conn = load_signal_connection(
+                self.signal_config.branch_or_tag,
+                default_role,
+                self.signal_config.name,
+            )
 
         signal_kwargs = json.dumps({
             'cluster': self.cluster,
-            'role': self.role,
+            'app_name': app_name,
             'parameters': self.signal_config.parameters
         })
         self.signal_conn.send(signal_kwargs.encode())
@@ -125,7 +140,7 @@ class Autoscaler:
         for metric in self.signal_config.required_metrics:
             start_time = end_time.shift(minutes=-metric.minute_range)
             metric_key = (
-                generate_key_with_dimensions(metric.name, {'cluster': self.cluster, 'role': self.role})
+                generate_key_with_dimensions(metric.name, {'cluster': self.cluster, 'pool': self.pool})
                 if metric.type == SYSTEM_METRICS
                 else metric.name
             )
@@ -150,7 +165,7 @@ class Autoscaler:
 
         if resource_request['cpus'] is None:
             logger.info(f'No data from signal, not changing capacity')
-            return self.mesos_role_manager.target_capacity
+            return self.mesos_pool_manager.target_capacity
         signal_cpus = float(resource_request['cpus'])
 
         # Get autoscaling settings.
@@ -161,7 +176,7 @@ class Autoscaler:
         # If the percentage allocated differs by more than the allowable margin from the setpoint,
         # we scale up/down to reach the setpoint.  We want to use target_capacity here instead of
         # get_resource_total to protect against short-term fluctuations in the cluster.
-        total_cpus = self.mesos_role_manager.target_capacity * cpus_per_weight
+        total_cpus = self.mesos_pool_manager.target_capacity * cpus_per_weight
         setpoint_cpus = setpoint * total_cpus
         cpus_difference_from_setpoint = signal_cpus - setpoint_cpus
 
@@ -182,5 +197,5 @@ class Autoscaler:
             logger.info(f'Computed target capacity is {new_target_capacity} units ({new_target_cpus} CPUs)')
         else:
             logger.info('Requested CPUs within setpoint margin, not changing target capacity')
-            new_target_capacity = self.mesos_role_manager.target_capacity
+            new_target_capacity = self.mesos_pool_manager.target_capacity
         return new_target_capacity

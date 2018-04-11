@@ -7,10 +7,10 @@ from yelp_servlib.config_util import load_default_config
 
 CREDENTIALS_NAMESPACE = 'boto_cfg'
 DEFAULT_CLUSTER_DIRECTORY = '/nail/srv/configs/clusterman-clusters'
-ROLE_NAMESPACE = '{role}_config'
+POOL_NAMESPACE = '{pool}_config'
 
 
-def setup_config(args, include_roles=True):
+def setup_config(args, pool=None):
     # load_default_config merges the 'module_config' key from the first file
     # and the 'module_env_config' key from the second file to configure packages.
     # This allows us to configure packages differently in different hiera envs by
@@ -33,8 +33,8 @@ def setup_config(args, include_roles=True):
     elif cluster:
         aws_region = staticconf.read_string(f'mesos_clusters.{cluster}.aws_region')
 
-        if include_roles:
-            load_cluster_role_configs(args.cluster, signals_branch_or_tag)
+        if pool:
+            load_cluster_pool_config(args.cluster, pool, signals_branch_or_tag)
 
     staticconf.DictConfiguration({'aws': {'region': aws_region}})
 
@@ -45,31 +45,27 @@ def setup_config(args, include_roles=True):
         staticconf.DictConfiguration({'autoscale_signal': {'branch_or_tag': signals_branch_or_tag}})
 
 
-def load_cluster_role_configs(cluster, signals_branch_or_tag):
+def load_cluster_pool_config(cluster, pool, signals_branch_or_tag):
     cluster_config_directory = get_cluster_config_directory(cluster)
-    role_config_files = [f for f in os.listdir(cluster_config_directory) if f[0] != '.']  # skip dotfiles
-    cluster_roles = []
+    pool_config_file = os.path.join(cluster_config_directory, f'{pool}.yaml')
 
-    for role_file in role_config_files:
-        role = os.path.splitext(role_file)[0]
-        cluster_roles.append(role)
-        with open(os.path.join(cluster_config_directory, role_file)) as f:
-            config = yaml.load(f)
-            role_namespace = ROLE_NAMESPACE.format(role=role)
-            staticconf.DictConfiguration(config, namespace=role_namespace)
+    with open(pool_config_file) as f:
+        config = yaml.load(f)
+        pool_namespace = POOL_NAMESPACE.format(pool=pool)
+        staticconf.DictConfiguration(config, namespace=pool_namespace)
 
-            if signals_branch_or_tag:
-                staticconf.DictConfiguration(
-                    {'autoscale_signal': {'branch_or_tag': signals_branch_or_tag}},
-                    namespace=role_namespace,
-                )
+        if signals_branch_or_tag:
+            staticconf.DictConfiguration(
+                {'autoscale_signal': {'branch_or_tag': signals_branch_or_tag}},
+                namespace=pool_namespace,
+            )
 
-    staticconf.DictConfiguration({'cluster_roles': cluster_roles})
+    staticconf.DictConfiguration({'scaling_pool': pool})
 
 
 def get_cluster_config_directory(cluster):
     return os.path.join(staticconf.read_string('cluster_config_directory'), cluster)
 
 
-def get_role_config_path(cluster, role):
-    return os.path.join(get_cluster_config_directory(cluster), f'{role}.yaml')
+def get_pool_config_path(cluster, pool):
+    return os.path.join(get_cluster_config_directory(cluster), f'{pool}.yaml')

@@ -58,7 +58,7 @@ def mock_sfr_bucket():
         'cluster_autoscaling_resources': {
             'aws_spot_fleet_request': {
                 'id': 'sfr-1',
-                'pool': 'my-role'
+                'pool': 'my-pool'
             }
         }
     }).encode())
@@ -66,7 +66,7 @@ def mock_sfr_bucket():
         'cluster_autoscaling_resources': {
             'aws_spot_fleet_request': {
                 'id': 'sfr-2',
-                'pool': 'my-role'
+                'pool': 'my-pool'
             }
         }
     }).encode())
@@ -74,7 +74,7 @@ def mock_sfr_bucket():
         'cluster_autoscaling_resources': {
             'aws_spot_fleet_request': {
                 'id': 'sfr-3',
-                'pool': 'not-my-role'
+                'pool': 'not-my-pool'
             }
         }
     }).encode())
@@ -83,7 +83,7 @@ def mock_sfr_bucket():
 def test_load_spot_fleets_from_s3(mock_sfr_bucket):
     with mock.patch('clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup.__init__') as mock_init:
         mock_init.return_value = None
-        sfrgs = load_spot_fleets_from_s3('fake-clusterman-sfrs', 'fake-region', 'my-role')
+        sfrgs = load_spot_fleets_from_s3('fake-clusterman-sfrs', 'fake-region', 'my-pool')
         assert len(sfrgs) == 2
         assert mock_init.call_args_list[0][0][0] == 'sfr-1'
         assert mock_init.call_args_list[1][0][0] == 'sfr-2'

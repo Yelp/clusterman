@@ -4,11 +4,11 @@ import arrow
 import humanize
 
 from clusterman.args import add_cluster_arg
-from clusterman.args import add_role_arg
+from clusterman.args import add_pool_arg
 from clusterman.args import subparser
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import get_instance_market
-from clusterman.mesos.mesos_role_manager import MesosRoleManager
+from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.mesos.util import allocated_cpu_resources
 from clusterman.mesos.util import get_agent_by_ip
 from clusterman.mesos.util import get_mesos_state
@@ -81,7 +81,7 @@ def _get_mesos_status_string(mesos_state, instance, agents):
 
 def print_status(manager, args):
     sys.stdout.write('\n')
-    print(f'Current status for the {manager.role} role in the {manager.cluster} cluster:\n')
+    print(f'Current status for the {manager.pool} pool in the {manager.cluster} cluster:\n')
     print(f'Resource groups ({manager.fulfilled_capacity} units out of {manager.target_capacity}):')
 
     for group in manager.resource_groups:
@@ -101,14 +101,14 @@ def print_status(manager, args):
 
 
 def main(args):  # pragma: no cover
-    manager = MesosRoleManager(args.cluster, args.role)
+    manager = MesosPoolManager(args.cluster, args.pool)
     print_status(manager, args)
 
 
 @subparser('status', 'check the status of a Mesos cluster', main)
 def add_mesos_status_parser(subparser, required_named_args, optional_named_args):  # pragma: no cover
     add_cluster_arg(required_named_args, required=True)
-    add_role_arg(required_named_args, required=True)
+    add_pool_arg(required_named_args, required=True)
 
     optional_named_args.add_argument(
         '--only-idle',

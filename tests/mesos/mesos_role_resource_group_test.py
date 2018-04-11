@@ -1,8 +1,8 @@
-from clusterman.mesos.mesos_role_resource_group import MesosRoleResourceGroup
-from clusterman.mesos.mesos_role_resource_group import protect_unowned_instances
+from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
+from clusterman.mesos.mesos_pool_resource_group import protect_unowned_instances
 
 
-class DummyResourceGroup(MesosRoleResourceGroup):
+class DummyResourceGroup(MesosPoolResourceGroup):
     def market_weight(self, market):
         pass
 

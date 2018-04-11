@@ -13,7 +13,7 @@ def args():
         start_time='2018-01-01 00:00:00',
         end_time='2018-01-01 00:00:00',
         cluster='foo',
-        role='bar',
+        pool='bar',
         cluster_config_dir='baz',
         metrics_data_files=None,
         simulation_result_file=None,

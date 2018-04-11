@@ -12,7 +12,7 @@ from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.autoscaler.autoscaler import CAPACITY_GAUGE_NAME
 from clusterman.autoscaler.util import MetricConfig
 from clusterman.autoscaler.util import SignalConfig
-from clusterman.config import ROLE_NAMESPACE
+from clusterman.config import POOL_NAMESPACE
 from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.exceptions import SignalConnectionError
 from clusterman.exceptions import SignalValidationError
@@ -30,7 +30,7 @@ def mock_logger():
 
 
 @pytest.fixture(autouse=True)
-def role_configs():
+def pool_configs():
     with staticconf.testing.PatchConfiguration(
         {
             'scaling_limits': {
@@ -40,7 +40,7 @@ def role_configs():
                 'max_weight_to_remove': 10,
             },
         },
-        namespace=ROLE_NAMESPACE.format(role='bar'),
+        namespace=POOL_NAMESPACE.format(pool='bar'),
     ):
         yield
 
@@ -68,9 +68,9 @@ def mock_gauge():
 
 
 @pytest.fixture
-def mock_role_manager():
-    with mock.patch('clusterman.autoscaler.autoscaler.MesosRoleManager', autospec=True) as mock_role_manager:
-        yield mock_role_manager
+def mock_pool_manager():
+    with mock.patch('clusterman.autoscaler.autoscaler.MesosPoolManager', autospec=True) as mock_pool_manager:
+        yield mock_pool_manager
 
 
 @pytest.fixture
@@ -79,10 +79,10 @@ def mock_metrics_client():
 
 
 @pytest.fixture
-@mock.patch('clusterman.autoscaler.autoscaler.Autoscaler.load_signal', autospec=True)
-def mock_autoscaler(mock_load_signal, mock_metrics_client, mock_role_manager, mock_gauge):
+@mock.patch('clusterman.autoscaler.autoscaler.Autoscaler.load_signal_for_app', autospec=True)
+def mock_autoscaler(mock_load_signal, mock_metrics_client, mock_pool_manager, mock_gauge):
     with mock.patch('clusterman.autoscaler.autoscaler.ClustermanMetricsBotoClient', autospec=True):
-        mock_autoscaler = Autoscaler('mesos-test', 'bar')
+        mock_autoscaler = Autoscaler('mesos-test', 'bar', ['bar'])
     mock_autoscaler.signal_config = SignalConfig(
         'CoolSignal',
         'v42',
@@ -91,12 +91,12 @@ def mock_autoscaler(mock_load_signal, mock_metrics_client, mock_role_manager, mo
         {}
     )
     mock_autoscaler.signal_conn = mock.Mock()
-    mock_autoscaler.mesos_role_manager.target_capacity = 300
-    mock_autoscaler.mesos_role_manager.min_capacity = staticconf.read_int(
-        'scaling_limits.min_capacity', namespace=ROLE_NAMESPACE.format(role='bar')
+    mock_autoscaler.mesos_pool_manager.target_capacity = 300
+    mock_autoscaler.mesos_pool_manager.min_capacity = staticconf.read_int(
+        'scaling_limits.min_capacity', namespace=POOL_NAMESPACE.format(pool='bar')
     )
-    mock_autoscaler.mesos_role_manager.max_capacity = staticconf.read_int(
-        'scaling_limits.max_capacity', namespace=ROLE_NAMESPACE.format(role='bar')
+    mock_autoscaler.mesos_pool_manager.max_capacity = staticconf.read_int(
+        'scaling_limits.max_capacity', namespace=POOL_NAMESPACE.format(pool='bar')
     )
     return mock_autoscaler
 
@@ -111,36 +111,42 @@ def signal_config():
     )
 
 
-@mock.patch('clusterman.autoscaler.autoscaler.Autoscaler.load_signal', autospec=True)
-def test_autoscaler_init(mock_load_signal, mock_role_manager, mock_metrics_client, mock_gauge):
-    mock_autoscaler = Autoscaler('mesos-test', 'bar', role_manager=None, metrics_client=mock_metrics_client())
+@mock.patch('clusterman.autoscaler.autoscaler.Autoscaler.load_signal_for_app', autospec=True)
+def test_autoscaler_init(mock_load_signal, mock_pool_manager, mock_metrics_client, mock_gauge):
+    mock_autoscaler = Autoscaler('mesos-test', 'bar', ['app'], metrics_client=mock_metrics_client())
 
     assert mock_autoscaler.cluster == 'mesos-test'
-    assert mock_autoscaler.role == 'bar'
+    assert mock_autoscaler.pool == 'bar'
+    assert mock_autoscaler.apps == ['app']
 
-    assert mock_gauge.call_args == mock.call(CAPACITY_GAUGE_NAME, {'cluster': 'mesos-test', 'role': 'bar'})
+    assert mock_gauge.call_args == mock.call(CAPACITY_GAUGE_NAME, {'cluster': 'mesos-test', 'pool': 'bar'})
     assert mock_autoscaler.capacity_gauge == mock_gauge.return_value
 
-    assert mock_role_manager.call_args == mock.call('mesos-test', 'bar')
-    assert mock_autoscaler.mesos_role_manager == mock_role_manager.return_value
+    assert mock_pool_manager.call_args == mock.call('mesos-test', 'bar')
+    assert mock_autoscaler.mesos_pool_manager == mock_pool_manager.return_value
     assert mock_autoscaler.metrics_client == mock_metrics_client.return_value
 
     assert mock_load_signal.call_count == 1
 
 
+def test_autoscaler_init_too_many_apps():
+    with pytest.raises(NotImplementedError):
+        Autoscaler('mesos-test', 'bar', ['app1', 'app2'])
+
+
 @pytest.mark.parametrize('read_config,expected_default', [
-    (NoSignalConfiguredException, True),  # no role signal
-    (mock.Mock(), False),  # Custom role signal successful
+    (NoSignalConfiguredException, True),  # no app signal
+    (mock.Mock(), False),  # Custom app signal successful
 ])
 @mock.patch('clusterman.autoscaler.autoscaler.read_signal_config', autospec=True)
 @mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._init_signal_connection', autospec=True)
 def test_load_signal(mock_init_signal, mock_read_config, mock_autoscaler, read_config, expected_default):
     default_config = signal_config()
     mock_read_config.side_effect = [default_config, read_config]
-    mock_autoscaler.load_signal()
+    mock_autoscaler.load_signal_for_app('bar')
     assert mock_read_config.call_args_list == [
         mock.call(DEFAULT_NAMESPACE),
-        mock.call(ROLE_NAMESPACE.format(role='bar')),
+        mock.call(POOL_NAMESPACE.format(pool='bar')),
     ]
 
     assert mock_autoscaler.signal_config == (default_config if expected_default else read_config)
@@ -152,7 +158,7 @@ def test_load_signal_warning(mock_read_config, mock_sensu, mock_autoscaler):
     default_config = mock.Mock()
     mock_read_config.side_effect = [default_config, SignalValidationError]
     mock_autoscaler._init_signal_connection = mock.Mock()
-    mock_autoscaler.load_signal()
+    mock_autoscaler.load_signal_for_app('bar')
     assert mock_sensu.call_count == 1
     assert mock_autoscaler._init_signal_connection.call_count == 1
     assert mock_autoscaler.signal_config == default_config
@@ -162,13 +168,13 @@ def test_load_signal_warning(mock_read_config, mock_sensu, mock_autoscaler):
 @mock.patch('clusterman.autoscaler.autoscaler.load_signal_connection')
 class TestInitSignalConnection:
     @pytest.mark.parametrize('use_default', [True, False])
-    def test_init_signal_from_role(self, mock_load_signal, mock_logger, use_default, mock_autoscaler):
-        mock_autoscaler._init_signal_connection(use_default)
-        role = staticconf.read_string('autoscaling.default_signal_role') if use_default else mock_autoscaler.role
-        assert mock_load_signal.call_args == mock.call('v42', role, 'CoolSignal')
+    def test_init_signal_for_app(self, mock_load_signal, mock_logger, use_default, mock_autoscaler):
+        app = staticconf.read_string('autoscaling.default_signal_role') if use_default else mock_autoscaler.apps[0]
+        mock_autoscaler._init_signal_connection(app, use_default)
+        assert mock_load_signal.call_args == mock.call('v42', app, 'CoolSignal')
         assert json.loads(mock_load_signal.return_value.send.call_args[0][0]) == {
             'cluster': 'mesos-test',
-            'role': 'bar',
+            'app_name': app,
             'parameters': mock_autoscaler.signal_config.parameters,
         }
         assert mock_logger.info.call_count == 1
@@ -177,14 +183,14 @@ class TestInitSignalConnection:
         default_role = staticconf.read_string('autoscaling.default_signal_role')
         mock_signal_conn = mock.Mock()
         mock_load_signal.side_effect = [SignalConnectionError(), mock_signal_conn]
-        mock_autoscaler._init_signal_connection(use_default=False)
+        mock_autoscaler._init_signal_connection(mock_autoscaler.apps[0], use_default=False)
         assert mock_load_signal.call_args_list == [
-            mock.call('v42', mock_autoscaler.role, 'CoolSignal'),
+            mock.call('v42', mock_autoscaler.apps[0], 'CoolSignal'),
             mock.call('v42', default_role, 'CoolSignal'),
         ]
         assert json.loads(mock_signal_conn.send.call_args[0][0]) == {
             'cluster': 'mesos-test',
-            'role': 'bar',
+            'app_name': mock_autoscaler.apps[0],
             'parameters': mock_autoscaler.signal_config.parameters,
         }
         assert mock_logger.info.call_count == 2
@@ -193,9 +199,9 @@ class TestInitSignalConnection:
         default_role = staticconf.read_string('autoscaling.default_signal_role')
         mock_load_signal.side_effect = SignalConnectionError()
         with pytest.raises(SignalConnectionError):
-            mock_autoscaler._init_signal_connection(use_default=False)
+            mock_autoscaler._init_signal_connection(mock_autoscaler.apps[0], use_default=False)
         assert mock_load_signal.call_args_list == [
-            mock.call('v42', mock_autoscaler.role, 'CoolSignal'),
+            mock.call('v42', mock_autoscaler.apps[0], 'CoolSignal'),
             mock.call('v42', default_role, 'CoolSignal'),
         ]
 
@@ -206,7 +212,7 @@ def test_autoscaler_dry_run(dry_run, mock_autoscaler, run_timestamp):
     mock_autoscaler.run(dry_run=dry_run, timestamp=run_timestamp)
     assert mock_autoscaler.capacity_gauge.set.call_args == mock.call(100, {'dry_run': dry_run})
     assert mock_autoscaler._compute_target_capacity.call_args == mock.call(run_timestamp)
-    assert mock_autoscaler.mesos_role_manager.modify_target_capacity.call_count == 1
+    assert mock_autoscaler.mesos_pool_manager.modify_target_capacity.call_count == 1
 
 
 @pytest.mark.parametrize('end_time', [arrow.get(3600), arrow.get(10000), arrow.get(35000)])
@@ -214,7 +220,7 @@ def test_get_metrics(end_time, mock_autoscaler):
     metrics = mock_autoscaler._get_metrics(end_time)
     assert mock_autoscaler.metrics_client.get_metric_values.call_args_list == [
         mock.call(
-            'cpus_allocated|cluster=mesos-test,role=bar',
+            'cpus_allocated|cluster=mesos-test,pool=bar',
             SYSTEM_METRICS,
             end_time.shift(minutes=-10).timestamp,
             end_time.timestamp,
@@ -242,7 +248,7 @@ def test_get_metrics(end_time, mock_autoscaler):
 def test_compute_target_capacity(mock_evaluate_signal, mock_autoscaler, signal_cpus, total_cpus,
                                  expected_capacity, run_timestamp):
     mock_autoscaler._get_metrics = mock.Mock(return_value=[[1234, 3.5]])
-    mock_autoscaler.mesos_role_manager.target_capacity = total_cpus / staticconf.read_int('autoscaling.cpus_per_weight')
+    mock_autoscaler.mesos_pool_manager.target_capacity = total_cpus / staticconf.read_int('autoscaling.cpus_per_weight')
     mock_evaluate_signal.return_value = {'cpus': signal_cpus}
     new_target_capacity = mock_autoscaler._compute_target_capacity(run_timestamp)
     assert new_target_capacity == pytest.approx(expected_capacity)

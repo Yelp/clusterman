@@ -8,8 +8,8 @@ from staticconf.testing import PatchConfiguration
 from clusterman.aws.client import ec2
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import get_instance_market
-from clusterman.mesos.mesos_role_manager import MesosRoleManager
-from tests.conftest import clusterman_role_config
+from clusterman.mesos.mesos_pool_manager import MesosPoolManager
+from tests.conftest import clusterman_pool_config
 from tests.conftest import main_clusterman_config
 from tests.conftest import mock_aws_client_setup
 from tests.mesos.conftest import setup_ec2
@@ -17,7 +17,7 @@ from tests.mesos.spot_fleet_resource_group_test import mock_spot_fleet_resource_
 from tests.mesos.spot_fleet_resource_group_test import mock_subnet
 
 
-pytest.mark.usefixtures(mock_aws_client_setup, main_clusterman_config, clusterman_role_config, setup_ec2)
+pytest.mark.usefixtures(mock_aws_client_setup, main_clusterman_config, clusterman_pool_config, setup_ec2)
 
 
 @pytest.fixture
@@ -30,16 +30,16 @@ def mock_sfrs(setup_ec2):
 
 @pytest.fixture
 def mock_manager(main_clusterman_config, mock_aws_client_setup, mock_sfrs):
-    with mock.patch('clusterman.mesos.mesos_role_manager.load_spot_fleets_from_s3') as mock_load:
+    with mock.patch('clusterman.mesos.mesos_pool_manager.load_spot_fleets_from_s3') as mock_load:
         mock_load.return_value = mock_sfrs
-        return MesosRoleManager('mesos-test', 'bar')
+        return MesosPoolManager('mesos-test', 'bar')
 
 
 def test_target_capacity(mock_manager):
     assert mock_manager.target_capacity == 5
 
 
-@mock.patch('clusterman.mesos.mesos_role_manager.MesosRoleManager.prune_excess_fulfilled_capacity')
+@mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.prune_excess_fulfilled_capacity')
 def test_scale_up(mock_prune, mock_manager, mock_sfrs):
     mock_manager.max_capacity = 101
 
@@ -70,7 +70,7 @@ def test_scale_down(mock_manager, mock_sfrs):
     mock_manager.max_capacity = 101
     mock_manager.modify_target_capacity(1000)
     patched_config = {'mesos_clusters': {'mesos-test': {'max_weight_to_remove': 1000}}}
-    with mock.patch('clusterman.mesos.mesos_role_manager.MesosRoleManager._idle_agents_by_market') as mock_idle, \
+    with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager._idle_agents_by_market') as mock_idle, \
             PatchConfiguration(patched_config):
         # Everything is idle
         idle_agents = defaultdict(list)

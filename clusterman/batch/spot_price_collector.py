@@ -51,7 +51,7 @@ class SpotPriceCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMix
     @batch_configure
     def configure_initial(self):
         # Any keys in the env_config will override defaults in config.yaml.
-        setup_config(self.options, include_roles=False)
+        setup_config(self.options)
 
         self.logger = logger
         self.region = staticconf.read_string('aws.region')
