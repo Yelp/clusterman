@@ -61,7 +61,7 @@ def main_clusterman_config():
                 'max_weight_to_remove': 10,
             },
         },
-        'cluster_roles': ['bar'],
+        'scaling_pool': 'bar',
         'sensu_config': [
             {
                 'team': 'my_team',
@@ -75,7 +75,7 @@ def main_clusterman_config():
 
 
 @pytest.fixture(autouse=True)
-def clusterman_role_config():
+def clusterman_pool_config():
     config = {
         'resource_groups': {
             's3': {

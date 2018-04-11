@@ -9,14 +9,14 @@ from clusterman.aws.client import s3
 from clusterman.aws.markets import get_instance_market
 from clusterman.exceptions import ResourceGroupError
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
-from clusterman.mesos.mesos_role_resource_group import MesosRoleResourceGroup
-from clusterman.mesos.mesos_role_resource_group import protect_unowned_instances
+from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
+from clusterman.mesos.mesos_pool_resource_group import protect_unowned_instances
 from clusterman.util import get_clusterman_logger
 
 logger = get_clusterman_logger(__name__)
 
 
-def load_spot_fleets_from_s3(bucket, prefix, role=None):
+def load_spot_fleets_from_s3(bucket, prefix, pool=None):
     object_list = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
     spot_fleets = []
     for obj_metadata in object_list['Contents']:
@@ -25,7 +25,7 @@ def load_spot_fleets_from_s3(bucket, prefix, role=None):
         for resource_key, resource in sfr_metadata['cluster_autoscaling_resources'].items():
             if not resource_key.startswith('aws_spot_fleet_request'):
                 continue
-            if role and resource['pool'] != role:  # NOTE the SFR metadata uploaded to S3 uses pool where we mean role
+            if pool and resource['pool'] != pool:
                 continue
 
             spot_fleets.append(SpotFleetResourceGroup(resource['id']))
@@ -33,7 +33,7 @@ def load_spot_fleets_from_s3(bucket, prefix, role=None):
     return spot_fleets
 
 
-class SpotFleetResourceGroup(MesosRoleResourceGroup):
+class SpotFleetResourceGroup(MesosPoolResourceGroup):
 
     def __init__(self, sfr_id):
         self.sfr_id = sfr_id

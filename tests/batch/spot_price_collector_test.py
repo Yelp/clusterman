@@ -58,7 +58,7 @@ def test_configure_initial_default(batch, mock_client_class, mock_setup_config):
     batch.options = batch_arg_parser(batch, ['--aws-region', 'us-west-2'])
     batch.configure_initial()
 
-    assert mock_setup_config.call_args_list == [mock.call(batch.options, include_roles=False)]
+    assert mock_setup_config.call_args_list == [mock.call(batch.options)]
     assert batch.region == 'us-west-2'
     assert batch.last_time_called == batch.options.start_time
     assert batch.run_interval == 120
@@ -73,7 +73,7 @@ def test_configure_initial_with_options(batch, batch_arg_parser, mock_client_cla
     batch.options.start_time = arrow.get(2017, 9, 1, 1, 1, 0)
     batch.configure_initial()
 
-    assert mock_setup_config.call_args_list == [mock.call(batch.options, include_roles=False)]
+    assert mock_setup_config.call_args_list == [mock.call(batch.options)]
     assert batch.last_time_called == batch.options.start_time
     assert batch.run_interval == 120
     assert batch.dedupe_interval == 60

@@ -25,9 +25,9 @@ def protect_unowned_instances(func):
     return wrapper
 
 
-class MesosRoleResourceGroup(metaclass=ABCMeta):
+class MesosPoolResourceGroup(metaclass=ABCMeta):
     """
-    The MesosRoleResourceGroup is an abstract object codifying the interface that objects belonging to a Mesos
+    The MesosPoolResourceGroup is an abstract object codifying the interface that objects belonging to a Mesos
     cluster are expected to adhere to.  In general, a "ResourceGroup" object should represent a collection of machines
     that are a part of a Mesos cluster, and should have an API for adding and removing hosts from the ResourceGroup,
     as well as querying the state of the resource group.

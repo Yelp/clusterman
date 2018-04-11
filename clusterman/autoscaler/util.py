@@ -143,11 +143,11 @@ def read_signal_config(config_namespace):
     return SignalConfig(name, branch_or_tag, period_minutes, metric_configs, parameter_dict)
 
 
-def load_signal_connection(branch_or_tag, role, signal_name):
+def load_signal_connection(branch_or_tag, application, signal_name):
     """ Create a connection to the specified signal over a unix socket
 
     :param branch_or_tag: the git branch or tag for the version of the signal to use
-    :param role: the role we are loading the signal for
+    :param application: the application we are loading the signal for
     :param signal_name: the name of the signal we want to load
     :returns: a socket connection which can read/write data to the specified signal
     """
@@ -155,7 +155,7 @@ def load_signal_connection(branch_or_tag, role, signal_name):
 
     # this creates an abstract namespace socket which is auto-cleaned on program exit
     s = socket.socket(socket.AF_UNIX)
-    s.bind(f'\0{role}-{signal_name}-socket')
+    s.bind(f'\0{application}-{signal_name}-socket')
     s.listen(1)  # only allow one connection at a time
     s.settimeout(SOCKET_TIMEOUT_SECONDS)
 
@@ -167,7 +167,7 @@ def load_signal_connection(branch_or_tag, role, signal_name):
             os.path.join(signal_dir, 'prodenv', 'bin', 'python'),
             '-m',
             'clusterman_signals.run',
-            role,
+            application,
             signal_name,
         ],
         cwd=signal_dir,

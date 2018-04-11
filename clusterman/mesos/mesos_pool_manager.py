@@ -7,8 +7,8 @@ from cached_property import timed_cached_property
 
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import get_instance_market
-from clusterman.config import ROLE_NAMESPACE
-from clusterman.exceptions import MesosRoleManagerError
+from clusterman.config import POOL_NAMESPACE
+from clusterman.exceptions import MesosPoolManagerError
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
 from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_s3
 from clusterman.mesos.util import find_largest_capacity_market
@@ -23,50 +23,50 @@ MIN_CAPACITY_PER_GROUP = 1
 logger = get_clusterman_logger(__name__)
 
 
-class MesosRoleManager:
-    """ The MesosRoleManager object provides a consistent interface to the infrastructure that underpins a particular
-    Mesos role.  Specifically, it allows users to interact with the Mesos master (querying the number of agents in the
+class MesosPoolManager:
+    """ The MesosPoolManager object provides a consistent interface to the infrastructure that underpins a particular
+    Mesos pool.  Specifically, it allows users to interact with the Mesos master (querying the number of agents in the
     cluster, and what resources are available/allocated, for example) as well as to modify the capacity available to the
-    Mesos role.  Since many different types of hosts may be present in a Mesos cluster, this object refers to a list of
-    abstract :class:`MesosRoleResourceGroup <clusterman.mesos.mesos_role_resource_group.MesosRoleResourceGroup>` objects
+    Mesos pool.  Since many different types of hosts may be present in a Mesos cluster, this object refers to a list of
+    abstract :class:`MesosPoolResourceGroup <clusterman.mesos.mesos_pool_resource_group.MesosPoolResourceGroup>` objects
     to modify the underlying infrastructure.
 
-    One major assumption the MesosRoleManager makes currently is that the underlying infrastructure for a particular
-    role belongs completely to that role; in other words, at present no roles are co-located on the same physical
+    One major assumption the MesosPoolManager makes currently is that the underlying infrastructure for a particular
+    pool belongs completely to that pool; in other words, at present no pools are co-located on the same physical
     hardware.  This assumption is subject to change in the future.
 
-    .. note:: Values returned from MesosRoleManager functions may be cached to limit requests made to the Mesos masters
+    .. note:: Values returned from MesosPoolManager functions may be cached to limit requests made to the Mesos masters
        or AWS API endpoints.
     """
 
-    def __init__(self, cluster, role):
+    def __init__(self, cluster, pool):
         self.cluster = cluster
-        self.role = role
+        self.pool = pool
 
-        role_config = staticconf.NamespaceReaders(ROLE_NAMESPACE.format(role=self.role))
+        pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool))
 
         mesos_master_fqdn = staticconf.read_string(f'mesos_clusters.{self.cluster}.fqdn')
-        self.min_capacity = role_config.read_int('scaling_limits.min_capacity')
-        self.max_capacity = role_config.read_int('scaling_limits.max_capacity')
+        self.min_capacity = pool_config.read_int('scaling_limits.min_capacity')
+        self.max_capacity = pool_config.read_int('scaling_limits.max_capacity')
 
         self.api_endpoint = f'http://{mesos_master_fqdn}:5050/'
         logger.info(f'Connecting to Mesos masters at {self.api_endpoint}')
 
         self.resource_groups = load_spot_fleets_from_s3(
-            role_config.read_string('resource_groups.s3.bucket'),
-            role_config.read_string('resource_groups.s3.prefix'),
-            role=self.role,
+            pool_config.read_string('resource_groups.s3.bucket'),
+            pool_config.read_string('resource_groups.s3.prefix'),
+            pool=self.pool,
         )
 
         logger.info('Loaded resource groups: {ids}'.format(ids=[group.id for group in self.resource_groups]))
 
     def modify_target_capacity(self, new_target_capacity, dry_run=False, force=False):
-        """ Change the desired :attr:`target_capacity` of the resource groups belonging to this role.
+        """ Change the desired :attr:`target_capacity` of the resource groups belonging to this pool.
 
         Capacity changes are roughly evenly distributed across the resource groups to ensure that
         instances are diversified in the cluster
 
-        :param new_target_capacity: the desired target capacity for the cluster and role
+        :param new_target_capacity: the desired target capacity for the cluster and pool
         :param dry_run: boolean indicating whether the cluster should actually be modified
         :param force: boolean indicating whether to override the scaling limits
 
@@ -79,7 +79,7 @@ class MesosRoleManager:
         if dry_run:
             logger.warn('Running in "dry-run" mode; cluster state will not be modified')
         if not self.resource_groups:
-            raise MesosRoleManagerError('No resource groups available')
+            raise MesosPoolManagerError('No resource groups available')
 
         orig_target_capacity = self.target_capacity
         new_target_capacity = self._constrain_target_capacity(new_target_capacity, force)
@@ -89,11 +89,11 @@ class MesosRoleManager:
             self.resource_groups[i].modify_target_capacity(target, dry_run=dry_run)
         if new_target_capacity <= orig_target_capacity:
             self.prune_excess_fulfilled_capacity(res_group_targets, dry_run)
-        logger.info(f'Target capacity for {self.role} changed from {orig_target_capacity} to {new_target_capacity}')
+        logger.info(f'Target capacity for {self.pool} changed from {orig_target_capacity} to {new_target_capacity}')
         return new_target_capacity
 
     def get_resource_allocation(self, resource_name):
-        """Get the total amount of the given resource currently allocated for this Mesos role.
+        """Get the total amount of the given resource currently allocated for this Mesos pool.
 
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
         :returns: float
@@ -101,7 +101,7 @@ class MesosRoleManager:
         return get_total_resource_value(self.agents, 'used_resources', resource_name)
 
     def get_resource_total(self, resource_name):
-        """Get the total amount of the given resource for this Mesos role.
+        """Get the total amount of the given resource for this Mesos pool.
 
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
         :returns: float
@@ -122,8 +122,8 @@ class MesosRoleManager:
         """ Signals can return arbitrary values, so make sure we don't add or remove too much capacity """
 
         # TODO (CLUSTERMAN-126) max_weight_to_add and max_weight_to_remove are clusterwide settings,
-        # not per-role settings.  Right now we read them from the cluster-wide srv-configs, but the only
-        # place to apply the limits are in the role-manager.  When we start to support multiple roles
+        # not per-pool settings.  Right now we read them from the cluster-wide srv-configs, but the only
+        # place to apply the limits are in the pool-manager.  When we start to support multiple pools
         # per cluster this will need to change.
         max_weight_to_add = staticconf.read_int(f'mesos_clusters.{self.cluster}.max_weight_to_add')
         max_weight_to_remove = staticconf.read_int(f'mesos_clusters.{self.cluster}.max_weight_to_remove')
@@ -311,14 +311,14 @@ class MesosRoleManager:
 
     @property
     def target_capacity(self):
-        """ The target capacity is the *desired* weighted capacity for the given Mesos cluster role.  There is no
+        """ The target capacity is the *desired* weighted capacity for the given Mesos cluster pool.  There is no
         guarantee that the actual capacity will equal the target capacity.
         """
         return sum(group.target_capacity for group in self.resource_groups)
 
     @property
     def fulfilled_capacity(self):
-        """ The fulfilled capacity is the *actual* weighted capacity for the given Mesos cluster role at a particular
+        """ The fulfilled capacity is the *actual* weighted capacity for the given Mesos cluster pool at a particular
         point in time.  This may be equal to, above, or below the :attr:`target_capacity`, depending on the availability
         and state of AWS at the time.  In general, once the cluster has reached equilibrium, the fulfilled capacity will
         be greater than or equal to the target capacity.
@@ -331,5 +331,5 @@ class MesosRoleManager:
         return [
             agent
             for agent in response['slaves']
-            if agent.get('attributes', {}).get('role', 'default') == self.role
+            if agent.get('attributes', {}).get('pool', 'default') == self.pool
         ]
