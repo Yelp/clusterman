@@ -35,9 +35,11 @@ def sensu_alert_triage(fn):
             fn(self)
         except ClustermanSignalError as e:
             msg = str(e)
+            logger.exception(f'Autoscaler signal failed: {msg}')
             signal_failed = True
         except Exception as e:
             msg = str(e)
+            logger.exception(f'Autoscaler service failed: {msg}')
             service_failed = True
         self._do_sensu_checkins(signal_failed, service_failed, msg)
     return wrapper
