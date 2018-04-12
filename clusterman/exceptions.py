@@ -3,6 +3,14 @@ class ClustermanException(Exception):
     pass
 
 
+class AutoscalerError(ClustermanException):
+    pass
+
+
+class ClustermanSignalError(ClustermanException):
+    pass
+
+
 class MetricsError(ClustermanException):
     pass
 
@@ -16,10 +24,6 @@ class NoSignalConfiguredException(ClustermanException):
 
 
 class ResourceGroupError(ClustermanException):
-    pass
-
-
-class ClustermanSignalError(ClustermanException):
     pass
 
 

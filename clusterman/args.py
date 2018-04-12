@@ -88,6 +88,14 @@ def add_env_config_path_arg(parser):  # pragma: no cover
     )
 
 
+def add_cluster_config_directory_arg(parser):  # pragma: no cover
+    parser.add_argument(
+        '--cluster-config-directory',
+        metavar='directory',
+        help='specify role configuration directory for simulation',
+    )
+
+
 def add_disable_sensu_arg(parser):  # pragma: no cover
     """ Add a --disable-sensu argument to a parser """
     parser.add_argument(

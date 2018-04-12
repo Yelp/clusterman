@@ -8,6 +8,7 @@ from yelp_batch.batch_daemon import BatchDaemon
 
 from clusterman.args import add_branch_or_tag_arg
 from clusterman.args import add_cluster_arg
+from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_env_config_path_arg
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.autoscaler.util import LOG_STREAM_NAME
@@ -15,6 +16,7 @@ from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import BatchRunningSentinelMixin
 from clusterman.config import get_role_config_path
 from clusterman.config import setup_config
+from clusterman.exceptions import AutoscalerError
 from clusterman.exceptions import ClustermanSignalError
 from clusterman.util import get_clusterman_logger
 from clusterman.util import sensu_checkin
@@ -27,22 +29,29 @@ DEFAULT_TTL = '25m'
 DEFAULT_CHECK_EVERY = '10m'
 
 
-def sensu_alert_triage(fn):
-    def wrapper(self):
-        msg = ''
-        signal_failed, service_failed = False, False
-        try:
-            fn(self)
-        except ClustermanSignalError as e:
-            msg = str(e)
-            logger.exception(f'Autoscaler signal failed: {msg}')
-            signal_failed = True
-        except Exception as e:
-            msg = str(e)
-            logger.exception(f'Autoscaler service failed: {msg}')
-            service_failed = True
-        self._do_sensu_checkins(signal_failed, service_failed, msg)
-    return wrapper
+def sensu_alert_triage(fail=False):
+    def decorator(fn):
+        def wrapper(self):
+            msg = ''
+            signal_failed, service_failed = False, False
+            error = None
+            try:
+                fn(self)
+            except ClustermanSignalError as e:
+                msg = str(e)
+                logger.exception(f'Autoscaler signal failed: {msg}')
+                signal_failed = True
+                error = e
+            except Exception as e:
+                msg = str(e)
+                logger.exception(f'Autoscaler service failed: {msg}')
+                service_failed = True
+                error = e
+            self._do_sensu_checkins(signal_failed, service_failed, msg)
+            if fail and error:
+                raise AutoscalerError from error
+        return wrapper
+    return decorator
 
 
 class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
@@ -52,6 +61,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
     def parse_args(self, parser):
         arg_group = parser.add_argument_group('AutoscalerBatch options')
         add_cluster_arg(arg_group, required=True)
+        add_cluster_config_directory_arg(arg_group)
         add_env_config_path_arg(arg_group)
         add_branch_or_tag_arg(arg_group)
         arg_group.add_argument(
@@ -62,7 +72,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
         )
 
     @batch_configure
-    @sensu_alert_triage
+    @sensu_alert_triage(fail=True)
     def configure_initial(self):
         setup_config(self.options)
         self.autoscaler = None
@@ -86,7 +96,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
         # conflicts with other batches (like the Kew autoscaler).
         return LOG_STREAM_NAME
 
-    @sensu_alert_triage
+    @sensu_alert_triage()
     def _autoscale(self):
         time.sleep(splay_time_start(
             self.autoscaler.run_frequency,

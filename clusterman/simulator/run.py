@@ -10,6 +10,7 @@ from clusterman_metrics import SYSTEM_METRICS
 
 from clusterman.args import add_branch_or_tag_arg
 from clusterman.args import add_cluster_arg
+from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_role_arg
 from clusterman.args import add_start_end_args
 from clusterman.args import subparser
@@ -170,6 +171,7 @@ def add_simulate_parser(subparser, required_named_args, optional_named_args):  #
     )
     add_cluster_arg(required_named_args, required=False)
     add_role_arg(required_named_args, required=False)
+    add_cluster_config_directory_arg(optional_named_args)
     add_branch_or_tag_arg(optional_named_args)
     required_named_args.add_argument(
         '--name',
@@ -193,11 +195,6 @@ def add_simulate_parser(subparser, required_named_args, optional_named_args):  #
         metavar='filename',
         nargs='+',
         help='provide simulated values for one or more metric time series',
-    )
-    optional_named_args.add_argument(
-        '--cluster-config-directory',
-        metavar='directory',
-        help='specify role configuration directory for simulation',
     )
     optional_named_args.add_argument(
         '--discount',
