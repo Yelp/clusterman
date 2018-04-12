@@ -5,6 +5,7 @@ import pytest
 import staticconf.testing
 
 from clusterman.batch.autoscaler import AutoscalerBatch
+from clusterman.exceptions import AutoscalerError
 
 
 @pytest.fixture
@@ -38,7 +39,8 @@ def mock_watcher():
 
 @pytest.mark.parametrize('roles_in_cluster', [[], ['role_A', 'role_B']])
 def test_invalid_role_numbers(roles_in_cluster):
-    with staticconf.testing.PatchConfiguration({'cluster_roles': roles_in_cluster}):
+    with staticconf.testing.PatchConfiguration({'cluster_roles': roles_in_cluster}), \
+            pytest.raises(AutoscalerError):
         b = batch()
         assert b._do_sensu_checkins.call_args[0][0] is False
         assert b._do_sensu_checkins.call_args[0][1] is True

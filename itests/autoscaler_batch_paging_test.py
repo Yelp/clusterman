@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+from contextlib import ExitStack
 
 import mock
 import pytest
@@ -10,6 +11,7 @@ from clusterman.autoscaler.util import ACK
 from clusterman.batch.autoscaler import AutoscalerBatch
 from clusterman.batch.autoscaler import SERVICE_CHECK_NAME
 from clusterman.batch.autoscaler import SIGNAL_CHECK_NAME
+from clusterman.exceptions import AutoscalerError
 from tests.batch.conftest import mock_setup_config_directory
 from tests.conftest import clusterman_role_config
 from tests.conftest import main_clusterman_config
@@ -45,9 +47,11 @@ def autoscaler_batch_patches():
             mock.patch('clusterman.autoscaler.autoscaler.MesosRoleManager'), \
             mock.patch('clusterman.autoscaler.autoscaler.yelp_meteorite'), \
             mock.patch('clusterman.autoscaler.autoscaler.ClustermanMetricsBotoClient'), \
+            mock.patch('clusterman.batch.autoscaler.splay_time_start') as mock_splay, \
             mock.patch('clusterman.batch.autoscaler.AutoscalerBatch.running', mock.PropertyMock(
                 side_effect=[True, False],
             )):
+        mock_splay.return_value = 0
         yield
 
 
@@ -70,7 +74,8 @@ def test_signal_setup_fallback(signal_type, autoscaler_batch):
 
         # Autoscaler reads the "default" signal config first and then the client signal config
         mock_signal_config.side_effect = [mock.MagicMock(), ValueError] if signal_type == 'client' else [ValueError]
-        autoscaler_batch.configure_initial()
+        with (pytest.raises(AutoscalerError) if signal_type == 'default' else ExitStack()):
+            autoscaler_batch.configure_initial()
 
         i = 0
         if signal_type == 'client':
@@ -98,7 +103,8 @@ def test_signal_connection_failed(autoscaler_batch):
             mock.patch('clusterman.util.pysensu_yelp.send_event') as mock_sensu:
 
         mock_conn.side_effect = ValueError
-        autoscaler_batch.configure_initial()
+        with pytest.raises(AutoscalerError):
+            autoscaler_batch.configure_initial()
 
         check_sensu_args(mock_sensu.call_args_list[0], signal_role='bar', status=Status.CRITICAL)
         check_sensu_args(mock_sensu.call_args_list[1])
