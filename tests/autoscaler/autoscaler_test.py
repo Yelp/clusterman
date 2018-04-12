@@ -174,7 +174,7 @@ class TestInitSignalConnection:
         assert mock_load_signal.call_args == mock.call('v42', app, 'CoolSignal')
         assert json.loads(mock_load_signal.return_value.send.call_args[0][0]) == {
             'cluster': 'mesos-test',
-            'app_name': app,
+            'app': app,
             'parameters': mock_autoscaler.signal_config.parameters,
         }
         assert mock_logger.info.call_count == 1
@@ -190,7 +190,7 @@ class TestInitSignalConnection:
         ]
         assert json.loads(mock_signal_conn.send.call_args[0][0]) == {
             'cluster': 'mesos-test',
-            'app_name': mock_autoscaler.apps[0],
+            'app': mock_autoscaler.apps[0],
             'parameters': mock_autoscaler.signal_config.parameters,
         }
         assert mock_logger.info.call_count == 2

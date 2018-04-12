@@ -57,7 +57,7 @@ def autoscaler_batch_patches():
 
 @pytest.fixture
 def autoscaler_batch():
-    args = ['--cluster', 'mesos-test']
+    args = ['--cluster', 'mesos-test', '--pool', 'bar']
     parser = ArgumentParser()
     batch = AutoscalerBatch()
     batch.parse_args(parser)

@@ -7,11 +7,11 @@ from clusterman.batch.autoscaler import AutoscalerBatch
 
 
 @pytest.fixture
-def batch(args=None, mock_sensu=True):
+def batch(extra_args=None, mock_sensu=True):
     with mock.patch('clusterman.batch.autoscaler.setup_config'), \
             mock.patch('clusterman.batch.autoscaler.Autoscaler', signal=mock.Mock()):
         batch = AutoscalerBatch()
-        args = args or ['--cluster', 'mesos-test']
+        args = ['--cluster', 'mesos-test', '--pool', 'bar'] + extra_args
         parser = argparse.ArgumentParser()
         batch.parse_args(parser)
         batch.options = parser.parse_args(args)
@@ -41,10 +41,8 @@ def mock_watcher():
 @mock.patch('clusterman.batch.autoscaler.sensu_checkin', autospec=True)
 @pytest.mark.parametrize('dry_run', [True, False])
 def test_run(mock_sensu, mock_running, mock_time, mock_sleep, dry_run):
-    args = ['--cluster', 'mesos-test']
-    if dry_run:
-        args.append('--dry-run')
-    batch_obj = batch(args, mock_sensu=False)
+    extra_args = ['--dry-run'] if dry_run else []
+    batch_obj = batch(extra_args, mock_sensu=False)
     batch_obj.autoscaler.run_frequency = 600
 
     mock_running.side_effect = [True, True, True, False]

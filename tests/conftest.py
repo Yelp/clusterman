@@ -61,7 +61,6 @@ def main_clusterman_config():
                 'max_weight_to_remove': 10,
             },
         },
-        'scaling_pool': 'bar',
         'sensu_config': [
             {
                 'team': 'my_team',

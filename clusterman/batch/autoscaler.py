@@ -62,7 +62,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
     def parse_args(self, parser):
         arg_group = parser.add_argument_group('AutoscalerBatch options')
         add_cluster_arg(arg_group, required=True)
-        add_pool_arg(arg_group, required=False)
+        add_pool_arg(arg_group, required=True)
         add_cluster_config_directory_arg(arg_group)
         add_env_config_path_arg(arg_group)
         add_branch_or_tag_arg(arg_group)
@@ -76,16 +76,13 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
     @batch_configure
     @sensu_alert_triage(fail=True)
     def configure_initial(self):
-        setup_config(self.options)
+        setup_config(self.options, self.options.pool)
         self.autoscaler = None
-        self.pool = staticconf.read_string('scaling_pool')
-        self.config.watchers.append({self.pool: get_pool_config_path(self.options.cluster, self.pool)})
+        self.config.watchers.append({self.options.pool: get_pool_config_path(self.options.cluster, self.options.pool)})
         self.logger = logger
-        if not self.pool:
-            raise Exception('No pool is configured to be managed by Clusterman in this cluster')
 
-        self.apps = [self.pool]  # TODO (CLUSTERMAN-126) somday these should not be the same thing
-        self.autoscaler = Autoscaler(self.options.cluster, self.pool, self.apps)
+        self.apps = [self.options.pool]  # TODO (CLUSTERMAN-126) somday these should not be the same thing
+        self.autoscaler = Autoscaler(self.options.cluster, self.options.pool, self.apps)
 
     def _get_local_log_stream(self, clog_prefix=None):
         # Overrides the yelp_batch default, which is tmp_batch_<filename> (autoscaler in this case)
@@ -120,7 +117,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
             check_every=check_every,
             source=self.options.cluster,
             ttl=ttl,
-            app_name=self.apps[0],
+            app=self.apps[0],
             noop=self.options.dry_run,
         )
 

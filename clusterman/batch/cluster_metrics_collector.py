@@ -19,6 +19,7 @@ from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import BatchRunningSentinelMixin
 from clusterman.config import get_cluster_config_directory
 from clusterman.config import get_pool_config_path
+from clusterman.config import load_cluster_pool_config
 from clusterman.config import setup_config
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.util import get_clusterman_logger
@@ -57,10 +58,8 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
     def configure_initial(self):
         setup_config(self.options)
 
-        self.region = staticconf.read_string('aws.region')
-        self.run_interval = staticconf.read_int('batches.cluster_metrics.run_interval_seconds')
-        self.logger = logger
-
+        # Since we want to collect metrics for all the pools, we need to call setup_config
+        # first to load the cluster config path, and then read all the entries in that directory
         cluster_config_directory = get_cluster_config_directory(self.options.cluster)
         self.pools = [
             f[:-5] for f in os.listdir(cluster_config_directory)
@@ -68,6 +67,11 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
         ]
         for pool in self.pools:
             self.config.watchers.append({pool: get_pool_config_path(self.options.cluster, pool)})
+            load_cluster_pool_config(self.options.cluster, pool, None)
+
+        self.region = staticconf.read_string('aws.region')
+        self.run_interval = staticconf.read_int('batches.cluster_metrics.run_interval_seconds')
+        self.logger = logger
 
         self.mesos_managers = {
             pool: MesosPoolManager(self.options.cluster, pool)

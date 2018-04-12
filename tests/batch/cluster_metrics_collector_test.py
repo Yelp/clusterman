@@ -34,7 +34,8 @@ def mock_setup_config():
 def test_configure_initial(mock_ls, mock_mesos_pool_manager, mock_client_class, batch, mock_setup_config):
     pools = ['pool-1', 'pool-3']
     mock_ls.return_value = [f'{p}.yaml' for p in pools]
-    batch.configure_initial()
+    with mock.patch('clusterman.batch.cluster_metrics_collector.load_cluster_pool_config'):
+        batch.configure_initial()
 
     assert batch.run_interval == 120
     assert mock_setup_config.call_count == 1
