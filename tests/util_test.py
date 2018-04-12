@@ -90,16 +90,16 @@ class TestSensu:
                 team='my_team',
             )
 
-    @pytest.mark.parametrize('app_name', [None, 'bar'])
-    def test_args_overrides_config(self, mock_sensu, app_name):
+    @pytest.mark.parametrize('app', [None, 'bar'])
+    def test_args_overrides_config(self, mock_sensu, app):
         sensu_checkin(
             check_name='my_check',
             output='output',
             source='my_source',
             team='a_different_team',
-            app_name=app_name,
+            app=app,
         )
-        expected_runbook = 'y/my-runbook' if not app_name else 'y/their-runbook'
+        expected_runbook = 'y/my-runbook' if not app else 'y/their-runbook'
         assert mock_sensu.call_args == mock.call(
             name='my_check',
             output='output',
@@ -114,7 +114,7 @@ class TestSensu:
             check_name='my_check',
             output='output',
             source='my_source',
-            app_name='non-existent',
+            app='non-existent',
         )
         assert mock_sensu.call_args == mock.call(
             name='my_check',

@@ -60,8 +60,6 @@ def load_cluster_pool_config(cluster, pool, signals_branch_or_tag):
                 namespace=pool_namespace,
             )
 
-    staticconf.DictConfiguration({'scaling_pool': pool})
-
 
 def get_cluster_config_directory(cluster):
     return os.path.join(staticconf.read_string('cluster_config_directory'), cluster)

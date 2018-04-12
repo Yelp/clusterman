@@ -102,14 +102,6 @@ def add_app_arg(parser, required=False):  # pragma: no cover
     )
 
 
-def add_pool_arg(parser, required=False):  # pragma: no cover
-    parser.add_argument(
-        '--pool',
-        required=required,
-        help='currently does nothing'
-    )
-
-
 def add_env_config_path_arg(parser):  # pragma: no cover
     """ Add a --env-config-path argument to a parser """
     parser.add_argument(

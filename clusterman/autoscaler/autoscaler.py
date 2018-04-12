@@ -31,9 +31,9 @@ class Autoscaler:
         self.pool = pool
         self.apps = apps
 
-        # TODO: handle multiple applications in the autoscaler (CLUSTERMAN-126)
+        # TODO: handle multiple apps in the autoscaler (CLUSTERMAN-126)
         if len(self.apps) > 1:
-            raise NotImplementedError('Scaling multiple applications in a cluster is not yet supported')
+            raise NotImplementedError('Scaling multiple apps in a cluster is not yet supported')
 
         logger.info(f'Initializing autoscaler engine for {self.pool} in {self.cluster}...')
         self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool))
@@ -42,7 +42,7 @@ class Autoscaler:
         self.mesos_pool_manager = pool_manager or MesosPoolManager(self.cluster, self.pool)
 
         mesos_region = staticconf.read_string('aws.region')
-        self.metrics_client = metrics_client or ClustermanMetricsBotoClient(mesos_region, app_identifier=self.pool)
+        self.metrics_client = metrics_client or ClustermanMetricsBotoClient(mesos_region, app_identifier=self.apps[0])
         for app in self.apps:
             self.load_signal_for_app(app)
 
@@ -63,12 +63,12 @@ class Autoscaler:
         self.capacity_gauge.set(new_target_capacity, {'dry_run': dry_run})
         self.mesos_pool_manager.modify_target_capacity(new_target_capacity, dry_run=dry_run)
 
-    def load_signal_for_app(self, app_name):
+    def load_signal_for_app(self, app):
         """Load the signal object to use for autoscaling."""
         logger.info(f'Loading autoscaling signal for {self.apps[0]} on {self.pool} in {self.cluster}')
 
-        # TODO (CLUSTERMAN-126) apps will eventually be independent of pools
-        pool_namespace = POOL_NAMESPACE.format(pool=app_name)
+        # TODO (CLUSTERMAN-126, CLUSTERMAN-195) apps will eventually have separate namespaces from pools
+        pool_namespace = POOL_NAMESPACE.format(pool=app)
         self.signal_config = read_signal_config(DEFAULT_NAMESPACE)
         use_default = True
         try:
@@ -88,15 +88,15 @@ class Autoscaler:
                 source=self.cluster,
                 page=False,
                 ttl=None,
-                app_name=app_name,
+                app=app,
             )
 
         try:
-            self._init_signal_connection(app_name, use_default)
+            self._init_signal_connection(app, use_default)
         except Exception as e:
             raise ClustermanSignalError('Signal connection initialization failed') from e
 
-    def _init_signal_connection(self, app_name, use_default):
+    def _init_signal_connection(self, app, use_default):
         """ Initialize the signal socket connection/communication layer.
 
         :param use_default: use the default signal with whatever parameters are stored in self.signal_config
@@ -110,7 +110,7 @@ class Autoscaler:
                 # Look for the signal name under the "pool" directory in clusterman_signals
                 self.signal_conn = load_signal_connection(
                     self.signal_config.branch_or_tag,
-                    app_name,
+                    app,
                     self.signal_config.name,
                 )
             except SignalConnectionError:
@@ -129,7 +129,7 @@ class Autoscaler:
 
         signal_kwargs = json.dumps({
             'cluster': self.cluster,
-            'app_name': app_name,
+            'app': app,
             'parameters': self.signal_config.parameters
         })
         self.signal_conn.send(signal_kwargs.encode())

@@ -112,7 +112,7 @@ def parse_time_interval_seconds(time_str):
     return (parse_result[0] - datetime.min).total_seconds()
 
 
-def sensu_checkin(*, check_name, output, source, status=Status.OK, app_name=None, noop=False, **kwargs):
+def sensu_checkin(*, check_name, output, source, status=Status.OK, app=None, noop=False, **kwargs):
     if noop:
         return
 
@@ -121,8 +121,8 @@ def sensu_checkin(*, check_name, output, source, status=Status.OK, app_name=None
     # to define this, so we know that someone is going to get the notification
     #
     # TODO (CLUSTERMAN-126) right now there's only one app per pool so use the global pool namespace
-    # We assume the "app" name and the "pool" name are the same
-    pool_namespace = POOL_NAMESPACE.format(pool=app_name) if app_name else None
+    # We assume the "pool" name and the "app" name are the same
+    pool_namespace = POOL_NAMESPACE.format(pool=app) if app else None
     try:
         sensu_config = staticconf.read_list('sensu_config', namespace=pool_namespace).pop()
     except ConfigurationError:
