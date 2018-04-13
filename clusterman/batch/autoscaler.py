@@ -10,6 +10,7 @@ from clusterman.args import add_branch_or_tag_arg
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_env_config_path_arg
+from clusterman.args import add_pool_arg
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.autoscaler.util import LOG_STREAM_NAME
 from clusterman.batch.util import BatchLoggingMixin
@@ -61,6 +62,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
     def parse_args(self, parser):
         arg_group = parser.add_argument_group('AutoscalerBatch options')
         add_cluster_arg(arg_group, required=True)
+        add_pool_arg(arg_group, required=False)
         add_cluster_config_directory_arg(arg_group)
         add_env_config_path_arg(arg_group)
         add_branch_or_tag_arg(arg_group)
