@@ -76,7 +76,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
     @batch_configure
     @sensu_alert_triage(fail=True)
     def configure_initial(self):
-        setup_config(self.options, self.options.pool)
+        setup_config(self.options)
         self.autoscaler = None
         self.config.watchers.append({self.options.pool: get_pool_config_path(self.options.cluster, self.options.pool)})
         self.logger = logger

@@ -84,8 +84,10 @@ def mock_config_namespaces():
 @mock.patch('clusterman.config.load_cluster_pool_config', autospec=True)
 @mock.patch('clusterman.config.load_default_config')
 def test_setup_config_cluster(mock_service_load, mock_pool_load, cluster, pool, tag, mock_config_files):
-    args = argparse.Namespace(env_config_path='/nail/etc/config.yaml', cluster=cluster, signals_branch_or_tag=tag)
-    config.setup_config(args, pool)
+    args = argparse.Namespace(
+        env_config_path='/nail/etc/config.yaml', cluster=cluster, pool=pool, signals_branch_or_tag=tag,
+    )
+    config.setup_config(args)
 
     assert mock_service_load.call_args == mock.call('/nail/etc/config.yaml', '/nail/etc/config.yaml')
     assert staticconf.read_string('aws.region') == 'us-test-3'

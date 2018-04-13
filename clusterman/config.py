@@ -10,7 +10,7 @@ DEFAULT_CLUSTER_DIRECTORY = '/nail/srv/configs/clusterman-clusters'
 POOL_NAMESPACE = '{pool}_config'
 
 
-def setup_config(args, pool=None):
+def setup_config(args):
     # load_default_config merges the 'module_config' key from the first file
     # and the 'module_env_config' key from the second file to configure packages.
     # This allows us to configure packages differently in different hiera envs by
@@ -23,6 +23,7 @@ def setup_config(args, pool=None):
 
     aws_region = getattr(args, 'aws_region', None)
     cluster = getattr(args, 'cluster', None)
+    pool = getattr(args, 'pool', None)
     if aws_region and cluster:
         raise ArgumentError(None, 'Cannot specify both cluster and aws_region')
 
@@ -34,7 +35,7 @@ def setup_config(args, pool=None):
         aws_region = staticconf.read_string(f'mesos_clusters.{cluster}.aws_region')
 
         if pool:
-            load_cluster_pool_config(args.cluster, pool, signals_branch_or_tag)
+            load_cluster_pool_config(cluster, pool, signals_branch_or_tag)
 
     staticconf.DictConfiguration({'aws': {'region': aws_region}})
 
