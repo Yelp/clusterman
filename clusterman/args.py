@@ -89,16 +89,7 @@ def add_pool_arg(parser, required=False):  # pragma: no cover
         required=required,
         dest='pool',
         action=deprecate_argument(depr_arg='--role', alt='--pool'),
-        help='Name of Mesos cluster to operate on',
-    )
-
-
-def add_app_arg(parser, required=False):  # pragma: no cover
-    """ Add --app argument to a parser """
-    parser.add_argument(
-        '--app',
-        required=required,
-        help='Mesos role to operate on',
+        help='Identifier for a pool of machines to operate on',
     )
 
 

@@ -127,11 +127,7 @@ class Autoscaler:
                 self.signal_config.name,
             )
 
-        signal_kwargs = json.dumps({
-            'cluster': self.cluster,
-            'app': app,
-            'parameters': self.signal_config.parameters
-        })
+        signal_kwargs = json.dumps({'parameters': self.signal_config.parameters})
         self.signal_conn.send(signal_kwargs.encode())
         logger.info(f'Loaded signal {self.signal_config.name}')
 
