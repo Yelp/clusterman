@@ -8,8 +8,10 @@ from threading import Thread
 
 import simplejson as json
 import staticconf
+import yaml
 from staticconf.errors import ConfigurationError
 
+from clusterman.aws.client import s3
 from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.exceptions import SignalConnectionError
 from clusterman.exceptions import SignalValidationError
@@ -26,6 +28,7 @@ SIGNALS_REPO = 'git@git.yelpcorp.com:clusterman_signals'
 SOCKET_TIMEOUT_SECONDS = 60
 SOCK_MESG_SIZE = 4096
 ACK = bytes([1])
+BUCKET_NAME = "yelp-clusterman-metrics-dev"
 
 
 def _get_signal_loggers(signal_name):
@@ -107,7 +110,7 @@ def _get_local_signal_directory(branch_or_tag):
     return local_path
 
 
-def read_signal_config(config_namespace):
+def read_signal_config(config_namespace, mesos_region):
     """Validate and return autoscaling signal config from the given namespace.
 
     :param config_namespace: namespace to read values from
@@ -117,7 +120,6 @@ def read_signal_config(config_namespace):
     :raises SignalValidationError: if some signal parameter is incorrectly set
     """
     reader = staticconf.NamespaceReaders(config_namespace)
-
     try:
         name = reader.read_string('autoscale_signal.name')
     except ConfigurationError:
@@ -127,6 +129,16 @@ def read_signal_config(config_namespace):
     if period_minutes <= 0:
         raise SignalValidationError(f'Length of signal period must be positive, got {period_minutes}')
     metrics_dict_list = reader.read_list('autoscale_signal.required_metrics', default=[])
+    try:
+        metrics_index_bucket = reader.read_string('resource_groups.s3.metrics_index_bucket')
+        print("config_namespace = {}".format(config_namespace))
+        print('origin metrics_dict_list = {}'.format(metrics_dict_list))
+        print('mesos_region = {}'.format(mesos_region))
+        metrics_dict_list = update_metrics_dict_list(metrics_index_bucket, mesos_region, metrics_dict_list)
+    except ConfigurationError:
+        print('no metrics_index_bucket is configured for namesapce = {}'.format(config_namespace))
+    print("Now metrics_dict_list = {}".format(metrics_dict_list))
+
     parameter_dict_list = reader.read_list('autoscale_signal.parameters', default=[])
 
     parameter_dict = {key: value for param_dict in parameter_dict_list for (key, value) in param_dict.items()}
@@ -213,3 +225,38 @@ def evaluate_signal(metrics, signal_conn):
     # if there's no more data in the previous message
     response = response[1:] or signal_conn.recv(SOCK_MESG_SIZE)
     return json.loads(response)['Resources']
+
+
+def update_metrics_dict_list(metrics_index_bucket, mesos_region, metrics_dict_list):
+    filename = f'{mesos_region}.yml'
+    metrics_index_object = s3.get_object(Bucket=BUCKET_NAME, Key=filename)
+    metrics_index = yaml.safe_load(metrics_index_object['Body'])
+    print('metrics_index = {}'.format(metrics_index))
+    update_metrics_dict_list = list()
+    for metric_dict in metrics_dict_list:
+        metric_type = metric_dict['type']
+        replace_by_metric_index_flag = False
+        for metric_name in metrics_index[metric_type]:
+            if metric_name.startswith(metric_dict['name']):
+                new_metric_dict = dict(metric_dict)
+                new_metric_dict['name'] = metric_name
+                update_metrics_dict_list.append(new_metric_dict)
+                replace_by_metric_index_flag = True
+        if replace_by_metric_index_flag is False:
+            update_metrics_dict_list.append(metric_dict)
+    print('update_metrics_dict_list = {}'.format(update_metrics_dict_list))
+
+    # Update metrics_index if necessary
+    # update_metrics_dict_list[0]['name'] = 'cpus_allocated2'
+    update_metrics_index_flag = False
+    for metric_dict in update_metrics_dict_list:
+        if metric_dict['name'] not in metrics_index[metric_dict['type']]:
+            metrics_index[metric_dict['type']].append(metric_dict['name'])
+            update_metrics_index_flag = True
+    print('update_metrics_index_flag = {}'.format(update_metrics_index_flag))
+    if update_metrics_index_flag is True:
+        with open(filename, 'w') as tmpfile:
+            yaml.dump(metrics_index, tmpfile)
+        s3.upload(filename, BUCKET_NAME, filename)
+
+    return update_metrics_dict_list

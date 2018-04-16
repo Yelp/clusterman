@@ -42,13 +42,13 @@ def mock_cache():
 
 def test_read_config_none():
     with staticconf.testing.MockConfiguration({}, namespace='util_testing'), pytest.raises(NoSignalConfiguredException):
-        read_signal_config('util_testing')
+        read_signal_config('util_testing', 'us-test-3')
 
 
 def test_read_config_optional_values():
     config_dict = signal_config_base()
     with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'):
-        config = read_signal_config('util_testing')
+        config = read_signal_config('util_testing', 'us-test-3')
 
     assert config == SignalConfig('BarSignal3', 'v42', 7, [], {})
 
@@ -74,7 +74,7 @@ def test_read_config_valid_values():
         ],
     })
     with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'):
-        config = read_signal_config('util_testing')
+        config = read_signal_config('util_testing', 'us-test-3')
 
     assert config == SignalConfig(
         'BarSignal3',
