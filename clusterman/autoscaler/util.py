@@ -1,4 +1,5 @@
 import os
+import re
 import socket
 import struct
 import subprocess
@@ -28,7 +29,6 @@ SIGNALS_REPO = 'git@git.yelpcorp.com:clusterman_signals'
 SOCKET_TIMEOUT_SECONDS = 60
 SOCK_MESG_SIZE = 4096
 ACK = bytes([1])
-BUCKET_NAME = "yelp-clusterman-metrics-dev"
 
 
 def _get_signal_loggers(signal_name):
@@ -110,7 +110,7 @@ def _get_local_signal_directory(branch_or_tag):
     return local_path
 
 
-def read_signal_config(config_namespace, mesos_region):
+def read_signal_config(config_namespace, metrics_index):
     """Validate and return autoscaling signal config from the given namespace.
 
     :param config_namespace: namespace to read values from
@@ -129,15 +129,8 @@ def read_signal_config(config_namespace, mesos_region):
     if period_minutes <= 0:
         raise SignalValidationError(f'Length of signal period must be positive, got {period_minutes}')
     metrics_dict_list = reader.read_list('autoscale_signal.required_metrics', default=[])
-    try:
-        metrics_index_bucket = reader.read_string('resource_groups.s3.metrics_index_bucket')
-        print("config_namespace = {}".format(config_namespace))
-        print('origin metrics_dict_list = {}'.format(metrics_dict_list))
-        print('mesos_region = {}'.format(mesos_region))
-        metrics_dict_list = update_metrics_dict_list(metrics_index_bucket, mesos_region, metrics_dict_list)
-    except ConfigurationError:
-        print('no metrics_index_bucket is configured for namesapce = {}'.format(config_namespace))
-    print("Now metrics_dict_list = {}".format(metrics_dict_list))
+    if metrics_index is not None:
+        metrics_dict_list = update_metrics_dict_list(metrics_dict_list, metrics_index)
 
     parameter_dict_list = reader.read_list('autoscale_signal.parameters', default=[])
 
@@ -152,6 +145,7 @@ def read_signal_config(config_namespace, mesos_region):
             raise SignalValidationError(f'Missing required metric keys {missing} in {metrics_dict}')
         metric_config = {key: metrics_dict[key] for key in metrics_dict if key in required_metric_keys}
         metric_configs.append(MetricConfig(**metric_config))
+    logger.info("Reading metrics config for these metrics = {}".format(metric_configs))
     return SignalConfig(name, branch_or_tag, period_minutes, metric_configs, parameter_dict)
 
 
@@ -227,36 +221,20 @@ def evaluate_signal(metrics, signal_conn):
     return json.loads(response)['Resources']
 
 
-def update_metrics_dict_list(metrics_index_bucket, mesos_region, metrics_dict_list):
-    filename = f'{mesos_region}.yml'
-    metrics_index_object = s3.get_object(Bucket=BUCKET_NAME, Key=filename)
-    metrics_index = yaml.safe_load(metrics_index_object['Body'])
-    print('metrics_index = {}'.format(metrics_index))
+def get_metrics_index_from_s3(metrics_index_bucket, mesos_region):
+    keyname = f'{mesos_region}.yaml'
+    metrics_index_object = s3.get_object(Bucket=metrics_index_bucket, Key=keyname)
+    return yaml.load(metrics_index_object['Body'])
+
+
+def update_metrics_dict_list(metrics_dict_list, metrics_index):
     update_metrics_dict_list = list()
     for metric_dict in metrics_dict_list:
         metric_type = metric_dict['type']
-        replace_by_metric_index_flag = False
-        for metric_name in metrics_index[metric_type]:
-            if metric_name.startswith(metric_dict['name']):
-                new_metric_dict = dict(metric_dict)
-                new_metric_dict['name'] = metric_name
-                update_metrics_dict_list.append(new_metric_dict)
-                replace_by_metric_index_flag = True
-        if replace_by_metric_index_flag is False:
-            update_metrics_dict_list.append(metric_dict)
-    print('update_metrics_dict_list = {}'.format(update_metrics_dict_list))
-
-    # Update metrics_index if necessary
-    # update_metrics_dict_list[0]['name'] = 'cpus_allocated2'
-    update_metrics_index_flag = False
-    for metric_dict in update_metrics_dict_list:
-        if metric_dict['name'] not in metrics_index[metric_dict['type']]:
-            metrics_index[metric_dict['type']].append(metric_dict['name'])
-            update_metrics_index_flag = True
-    print('update_metrics_index_flag = {}'.format(update_metrics_index_flag))
-    if update_metrics_index_flag is True:
-        with open(filename, 'w') as tmpfile:
-            yaml.dump(metrics_index, tmpfile)
-        s3.upload(filename, BUCKET_NAME, filename)
+        metric_regex = re.compile(metric_dict['name'])
+        for metric_name in filter(metric_regex.match, metrics_index[metric_type]):
+            update_metric_dict = dict(metric_dict)
+            update_metric_dict['name'] = metric_name
+            update_metrics_dict_list.append(update_metric_dict)
 
     return update_metrics_dict_list
