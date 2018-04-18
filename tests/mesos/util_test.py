@@ -3,7 +3,7 @@ from datetime import datetime
 import mock
 import pytest
 
-from clusterman.exceptions import MesosRoleManagerError
+from clusterman.exceptions import MesosPoolManagerError
 from clusterman.mesos.util import allocated_cpu_resources
 from clusterman.mesos.util import find_largest_capacity_market
 from clusterman.mesos.util import get_mesos_state
@@ -77,6 +77,6 @@ class TestMesosPost:
 
     def test_failure(self, wrapped_post):
         with mock.patch('clusterman.mesos.util.requests') as mock_requests, \
-                pytest.raises(MesosRoleManagerError):
+                pytest.raises(MesosPoolManagerError):
             mock_requests.post.side_effect = Exception('something bad happened')
             wrapped_post('http://the.mesos.master/', 'an-endpoint')

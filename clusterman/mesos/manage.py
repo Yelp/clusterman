@@ -5,24 +5,24 @@ import arrow
 import staticconf
 
 from clusterman.args import add_cluster_arg
-from clusterman.args import add_role_arg
+from clusterman.args import add_pool_arg
 from clusterman.args import subparser
 from clusterman.autoscaler.util import LOG_STREAM_NAME
-from clusterman.config import ROLE_NAMESPACE
-from clusterman.mesos.mesos_role_manager import MesosRoleManager
+from clusterman.config import POOL_NAMESPACE
+from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.util import ask_for_confirmation
 from clusterman.util import get_clusterman_logger
 
 logger = get_clusterman_logger(__name__)
 
 
-def get_target_capacity_value(target_capacity, role):
+def get_target_capacity_value(target_capacity, pool):
     target_capacity = target_capacity.lower()
-    role_namespace = ROLE_NAMESPACE.format(role=role)
+    pool_namespace = POOL_NAMESPACE.format(pool=pool)
     if target_capacity == 'min':
-        return staticconf.read_int('scaling_limits.min_capacity', namespace=role_namespace)
+        return staticconf.read_int('scaling_limits.min_capacity', namespace=pool_namespace)
     elif target_capacity == 'max':
-        return staticconf.read_int('scaling_limits.max_capacity', namespace=role_namespace)
+        return staticconf.read_int('scaling_limits.max_capacity', namespace=pool_namespace)
     else:
         return int(target_capacity)
 
@@ -30,9 +30,9 @@ def get_target_capacity_value(target_capacity, role):
 def main(args):
     if args.recycle:
         raise NotImplementedError('Cluster recycling is not yet supported')
-    manager = MesosRoleManager(args.cluster, args.role)
+    manager = MesosPoolManager(args.cluster, args.pool)
     old_target = manager.target_capacity
-    requested_target = get_target_capacity_value(args.target_capacity, args.role)
+    requested_target = get_target_capacity_value(args.target_capacity, args.pool)
     if not args.dry_run:
         if not ask_for_confirmation(
             f'Modifying target capacity from {manager.target_capacity} to {requested_target}.  Proceed? '
@@ -41,7 +41,7 @@ def main(args):
             return
 
     new_target = manager.modify_target_capacity(requested_target, args.dry_run)
-    log_message = (f'Target capacity for {args.role} on {args.cluster} manually changed '
+    log_message = (f'Target capacity for {args.pool} on {args.cluster} manually changed '
                    f'from {old_target} to {new_target} by {getuser()}')
     print(log_message)
     if not args.dry_run:
@@ -56,7 +56,7 @@ def main(args):
 @subparser('manage', 'check the status of a Mesos cluster', main)
 def add_mesos_manager_parser(subparser, required_named_args, optional_named_args):  # pragma: no cover
     add_cluster_arg(required_named_args, required=True)
-    add_role_arg(required_named_args, required=True)
+    add_pool_arg(required_named_args, required=True)
     required_named_args.add_argument(
         '--target-capacity',
         metavar='X',

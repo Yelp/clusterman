@@ -10,7 +10,7 @@ from clusterman.mesos.manage import main
 
 @pytest.fixture
 def args():
-    return Namespace(cluster='foo', role='bar', target_capacity='123', recycle=False, dry_run=False)
+    return Namespace(cluster='foo', pool='bar', target_capacity='123', recycle=False, dry_run=False)
 
 
 @pytest.fixture(autouse=True)
@@ -38,7 +38,7 @@ def test_get_target_capacity_value_invalid():
 
 @mock.patch('clusterman.mesos.manage.logger')
 @mock.patch('clusterman.mesos.manage.ask_for_confirmation')
-@mock.patch('clusterman.mesos.manage.MesosRoleManager')
+@mock.patch('clusterman.mesos.manage.MesosPoolManager')
 @mock.patch('clusterman.mesos.manage.get_target_capacity_value')
 class TestMain:
     @pytest.mark.parametrize('dry_run', [True, False])

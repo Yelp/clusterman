@@ -17,7 +17,7 @@ from clusterman.math.piecewise import piecewise_breakpoint_generator
 from clusterman.math.piecewise import PiecewiseConstantFunction
 from clusterman.simulator.event import Event
 from clusterman.simulator.simulated_aws_cluster import SimulatedAWSCluster
-from clusterman.simulator.simulated_mesos_role_manager import SimulatedMesosRoleManager
+from clusterman.simulator.simulated_mesos_pool_manager import SimulatedMesosPoolManager
 from clusterman.util import get_clusterman_logger
 
 
@@ -25,10 +25,10 @@ logger = get_clusterman_logger(__name__)
 
 
 class SimulationMetadata:  # pragma: no cover
-    def __init__(self, name, cluster, role):
+    def __init__(self, name, cluster, pool):
         self.name = name
         self.cluster = cluster
-        self.role = role
+        self.pool = pool
         self.sim_start = None
         self.sim_end = None
 
@@ -39,7 +39,7 @@ class SimulationMetadata:  # pragma: no cover
         self.sim_end = arrow.now()
 
     def __str__(self):
-        return f'({self.cluster}, {self.role}, {self.sim_start}, {self.sim_end})'
+        return f'({self.cluster}, {self.pool}, {self.sim_start}, {self.sim_end})'
 
 
 class Simulator:
@@ -71,7 +71,7 @@ class Simulator:
 
         if autoscaler_config_file:
             self._make_autoscaler(autoscaler_config_file)
-            self.aws_clusters = self.autoscaler.mesos_role_manager.resource_groups
+            self.aws_clusters = self.autoscaler.mesos_pool_manager.resource_groups
             print(f'Autoscaler configured; will run every {self.autoscaler.signal_config.period_minutes} minutes')
         else:
             self.autoscaler = None
@@ -210,11 +210,11 @@ class Simulator:
         if 'sfrs' in autoscaler_config:
             aws_configs = ec2.describe_spot_fleet_requests(SpotFleetRequestIds=autoscaler_config['sfrs'])
             configs.extend([config['SpotFleetRequestConfig'] for config in aws_configs['SpotFleetRequestConfigs']])
-        role_manager = SimulatedMesosRoleManager(self.metadata.cluster, self.metadata.role, configs, self)
+        pool_manager = SimulatedMesosPoolManager(self.metadata.cluster, self.metadata.pool, configs, self)
         metric_values = self.metrics_client.get_metric_values(
             generate_key_with_dimensions(
                 'target_capacity',
-                {'cluster': self.metadata.cluster, 'role': self.metadata.role},
+                {'cluster': self.metadata.cluster, 'pool': self.metadata.pool},
             ),
             METADATA,
             self.start_time.timestamp,
@@ -223,14 +223,14 @@ class Simulator:
         )
         # take the earliest data point available - this is a Decimal, which doesn't play nicely, so convert to an int
         actual_target_capacity = int(metric_values[1][0][1])
-        role_manager.modify_target_capacity(actual_target_capacity, force=True)
+        pool_manager.modify_target_capacity(actual_target_capacity, force=True)
         for config in configs:
             for spec in config['LaunchSpecifications']:
                 self.markets |= {get_instance_market(spec)}
         self.autoscaler = Autoscaler(
             self.metadata.cluster,
-            self.metadata.role,
-            role_manager=role_manager,
+            self.metadata.pool,
+            pool_manager=pool_manager,
             metrics_client=self.metrics_client,
         )
 
@@ -267,9 +267,9 @@ def _make_comparison_sim(sim1, sim2, op, opcode):
         sim1.metadata.cluster == sim2.metadata.cluster else
         f'{sim1.metadata.cluster}, {sim2.metadata.cluster}',
 
-        f'{sim1.metadata.role}' if
-        sim1.metadata.role == sim2.metadata.role else
-        f'{sim1.metadata.role}, {sim2.metadata.role}',
+        f'{sim1.metadata.pool}' if
+        sim1.metadata.pool == sim2.metadata.pool else
+        f'{sim1.metadata.pool}, {sim2.metadata.pool}',
     )
     if sim1.start_time != sim2.start_time or sim1.end_time != sim2.end_time:
         logger.warn('Compared simulators do not have the same time boundaries; '

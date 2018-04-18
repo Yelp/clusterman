@@ -11,7 +11,7 @@ from clusterman_metrics import SYSTEM_METRICS
 from clusterman.args import add_branch_or_tag_arg
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_cluster_config_directory_arg
-from clusterman.args import add_role_arg
+from clusterman.args import add_pool_arg
 from clusterman.args import add_start_end_args
 from clusterman.args import subparser
 from clusterman.aws.markets import get_market_resources
@@ -32,7 +32,7 @@ from clusterman.util import splay_time_start
 logger = get_clusterman_logger(__name__)
 
 
-def _load_metrics(metrics_data_files, role):
+def _load_metrics(metrics_data_files, pool):
     metrics = defaultdict(dict)
     for metrics_file in (metrics_data_files or []):
         try:
@@ -42,7 +42,7 @@ def _load_metrics(metrics_data_files, role):
         except OSError as e:
             logger.warn(f'{str(e)}: no metrics loaded')
     region_name = staticconf.read_string('aws.region')
-    metrics_client = ClustermanMetricsSimulationClient(metrics, region_name=region_name, app_identifier=role)
+    metrics_client = ClustermanMetricsSimulationClient(metrics, region_name=region_name, app_identifier=pool)
     return metrics_client
 
 
@@ -65,7 +65,7 @@ def _populate_autoscaling_events(simulator, start_time, end_time):
 
 def _populate_cluster_size_events(simulator, start_time, end_time):
     __, capacity_ts = simulator.metrics_client.get_metric_values(
-        f'fulfilled_capacity|cluster={simulator.metadata.cluster},role={simulator.metadata.role}',
+        f'fulfilled_capacity|cluster={simulator.metadata.cluster},pool={simulator.metadata.pool}',
         METADATA,
         start_time.timestamp,
         end_time.timestamp,
@@ -82,7 +82,7 @@ def _populate_cluster_size_events(simulator, start_time, end_time):
 
 def _populate_allocated_resources(simulator, start_time, end_time):
     __, allocated_ts = simulator.metrics_client.get_metric_values(
-        f'cpus_allocated|cluster={simulator.metadata.cluster},role={simulator.metadata.role}',
+        f'cpus_allocated|cluster={simulator.metadata.cluster},pool={simulator.metadata.pool}',
         SYSTEM_METRICS,
         start_time.timestamp,
         end_time.timestamp,
@@ -113,7 +113,7 @@ def _populate_price_changes(simulator, start_time, end_time, discount):
 
 
 def _run_simulation(args, metrics_client):
-    metadata = SimulationMetadata(args.name, args.cluster, args.role)
+    metadata = SimulationMetadata(args.name, args.cluster, args.pool)
     simulator = Simulator(metadata, args.start_time, args.end_time, args.autoscaler_config, metrics_client)
     if simulator.autoscaler:
         _populate_autoscaling_events(simulator, args.start_time, args.end_time)
@@ -141,7 +141,7 @@ def main(args):
         sims = [read_object_from_compressed_json(sim_file) for sim_file in args.compare]
 
     if len(sims) < 2:
-        metrics_client = _load_metrics(args.metrics_data_files, args.role)
+        metrics_client = _load_metrics(args.metrics_data_files, args.pool)
         simulator = _run_simulation(args, metrics_client)
         sims.insert(0, simulator)
 
@@ -170,7 +170,7 @@ def add_simulate_parser(subparser, required_named_args, optional_named_args):  #
         'simulation end time',
     )
     add_cluster_arg(required_named_args, required=False)
-    add_role_arg(required_named_args, required=False)
+    add_pool_arg(required_named_args, required=False)
     add_cluster_config_directory_arg(optional_named_args)
     add_branch_or_tag_arg(optional_named_args)
     required_named_args.add_argument(

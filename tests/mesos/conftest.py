@@ -19,9 +19,9 @@ def mock_agents_response():
             {
                 'attributes': {
                     'blah': 10,
-                    'role': 'asdf',
+                    'pool': 'asdf',
                 },
-                'hostname': 'not-in-the-role.yelpcorp.com',
+                'hostname': 'not-in-the-pool.yelpcorp.com',
             },
             {
                 'hostname': 'asdf.yelpcorp.com',
@@ -30,10 +30,10 @@ def mock_agents_response():
             {
                 'attributes': {
                     'blah': 10,
-                    'role': 'bar',
+                    'pool': 'bar',
                     'ssss': 'hjkl',
                 },
-                'hostname': 'im-in-the-role.yelpcorp.com',
+                'hostname': 'im-in-the-pool.yelpcorp.com',
                 'used_resources': {
                     'mem': 20,
                     'cpus': 10,

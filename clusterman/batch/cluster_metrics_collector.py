@@ -1,3 +1,4 @@
+import os
 import socket
 import time
 from traceback import format_exc
@@ -16,9 +17,11 @@ from clusterman.args import add_disable_sensu_arg
 from clusterman.args import add_env_config_path_arg
 from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import BatchRunningSentinelMixin
-from clusterman.config import get_role_config_path
+from clusterman.config import get_cluster_config_directory
+from clusterman.config import get_pool_config_path
+from clusterman.config import load_cluster_pool_config
 from clusterman.config import setup_config
-from clusterman.mesos.mesos_role_manager import MesosRoleManager
+from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.util import get_clusterman_logger
 from clusterman.util import sensu_checkin
 from clusterman.util import splay_time_start
@@ -55,24 +58,32 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
     def configure_initial(self):
         setup_config(self.options)
 
+        # Since we want to collect metrics for all the pools, we need to call setup_config
+        # first to load the cluster config path, and then read all the entries in that directory
+        cluster_config_directory = get_cluster_config_directory(self.options.cluster)
+        self.pools = [
+            f[:-5] for f in os.listdir(cluster_config_directory)
+            if f[0] != '.' and f[-5:] == '.yaml'  # skip dotfiles and only read yaml-files
+        ]
+        for pool in self.pools:
+            self.config.watchers.append({pool: get_pool_config_path(self.options.cluster, pool)})
+            load_cluster_pool_config(self.options.cluster, pool, None)
+
         self.region = staticconf.read_string('aws.region')
         self.run_interval = staticconf.read_int('batches.cluster_metrics.run_interval_seconds')
         self.logger = logger
 
-        self.roles = staticconf.read_list('cluster_roles')
-        for role in self.roles:
-            self.config.watchers.append({role: get_role_config_path(self.options.cluster, role)})
         self.mesos_managers = {
-            role: MesosRoleManager(self.options.cluster, role)
-            for role in self.roles
+            pool: MesosPoolManager(self.options.cluster, pool)
+            for pool in self.pools
         }
         self.metrics_client = ClustermanMetricsBotoClient(region_name=self.region)
 
     def write_metrics(self, writer, metrics_to_write):
         for metric, value_method in metrics_to_write:
-            for role, manager in self.mesos_managers.items():
+            for pool, manager in self.mesos_managers.items():
                 value = value_method(manager)
-                metric_name = generate_key_with_dimensions(metric, {'cluster': self.options.cluster, 'role': role})
+                metric_name = generate_key_with_dimensions(metric, {'cluster': self.options.cluster, 'pool': pool})
                 data = (metric_name, int(time.time()), value)
                 writer.send(data)
 

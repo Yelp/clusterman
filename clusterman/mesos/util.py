@@ -3,7 +3,7 @@ import socket
 
 import requests
 
-from clusterman.exceptions import MesosRoleManagerError
+from clusterman.exceptions import MesosPoolManagerError
 from clusterman.util import get_clusterman_logger
 
 logger = get_clusterman_logger(__name__)
@@ -93,6 +93,6 @@ def mesos_post(url, endpoint):
                 f'Response Text: {response.text}\n'
             )
         logger.critical(log_message)
-        raise MesosRoleManagerError(f'Mesos master unreachable: check the logs for details') from e
+        raise MesosPoolManagerError(f'Mesos master unreachable: check the logs for details') from e
 
     return response

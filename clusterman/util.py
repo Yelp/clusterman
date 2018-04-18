@@ -11,7 +11,7 @@ from colorama import Style
 from pysensu_yelp import Status
 from staticconf.errors import ConfigurationError
 
-from clusterman.config import ROLE_NAMESPACE
+from clusterman.config import POOL_NAMESPACE
 
 
 def ask_for_confirmation(prompt='Are you sure? ', default=True):
@@ -112,16 +112,19 @@ def parse_time_interval_seconds(time_str):
     return (parse_result[0] - datetime.min).total_seconds()
 
 
-def sensu_checkin(*, check_name, output, source, status=Status.OK, signal_role=None, noop=False, **kwargs):
+def sensu_checkin(*, check_name, output, source, status=Status.OK, app=None, noop=False, **kwargs):
     if noop:
         return
 
     # read the sensu configuration from srv-configs; signals are not required to define this, so in the case
     # that they do not define anything, we fall back to the default config.  The default config _is_ required
     # to define this, so we know that someone is going to get the notification
-    role_namespace = ROLE_NAMESPACE.format(role=signal_role) if signal_role else None
+    #
+    # TODO (CLUSTERMAN-126) right now there's only one app per pool so use the global pool namespace
+    # We assume the "pool" name and the "app" name are the same
+    pool_namespace = POOL_NAMESPACE.format(pool=app) if app else None
     try:
-        sensu_config = staticconf.read_list('sensu_config', namespace=role_namespace).pop()
+        sensu_config = staticconf.read_list('sensu_config', namespace=pool_namespace).pop()
     except ConfigurationError:
         sensu_config = staticconf.read_list('sensu_config').pop()
     sensu_config.update(kwargs)  # values passed in to this function override config file values

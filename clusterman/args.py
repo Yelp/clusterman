@@ -5,6 +5,8 @@ import sys
 from clusterman import __version__
 from clusterman.util import get_clusterman_logger
 
+logger = get_clusterman_logger(__name__)
+
 
 def subparser(command, help, entrypoint):  # pragma: no cover
     """ Function decorator to simplify adding arguments to subcommands
@@ -23,6 +25,15 @@ def subparser(command, help, entrypoint):  # pragma: no cover
             subparser.set_defaults(entrypoint=entrypoint)
         return wrapper
     return decorator
+
+
+def deprecate_argument(depr_arg, alt):
+    class DeprecationAction(argparse.Action):
+        def __call__(self, parser, namespace, values, option_string=None):
+            if option_string == depr_arg:
+                logger.warn(f' {depr_arg} is deprecated and will be removed in the future; please use {alt} instead')
+            setattr(namespace, self.dest, values)
+    return DeprecationAction
 
 
 def add_branch_or_tag_arg(parser):  # pragma: no cover
@@ -71,19 +82,14 @@ def add_cluster_arg(parser, required=False):  # pragma: no cover
     )
 
 
-def add_role_arg(parser, required=False):  # pragma: no cover
-    parser.add_argument(
-        '--role',
-        required=required,
-        help='Mesos role to operate on',
-    )
-
-
 def add_pool_arg(parser, required=False):  # pragma: no cover
+    """ Add --pool argument to a parser """
     parser.add_argument(
-        '--pool',
+        '--pool', '--role',
         required=required,
-        help='currently does nothing'
+        dest='pool',
+        action=deprecate_argument(depr_arg='--role', alt='--pool'),
+        help='Identifier for a pool of machines to operate on',
     )
 
 
@@ -121,7 +127,6 @@ def help_formatter(prog):  # pragma: no cover
 def _get_validated_args(parser):
     args = parser.parse_args()
     logging.getLogger().setLevel(getattr(logging, args.log_level.upper()))
-    logger = get_clusterman_logger(__name__)
 
     if args.subcommand is None:
         logger.error('missing subcommand')

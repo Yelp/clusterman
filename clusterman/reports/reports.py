@@ -71,7 +71,7 @@ def _make_report_title(fig, report, sim_metadata, months):
     subtitle_rel_y = subtitle_abs_y / y_axis_points
     fig.text(
         0.5, subtitle_rel_y,
-        f'{sim_metadata.name}\nCluster: {sim_metadata.cluster}; Role: {sim_metadata.role}',
+        f'{sim_metadata.name}\nCluster: {sim_metadata.cluster}; Pool: {sim_metadata.pool}',
         va='top', ha='center',
         fontsize=6,
     )

@@ -3,13 +3,13 @@ from functools import lru_cache
 from uuid import uuid4
 
 from clusterman.aws.markets import get_instance_market
-from clusterman.mesos.mesos_role_resource_group import MesosRoleResourceGroup
+from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 from clusterman.simulator.simulated_aws_cluster import SimulatedAWSCluster
 
 SpotMarketConfig = namedtuple('SpotMarketConfig', ['bid_price', 'weight'])
 
 
-class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, MesosRoleResourceGroup):
+class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, MesosPoolResourceGroup):
     """ An implementation of a SimulatedAWSCluster designed to model the AWS EC2 Spot Fleet object, which is also a
     ResourceGroup in a simulated Mesos cluster.
 

@@ -15,7 +15,7 @@ from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.autoscaler.util import LOG_STREAM_NAME
 from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import BatchRunningSentinelMixin
-from clusterman.config import get_role_config_path
+from clusterman.config import get_pool_config_path
 from clusterman.config import setup_config
 from clusterman.exceptions import AutoscalerError
 from clusterman.exceptions import ClustermanSignalError
@@ -62,7 +62,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
     def parse_args(self, parser):
         arg_group = parser.add_argument_group('AutoscalerBatch options')
         add_cluster_arg(arg_group, required=True)
-        add_pool_arg(arg_group, required=False)
+        add_pool_arg(arg_group, required=True)
         add_cluster_config_directory_arg(arg_group)
         add_env_config_path_arg(arg_group)
         add_branch_or_tag_arg(arg_group)
@@ -78,18 +78,11 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
     def configure_initial(self):
         setup_config(self.options)
         self.autoscaler = None
-        self.roles = staticconf.read_list('cluster_roles')
-        for role in self.roles:
-            self.config.watchers.append({role: get_role_config_path(self.options.cluster, role)})
+        self.config.watchers.append({self.options.pool: get_pool_config_path(self.options.cluster, self.options.pool)})
         self.logger = logger
-        if not self.roles:
-            raise Exception('No roles are configured to be managed by Clusterman in this cluster')
 
-        # TODO: handle multiple roles in the autoscaler (CLUSTERMAN-126)
-        if len(self.roles) > 1:
-            raise NotImplementedError('Scaling multiple roles in a cluster is not yet supported')
-
-        self.autoscaler = Autoscaler(self.options.cluster, self.roles[0])
+        self.apps = [self.options.pool]  # TODO (CLUSTERMAN-126) somday these should not be the same thing
+        self.autoscaler = Autoscaler(self.options.cluster, self.options.pool, self.apps)
 
     def _get_local_log_stream(self, clog_prefix=None):
         # Overrides the yelp_batch default, which is tmp_batch_<filename> (autoscaler in this case)
@@ -124,7 +117,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
             check_every=check_every,
             source=self.options.cluster,
             ttl=ttl,
-            signal_role=self.roles[0],
+            app=self.apps[0],
             noop=self.options.dry_run,
         )
 

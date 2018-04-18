@@ -3,12 +3,11 @@ import socket
 
 import mock
 import pytest
-import staticconf.testing
 from clusterman_metrics import ClustermanMetricsBotoClient
 
 from clusterman.batch.cluster_metrics_collector import ClusterMetricsCollector
 from clusterman.batch.cluster_metrics_collector import METRICS_TO_WRITE
-from clusterman.mesos.mesos_role_manager import MesosRoleManager
+from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 
 
 @pytest.fixture
@@ -26,23 +25,24 @@ def batch(args=None):
 @pytest.fixture
 def mock_setup_config():
     with mock.patch('clusterman.batch.cluster_metrics_collector.setup_config', autospec=True) as mock_setup:
-        with staticconf.testing.PatchConfiguration(
-            {'cluster_roles': ['role-1', 'role-3']},
-        ):
-            yield mock_setup
+        yield mock_setup
 
 
 @mock.patch('clusterman.batch.cluster_metrics_collector.ClustermanMetricsBotoClient', autospec=True)
-@mock.patch('clusterman.batch.cluster_metrics_collector.MesosRoleManager', autospec=True)
-def test_configure_initial(mock_mesos_role_manager, mock_client_class, batch, mock_setup_config):
-    batch.configure_initial()
+@mock.patch('clusterman.batch.cluster_metrics_collector.MesosPoolManager', autospec=True)
+@mock.patch('os.listdir')
+def test_configure_initial(mock_ls, mock_mesos_pool_manager, mock_client_class, batch, mock_setup_config):
+    pools = ['pool-1', 'pool-3']
+    mock_ls.return_value = [f'{p}.yaml' for p in pools]
+    with mock.patch('clusterman.batch.cluster_metrics_collector.load_cluster_pool_config'):
+        batch.configure_initial()
 
     assert batch.run_interval == 120
     assert mock_setup_config.call_count == 1
     assert batch.region == 'us-west-2'  # region from cluster configs
-    assert sorted(batch.mesos_managers.keys()) == ['role-1', 'role-3']
+    assert sorted(batch.mesos_managers.keys()) == pools
     for manager in batch.mesos_managers.values():
-        assert isinstance(manager, MesosRoleManager)
+        assert isinstance(manager, MesosPoolManager)
 
     assert mock_client_class.call_args_list == [mock.call(region_name='us-west-2')]
     assert batch.metrics_client == mock_client_class.return_value
@@ -50,8 +50,8 @@ def test_configure_initial(mock_mesos_role_manager, mock_client_class, batch, mo
 
 def test_write_metrics(batch):
     batch.mesos_managers = {
-        'role_A': mock.Mock(spec_set=MesosRoleManager),
-        'role_B': mock.Mock(spec_set=MesosRoleManager),
+        'pool_A': mock.Mock(spec_set=MesosPoolManager),
+        'pool_B': mock.Mock(spec_set=MesosPoolManager),
     }
     writer = mock.Mock()
     metrics_to_write = [
@@ -60,7 +60,7 @@ def test_write_metrics(batch):
     ]
     batch.write_metrics(writer, metrics_to_write)
 
-    for role, manager in batch.mesos_managers.items():
+    for pool, manager in batch.mesos_managers.items():
         assert manager.get_resource_total.call_args_list == [mock.call('cpus')]
         assert manager.get_resource_allocation.call_args_list == [mock.call('cpus')]
 
@@ -68,10 +68,10 @@ def test_write_metrics(batch):
 
     metric_names = [call[0][0][0] for call in writer.send.call_args_list]
     assert sorted(metric_names) == sorted([
-        'total|cluster=mesos-test,role=role_A',
-        'total|cluster=mesos-test,role=role_B',
-        'allocated|cluster=mesos-test,role=role_A',
-        'allocated|cluster=mesos-test,role=role_B',
+        'total|cluster=mesos-test,pool=pool_A',
+        'total|cluster=mesos-test,pool=pool_B',
+        'allocated|cluster=mesos-test,pool=pool_A',
+        'allocated|cluster=mesos-test,pool=pool_B',
     ])
 
 
