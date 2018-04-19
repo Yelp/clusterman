@@ -130,10 +130,10 @@ def test_find_available_markets(spot_fleet):
 
 
 def test_terminate_instance(spot_fleet, test_instances_by_market):
-    # The instance after the split point (inclusive itself) will be terminated
+    # The instances after the split point (including itself) will be terminated
     split_point = 2
     added_instances, __ = spot_fleet.modify_size(test_instances_by_market)
-    terminate_instances_ids = (instance.id for instance in added_instances[split_point:])
+    terminate_instances_ids = [instance.id for instance in added_instances[split_point:]]
     spot_fleet.terminate_instances_by_id(terminate_instances_ids)
     remain_instances = spot_fleet.instances
     assert len(remain_instances) == split_point

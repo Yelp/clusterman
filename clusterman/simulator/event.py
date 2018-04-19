@@ -1,4 +1,7 @@
 import itertools
+from contextlib import ExitStack
+
+from clusterman.simulator.util import patch_join_delay
 
 
 class Event(object):
@@ -40,21 +43,24 @@ class AutoscalingEvent(Event):
 
 
 class ModifyClusterSizeEvent(Event):
-    def __init__(self, time, instance_types, msg=None):
+    def __init__(self, time, instance_types, use_join_delay=True, msg=None):
         """ Directly modify the size of an AWS cluster
 
         :param instance_types: a dict of InstanceMarket -> integer indicating the new (desired) size for the market
         """
         super().__init__(time, msg=msg)
         self.instance_types = dict(instance_types)
+        self.use_join_delay = use_join_delay
 
     def handle(self, simulator):
         aws_cluster = simulator.aws_clusters[0]
-        __, removed_instances = aws_cluster.modify_size(self.instance_types)
-        simulator.cpus.add_breakpoint(simulator.current_time, aws_cluster.cpus)
+        added_instances, removed_instances = aws_cluster.modify_size(self.instance_types)
+        with (ExitStack() if self.use_join_delay else patch_join_delay()):
+            for instance in added_instances:
+                simulator.add_instance(instance)
 
         for instance in removed_instances:
-            simulator.compute_instance_cost(instance)
+            simulator.remove_instance(instance)
 
 
 class InstancePriceChangeEvent(Event):

@@ -103,6 +103,8 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, MesosPoolResourceGrou
         :param ids: desired ids of instances to be terminated
         :returns: a list of the terminated instance ids
         """
+        for id in ids:
+            self.simulator.remove_instance(self.instances[id])
         super().terminate_instances_by_id(ids)
         # restore capacity if current capacity is less than target capacity
         if self.fulfilled_capacity < self.target_capacity:
@@ -110,7 +112,8 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, MesosPoolResourceGrou
         return ids
 
     def _increase_capacity_to_target(self, target_capacity):
-        """ When current capacity is less than target_capacity, this function would increase capacity to meet target_capacity
+        """ When current capacity is less than target_capacity, this function would increase capacity to meet
+        target_capacity
 
         :returns: the current capacity after filling up
         """
@@ -118,6 +121,7 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, MesosPoolResourceGrou
         added_instances, __ = self.modify_size(new_market_counts)
         for instance in added_instances:
             instance.bid_price = self._instance_types[instance.market].bid_price
+            self.simulator.add_instance(instance)
         return self.fulfilled_capacity
 
     def _get_new_market_counts(self, target_capacity):

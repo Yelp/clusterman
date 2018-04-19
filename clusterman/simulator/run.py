@@ -70,14 +70,15 @@ def _populate_cluster_size_events(simulator, start_time, end_time):
         start_time.timestamp,
         end_time.timestamp,
     )
-    for timestamp, data in capacity_ts:
+    for i, (timestamp, data) in enumerate(capacity_ts):
         market_data = {}
         for market_str, value in data.items():
             market = InstanceMarket.parse(market_str)
             weight = get_market_resources(market).cpus // staticconf.read_int('autoscaling.cpus_per_weight')
             market_data[market] = int(value) // weight
         simulator.markets |= set(market_data.keys())
-        simulator.add_event(ModifyClusterSizeEvent(arrow.get(timestamp), market_data))
+        use_join_delay = (i != 0)
+        simulator.add_event(ModifyClusterSizeEvent(arrow.get(timestamp), market_data, use_join_delay))
 
 
 def _populate_allocated_resources(simulator, start_time, end_time):
@@ -93,7 +94,7 @@ def _populate_allocated_resources(simulator, start_time, end_time):
     # In the future, we may want to make the simulator smarter (if the value of cpus_allocated exceeds the
     # simulated total cpus, for example), but for right now I don't care (CLUSTERMAN-145)
     for timestamp, data in allocated_ts:
-        simulator.cpus_allocated.add_breakpoint(arrow.get(timestamp), float(data))
+        simulator.mesos_cpus_allocated.add_breakpoint(arrow.get(timestamp), float(data))
 
 
 def _populate_price_changes(simulator, start_time, end_time, discount):
@@ -131,6 +132,10 @@ def main(args):
     args.start_time = parse_time_string(args.start_time)
     args.end_time = parse_time_string(args.end_time)
 
+    staticconf.DictConfiguration({
+        'join_delay_mean_seconds': args.join_delay_params[0],
+        'join_delay_stdev_seconds': args.join_delay_params[1],
+    })
     # We can provide up to two simulation objects to compare.  If we load two simulator objects to compare,
     # we don't need to run a simulation here.  If the user specifies --compare but only gives one object,
     # then we need to run a simulation now, and use that to compare to the saved sim
@@ -202,6 +207,14 @@ def add_simulate_parser(subparser, required_named_args, optional_named_args):  #
         type=float,
         default=None,
         help='optional discount to apply to cost calculations',
+    )
+    optional_named_args.add_argument(
+        '--join-delay-params',
+        metavar=('mean', 'stdev (seconds)'),
+        nargs=2,
+        type=int,
+        default=[0, 0],
+        help='parameters to control long to wait before a host joins the mesos cluster (normally distributed)'
     )
     optional_named_args.add_argument(
         '--output-prefix',

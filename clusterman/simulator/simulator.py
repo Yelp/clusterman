@@ -1,10 +1,11 @@
 import operator
+import random
 from collections import defaultdict
 from datetime import timedelta
 from heapq import heappop
 from heapq import heappush
 
-import arrow
+import staticconf
 import yaml
 from clusterman_metrics import generate_key_with_dimensions
 from clusterman_metrics import METADATA
@@ -18,28 +19,12 @@ from clusterman.math.piecewise import PiecewiseConstantFunction
 from clusterman.simulator.event import Event
 from clusterman.simulator.simulated_aws_cluster import SimulatedAWSCluster
 from clusterman.simulator.simulated_mesos_pool_manager import SimulatedMesosPoolManager
+from clusterman.simulator.util import patch_join_delay
+from clusterman.simulator.util import SimulationMetadata
 from clusterman.util import get_clusterman_logger
 
 
 logger = get_clusterman_logger(__name__)
-
-
-class SimulationMetadata:  # pragma: no cover
-    def __init__(self, name, cluster, pool):
-        self.name = name
-        self.cluster = cluster
-        self.pool = pool
-        self.sim_start = None
-        self.sim_end = None
-
-    def __enter__(self):
-        self.sim_start = arrow.now()
-
-    def __exit__(self, type, value, traceback):
-        self.sim_end = arrow.now()
-
-    def __str__(self):
-        return f'({self.cluster}, {self.pool}, {self.sim_start}, {self.sim_end})'
 
 
 class Simulator:
@@ -62,8 +47,9 @@ class Simulator:
 
         self.instance_prices = defaultdict(lambda: PiecewiseConstantFunction())
         self.cost_per_hour = PiecewiseConstantFunction()
-        self.cpus = PiecewiseConstantFunction()
-        self.cpus_allocated = PiecewiseConstantFunction()
+        self.aws_cpus = PiecewiseConstantFunction()
+        self.mesos_cpus = PiecewiseConstantFunction()
+        self.mesos_cpus_allocated = PiecewiseConstantFunction()
         self.markets = set()
 
         self.billing_frequency = billing_frequency
@@ -114,13 +100,72 @@ class Simulator:
         for cluster in self.aws_clusters:
             for instance in cluster.instances.values():
                 instance.end_time = self.current_time
-                self.compute_instance_cost(instance)
+                self._compute_instance_cost(instance)
 
         print('Simulation complete ({time}s)'.format(
             time=(self.metadata.sim_end - self.metadata.sim_start).total_seconds()
         ))
 
-    def compute_instance_cost(self, instance):
+    def add_instance(self, instance):
+        cpus = instance.resources.cpus
+        self.aws_cpus.add_delta(self.current_time, cpus)
+
+        join_delay_mean = staticconf.read_int('join_delay_mean_seconds')
+        join_delay_stdev = staticconf.read_int('join_delay_stdev_seconds')
+        instance.join_time = instance.start_time.shift(seconds=random.gauss(join_delay_mean, join_delay_stdev))
+
+        self.mesos_cpus.add_delta(instance.join_time, cpus)
+
+    def remove_instance(self, instance):
+        cpus = instance.resources.cpus
+        instance.end_time = self.current_time
+        self.aws_cpus.add_delta(self.current_time, -cpus)
+
+        # If the instance was terminated before it could join the Mesos cluster, we need to re-adjust the mesos_cpus
+        # function at the join time; otherwise, we need to adjust it at the termination time
+        self.mesos_cpus.add_delta(max(instance.join_time, instance.end_time), -cpus)
+        if instance.join_time > instance.end_time:
+            instance.join_time = None
+        self._compute_instance_cost(instance)
+
+    @property
+    def total_cost(self):
+        return self.get_data('cost').values()[0]
+
+    def get_data(self, key, start_time=None, end_time=None, step=None):
+        """ Compute the capacity for the cluster in the specified time range, grouped into chunks
+
+        :param key: the type of data to retreive; must correspond to a key in REPORT_TYPES
+        :param start_time: the lower bound of the range (if None, use simulation start time)
+        :param end_time: the upper bound of the range (if None, use simulation end time)
+        :param step: the width of time for each chunk
+        :returns: a list of CPU capacities for the cluster from start_time to end_time
+        """
+        start_time = start_time or self.start_time
+        end_time = end_time or self.end_time
+        if key == 'cpus':
+            return self.mesos_cpus.values(start_time, end_time, step)
+        elif key == 'cpus_allocated':
+            return self.mesos_cpus_allocated.values(start_time, end_time, step)
+        elif key == 'unused_cpus':
+            # If an agent hasn't joined the cluster yet, we'll treat it as "unused" in the simulation
+            unused_cpus = self.aws_cpus - self.mesos_cpus_allocated
+            return unused_cpus.values(start_time, end_time, step)
+        elif key == 'cost':
+            return self.cost_per_hour.integrals(start_time, end_time, step, transform=hour_transform)
+        elif key == 'unused_cpus_cost':
+            # Here we treat CPUs that haven't joined the Mesos cluster as un-allocated.  It's arguable
+            # if that's the right way to do this or not.
+            percent_unallocated = (self.aws_cpus - self.mesos_cpus_allocated) / self.aws_cpus
+            percent_cost = percent_unallocated * self.cost_per_hour
+            return percent_cost.integrals(start_time, end_time, step, transform=hour_transform)
+        elif key == 'cost_per_cpu':
+            cost_per_cpu = self.cost_per_hour / self.aws_cpus
+            return cost_per_cpu.values(start_time, end_time, step)
+        else:
+            raise ValueError(f'Data key {key} is not recognized')
+
+    def _compute_instance_cost(self, instance):
         """ Adjust the cost-per-hour function to account for the specified instance
 
         :param instance: an Instance object to compute costs for; the instance must have a start_time and end_time
@@ -169,40 +214,6 @@ class Simulator:
             curr_timestamp += self.billing_frequency
         self.cost_per_hour.add_delta(curr_timestamp, -last_billed_price)
 
-    @property
-    def total_cost(self):
-        return self.get_data('cost').values()[0]
-
-    def get_data(self, key, start_time=None, end_time=None, step=None):
-        """ Compute the capacity for the cluster in the specified time range, grouped into chunks
-
-        :param key: the type of data to retreive; must correspond to a key in REPORT_TYPES
-        :param start_time: the lower bound of the range (if None, use simulation start time)
-        :param end_time: the upper bound of the range (if None, use simulation end time)
-        :param step: the width of time for each chunk
-        :returns: a list of CPU capacities for the cluster from start_time to end_time
-        """
-        start_time = start_time or self.start_time
-        end_time = end_time or self.end_time
-        if key == 'cpus':
-            return self.cpus.values(start_time, end_time, step)
-        elif key == 'cpus_allocated':
-            return self.cpus_allocated.values(start_time, end_time, step)
-        elif key == 'unused_cpus':
-            unused_cpus = self.cpus - self.cpus_allocated
-            return unused_cpus.values(start_time, end_time, step)
-        elif key == 'cost':
-            return self.cost_per_hour.integrals(start_time, end_time, step, transform=hour_transform)
-        elif key == 'unused_cpus_cost':
-            percent_unallocated = (self.cpus - self.cpus_allocated) / self.cpus
-            percent_cost = percent_unallocated * self.cost_per_hour
-            return percent_cost.integrals(start_time, end_time, step, transform=hour_transform)
-        elif key == 'cost_per_cpu':
-            cost_per_cpu = self.cost_per_hour / self.cpus
-            return cost_per_cpu.values(start_time, end_time, step)
-        else:
-            raise ValueError(f'Data key {key} is not recognized')
-
     def _make_autoscaler(self, autoscaler_config_file):
         with open(autoscaler_config_file) as f:
             autoscaler_config = yaml.load(f)
@@ -222,8 +233,10 @@ class Simulator:
             self.start_time.shift(minutes=5).timestamp,
         )
         # take the earliest data point available - this is a Decimal, which doesn't play nicely, so convert to an int
-        actual_target_capacity = int(metric_values[1][0][1])
-        pool_manager.modify_target_capacity(actual_target_capacity, force=True)
+        with patch_join_delay():
+            actual_target_capacity = int(metric_values[1][0][1])
+            pool_manager.modify_target_capacity(actual_target_capacity, force=True)
+
         for config in configs:
             for spec in config['LaunchSpecifications']:
                 self.markets |= {get_instance_market(spec)}

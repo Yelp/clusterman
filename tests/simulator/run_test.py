@@ -19,6 +19,7 @@ def args():
         simulation_result_file=None,
         comparison_operator='div',
         output_prefix='',
+        join_delay_params=[0, 0],
     )
 
 

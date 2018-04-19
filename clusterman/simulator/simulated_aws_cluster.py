@@ -11,6 +11,7 @@ class Instance:
         self.id = next(Instance.id)
         self.market = market
         self.start_time = start_time
+        self.join_time = None
         self.end_time = None
         self.resources = get_market_resources(self.market)
         self.bid_price = bid_price
@@ -70,8 +71,6 @@ class SimulatedAWSCluster:
         """
         for terminate_id in ids:
             instance = self.instances[terminate_id]
-            instance.end_time = self.simulator.current_time
-            self.simulator.compute_instance_cost(instance)
             market = instance.market
             del self.instances[terminate_id]
             self.instance_ids_by_market[market].remove(terminate_id)

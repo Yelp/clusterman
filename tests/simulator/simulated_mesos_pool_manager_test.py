@@ -1,5 +1,4 @@
 import arrow
-import mock
 import pytest
 
 from clusterman.aws.markets import get_market_resources
@@ -34,12 +33,6 @@ def mock_pool_manager(mock_ssfrg, simulator):
     pool_manager = SimulatedMesosPoolManager('foo', 'bar', [], simulator)
     pool_manager.resource_groups = [mock_ssfrg]
     return pool_manager
-
-
-def test_modify_target_capacity(mock_pool_manager):
-    with mock.patch('clusterman.simulator.simulated_mesos_pool_manager.MesosPoolManager.modify_target_capacity'):
-        mock_pool_manager.modify_target_capacity(10)
-    assert mock_pool_manager.simulator.cpus.add_breakpoint.call_args == mock.call(arrow.get(0), 160)
 
 
 def test_simulated_agents(mock_pool_manager):
