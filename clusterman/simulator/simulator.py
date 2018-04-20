@@ -230,6 +230,7 @@ class Simulator:
         self.autoscaler = Autoscaler(
             self.metadata.cluster,
             self.metadata.pool,
+            [self.metadata.pool],
             pool_manager=pool_manager,
             metrics_client=self.metrics_client,
         )
