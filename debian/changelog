@@ -1,3 +1,9 @@
+clusterman (2.3.1) trusty; urgency=low
+
+  * fixed bug in the simulator code
+
+ -- David Morrison <drmorr@yelp.com>  Fri, 20 Apr 2018 12:01:33 -0700
+
 clusterman (2.3.0) trusty; urgency=low
 
   * refactor, replace --role with --pool
