@@ -77,7 +77,7 @@ def _populate_cluster_size_events(simulator, start_time, end_time):
             weight = get_market_resources(market).cpus // staticconf.read_int('autoscaling.cpus_per_weight')
             market_data[market] = int(value) // weight
         simulator.markets |= set(market_data.keys())
-        use_join_delay = (i != 0)
+        use_join_delay = (i != 0)  # Want to start the cluster out at the expected capacity
         simulator.add_event(ModifyClusterSizeEvent(arrow.get(timestamp), market_data, use_join_delay))
 
 
