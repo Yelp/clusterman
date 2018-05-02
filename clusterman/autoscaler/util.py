@@ -46,7 +46,7 @@ def _log_signal_output(fd, log_fn):
         log_fn(line)
 
 
-def _init_signal_monitoring_threads(signal_name, signal_process):
+def _init_signal_output_pipes(signal_name, signal_process):
     stdout_logger, stderr_logger = _get_signal_loggers(signal_name)
     stdout_thread = Thread(
         target=_log_signal_output,
@@ -174,7 +174,7 @@ def load_signal_connection(branch_or_tag, role, signal_name):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    _init_signal_monitoring_threads(signal_name, signal_process)
+    _init_signal_output_pipes(signal_name, signal_process)
     time.sleep(2)  # Give the signal subprocess time to start, then check to see if it's running
     return_code = signal_process.poll()
     if return_code:
