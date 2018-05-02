@@ -66,10 +66,14 @@ class SpotFleetResourceGroup(MesosPoolResourceGroup):
             logger.warn(f'No instances to terminate in {self.sfr_id}')
             return [], 0
 
-        instance_weights = {
-            instance['InstanceId']: self.market_weight(get_instance_market(instance))
-            for instance in ec2_describe_instances(instance_ids)
-        }
+        instance_weights = {}
+        for instance in ec2_describe_instances(instance_ids):
+            instance_market = get_instance_market(instance)
+            if not instance_market.az:
+                logger.warn(f"Instance {instance['InstanceId']} missing AZ info, likely already terminated so skipping")
+                instance_ids.remove(instance['InstanceId'])
+                continue
+            instance_weights[instance['InstanceId']] = self.market_weight(get_instance_market(instance))
 
         # AWS API recommends not terminating more than 1000 instances at a time, and to
         # terminate larger numbers in batches

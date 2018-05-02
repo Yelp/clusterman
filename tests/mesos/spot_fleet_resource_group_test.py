@@ -127,6 +127,23 @@ def test_terminate_all_instances_by_id(mock_spot_fleet_resource_group):
     assert mock_spot_fleet_resource_group.instance_ids == []
 
 
+def mock_describe_instances_with_missing_subnet(orig):
+    def describe_instances_with_missing_subnet(InstanceIds):
+        ret = orig(InstanceIds=InstanceIds)
+        ret['Reservations'][0]['Instances'][0].pop('SubnetId')
+        return ret
+    return describe_instances_with_missing_subnet
+
+
+def test_terminate_instance_missing_subnet(mock_spot_fleet_resource_group):
+    ec2_describe = ec2.describe_instances
+    with mock.patch(
+        'clusterman.mesos.spot_fleet_resource_group.ec2.describe_instances',
+        wraps=mock_describe_instances_with_missing_subnet(ec2_describe)
+    ):
+        mock_spot_fleet_resource_group.terminate_instances_by_id(mock_spot_fleet_resource_group.instance_ids)
+
+
 def test_terminate_all_instances_by_id_small_batch(mock_spot_fleet_resource_group):
     with mock.patch(
         'clusterman.mesos.spot_fleet_resource_group.ec2.terminate_instances',
