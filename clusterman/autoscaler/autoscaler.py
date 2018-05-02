@@ -158,16 +158,21 @@ class Autoscaler:
         # TODO (CLUSTERMAN-201) support other types of resource requests
         try:
             resource_request = evaluate_signal(self._get_metrics(timestamp), self.signal_conn)
-        except BrokenPipeError as e:
-            if self._last_signal_traceback:
-                logger.error(self._last_signal_traceback)
-            raise ClustermanSignalError('The signal is down') from e
+
+        # JSONDecodeError means that the signal returned something unexpected, so store the result
+        # from the signal and alert the signal owner.  Similarly, BrokenPipeError means that the
+        # signal process crashed (probably because of a JSONDecodeError earlier); so we print the
+        # last signal traceback in addition to the BrokenPipe traceback for ease of debugging
+        #
+        # Other errors will propagate upwards and notify the service owner
         except JSONDecodeError as e:
             self._last_signal_traceback = e.doc
             logger.error(self._last_signal_traceback)
             raise ClustermanSignalError('Signal evaluation failed') from e
-        except Exception as e:
-            raise ClustermanSignalError('Signal evaluation failed') from e
+        except BrokenPipeError as e:
+            if self._last_signal_traceback:
+                logger.error('The most recent error from the signal was:\n' + self._last_signal_traceback)
+            raise ClustermanSignalError('The signal is down') from e
 
         if resource_request['cpus'] is None:
             logger.info(f'No data from signal, not changing capacity')
