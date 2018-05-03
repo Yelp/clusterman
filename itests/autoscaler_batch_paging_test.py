@@ -5,6 +5,7 @@ import mock
 import pytest
 import staticconf
 from pysensu_yelp import Status
+from simplejson import JSONDecodeError
 
 from clusterman.autoscaler.autoscaler import SIGNAL_LOAD_CHECK_NAME
 from clusterman.autoscaler.util import ACK
@@ -114,9 +115,13 @@ def test_signal_broke(autoscaler_batch):
     with mock.patch('clusterman.autoscaler.autoscaler.read_signal_config'), \
             mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._init_signal_connection'), \
             mock.patch('clusterman.autoscaler.autoscaler.evaluate_signal') as mock_evaluate, \
-            mock.patch('clusterman.util.pysensu_yelp.send_event') as mock_sensu:
+            mock.patch('clusterman.util.pysensu_yelp.send_event') as mock_sensu, \
+            mock.patch('clusterman.autoscaler.autoscaler.logger.error') as mock_logger_error, \
+            mock.patch('clusterman.batch.autoscaler.AutoscalerBatch.running', mock.PropertyMock(
+                side_effect=[True, True, False],
+            )):
 
-        mock_evaluate.side_effect = ValueError
+        mock_evaluate.side_effect = [JSONDecodeError('foo', 'bar', 3), BrokenPipeError]
         autoscaler_batch.configure_initial()
         autoscaler_batch.autoscaler.signal_conn = mock.Mock(return_value=ACK)
         autoscaler_batch.run()
@@ -126,9 +131,14 @@ def test_signal_broke(autoscaler_batch):
         check_sensu_args(mock_sensu.call_args_list[1])
         check_sensu_args(mock_sensu.call_args_list[2], app_name='bar', status=Status.CRITICAL)
         check_sensu_args(mock_sensu.call_args_list[3])
+        check_sensu_args(mock_sensu.call_args_list[2], app_name='bar', status=Status.CRITICAL)
+        check_sensu_args(mock_sensu.call_args_list[3])
+
+        assert autoscaler_batch.autoscaler._last_signal_traceback == 'bar'
+        assert all(['bar' in call[0][0] for call in mock_logger_error.call_args_list])
 
 
-def test_no_signal_config_fallback(autoscaler_batch):
+def test_evaluate_signal_broke(autoscaler_batch):
     with staticconf.testing.MockConfiguration({}, namespace='bar_config'), \
             mock.patch('clusterman.autoscaler.autoscaler.read_signal_config'), \
             mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._init_signal_connection'), \
@@ -143,8 +153,8 @@ def test_no_signal_config_fallback(autoscaler_batch):
         # sensu is called twice for configure but we care about checks 3 and 4
         check_sensu_args(mock_sensu.call_args_list[0], app_name='bar')
         check_sensu_args(mock_sensu.call_args_list[1])
-        check_sensu_args(mock_sensu.call_args_list[2], app_name='bar', status=Status.CRITICAL)
-        check_sensu_args(mock_sensu.call_args_list[3])
+        check_sensu_args(mock_sensu.call_args_list[2], app_name='bar')
+        check_sensu_args(mock_sensu.call_args_list[3], status=Status.CRITICAL)
 
 
 def test_service_broke(autoscaler_batch):

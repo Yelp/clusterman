@@ -6,6 +6,7 @@ import staticconf
 from clusterman_metrics import APP_METRICS
 from clusterman_metrics import ClustermanMetricsBotoClient
 from clusterman_metrics import SYSTEM_METRICS
+from simplejson.errors import JSONDecodeError
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 from clusterman.autoscaler.autoscaler import Autoscaler
@@ -13,6 +14,7 @@ from clusterman.autoscaler.autoscaler import CAPACITY_GAUGE_NAME
 from clusterman.autoscaler.util import MetricConfig
 from clusterman.autoscaler.util import SignalConfig
 from clusterman.config import POOL_NAMESPACE
+from clusterman.exceptions import ClustermanSignalError
 from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.exceptions import SignalConnectionError
 from clusterman.exceptions import SignalValidationError
@@ -249,3 +251,26 @@ def test_compute_target_capacity(mock_evaluate_signal, mock_autoscaler, signal_c
     new_target_capacity = mock_autoscaler._compute_target_capacity(run_timestamp)
     assert new_target_capacity == pytest.approx(expected_capacity)
     assert mock_evaluate_signal.call_args == mock.call([[1234, 3.5]], mock_autoscaler.signal_conn)
+
+
+@mock.patch('clusterman.autoscaler.autoscaler.evaluate_signal')
+def test_evaluate_failed(mock_evaluate_signal, mock_autoscaler, run_timestamp):
+    mock_autoscaler._get_metrics = mock.Mock(return_value=[[1234, 3.5]])
+    mock_evaluate_signal.side_effect = JSONDecodeError('foo', 'bar', 3)
+
+    with pytest.raises(ClustermanSignalError):
+        mock_autoscaler._compute_target_capacity(run_timestamp)
+    assert mock_autoscaler._last_signal_traceback == 'bar'
+
+
+@mock.patch('clusterman.autoscaler.autoscaler.evaluate_signal')
+@pytest.mark.parametrize('last_traceback', ['foo', None])
+def test_evaluate_failed_again(mock_evaluate_signal, mock_autoscaler, run_timestamp, mock_logger, last_traceback):
+    mock_autoscaler._get_metrics = mock.Mock(return_value=[[1234, 3.5]])
+    mock_evaluate_signal.side_effect = BrokenPipeError
+    mock_autoscaler._last_signal_traceback = last_traceback
+
+    with pytest.raises(ClustermanSignalError):
+        mock_autoscaler._compute_target_capacity(run_timestamp)
+    if last_traceback:
+        assert 'foo' in mock_logger.error.call_args[0][0]
