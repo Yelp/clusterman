@@ -130,10 +130,12 @@ def test_find_available_markets(spot_fleet):
 
 
 def test_terminate_instance(spot_fleet, test_instances_by_market):
-    # The instance after the split point (inclusive itself) will be terminated
+    # The instances after the split point (including itself) will be terminated
     split_point = 2
     added_instances, __ = spot_fleet.modify_size(test_instances_by_market)
-    terminate_instances_ids = (instance.id for instance in added_instances[split_point:])
+    for instance in spot_fleet.instances.values():
+        instance.join_time = instance.start_time
+    terminate_instances_ids = [instance.id for instance in added_instances[split_point:]]
     spot_fleet.terminate_instances_by_id(terminate_instances_ids)
     remain_instances = spot_fleet.instances
     assert len(remain_instances) == split_point
@@ -168,6 +170,8 @@ def test_downsize_capacity_by_small_weight(spot_fleet):
     spot_fleet.simulator.current_time.shift(seconds=+50)
     market_composition.update({MARKETS[0]: 1})
     spot_fleet.modify_size(market_composition)
+    for instance in spot_fleet.instances.values():
+        instance.join_time = instance.start_time
     spot_fleet._target_capacity = 12
     # This should remove the last instance to meet capacity requirements
     spot_fleet.modify_target_capacity(11, terminate_excess_capacity=True)

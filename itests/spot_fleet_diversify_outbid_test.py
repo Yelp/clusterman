@@ -7,6 +7,9 @@ import pytest
 from clusterman.aws.markets import InstanceMarket
 from clusterman.math.piecewise import PiecewiseConstantFunction
 from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSpotFleetResourceGroup
+from tests.simulator.conftest import sim_params
+
+pytest.mark.usefixtures(sim_params)
 
 MARKETS = [
     InstanceMarket('c3.4xlarge', 'us-west-1a'),
@@ -153,7 +156,7 @@ def test_spot_fleet_cost_for_outbid_instances(target_capacity, spot_fleet, spot_
     terminate_ids = list(spot_fleet.instance_ids_by_market[MARKETS[outbid_market]])
     spot_fleet.terminate_instances_by_id(terminate_ids)
     for instance in instances:
-        spot_fleet.simulator.compute_instance_cost(instance)
+        spot_fleet.simulator._compute_instance_cost(instance)
     # No available market, market size shoud be zero
     assert (spot_fleet.market_size(market) == 0 for market in MARKETS)
     # The cost calculation might change when we have more information from AWS

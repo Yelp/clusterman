@@ -41,7 +41,7 @@ def test_add_event_outside(mock_logger, simulator, evt_time):
 
 def test_compute_instance_cost_no_breakpoints(simulator, mock_instance, fn):
     simulator.instance_prices[mock_instance.market] = fn
-    simulator.compute_instance_cost(mock_instance)
+    simulator._compute_instance_cost(mock_instance)
     assert simulator.total_cost == 1
 
 
@@ -49,7 +49,7 @@ def test_compute_instance_cost_no_breakpoints(simulator, mock_instance, fn):
 def test_compute_instance_cost_one_breakpoint(simulator, mock_instance, fn, bp_time):
     fn.add_breakpoint(bp_time, 3)
     simulator.instance_prices[mock_instance.market] = fn
-    simulator.compute_instance_cost(mock_instance)
+    simulator._compute_instance_cost(mock_instance)
     assert simulator.total_cost == fn.call(arrow.get(0))
 
 
@@ -68,7 +68,7 @@ def test_compute_instance_cost_multi_breakpoints(simulator, mock_instance, fn, e
         fn.add_breakpoint(arrow.get(7000), 2.5)
     simulator.instance_prices[mock_instance.market] = fn
     simulator.billing_frequency = timedelta(minutes=30)
-    simulator.compute_instance_cost(mock_instance)
+    simulator._compute_instance_cost(mock_instance)
     assert simulator.total_cost == fn.call(arrow.get(0)) / 2 + fn.call(arrow.get(1800)) / 2
 
 
@@ -77,7 +77,7 @@ def test_compute_instance_cost_long_breakpoint_gap(simulator, mock_instance, fn)
     fn.add_breakpoint(arrow.get(3000), 5)
     simulator.instance_prices[mock_instance.market] = fn
     simulator.billing_frequency = timedelta(minutes=5)
-    simulator.compute_instance_cost(mock_instance)
+    simulator._compute_instance_cost(mock_instance)
     assert simulator.total_cost == (
         (1 / 6 + 3 * 5 / 12)
         if mock_instance.end_time < arrow.get(3000)
@@ -92,7 +92,7 @@ def test_compute_instance_cost_outbid(simulator, mock_instance, fn, refund):
     simulator.instance_prices[mock_instance.market] = fn
     simulator.billing_frequency = timedelta(minutes=30)
     simulator.refund_outbid = refund
-    simulator.compute_instance_cost(mock_instance)
+    simulator._compute_instance_cost(mock_instance)
     assert simulator.total_cost == 1 / 2 if (refund and mock_instance.end_time < simulator.end_time) else 1
 
 
@@ -103,7 +103,7 @@ def test_compute_instance_cost_outbid_refund_irrelevant(simulator, mock_instance
     simulator.instance_prices[mock_instance.market] = fn
     simulator.billing_frequency = timedelta(minutes=30)
     simulator.refund_outbid = refund
-    simulator.compute_instance_cost(mock_instance)
+    simulator._compute_instance_cost(mock_instance)
     assert simulator.total_cost == 1
 
 

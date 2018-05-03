@@ -3,6 +3,9 @@ import pytest
 from clusterman.aws.markets import InstanceMarket
 from clusterman.simulator.event import InstancePriceChangeEvent
 from clusterman.simulator.event import ModifyClusterSizeEvent
+from tests.simulator.conftest import sim_params
+
+pytest.mark.usefixtures(sim_params)
 
 
 def test_one_instance_constant_price(start_time, simulator, spot_prices, market_a):

@@ -33,7 +33,7 @@ REPORT_TYPES = {
         trend_axis_formatter=int,
         legend_formatter=lambda val: f'{int(round(val))} vCPUs',
         trend_label='vCPUs/day',
-        error_threshold='cpus',
+        error_threshold='mesos_cpus',
     ),
     'unused_cpus': ReportProperties(
         title='Unused vCPUs',
