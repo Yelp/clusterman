@@ -47,6 +47,8 @@ class ModifyClusterSizeEvent(Event):
         """ Directly modify the size of an AWS cluster
 
         :param instance_types: a dict of InstanceMarket -> integer indicating the new (desired) size for the market
+        :param use_join_delay: if True, instances will use the join delay parameters to postpone when they join the
+            Mesos cluster; if False, they will join the Mesos cluster immediately
         """
         super().__init__(time, msg=msg)
         self.instance_types = dict(instance_types)
