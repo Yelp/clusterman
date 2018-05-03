@@ -1,3 +1,9 @@
+clusterman (2.4.0) trusty; urgency=low
+
+  * add join delay parameters for the simulator
+
+ -- David Morrison <drmorr@yelp.com>  Thu, 03 May 2018 10:53:44 -0700
+
 clusterman (2.3.1) trusty; urgency=low
 
   * fixed bug in the simulator code
