@@ -23,7 +23,7 @@ SignalConfig = namedtuple(
 MetricConfig = namedtuple('MetricConfig', ['name', 'type', 'minute_range'])
 LOG_STREAM_NAME = 'tmp_clusterman_scaling_decisions'
 SIGNALS_REPO = 'git@git.yelpcorp.com:clusterman_signals'
-SOCKET_TIMEOUT_SECONDS = 5
+SOCKET_TIMEOUT_SECONDS = 60
 SOCK_MESG_SIZE = 4096
 ACK = bytes([1])
 
