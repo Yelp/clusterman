@@ -1,3 +1,9 @@
+clusterman (2.5.0) trusty; urgency=low
+
+  * using the caching metrics client
+
+ -- David Morrison <drmorr@yelp.com>  Wed, 09 May 2018 16:09:15 -0700
+
 clusterman (2.4.1) trusty; urgency=low
 
   * fix termination bug for instances missing AZ
