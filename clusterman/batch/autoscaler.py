@@ -24,6 +24,7 @@ from clusterman.util import sensu_checkin
 from clusterman.util import splay_time_start
 
 logger = get_clusterman_logger(__name__)
+get_clusterman_logger('clusterman_metrics')  # This just adds a handler to the clusterman_metrics logger
 SIGNAL_CHECK_NAME = 'check_clusterman_autoscaler_signal'
 SERVICE_CHECK_NAME = 'check_clusterman_autoscaler_service'
 DEFAULT_TTL = '25m'
