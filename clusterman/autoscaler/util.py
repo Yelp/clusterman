@@ -190,16 +190,17 @@ def load_signal_connection(branch_or_tag, role, signal_name):
     return signal_conn
 
 
-def evaluate_signal(metrics, signal_conn):
+def evaluate_signal(metrics, timestamp, signal_conn):
     """ Communicate over a Unix socket with the signal to evaluate its result
 
     :param metrics: a dict of metric_name -> timeseries data to send to the signal
+    :param timestamp: a Unix timestamp to pass to the signal as the "current time"
     :param signal_conn: an active Unix socket connection
     :returns: a dict of resource_name -> requested resources from the signal
     :raises SignalConnectionError: if the signal connection fails for some reason
     """
     # First send the length of the metrics data
-    metric_bytes = json.dumps({'metrics': metrics}).encode()
+    metric_bytes = json.dumps({'metrics': metrics, 'timestamp': timestamp.timestamp}).encode()
     len_metrics = struct.pack('>I', len(metric_bytes))  # bytes representation of the length, packed big-endian
     signal_conn.send(len_metrics)
     response = signal_conn.recv(SOCK_MESG_SIZE)

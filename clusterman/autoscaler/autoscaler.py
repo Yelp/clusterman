@@ -162,8 +162,9 @@ class Autoscaler:
         :returns: the new target capacity we should scale to
         """
         # TODO (CLUSTERMAN-201) support other types of resource requests
+        metrics = self._get_metrics(timestamp)
         try:
-            resource_request = evaluate_signal(self._get_metrics(timestamp), self.signal_conn)
+            resource_request = evaluate_signal(metrics, timestamp, self.signal_conn)
 
         # JSONDecodeError means that the signal returned something unexpected, so store the result
         # from the signal and alert the signal owner.  Similarly, BrokenPipeError means that the

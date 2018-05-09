@@ -1,6 +1,7 @@
 import math
 import os
 
+import arrow
 import mock
 import pytest
 import simplejson as json
@@ -157,7 +158,7 @@ def test_evaluate_signal_connection_errors(conn_response):
     mock_signal_conn = mock.Mock()
     mock_signal_conn.recv.side_effect = conn_response
     with pytest.raises(SignalConnectionError):
-        evaluate_signal({}, mock_signal_conn)
+        evaluate_signal({}, arrow.get(12345678), mock_signal_conn)
     assert mock_signal_conn.send.call_count == len(conn_response)
     assert mock_signal_conn.recv.call_count == len(conn_response)
 
@@ -169,10 +170,10 @@ def test_evaluate_signal_connection_errors(conn_response):
 ])
 def test_evaluate_sending_message(signal_recv):
     metrics = {'cpus_allocated': [(1234, 3.5), (1235, 6)]}
-    num_messages = math.ceil(len(json.dumps({'metrics': metrics})) / 2) + 1
+    num_messages = math.ceil(len(json.dumps({'metrics': metrics, 'timestamp': 12345678})) / 2) + 1
     mock_signal_conn = mock.Mock()
     mock_signal_conn.recv.side_effect = signal_recv
-    resp = evaluate_signal(metrics, mock_signal_conn)
+    resp = evaluate_signal(metrics, arrow.get(12345678), mock_signal_conn)
     assert mock_signal_conn.send.call_count == num_messages
     assert mock_signal_conn.recv.call_count == len(signal_recv)
     assert resp == {'cpus': 5.2}
