@@ -88,6 +88,7 @@ class TestSensu:
                 status=pysensu_yelp.Status.OK,
                 runbook='y/my-runbook',
                 team='my_team',
+                page=True,
             )
 
     @pytest.mark.parametrize('app', [None, 'bar'])
@@ -107,6 +108,7 @@ class TestSensu:
             status=pysensu_yelp.Status.OK,
             runbook=expected_runbook,
             team='a_different_team',
+            page=True,
         )
 
     def test_fallback(self, mock_sensu):
@@ -123,4 +125,5 @@ class TestSensu:
             status=pysensu_yelp.Status.OK,
             runbook='y/my-runbook',
             team='my_team',
+            page=True,
         )

@@ -112,7 +112,7 @@ def parse_time_interval_seconds(time_str):
     return (parse_result[0] - datetime.min).total_seconds()
 
 
-def sensu_checkin(*, check_name, output, source, status=Status.OK, app=None, noop=False, **kwargs):
+def sensu_checkin(*, check_name, output, source, status=Status.OK, app=None, noop=False, page=True, **kwargs):
     if noop:
         return
 
@@ -135,6 +135,7 @@ def sensu_checkin(*, check_name, output, source, status=Status.OK, app=None, noo
         output=output,
         source=source,
         status=status,
+        page=page,
         **sensu_config,
     )
 
