@@ -30,6 +30,7 @@ from clusterman.util import parse_time_string
 from clusterman.util import splay_time_start
 
 logger = get_clusterman_logger(__name__)
+get_clusterman_logger('clusterman_metrics')
 
 
 def _load_metrics(metrics_data_files, pool):
@@ -69,6 +70,7 @@ def _populate_cluster_size_events(simulator, start_time, end_time):
         METADATA,
         start_time.timestamp,
         end_time.timestamp,
+        use_cache=False,
     )
     for i, (timestamp, data) in enumerate(capacity_ts):
         market_data = {}
@@ -87,6 +89,7 @@ def _populate_allocated_resources(simulator, start_time, end_time):
         SYSTEM_METRICS,
         start_time.timestamp,
         end_time.timestamp,
+        use_cache=False,
     )
     # It's OK to just directly set up the timeseries here, instead of using events; if the autoscaler
     # depends on these values it will re-read it from the metrics client anyways.
@@ -104,6 +107,7 @@ def _populate_price_changes(simulator, start_time, end_time, discount):
             METADATA,
             start_time.timestamp,
             end_time.timestamp,
+            use_cache=False,
         )
         for timestamp, price in market_prices:
             price = float(price) * (discount or 1.0)

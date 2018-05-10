@@ -231,6 +231,7 @@ class Simulator:
             self.start_time.timestamp,
             # metrics collector runs 1x/min, but we'll try to get five data points in case some data is missing
             self.start_time.shift(minutes=5).timestamp,
+            use_cache=False,
         )
         # take the earliest data point available - this is a Decimal, which doesn't play nicely, so convert to an int
         with patch_join_delay():
