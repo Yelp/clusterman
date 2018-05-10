@@ -1,3 +1,9 @@
+clusterman (2.5.2) trusty; urgency=low
+
+  * fixed bugs in clusterman_metrics
+
+ -- David Morrison <drmorr@yelp.com>  Thu, 10 May 2018 14:07:13 -0700
+
 clusterman (2.5.1) trusty; urgency=low
 
   * fix simulation bug in metrics client
