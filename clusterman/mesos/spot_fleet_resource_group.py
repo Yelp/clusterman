@@ -33,6 +33,46 @@ def load_spot_fleets_from_s3(bucket, prefix, pool=None):
     return spot_fleets
 
 
+def load_spot_fleets_from_ec2(cluster, pool):
+    """ Loads SpotFleetResourceGroups by filtering SFRs in the AWS account by tags
+    for pool, cluster and a tag that identifies paasta SFRs
+    """
+    spot_fleet_requests_tags = get_spot_fleet_request_tags()
+    spot_fleets = []
+    expected_tags = {
+        'paasta': 'true',
+        'pool': pool,
+        'cluster': cluster,
+    }
+    for sfr_id, tags in spot_fleet_requests_tags.items():
+        try:
+            if all([tags[k] == v for k, v in expected_tags.items()]):
+                spot_fleets.append(SpotFleetResourceGroup(sfr_id))
+        except KeyError:
+            continue
+    return spot_fleets
+
+
+def get_spot_fleet_request_tags():
+    """ Gets a dictionary of SFR id -> a dictionary of tags. The tags are taken
+    from the TagSpecifications for the first LaunchSpecification
+    """
+    spot_fleet_requests = ec2.describe_spot_fleet_requests()
+    sfr_id_to_tags = {}
+    for sfr_config in spot_fleet_requests["SpotFleetRequestConfigs"]:
+        launch_specs = sfr_config["SpotFleetRequestConfig"]["LaunchSpecifications"]
+        try:
+            # we take the tags from the 0th launch spec for now
+            # they should always be identical in every launch spec
+            tags = launch_specs[0]["TagSpecifications"][0]["Tags"]
+        except (IndexError, KeyError):
+            # if this SFR is misssing the TagSpecifications
+            tags = []
+        tags_dict = {tag['Key']: tag['Value'] for tag in tags}
+        sfr_id_to_tags[sfr_config["SpotFleetRequestId"]] = tags_dict
+    return sfr_id_to_tags
+
+
 class SpotFleetResourceGroup(MesosPoolResourceGroup):
 
     def __init__(self, sfr_id):

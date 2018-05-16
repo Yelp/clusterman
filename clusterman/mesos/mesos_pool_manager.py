@@ -10,6 +10,7 @@ from clusterman.aws.markets import get_instance_market
 from clusterman.config import POOL_NAMESPACE
 from clusterman.exceptions import MesosPoolManagerError
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
+from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_ec2
 from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_s3
 from clusterman.mesos.util import find_largest_capacity_market
 from clusterman.mesos.util import get_mesos_state
@@ -52,11 +53,21 @@ class MesosPoolManager:
         self.api_endpoint = f'http://{mesos_master_fqdn}:5050/'
         logger.info(f'Connecting to Mesos masters at {self.api_endpoint}')
 
-        self.resource_groups = load_spot_fleets_from_s3(
+        self.resource_groups = load_spot_fleets_from_ec2(
+            cluster=self.cluster,
+            pool=self.pool,
+        )
+        # for backwards compatibility also load spot fleets from S3 files
+        # TODO: remove this once all SFRs are rolled with tags
+        # CLUSTERMAN-234
+        s3_resource_groups = load_spot_fleets_from_s3(
             pool_config.read_string('resource_groups.s3.bucket'),
             pool_config.read_string('resource_groups.s3.prefix'),
             pool=self.pool,
         )
+        for resource_group in s3_resource_groups:
+            if resource_group.id not in [group.id for group in self.resource_groups]:
+                self.resource_groups.append(resource_group)
 
         logger.info('Loaded resource groups: {ids}'.format(ids=[group.id for group in self.resource_groups]))
 

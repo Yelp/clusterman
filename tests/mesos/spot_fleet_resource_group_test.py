@@ -7,6 +7,8 @@ from moto import mock_s3
 from clusterman.aws.client import ec2
 from clusterman.aws.client import s3
 from clusterman.aws.markets import InstanceMarket
+from clusterman.mesos.spot_fleet_resource_group import get_spot_fleet_request_tags
+from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_ec2
 from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_s3
 from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
 
@@ -35,6 +37,15 @@ def mock_spot_fleet_resource_group(mock_subnet):
                     'WeightedCapacity': 2,
                     'InstanceType': 'c3.8xlarge',
                     'EbsOptimized': False,
+                    # note that this is not useful until we solve
+                    # https://github.com/spulec/moto/issues/1644
+                    'TagSpecifications': [{
+                        'ResourceType': 'instance',
+                        'Tags': [{
+                            'Key': 'foo',
+                            'Value': 'bar',
+                        }],
+                    }],
                 },
                 {
                     'ImageId': 'ami-foo',
@@ -42,6 +53,13 @@ def mock_spot_fleet_resource_group(mock_subnet):
                     'WeightedCapacity': 1,
                     'InstanceType': 'i2.4xlarge',
                     'EbsOptimized': False,
+                    'TagSpecifications': [{
+                        'ResourceType': 'instance',
+                        'Tags': [{
+                            'Key': 'foo',
+                            'Value': 'bar',
+                        }],
+                    }],
                 },
             ],
             'IamFleetRole': 'foo',
@@ -87,6 +105,102 @@ def test_load_spot_fleets_from_s3(mock_sfr_bucket):
         assert len(sfrgs) == 2
         assert mock_init.call_args_list[0][0][0] == 'sfr-1'
         assert mock_init.call_args_list[1][0][0] == 'sfr-2'
+
+
+def test_load_spot_fleets_from_ec2():
+    with mock.patch(
+        'clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup.__init__',
+    ) as mock_init, mock.patch(
+        'clusterman.mesos.spot_fleet_resource_group.get_spot_fleet_request_tags',
+    ) as mock_get_spot_fleet_request_tags:
+        mock_init.return_value = None
+        mock_get_spot_fleet_request_tags.return_value = {
+            'sfr-123': {
+                'some': 'tag',
+                'paasta': 'true',
+                'pool': 'default',
+                'cluster': 'westeros-prod',
+            },
+            'sfr-456': {
+                'some': 'tag',
+                'paasta': 'true',
+                'pool': 'another',
+                'cluster': 'westeros-prod',
+            },
+            'sfr-789': {
+                'some': 'tag',
+                'paasta': 'true',
+                'cluster': 'westeros-prod',
+            },
+        }
+        spot_fleets = load_spot_fleets_from_ec2(cluster='westeros-prod', pool='default')
+        assert len(spot_fleets) == 1
+        mock_init.assert_called_with('sfr-123')
+
+
+def test_get_spot_fleet_request_tags(mock_spot_fleet_resource_group):
+    # doing this the old fashioned way until
+    # https://github.com/spulec/moto/issues/1644 is fixed
+    with mock.patch(
+        'clusterman.mesos.spot_fleet_resource_group.ec2.describe_spot_fleet_requests',
+    ) as mock_describe_spot_fleet_requests:
+        mock_describe_spot_fleet_requests.return_value = {
+            'SpotFleetRequestConfigs': [{
+                'SpotFleetRequestId': 'sfr-12',
+                'SpotFleetRequestConfig': {
+                    'LaunchSpecifications': [{
+                        'TagSpecifications': [{
+                            'Tags': [{
+                                'Key': 'foo',
+                                'Value': 'bar',
+                            }],
+                        }],
+                    }],
+                },
+            },
+                {
+                'SpotFleetRequestId': 'sfr-34',
+                'SpotFleetRequestConfig': {
+                    'LaunchSpecifications': [{}],
+                },
+            },
+                {
+                'SpotFleetRequestId': 'sfr-56',
+                'SpotFleetRequestConfig': {
+                    'LaunchSpecifications': [],
+                },
+            },
+                {
+                'SpotFleetRequestId': 'sfr-78',
+                'SpotFleetRequestConfig': {
+                    'LaunchSpecifications': [{
+                        'TagSpecifications': [{
+                            'Tags': [{
+                                'Key': 'foo',
+                                'Value': 'bar',
+                            },
+                                {
+                                'Key': 'spam',
+                                'Value': 'baz',
+                            }],
+                        }],
+                    }],
+                },
+            }],
+        }
+        sfrs = get_spot_fleet_request_tags()
+        expected = {
+            'sfr-12': {
+                'foo': 'bar'
+            },
+            'sfr-34': {},
+            'sfr-56': {},
+            'sfr-78': {
+                'foo': 'bar',
+                'spam': 'baz'
+            }
+        }
+        assert sfrs == expected
 
 
 # NOTE: These tests are fairly brittle, as it depends on the implementation of modify_spot_fleet_request
