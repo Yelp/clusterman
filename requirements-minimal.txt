@@ -2,7 +2,7 @@ arrow
 botocore>=1.8.13
 boto3
 cached-property
-clusterman-metrics>=1.2.3
+clusterman-metrics>=1.2.2
 colorlog
 colorama
 humanize
