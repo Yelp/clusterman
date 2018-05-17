@@ -10,6 +10,7 @@ from simplejson.errors import JSONDecodeError
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 from clusterman.autoscaler.util import evaluate_signal
+from clusterman.autoscaler.util import get_metrics_index_from_s3
 from clusterman.autoscaler.util import load_signal_connection
 from clusterman.autoscaler.util import read_signal_config
 from clusterman.config import POOL_NAMESPACE
@@ -19,7 +20,6 @@ from clusterman.exceptions import SignalConnectionError
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.util import get_clusterman_logger
 from clusterman.util import sensu_checkin
-
 
 SIGNAL_LOAD_CHECK_NAME = 'signal_configuration_failed'
 CAPACITY_GAUGE_NAME = 'clusterman.autoscaler.target_capacity'
@@ -42,8 +42,8 @@ class Autoscaler:
 
         self.mesos_pool_manager = pool_manager or MesosPoolManager(self.cluster, self.pool)
 
-        mesos_region = staticconf.read_string('aws.region')
-        self.metrics_client = metrics_client or ClustermanMetricsBotoClient(mesos_region, app_identifier=self.apps[0])
+        self.mesos_region = staticconf.read_string('aws.region')
+        self.metrics_client = metrics_client or ClustermanMetricsBotoClient(self.mesos_region, app_identifier=self.apps[0])
         for app in self.apps:
             self.load_signal_for_app(app)
         self._last_signal_traceback = None
@@ -71,12 +71,18 @@ class Autoscaler:
 
         # TODO (CLUSTERMAN-126, CLUSTERMAN-195) apps will eventually have separate namespaces from pools
         pool_namespace = POOL_NAMESPACE.format(pool=app)
-        self.signal_config = read_signal_config(DEFAULT_NAMESPACE)
+        try:
+            metrics_index_bucket = staticconf.read_string('aws.s3_metrics_index_bucket')
+            metrics_index = get_metrics_index_from_s3(metrics_index_bucket, self.mesos_region)
+        except staticconf.errors.ConfigurationError:
+            metrics_index = None
+            logger.warning('no metrics_index_bucket is configured.')
+        self.signal_config = read_signal_config(DEFAULT_NAMESPACE, metrics_index)
         use_default = True
         try:
             # see if the pool has set up a custom signal correctly; if not, fall back to the default
             # signal configuration (preloaded above)
-            self.signal_config = read_signal_config(pool_namespace)
+            self.signal_config = read_signal_config(pool_namespace, metrics_index)
             use_default = False
         except NoSignalConfiguredException:
             logger.info(f'No signal configured for {self.pool}, falling back to default')

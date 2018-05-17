@@ -1,4 +1,5 @@
 import os
+import re
 import socket
 import struct
 import subprocess
@@ -8,8 +9,10 @@ from threading import Thread
 
 import simplejson as json
 import staticconf
+import yaml
 from staticconf.errors import ConfigurationError
 
+from clusterman.aws.client import s3
 from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.exceptions import SignalConnectionError
 from clusterman.exceptions import SignalValidationError
@@ -107,7 +110,7 @@ def _get_local_signal_directory(branch_or_tag):
     return local_path
 
 
-def read_signal_config(config_namespace):
+def read_signal_config(config_namespace, metrics_index):
     """Validate and return autoscaling signal config from the given namespace.
 
     :param config_namespace: namespace to read values from
@@ -117,7 +120,6 @@ def read_signal_config(config_namespace):
     :raises SignalValidationError: if some signal parameter is incorrectly set
     """
     reader = staticconf.NamespaceReaders(config_namespace)
-
     try:
         name = reader.read_string('autoscale_signal.name')
     except ConfigurationError:
@@ -127,6 +129,9 @@ def read_signal_config(config_namespace):
     if period_minutes <= 0:
         raise SignalValidationError(f'Length of signal period must be positive, got {period_minutes}')
     metrics_dict_list = reader.read_list('autoscale_signal.required_metrics', default=[])
+    if metrics_index is not None:
+        metrics_dict_list = update_metrics_dict_list(metrics_dict_list, metrics_index)
+
     parameter_dict_list = reader.read_list('autoscale_signal.parameters', default=[])
 
     parameter_dict = {key: value for param_dict in parameter_dict_list for (key, value) in param_dict.items()}
@@ -140,6 +145,7 @@ def read_signal_config(config_namespace):
             raise SignalValidationError(f'Missing required metric keys {missing} in {metrics_dict}')
         metric_config = {key: metrics_dict[key] for key in metrics_dict if key in required_metric_keys}
         metric_configs.append(MetricConfig(**metric_config))
+    logger.info("Reading metrics config for these metrics = {}".format(metric_configs))
     return SignalConfig(name, branch_or_tag, period_minutes, metric_configs, parameter_dict)
 
 
@@ -213,3 +219,22 @@ def evaluate_signal(metrics, signal_conn):
     # if there's no more data in the previous message
     response = response[1:] or signal_conn.recv(SOCK_MESG_SIZE)
     return json.loads(response)['Resources']
+
+
+def get_metrics_index_from_s3(metrics_index_bucket, mesos_region):
+    keyname = f'{mesos_region}.yaml'
+    metrics_index_object = s3.get_object(Bucket=metrics_index_bucket, Key=keyname)
+    return yaml.load(metrics_index_object['Body'])
+
+
+def update_metrics_dict_list(metrics_dict_list, metrics_index):
+    update_metrics_dict_list = list()
+    for metric_dict in metrics_dict_list:
+        metric_type = metric_dict['type']
+        metric_regex = re.compile(metric_dict['name'])
+        for metric_name in filter(metric_regex.match, metrics_index[metric_type]):
+            update_metric_dict = dict(metric_dict)
+            update_metric_dict['name'] = metric_name
+            update_metrics_dict_list.append(update_metric_dict)
+
+    return update_metrics_dict_list
