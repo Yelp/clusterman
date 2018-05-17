@@ -13,7 +13,6 @@ from clusterman.autoscaler.util import evaluate_signal
 from clusterman.autoscaler.util import MetricConfig
 from clusterman.autoscaler.util import read_signal_config
 from clusterman.autoscaler.util import SignalConfig
-from clusterman.autoscaler.util import update_metrics_dict_list
 from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.exceptions import SignalConnectionError
 
@@ -41,23 +40,15 @@ def mock_cache():
         yield
 
 
-@pytest.fixture
-def mock_metrics_dict_list():
-    return [{'name': 'cpus_allocated', 'type': 'system_metrics', 'minute_range': 10},
-            {'name': '^(project=)', 'type': 'app_metrics', 'minute_range': 15},
-            {'name': 'forced_max', 'type': 'app_metrics', 'minute_range': 18},
-            {'name': 'cpus_total', 'type': 'metadata', 'minute_range': 20}]
-
-
 def test_read_config_none():
     with staticconf.testing.MockConfiguration({}, namespace='util_testing'), pytest.raises(NoSignalConfiguredException):
-        read_signal_config('util_testing', 'us-test-3')
+        read_signal_config('util_testing')
 
 
 def test_read_config_optional_values():
     config_dict = signal_config_base()
     with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'):
-        config = read_signal_config('util_testing', 'us-test-3')
+        config = read_signal_config('util_testing')
 
     assert config == SignalConfig('BarSignal3', 'v42', 7, [], {})
 
@@ -82,12 +73,8 @@ def test_read_config_valid_values():
             {'otherParam': 18},
         ],
     })
-    metrics_index = {
-        'app_metrics': ['metricB'],
-        'system_metrics': ['metricEE'],
-    }
     with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'):
-        config = read_signal_config('util_testing', metrics_index)
+        config = read_signal_config('util_testing')
 
     assert config == SignalConfig(
         'BarSignal3',
@@ -120,7 +107,7 @@ def test_read_signal_invalid_metrics(period_minutes):
     })
     with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'):
         with pytest.raises(Exception):
-            read_signal_config('util_testing', {})
+            read_signal_config('util_testing')
 
 
 @mock.patch('clusterman.autoscaler.util.subprocess.run')
@@ -176,19 +163,3 @@ def test_evaluate_sending_message(signal_recv):
     assert mock_signal_conn.send.call_count == num_messages
     assert mock_signal_conn.recv.call_count == len(signal_recv)
     assert resp == {'cpus': 5.2}
-
-
-def test_update_metrics_dict_list(mock_metrics_dict_list):
-    metrics_index = {'app_metrics': ['project=P1', 'project=P2', 'forced_max'],
-                     'system_metrics': ['cpus_allocated'],
-                     'metadata': ['cpus_total']}
-    expected_metrics_dict_list = [{'name': 'cpus_allocated', 'type': 'system_metrics', 'minute_range': 10},
-                                  {'name': 'project=P1', 'type': 'app_metrics', 'minute_range': 15},
-                                  {'name': 'project=P2', 'type': 'app_metrics', 'minute_range': 15},
-                                  {'name': 'forced_max', 'type': 'app_metrics', 'minute_range': 18},
-                                  {'name': 'cpus_total', 'type': 'metadata', 'minute_range': 20}]
-    metrics_dict_list = update_metrics_dict_list(mock_metrics_dict_list, metrics_index)
-
-    assert len(metrics_dict_list) == 5
-    for metric_dict in metrics_dict_list:
-        assert metric_dict in expected_metrics_dict_list

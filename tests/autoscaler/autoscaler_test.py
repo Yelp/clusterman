@@ -142,37 +142,13 @@ def test_autoscaler_init_too_many_apps():
 ])
 @mock.patch('clusterman.autoscaler.autoscaler.read_signal_config', autospec=True)
 @mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._init_signal_connection', autospec=True)
-def test_load_signal_without_metrics_index_bucket(mock_init_signal, mock_read_config, mock_autoscaler,
-                                                  read_config, expected_default):
+def test_load_signal(mock_init_signal, mock_read_config, mock_autoscaler, read_config, expected_default):
     default_config = signal_config()
     mock_read_config.side_effect = [default_config, read_config]
     mock_autoscaler.load_signal_for_app('bar')
     assert mock_read_config.call_args_list == [
-        mock.call(DEFAULT_NAMESPACE, None),
-        mock.call(POOL_NAMESPACE.format(pool='bar'), None),
-    ]
-
-    assert mock_autoscaler.signal_config == (default_config if expected_default else read_config)
-
-
-@pytest.mark.parametrize('read_config,expected_default', [
-    (NoSignalConfiguredException, True),  # no role signal
-    (mock.Mock(), False),  # Custom role signal successful
-])
-@mock.patch('clusterman.autoscaler.autoscaler.get_metrics_index_from_s3', autospec=True)
-@mock.patch('staticconf.read_string')
-@mock.patch('clusterman.autoscaler.autoscaler.read_signal_config', autospec=True)
-@mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._init_signal_connection', autospec=True)
-def test_load_signal_with_metrics_index_bucket(mock_init_signal, mock_read_config, mock_read_string,
-                                               mock_get_metrics_index, mock_autoscaler, read_config, expected_default):
-    default_config = signal_config()
-    mock_read_config.side_effect = [default_config, read_config]
-    mock_read_string.return_value = "test-bucket"
-    mock_get_metrics_index.return_value = {}
-    mock_autoscaler.load_signal_for_app('bar')
-    assert mock_read_config.call_args_list == [
-        mock.call(DEFAULT_NAMESPACE, {}),
-        mock.call(POOL_NAMESPACE.format(pool='bar'), {}),
+        mock.call(DEFAULT_NAMESPACE),
+        mock.call(POOL_NAMESPACE.format(pool='bar')),
     ]
 
     assert mock_autoscaler.signal_config == (default_config if expected_default else read_config)
