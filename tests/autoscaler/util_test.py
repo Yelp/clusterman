@@ -11,6 +11,7 @@ from clusterman.autoscaler.util import _get_local_signal_directory
 from clusterman.autoscaler.util import _sha_from_branch_or_tag
 from clusterman.autoscaler.util import ACK
 from clusterman.autoscaler.util import evaluate_signal
+from clusterman.autoscaler.util import get_autoscaling_config
 from clusterman.autoscaler.util import MetricConfig
 from clusterman.autoscaler.util import read_signal_config
 from clusterman.autoscaler.util import SignalConfig
@@ -193,3 +194,26 @@ def test_update_metrics_dict_list(mock_metrics_dict_list):
     assert len(metrics_dict_list) == 5
     for metric_dict in metrics_dict_list:
         assert metric_dict in expected_metrics_dict_list
+
+
+def test_get_autoscaling_config():
+    default_autoscaling_values = {
+        'setpoint': 0.7,
+        'setpoint_margin': 0.1,
+        'cpus_per_weight': 8,
+    }
+    pool_autoscaling_values = {
+        'setpoint': 0.8,
+        'cpus_per_weight': 10,
+    }
+    with staticconf.testing.MockConfiguration(
+        {'autoscaling': default_autoscaling_values},
+    ), staticconf.testing.MockConfiguration(
+        {'autoscaling': pool_autoscaling_values},
+        namespace='pool_namespace',
+    ):
+        autoscaling_config = get_autoscaling_config('pool_namespace')
+
+        assert autoscaling_config.setpoint == 0.8
+        assert autoscaling_config.setpoint_margin == 0.1
+        assert autoscaling_config.cpus_per_weight == 10

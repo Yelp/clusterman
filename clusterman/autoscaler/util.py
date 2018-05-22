@@ -24,6 +24,10 @@ SignalConfig = namedtuple(
     ['name', 'branch_or_tag', 'period_minutes', 'required_metrics', 'parameters'],
 )
 MetricConfig = namedtuple('MetricConfig', ['name', 'type', 'minute_range'])
+AutoscalingConfig = namedtuple(
+    'AutoscalingConfig',
+    ['setpoint', 'setpoint_margin', 'cpus_per_weight']
+)
 LOG_STREAM_NAME = 'tmp_clusterman_scaling_decisions'
 SIGNALS_REPO = 'git@git.yelpcorp.com:clusterman_signals'
 SOCKET_TIMEOUT_SECONDS = 60
@@ -108,6 +112,25 @@ def _get_local_signal_directory(branch_or_tag):
     _log_subprocess_run(['make', 'prod'], **subprocess_kwargs)
 
     return local_path
+
+
+def get_autoscaling_config(config_namespace):
+    """Load autoscaling configuration values from the provided config_namespace, falling back to the
+    values stored in the default namespace if none are specified.
+
+    :param config_namespace: namespace to read from before falling back to the default namespace
+    :returns: AutoscalingConfig object with loaded config values
+    """
+    default_setpoint = staticconf.read_float('autoscaling.setpoint')
+    default_setpoint_margin = staticconf.read_float('autoscaling.setpoint_margin')
+    default_cpus_per_weight = staticconf.read_int('autoscaling.cpus_per_weight')
+
+    reader = staticconf.NamespaceReaders(config_namespace)
+    return AutoscalingConfig(
+        setpoint=reader.read_float('autoscaling.setpoint', default=default_setpoint),
+        setpoint_margin=reader.read_float('autoscaling.setpoint_margin', default=default_setpoint_margin),
+        cpus_per_weight=reader.read_int('autoscaling.cpus_per_weight', default=default_cpus_per_weight),
+    )
 
 
 def read_signal_config(config_namespace, metrics_index):

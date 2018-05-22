@@ -47,17 +47,18 @@ def pool_configs():
         yield
 
 
+autoscaling_config_dict = {
+    'default_signal_role': 'clusterman',
+    'setpoint': 0.7,
+    'setpoint_margin': 0.1,
+    'cpus_per_weight': 8,
+}
+
+
 @pytest.fixture(autouse=True)
 def scaling_configs():
     with staticconf.testing.PatchConfiguration(
-        {
-            'autoscaling': {
-                'default_signal_role': 'clusterman',
-                'setpoint': 0.7,
-                'setpoint_margin': 0.1,
-                'cpus_per_weight': 8,
-            },
-        },
+        {'autoscaling': autoscaling_config_dict},
         namespace=DEFAULT_NAMESPACE,
     ):
         yield
@@ -120,6 +121,10 @@ def test_autoscaler_init(mock_load_signal, mock_pool_manager, mock_metrics_clien
     assert mock_autoscaler.cluster == 'mesos-test'
     assert mock_autoscaler.pool == 'bar'
     assert mock_autoscaler.apps == ['app']
+
+    assert mock_autoscaler.autoscaling_config.setpoint == autoscaling_config_dict['setpoint']
+    assert mock_autoscaler.autoscaling_config.setpoint_margin == autoscaling_config_dict['setpoint_margin']
+    assert mock_autoscaler.autoscaling_config.cpus_per_weight == autoscaling_config_dict['cpus_per_weight']
 
     assert mock_gauge.call_args == mock.call(CAPACITY_GAUGE_NAME, {'cluster': 'mesos-test', 'pool': 'bar'})
     assert mock_autoscaler.capacity_gauge == mock_gauge.return_value

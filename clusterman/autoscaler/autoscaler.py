@@ -10,6 +10,7 @@ from simplejson.errors import JSONDecodeError
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 from clusterman.autoscaler.util import evaluate_signal
+from clusterman.autoscaler.util import get_autoscaling_config
 from clusterman.autoscaler.util import get_metrics_index_from_s3
 from clusterman.autoscaler.util import load_signal_connection
 from clusterman.autoscaler.util import read_signal_config
@@ -37,9 +38,9 @@ class Autoscaler:
             raise NotImplementedError('Scaling multiple apps in a cluster is not yet supported')
 
         logger.info(f'Initializing autoscaler engine for {self.pool} in {self.cluster}...')
-        self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool))
         self.capacity_gauge = yelp_meteorite.create_gauge(CAPACITY_GAUGE_NAME, {'cluster': cluster, 'pool': pool})
 
+        self.autoscaling_config = get_autoscaling_config(POOL_NAMESPACE.format(pool=self.pool))
         self.mesos_pool_manager = pool_manager or MesosPoolManager(self.cluster, self.pool)
 
         self.mesos_region = staticconf.read_string('aws.region')
@@ -186,32 +187,27 @@ class Autoscaler:
             return self.mesos_pool_manager.target_capacity
         signal_cpus = float(resource_request['cpus'])
 
-        # Get autoscaling settings.
-        setpoint = staticconf.read_float('autoscaling.setpoint')
-        setpoint_margin = staticconf.read_float('autoscaling.setpoint_margin')
-        cpus_per_weight = staticconf.read_int('autoscaling.cpus_per_weight')
-
         # If the percentage allocated differs by more than the allowable margin from the setpoint,
         # we scale up/down to reach the setpoint.  We want to use target_capacity here instead of
         # get_resource_total to protect against short-term fluctuations in the cluster.
-        total_cpus = self.mesos_pool_manager.target_capacity * cpus_per_weight
-        setpoint_cpus = setpoint * total_cpus
+        total_cpus = self.mesos_pool_manager.target_capacity * self.autoscaling_config.cpus_per_weight
+        setpoint_cpus = self.autoscaling_config.setpoint * total_cpus
         cpus_difference_from_setpoint = signal_cpus - setpoint_cpus
 
         # Note that the setpoint window is based on the value of total_cpus, not setpoint_cpus
         # This is so that, if you have a setpoint of 70% and a margin of 10%, you know that the
         # window is going to be between 60% and 80%, not 63% and 77%.
-        window_size = setpoint_margin * total_cpus
+        window_size = self.autoscaling_config.setpoint_margin * total_cpus
         lb, ub = setpoint_cpus - window_size, setpoint_cpus + window_size
         logger.info(f'Current CPU total is {total_cpus} (setpoint={setpoint_cpus}); setpoint window is [{lb}, {ub}]')
         logger.info(f'Signal {self.signal_config.name} requested {signal_cpus} CPUs')
-        if abs(cpus_difference_from_setpoint / total_cpus) >= setpoint_margin:
+        if abs(cpus_difference_from_setpoint / total_cpus) >= self.autoscaling_config.setpoint_margin:
             # We want signal_cpus / new_total_cpus = setpoint.
             # So new_total_cpus should be signal_cpus / setpoint.
-            new_target_cpus = signal_cpus / setpoint
+            new_target_cpus = signal_cpus / self.autoscaling_config.setpoint
 
             # Finally, convert CPUs to capacity units.
-            new_target_capacity = new_target_cpus / cpus_per_weight
+            new_target_capacity = new_target_cpus / self.autoscaling_config.cpus_per_weight
             logger.info(f'Computed target capacity is {new_target_capacity} units ({new_target_cpus} CPUs)')
         else:
             logger.info('Requested CPUs within setpoint margin, not changing target capacity')
