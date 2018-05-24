@@ -134,10 +134,11 @@ def get_autoscaling_config(config_namespace):
     )
 
 
-def read_signal_config(config_namespace, metrics_index):
+def read_signal_config(config_namespace, metrics_index=None):
     """Validate and return autoscaling signal config from the given namespace.
 
     :param config_namespace: namespace to read values from
+    :param metrics_index: an index of "tracked" metric keys
     :returns: SignalConfig object with the values filled in
     :raises staticconf.errors.ConfigurationError: if the config namespace is missing a required value
     :raises NoSignalConfiguredException: if the config namespace doesn't define a custom signal

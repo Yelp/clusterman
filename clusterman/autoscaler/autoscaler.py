@@ -45,6 +45,7 @@ class Autoscaler:
 
         self.mesos_region = staticconf.read_string('aws.region')
         self.metrics_client = metrics_client or ClustermanMetricsBotoClient(self.mesos_region, app_identifier=self.apps[0])
+        self.load_default_signal()
         for app in self.apps:
             self.load_signal_for_app(app)
         self._last_signal_traceback = None
@@ -66,6 +67,10 @@ class Autoscaler:
         self.capacity_gauge.set(new_target_capacity, {'dry_run': dry_run})
         self.mesos_pool_manager.modify_target_capacity(new_target_capacity, dry_run=dry_run)
 
+    def load_default_signal(self):
+        self.default_signal_config = read_signal_config(DEFAULT_NAMESPACE)
+        self.default_signal_conn = self._get_signal_connection(self.default_signal_config)
+
     def load_signal_for_app(self, app):
         """Load the signal object to use for autoscaling."""
         logger.info(f'Loading autoscaling signal for {self.apps[0]} on {self.pool} in {self.cluster}')
@@ -78,15 +83,15 @@ class Autoscaler:
         except staticconf.errors.ConfigurationError:
             metrics_index = None
             logger.warning('no metrics_index_bucket is configured.')
-        self.signal_config = read_signal_config(DEFAULT_NAMESPACE, metrics_index)
-        use_default = True
+
+        self.signal_config = self.default_signal_config
         try:
             # see if the pool has set up a custom signal correctly; if not, fall back to the default
             # signal configuration (preloaded above)
             self.signal_config = read_signal_config(pool_namespace, metrics_index)
-            use_default = False
         except NoSignalConfiguredException:
             logger.info(f'No signal configured for {self.pool}, falling back to default')
+            app = None
         except Exception:
             msg = f'WARNING: loading signal for {self.pool} failed, falling back to default'
             logger.exception(msg)
@@ -99,46 +104,53 @@ class Autoscaler:
                 ttl=None,
                 app=app,
             )
+            app = None
+
+        if not app:
+            self.signal_conn = self.default_signal_conn
+            return
 
         try:
-            self._init_signal_connection(app, use_default)
+            self.signal_conn = self._get_signal_connection(self.signal_config, app)
         except Exception as e:
             raise ClustermanSignalError('Signal connection initialization failed') from e
 
-    def _init_signal_connection(self, app, use_default):
+    def _get_signal_connection(self, signal_config, app=None):
         """ Initialize the signal socket connection/communication layer.
 
-        :param use_default: use the default signal with whatever parameters are stored in self.signal_config
+        :param app: what application to get a signal connection for (None to get the default signal)
+        :returns: an active pipe connection object to communicate with the signal
         """
-        if not use_default:
+        if app:
             # Try to set up the (non-default) signal specified in the signal_config
             #
             # If it fails, it might be because the signal_config is requesting a different signal (or different
             # configuration) for a signal in the default role, so we fall back to the default in that case
             try:
                 # Look for the signal name under the "pool" directory in clusterman_signals
-                self.signal_conn = load_signal_connection(
-                    self.signal_config.branch_or_tag,
+                conn = load_signal_connection(
+                    signal_config.branch_or_tag,
                     app,
-                    self.signal_config.name,
+                    signal_config.name,
                 )
             except SignalConnectionError:
                 # If it's not there, see if the signal is one of our default signals
-                logger.info(f'Signal {self.signal_config.name} not found in {self.pool}.yaml, checking default signals')
-                use_default = True
+                logger.info(f'Signal {signal_config.name} not found in {self.pool}.yaml, checking default signals')
+                app = None
 
         # This is not an "else" because the value of use_default may have changed in the above block
-        if use_default:
+        if not app:
             default_role = staticconf.read_string('autoscaling.default_signal_role')
-            self.signal_conn = load_signal_connection(
-                self.signal_config.branch_or_tag,
+            conn = load_signal_connection(
+                signal_config.branch_or_tag,
                 default_role,
-                self.signal_config.name,
+                signal_config.name,
             )
 
-        signal_kwargs = json.dumps({'parameters': self.signal_config.parameters})
-        self.signal_conn.send(signal_kwargs.encode())
-        logger.info(f'Loaded signal {self.signal_config.name}')
+        signal_kwargs = json.dumps({'parameters': signal_config.parameters})
+        conn.send(signal_kwargs.encode())
+        logger.info(f'Loaded signal {signal_config.name} for {app}')
+        return conn
 
     def _get_metrics(self, end_time):
         metrics = {}

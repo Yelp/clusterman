@@ -71,7 +71,7 @@ def autoscaler_batch():
 @pytest.mark.parametrize('signal_type', ['default', 'client'])
 def test_signal_setup_fallback(signal_type, autoscaler_batch):
     with mock.patch('clusterman.autoscaler.autoscaler.read_signal_config') as mock_signal_config, \
-            mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._init_signal_connection'), \
+            mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._get_signal_connection'), \
             mock.patch('clusterman.util.pysensu_yelp.send_event') as mock_sensu:
 
         # Autoscaler reads the "default" signal config first and then the client signal config
@@ -101,10 +101,10 @@ def test_signal_setup_fallback(signal_type, autoscaler_batch):
 
 def test_signal_connection_failed(autoscaler_batch):
     with mock.patch('clusterman.autoscaler.autoscaler.read_signal_config'), \
-            mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._init_signal_connection') as mock_conn, \
+            mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._get_signal_connection') as mock_conn, \
             mock.patch('clusterman.util.pysensu_yelp.send_event') as mock_sensu:
 
-        mock_conn.side_effect = ValueError
+        mock_conn.side_effect = [mock.Mock(), ValueError]
         with pytest.raises(AutoscalerError):
             autoscaler_batch.configure_initial()
 
@@ -114,7 +114,7 @@ def test_signal_connection_failed(autoscaler_batch):
 
 def test_signal_broke(autoscaler_batch):
     with mock.patch('clusterman.autoscaler.autoscaler.read_signal_config'), \
-            mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._init_signal_connection'), \
+            mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._get_signal_connection'), \
             mock.patch('clusterman.autoscaler.autoscaler.evaluate_signal') as mock_evaluate, \
             mock.patch('clusterman.util.pysensu_yelp.send_event') as mock_sensu, \
             mock.patch('clusterman.autoscaler.autoscaler.logger.error') as mock_logger_error, \
@@ -142,7 +142,7 @@ def test_signal_broke(autoscaler_batch):
 def test_evaluate_signal_broke(autoscaler_batch):
     with staticconf.testing.MockConfiguration({}, namespace='bar_config'), \
             mock.patch('clusterman.autoscaler.autoscaler.read_signal_config'), \
-            mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._init_signal_connection'), \
+            mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._get_signal_connection'), \
             mock.patch('clusterman.autoscaler.autoscaler.evaluate_signal') as mock_evaluate, \
             mock.patch('clusterman.util.pysensu_yelp.send_event') as mock_sensu:
 
@@ -160,7 +160,7 @@ def test_evaluate_signal_broke(autoscaler_batch):
 
 def test_service_broke(autoscaler_batch):
     with mock.patch('clusterman.autoscaler.autoscaler.read_signal_config'), \
-            mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._init_signal_connection'), \
+            mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._get_signal_connection'), \
             mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._compute_target_capacity') as mock_capacity, \
             mock.patch('clusterman.util.pysensu_yelp.send_event') as mock_sensu:
 
@@ -178,7 +178,7 @@ def test_service_broke(autoscaler_batch):
 
 def test_everything_is_fine(autoscaler_batch):
     with mock.patch('clusterman.autoscaler.autoscaler.read_signal_config'), \
-            mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._init_signal_connection'), \
+            mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._get_signal_connection'), \
             mock.patch('clusterman.util.pysensu_yelp.send_event') as mock_sensu:
 
         autoscaler_batch.configure_initial()

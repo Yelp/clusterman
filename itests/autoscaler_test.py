@@ -26,6 +26,7 @@ def resource_groups():
 @pytest.fixture
 def autoscaler(resource_groups):
     with mock.patch('clusterman.autoscaler.autoscaler.Autoscaler.load_signal_for_app'), \
+            mock.patch('clusterman.autoscaler.autoscaler.Autoscaler.load_default_signal'), \
             mock.patch('clusterman.autoscaler.autoscaler.yelp_meteorite'):
         a = Autoscaler(cluster='mesos-test', pool='bar', apps=['bar'], metrics_client=mock.Mock())
         a.signal_config = mock.Mock()
