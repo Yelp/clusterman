@@ -274,7 +274,7 @@ def test_compute_target_capacity(mock_evaluate_signal, mock_autoscaler, signal_c
     mock_evaluate_signal.return_value = {'cpus': signal_cpus}
     new_target_capacity = mock_autoscaler._compute_target_capacity(run_timestamp)
     assert new_target_capacity == pytest.approx(expected_capacity)
-    assert mock_evaluate_signal.call_args == mock.call([[1234, 3.5]], mock_autoscaler.signal_conn)
+    assert mock_evaluate_signal.call_args == mock.call([[1234, 3.5]], run_timestamp, mock_autoscaler.signal_conn)
 
 
 @mock.patch('clusterman.autoscaler.autoscaler.evaluate_signal')
