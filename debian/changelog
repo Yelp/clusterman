@@ -1,3 +1,9 @@
+clusterman (2.6.0) trusty; urgency=low
+
+  * pass time into metrics client
+
+ -- David Morrison <drmorr@yelp.com>  Thu, 24 May 2018 09:22:38 -0700
+
 clusterman (2.5.2) trusty; urgency=low
 
   * fixed bugs in clusterman_metrics
