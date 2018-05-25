@@ -1,3 +1,4 @@
+import subprocess
 import time
 from datetime import datetime
 
@@ -144,3 +145,21 @@ def splay_time_start(frequency, batch_name, region, timestamp=None):
     timestamp = timestamp or time.time()
     random_wait_time = hash(batch_name + region) % 60
     return frequency - timestamp % frequency + random_wait_time
+
+
+def sha_from_branch_or_tag(repo, branch_or_tag):
+    """ Convert a branch or tag for a repo into a git SHA """
+    result = subprocess.run(
+        ['git', 'ls-remote', '--exit-code', repo, branch_or_tag],
+        stdout=subprocess.PIPE,
+        check=True,
+    )
+    output = result.stdout.decode()
+    sha = output.split('\t')[0]
+    return sha
+
+
+def log_subprocess_run(logger, *args, **kwargs):
+    result = subprocess.run(*args, **kwargs)
+    logger.info(result.stdout.decode().strip())
+    result.check_returncode()

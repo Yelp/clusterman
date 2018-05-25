@@ -195,7 +195,7 @@ def test_everything_is_fine(autoscaler_batch):
 @mock.patch('clusterman.batch.util.yelp_meteorite')
 def test_rle_ignored(mock_meteorite, autoscaler_batch):
     with mock.patch('clusterman.autoscaler.autoscaler.read_signal_config'), \
-            mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._init_signal_connection'):
+            mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._get_signal_connection'):
 
         autoscaler_batch.configure_initial()
         autoscaler_batch.autoscaler._compute_target_capacity = mock.Mock(
