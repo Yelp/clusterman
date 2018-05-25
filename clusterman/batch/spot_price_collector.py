@@ -16,6 +16,7 @@ from clusterman.aws.spot_prices import spot_price_generator
 from clusterman.aws.spot_prices import write_prices_with_dedupe
 from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import BatchRunningSentinelMixin
+from clusterman.batch.util import suppress_request_limit_exceeded
 from clusterman.config import setup_config
 from clusterman.util import get_clusterman_logger
 from clusterman.util import sensu_checkin
@@ -75,7 +76,8 @@ class SpotPriceCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMix
             now = arrow.utcnow()
             with self.metrics_client.get_writer(METADATA) as writer:
                 try:
-                    self.write_prices(now, writer)
+                    with suppress_request_limit_exceeded():
+                        self.write_prices(now, writer)
                 except socket.timeout:
                     # We don't really care if we miss a few spot price changes so just continue here
                     logger.warn(f'Timed out getting spot prices:\n\n{format_exc()}')

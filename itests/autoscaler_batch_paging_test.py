@@ -4,6 +4,7 @@ from contextlib import ExitStack
 import mock
 import pytest
 import staticconf
+from botocore.exceptions import ClientError
 from pysensu_yelp import Status
 from simplejson import JSONDecodeError
 
@@ -189,3 +190,16 @@ def test_everything_is_fine(autoscaler_batch):
         check_sensu_args(mock_sensu.call_args_list[1])
         check_sensu_args(mock_sensu.call_args_list[2], app_name='bar')
         check_sensu_args(mock_sensu.call_args_list[3])
+
+
+@mock.patch('clusterman.batch.util.yelp_meteorite')
+def test_rle_ignored(mock_meteorite, autoscaler_batch):
+    with mock.patch('clusterman.autoscaler.autoscaler.read_signal_config'), \
+            mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._init_signal_connection'):
+
+        autoscaler_batch.configure_initial()
+        autoscaler_batch.autoscaler._compute_target_capacity = mock.Mock(
+            side_effect=ClientError({'Error': {'Code': 'RequestLimitExceeded'}}, 'foo'),
+        )
+        autoscaler_batch.run()
+        assert mock_meteorite.create_counter.call_count == 1

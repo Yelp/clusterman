@@ -15,6 +15,7 @@ from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.autoscaler.util import LOG_STREAM_NAME
 from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import BatchRunningSentinelMixin
+from clusterman.batch.util import suppress_request_limit_exceeded
 from clusterman.config import get_pool_config_path
 from clusterman.config import setup_config
 from clusterman.exceptions import AutoscalerError
@@ -99,7 +100,8 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
             self.get_name(),
             staticconf.read_string('aws.region'),
         ))
-        self.autoscaler.run(dry_run=self.options.dry_run)
+        with suppress_request_limit_exceeded():
+            self.autoscaler.run(dry_run=self.options.dry_run)
 
     def run(self):
         while self.running:
