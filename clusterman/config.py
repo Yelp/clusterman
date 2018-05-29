@@ -47,8 +47,7 @@ def setup_config(args):
 
 
 def load_cluster_pool_config(cluster, pool, signals_branch_or_tag):
-    cluster_config_directory = get_cluster_config_directory(cluster)
-    pool_config_file = os.path.join(cluster_config_directory, f'{pool}.yaml')
+    pool_config_file = get_pool_config_path(cluster, pool)
 
     with open(pool_config_file) as f:
         config = yaml.load(f)

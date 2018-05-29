@@ -150,6 +150,8 @@ def parse_args(description):  # pragma: no cover
     """
     from clusterman.mesos.manage import add_mesos_manager_parser
     from clusterman.mesos.status import add_mesos_status_parser
+    from clusterman.mesos.info import add_mesos_list_clusters_parser
+    from clusterman.mesos.info import add_mesos_list_pools_parser
     from clusterman.simulator.run import add_simulate_parser
     from clusterman.tools.generate_data import add_generate_data_parser
 
@@ -173,6 +175,8 @@ def parse_args(description):  # pragma: no cover
     add_mesos_manager_parser(subparser)
     add_simulate_parser(subparser)
     add_mesos_status_parser(subparser)
+    add_mesos_list_clusters_parser(subparser)
+    add_mesos_list_pools_parser(subparser)
 
     args = _get_validated_args(root_parser)
     return args
