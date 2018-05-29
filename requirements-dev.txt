@@ -9,10 +9,10 @@ cfgv==1.0.0
 cookies==2.2.1
 coverage==4.5.1
 cryptography==2.0.3
-docker==3.2.1
-docker-pycreds==0.2.2
+docker==3.3.0
+docker-pycreds==0.2.3
 flake8==3.5.0
-identify==1.0.13
+identify==1.0.18
 imagesize==0.7.1
 Jinja2==2.10
 livereload==2.4.1
@@ -33,7 +33,7 @@ pycparser==2.18
 pyflakes==1.6.0
 Pygments==2.2.0
 pytest==3.5.1
-requirements-tools==1.1.2
+requirements-tools==1.2.0
 snowballstemmer==1.2.0
 Sphinx==1.6.6
 sphinx-rtd-theme==0.2.4
