@@ -256,7 +256,7 @@ def update_metrics_dict_list(metrics_dict_list, metrics_index):
     for metric_dict in metrics_dict_list:
         metric_type = metric_dict['type']
         metric_regex = re.compile(metric_dict['name'])
-        for metric_name in filter(metric_regex.match, metrics_index[metric_type]):
+        for metric_name in filter(metric_regex.search, metrics_index[metric_type]):
             update_metric_dict = dict(metric_dict)
             update_metric_dict['name'] = metric_name
             update_metrics_dict_list.append(update_metric_dict)
