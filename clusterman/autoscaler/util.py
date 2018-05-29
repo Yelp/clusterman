@@ -10,6 +10,7 @@ from threading import Thread
 import simplejson as json
 import staticconf
 import yaml
+from clusterman_metrics import APP_METRICS
 from staticconf.errors import ConfigurationError
 
 from clusterman.aws.client import s3
@@ -257,8 +258,9 @@ def update_metrics_dict_list(metrics_dict_list, metrics_index):
         metric_type = metric_dict['type']
         metric_regex = re.compile(metric_dict['name'])
         for metric_name in filter(metric_regex.search, metrics_index[metric_type]):
+            prefix_index = metric_name.find(',') + 1 if metric_type == APP_METRICS else 0
             update_metric_dict = dict(metric_dict)
-            update_metric_dict['name'] = metric_name
+            update_metric_dict['name'] = metric_name[prefix_index:]
             update_metrics_dict_list.append(update_metric_dict)
 
     return update_metrics_dict_list

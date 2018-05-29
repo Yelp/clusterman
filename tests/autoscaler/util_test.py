@@ -45,10 +45,10 @@ def mock_cache():
 
 @pytest.fixture
 def mock_metrics_dict_list():
-    return [{'name': 'cpus_allocated', 'type': 'system_metrics', 'minute_range': 10},
-            {'name': '^(project=)', 'type': 'app_metrics', 'minute_range': 15},
-            {'name': 'forced_max', 'type': 'app_metrics', 'minute_range': 18},
-            {'name': 'cpus_total', 'type': 'metadata', 'minute_range': 20}]
+    return [
+        {'name': 'cpus_allocated', 'type': 'system_metrics', 'minute_range': 10},
+        {'name': '(project=*)', 'type': 'app_metrics', 'minute_range': 15},
+    ]
 
 
 def test_read_config_none():
@@ -181,17 +181,18 @@ def test_evaluate_sending_message(signal_recv):
 
 
 def test_update_metrics_dict_list(mock_metrics_dict_list):
-    metrics_index = {'app_metrics': ['project=P1', 'project=P2', 'forced_max'],
-                     'system_metrics': ['cpus_allocated'],
-                     'metadata': ['cpus_total']}
-    expected_metrics_dict_list = [{'name': 'cpus_allocated', 'type': 'system_metrics', 'minute_range': 10},
-                                  {'name': 'project=P1', 'type': 'app_metrics', 'minute_range': 15},
-                                  {'name': 'project=P2', 'type': 'app_metrics', 'minute_range': 15},
-                                  {'name': 'forced_max', 'type': 'app_metrics', 'minute_range': 18},
-                                  {'name': 'cpus_total', 'type': 'metadata', 'minute_range': 20}]
+    metrics_index = {
+        'app_metrics': ['app1,project=P1', 'app1,project=P2', 'app2,forced_max'],
+        'system_metrics': ['cpus_allocated'],
+    }
+    expected_metrics_dict_list = [
+        {'name': 'cpus_allocated', 'type': 'system_metrics', 'minute_range': 10},
+        {'name': 'project=P1', 'type': 'app_metrics', 'minute_range': 15},
+        {'name': 'project=P2', 'type': 'app_metrics', 'minute_range': 15},
+    ]
     metrics_dict_list = update_metrics_dict_list(mock_metrics_dict_list, metrics_index)
 
-    assert len(metrics_dict_list) == 5
+    assert len(metrics_dict_list) == 3
     for metric_dict in metrics_dict_list:
         assert metric_dict in expected_metrics_dict_list
 
