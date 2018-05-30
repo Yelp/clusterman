@@ -50,7 +50,7 @@ def load_cluster_pool_config(cluster, pool, signals_branch_or_tag):
     pool_config_file = get_pool_config_path(cluster, pool)
 
     with open(pool_config_file) as f:
-        config = yaml.load(f)
+        config = yaml.safe_load(f)
         pool_namespace = POOL_NAMESPACE.format(pool=pool)
         staticconf.DictConfiguration(config, namespace=pool_namespace)
 

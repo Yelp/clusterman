@@ -216,7 +216,7 @@ class Simulator:
 
     def _make_autoscaler(self, autoscaler_config_file):
         with open(autoscaler_config_file) as f:
-            autoscaler_config = yaml.load(f)
+            autoscaler_config = yaml.safe_load(f)
         configs = autoscaler_config.get('configs', [])
         if 'sfrs' in autoscaler_config:
             aws_configs = ec2.describe_spot_fleet_requests(SpotFleetRequestIds=autoscaler_config['sfrs'])

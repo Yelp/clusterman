@@ -22,6 +22,14 @@ logger = get_clusterman_logger(__name__)
 
 class Autoscaler:
     def __init__(self, cluster, pool, apps, *, pool_manager=None, metrics_client=None):
+        """ Class containing the core logic for autoscaling a cluster
+
+        :param cluster: the name of the cluster to autoscale
+        :param pool: the name of the pool to autoscale
+        :param apps: a list of apps running on the pool
+        :param pool_manager: a MesosPoolManager object (used for simulations)
+        :param metrics_client: a ClustermanMetricsBotoClient object (used for simulations)
+        """
         self.cluster = cluster
         self.pool = pool
         self.apps = apps
@@ -41,12 +49,12 @@ class Autoscaler:
         self.default_signal = Signal(
             self.cluster,
             self.pool,
-            None,
+            None,  # the default signal is not specific to any app
             DEFAULT_NAMESPACE,
             self.metrics_client,
             signal_namespace=staticconf.read_string('autoscaling.default_signal_role'),
         )
-        self.signal = self.get_signal_for_app(self.apps[0])
+        self.signal = self._get_signal_for_app(self.apps[0])
         self._last_signal_traceback = None
 
         logger.info('Initialization complete')
@@ -58,7 +66,8 @@ class Autoscaler:
     def run(self, dry_run=False, timestamp=None):
         """ Do a single check to scale the fleet up or down if necessary.
 
-        :param dry_run: Don't actually modify the fleet size, just print what would happen
+        :param dry_run: boolean; if True, don't modify the pool size, just print what would happen
+        :param timestamp: an arrow object indicating the current time
         """
         timestamp = timestamp or arrow.utcnow()
         logger.info(f'Autoscaling run starting at {timestamp}')
@@ -66,8 +75,12 @@ class Autoscaler:
         self.capacity_gauge.set(new_target_capacity, {'dry_run': dry_run})
         self.mesos_pool_manager.modify_target_capacity(new_target_capacity, dry_run=dry_run)
 
-    def get_signal_for_app(self, app):
-        """Load the signal object to use for autoscaling."""
+    def _get_signal_for_app(self, app):
+        """Load the signal object to use for autoscaling for a particular app
+
+        :param app: the name of the app to load a Signal for
+        :returns: the configured app signal, or the default signal in case of an error
+        """
         logger.info(f'Loading autoscaling signal for {app} on {self.pool} in {self.cluster}')
 
         # TODO (CLUSTERMAN-126, CLUSTERMAN-195) apps will eventually have separate namespaces from pools
@@ -96,6 +109,7 @@ class Autoscaler:
     def _compute_target_capacity(self, timestamp):
         """ Compare signal to the resources allocated and compute appropriate capacity change.
 
+        :param timestamp: an arrow object indicating the current time
         :returns: the new target capacity we should scale to
         """
         # TODO (CLUSTERMAN-201) support other types of resource requests

@@ -73,6 +73,12 @@ def get_clusterman_logger(name):
     return logger
 
 
+def log_subprocess_run(logger, *args, **kwargs):
+    result = subprocess.run(*args, **kwargs)
+    logger.info(result.stdout.decode().strip())
+    result.check_returncode()
+
+
 def parse_time_string(time_str, tz='US/Pacific'):
     """ Convert a date or time string into an arrow object in UTC
 
@@ -157,9 +163,3 @@ def sha_from_branch_or_tag(repo, branch_or_tag):
     output = result.stdout.decode()
     sha = output.split('\t')[0]
     return sha
-
-
-def log_subprocess_run(logger, *args, **kwargs):
-    result = subprocess.run(*args, **kwargs)
-    logger.info(result.stdout.decode().strip())
-    result.check_returncode()

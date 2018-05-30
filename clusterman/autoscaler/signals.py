@@ -10,8 +10,8 @@ from clusterman_metrics import APP_METRICS
 from clusterman_metrics import generate_key_with_dimensions
 from clusterman_metrics import SYSTEM_METRICS
 
-from clusterman.autoscaler.config import get_metrics_configs
-from clusterman.autoscaler.config import read_signal_config
+from clusterman.autoscaler.config import get_required_metric_configs
+from clusterman.autoscaler.config import get_signal_config
 from clusterman.exceptions import MetricsError
 from clusterman.exceptions import SignalConnectionError
 from clusterman.util import get_clusterman_logger
@@ -25,6 +25,7 @@ SOCKET_TIMEOUT_SECONDS = 60
 
 
 def _init_signal_output_pipes(signal_name, signal_process):
+    """ Capture stdout/stderr from the signal """
     def log_signal_output(fd, log_fn):
         while True:
             line = fd.readline().decode().strip()
@@ -48,11 +49,16 @@ def _init_signal_output_pipes(signal_name, signal_process):
     stderr_thread.start()
 
 
+def _get_cache_location():  # pragma: no cover
+    """ Store clusterman-specific cached data in ~/.cache/clusterman """
+    return os.path.join(os.path.expanduser("~"), '.cache', 'clusterman')
+
+
 def _get_local_signal_directory(repo, branch_or_tag):
     """ Get the directory path for the local version of clusterman_signals corresponding to a
     particular branch or tag.  Stores the signal in ~/.cache/clusterman/clusterman_signals_{git_sha}
     """
-    local_repo_cache = os.path.join(os.path.expanduser("~"), '.cache', 'clusterman')
+    local_repo_cache = _get_cache_location()
     sha = sha_from_branch_or_tag(repo, branch_or_tag)
     local_path = os.path.join(local_repo_cache, f'clusterman_signals_{sha}')
     subprocess_kwargs = {'cwd': local_path, 'stdout': subprocess.PIPE, 'stderr': subprocess.STDOUT}
@@ -124,10 +130,20 @@ def _load_signal_connection(config, namespace):
 
 class Signal:
     def __init__(self, cluster, pool, app, config_namespace, metrics_client, signal_namespace=None):
+        """ Create an encapsulation of the Unix sockets via which we communicate with signals
+
+        :param cluster: the name of the cluster this signal is for
+        :param pool: the name of the pool this signal is for
+        :param app: the name of the application this signal is for
+        :param config_namespace: the staticconf namespace we can find the signal config in
+        :param metrics_client: the metrics client to use to populate signal metrics
+        :param signal_namespace: the namespace in the signals repo to find the signal class
+            (if this is None, we default to the app name)
+        """
         self.cluster = cluster
         self.pool = pool
         self.app = app
-        self.config = read_signal_config(config_namespace)
+        self.config = get_signal_config(config_namespace)
         self.metrics_client = metrics_client
         signal_namespace = signal_namespace or self.app
         self._signal_conn = _load_signal_connection(self.config, signal_namespace)
@@ -163,23 +179,31 @@ class Signal:
         # recv above it gets both values.  This should handle that case, or call recv again
         # if there's no more data in the previous message
         response = response[1:] or self._signal_conn.recv(SOCKET_MESG_SIZE)
+        logger.info(response)
         return json.loads(response)['Resources']
 
     def _get_metrics(self, end_time):
-        all_required_metrics = get_metrics_configs(self.app, self.config.required_metrics)
+        """ Get the metrics required for a signal """
+
+        # We re-query the metrics index every time we evaluate the signal, in case we've started logging
+        # new (matching) metrics since the batch has started
+        all_required_metrics = get_required_metric_configs(self.app, self.config.required_metrics)
         metrics = {}
         for metric in all_required_metrics:
             start_time = end_time.shift(minutes=-metric.minute_range)
+
+            # Create the key to query the datastore with
             if metric.type == SYSTEM_METRICS:
                 metric_key = generate_key_with_dimensions(metric.name, {'cluster': self.cluster, 'pool': self.pool})
             elif metric.type == APP_METRICS:
                 metric_key = self.app + ',' + metric.name
             else:
                 raise MetricsError('Signal cannot read {metric.type} metrics')
-            metrics[metric.name] = self.metrics_client.get_metric_values(
+
+            __, metrics[metric.name] = self.metrics_client.get_metric_values(
                 metric_key,
                 metric.type,
                 start_time.timestamp,
                 end_time.timestamp
-            )[1]
+            )
         return metrics

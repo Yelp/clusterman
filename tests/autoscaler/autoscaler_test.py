@@ -1,23 +1,13 @@
 import arrow
 import mock
 import pytest
-import simplejson as json
 import staticconf
-from clusterman_metrics import APP_METRICS
-from clusterman_metrics import ClustermanMetricsBotoClient
-from clusterman_metrics import SYSTEM_METRICS
 from simplejson.errors import JSONDecodeError
-from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 from clusterman.autoscaler.autoscaler import Autoscaler
-from clusterman.autoscaler.autoscaler import CAPACITY_GAUGE_NAME
-from clusterman.autoscaler.util import MetricConfig
-from clusterman.autoscaler.util import SignalConfig
 from clusterman.config import POOL_NAMESPACE
 from clusterman.exceptions import ClustermanSignalError
 from clusterman.exceptions import NoSignalConfiguredException
-from clusterman.exceptions import SignalConnectionError
-from clusterman.exceptions import SignalValidationError
 
 
 @pytest.fixture
@@ -47,66 +37,22 @@ def pool_configs():
         yield
 
 
-autoscaling_config_dict = {
-    'default_signal_role': 'clusterman',
-    'setpoint': 0.7,
-    'setpoint_margin': 0.1,
-    'cpus_per_weight': 8,
-}
-
-
-@pytest.fixture(autouse=True)
-def scaling_configs():
-    with staticconf.testing.PatchConfiguration(
-        {'autoscaling': autoscaling_config_dict},
-        namespace=DEFAULT_NAMESPACE,
-    ):
-        yield
-
-
 @pytest.fixture
-def mock_gauge():
-    with mock.patch('yelp_meteorite.create_gauge', autospec=True) as mock_gauge:
-        yield mock_gauge
+def mock_autoscaler():
+    autoscaling_config_dict = {
+        'default_signal_role': 'clusterman',
+        'setpoint': 0.7,
+        'setpoint_margin': 0.1,
+        'cpus_per_weight': 8,
+    }
 
-
-@pytest.fixture
-def mock_pool_manager():
-    with mock.patch('clusterman.autoscaler.autoscaler.MesosPoolManager', autospec=True) as mock_pool_manager:
-        yield mock_pool_manager
-
-
-@pytest.fixture
-def mock_metrics_client():
-    yield mock.Mock(spec=ClustermanMetricsBotoClient)
-
-
-def signal_config():
-    return SignalConfig(
-        'CoolSignal',
-        'v42',
-        3,
-        [MetricConfig('metricA', 'system_metrics', 8)],
-        {'paramA': 20, 'paramC': 'abc'},
-    )
-
-
-@pytest.fixture
-@mock.patch('clusterman.autoscaler.autoscaler.Autoscaler.load_signal_for_app', autospec=True)
-@mock.patch('clusterman.autoscaler.autoscaler.Autoscaler.load_default_signal', autospec=True)
-def mock_autoscaler(mock_load_def_signal, mock_load_signal, mock_metrics_client, mock_pool_manager, mock_gauge):
-    with mock.patch('clusterman.autoscaler.autoscaler.ClustermanMetricsBotoClient', autospec=True):
+    with mock.patch('clusterman.autoscaler.autoscaler.ClustermanMetricsBotoClient', autospec=True), \
+            mock.patch('clusterman.autoscaler.autoscaler.MesosPoolManager', autospec=True), \
+            mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._get_signal_for_app', autospec=True), \
+            mock.patch('clusterman.autoscaler.autoscaler.yelp_meteorite'), \
+            mock.patch('clusterman.autoscaler.autoscaler.Signal'), \
+            staticconf.testing.PatchConfiguration({'autoscaling': autoscaling_config_dict}):
         mock_autoscaler = Autoscaler('mesos-test', 'bar', ['bar'])
-    mock_autoscaler.default_signal_config = signal_config()
-    mock_autoscaler.signal_config = SignalConfig(
-        'CoolSignal',
-        'v42',
-        12,
-        [MetricConfig('cpus_allocated', SYSTEM_METRICS, 10), MetricConfig('cost', APP_METRICS, 30)],
-        {}
-    )
-    mock_autoscaler.default_signal_conn = mock.Mock()
-    mock_autoscaler.signal_conn = mock.Mock()
     mock_autoscaler.mesos_pool_manager.target_capacity = 300
     mock_autoscaler.mesos_pool_manager.min_capacity = staticconf.read_int(
         'scaling_limits.min_capacity', namespace=POOL_NAMESPACE.format(pool='bar')
@@ -117,121 +63,24 @@ def mock_autoscaler(mock_load_def_signal, mock_load_signal, mock_metrics_client,
     return mock_autoscaler
 
 
-@mock.patch('clusterman.autoscaler.autoscaler.Autoscaler.load_signal_for_app', autospec=True)
-@mock.patch('clusterman.autoscaler.autoscaler.Autoscaler.load_default_signal', autospec=True)
-def test_autoscaler_init(mock_load_def_signal, mock_load_signal, mock_pool_manager, mock_metrics_client, mock_gauge):
-    mock_autoscaler = Autoscaler('mesos-test', 'bar', ['app'], metrics_client=mock_metrics_client())
-
-    assert mock_autoscaler.cluster == 'mesos-test'
-    assert mock_autoscaler.pool == 'bar'
-    assert mock_autoscaler.apps == ['app']
-
-    assert mock_autoscaler.autoscaling_config.setpoint == autoscaling_config_dict['setpoint']
-    assert mock_autoscaler.autoscaling_config.setpoint_margin == autoscaling_config_dict['setpoint_margin']
-    assert mock_autoscaler.autoscaling_config.cpus_per_weight == autoscaling_config_dict['cpus_per_weight']
-
-    assert mock_gauge.call_args == mock.call(CAPACITY_GAUGE_NAME, {'cluster': 'mesos-test', 'pool': 'bar'})
-    assert mock_autoscaler.capacity_gauge == mock_gauge.return_value
-
-    assert mock_pool_manager.call_args == mock.call('mesos-test', 'bar')
-    assert mock_autoscaler.mesos_pool_manager == mock_pool_manager.return_value
-    assert mock_autoscaler.metrics_client == mock_metrics_client.return_value
-
-    assert mock_load_signal.call_count == 1
-
-
 def test_autoscaler_init_too_many_apps():
     with pytest.raises(NotImplementedError):
         Autoscaler('mesos-test', 'bar', ['app1', 'app2'])
 
 
-@pytest.mark.parametrize('read_config,expected_default', [
-    (NoSignalConfiguredException, True),  # no app signal
-    (mock.Mock(), False),  # Custom app signal successful
+@pytest.mark.parametrize('signal_response', [
+    NoSignalConfiguredException,  # no app signal
+    ValueError,  # app signal failed to load
+    mock.Mock()  # Custom app signal successful
 ])
-@mock.patch('clusterman.autoscaler.autoscaler.read_signal_config', autospec=True)
-@mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._get_signal_connection', autospec=True)
-def test_load_signal_without_metrics_index_bucket(mock_get_signal, mock_read_config, mock_autoscaler,
-                                                  read_config, expected_default):
-    mock_read_config.side_effect = [read_config]
-    mock_autoscaler.load_signal_for_app('bar')
-    assert mock_read_config.call_args_list == [
-        mock.call(POOL_NAMESPACE.format(pool='bar'), None),
-    ]
+def test_get_signal_for_app(mock_autoscaler, signal_response):
+    with mock.patch('clusterman.autoscaler.autoscaler.Signal') as mock_signal, \
+            mock.patch('clusterman.autoscaler.autoscaler.sensu_checkin') as mock_sensu:
+        mock_signal.side_effect = signal_response
+        signal = mock_autoscaler._get_signal_for_app('bar')
+        assert mock_sensu.call_count == (signal_response == ValueError)
 
-    assert mock_autoscaler.signal_config == (mock_autoscaler.default_signal_config if expected_default else read_config)
-
-
-@pytest.mark.parametrize('read_config,expected_default', [
-    (NoSignalConfiguredException, True),  # no role signal
-    (mock.Mock(), False),  # Custom role signal successful
-])
-@mock.patch('clusterman.autoscaler.autoscaler.get_metrics_index_from_s3', autospec=True)
-@mock.patch('staticconf.read_string')
-@mock.patch('clusterman.autoscaler.autoscaler.read_signal_config', autospec=True)
-@mock.patch('clusterman.autoscaler.autoscaler.Autoscaler._get_signal_connection', autospec=True)
-def test_load_signal_with_metrics_index_bucket(mock_get_signal, mock_read_config, mock_read_string,
-                                               mock_get_metrics_index, mock_autoscaler, read_config, expected_default):
-    mock_read_config.side_effect = [read_config]
-    mock_read_string.return_value = "test-bucket"
-    mock_get_metrics_index.return_value = {}
-    mock_autoscaler.load_signal_for_app('bar')
-    assert mock_read_config.call_args_list == [
-        mock.call(POOL_NAMESPACE.format(pool='bar'), {}),
-    ]
-
-    assert mock_autoscaler.signal_config == (mock_autoscaler.default_signal_config if expected_default else read_config)
-
-
-@mock.patch('clusterman.autoscaler.autoscaler.sensu_checkin', autospec=True)
-@mock.patch('clusterman.autoscaler.autoscaler.read_signal_config', autospec=True)
-def test_load_signal_warning(mock_read_config, mock_sensu, mock_autoscaler):
-    mock_read_config.side_effect = [SignalValidationError]
-    mock_autoscaler._get_signal_connection = mock.Mock()
-    mock_autoscaler.load_signal_for_app('bar')
-    assert mock_sensu.call_count == 1
-    assert mock_autoscaler._get_signal_connection.call_count == 0
-    assert mock_autoscaler.signal_config == mock_autoscaler.default_signal_config
-    assert mock_autoscaler.signal_conn == mock_autoscaler.default_signal_conn
-
-
-@mock.patch('clusterman.autoscaler.autoscaler.logger')
-@mock.patch('clusterman.autoscaler.autoscaler.load_signal_connection')
-class TestInitSignalConnection:
-    @pytest.mark.parametrize('app', ['app1', None])
-    def test_init_signal_for_app(self, mock_load_signal, mock_logger, app, mock_autoscaler):
-        app = staticconf.read_string('autoscaling.default_signal_role') if not app else mock_autoscaler.apps[0]
-        signal_config = mock_autoscaler.signal_config if app else mock_autoscaler.default_signal_config
-        mock_autoscaler._get_signal_connection(signal_config, app)
-        assert mock_load_signal.call_args == mock.call('v42', app, 'CoolSignal')
-        assert json.loads(mock_load_signal.return_value.send.call_args[0][0]) == {
-            'parameters': mock_autoscaler.signal_config.parameters,
-        }
-        assert mock_logger.info.call_count == 1
-
-    def test_init_signal_fallback_to_default(self, mock_load_signal, mock_logger, mock_autoscaler):
-        default_role = staticconf.read_string('autoscaling.default_signal_role')
-        mock_signal_conn = mock.Mock()
-        mock_load_signal.side_effect = [SignalConnectionError(), mock_signal_conn]
-        mock_autoscaler._get_signal_connection(mock_autoscaler.signal_config, mock_autoscaler.apps[0])
-        assert mock_load_signal.call_args_list == [
-            mock.call('v42', mock_autoscaler.apps[0], 'CoolSignal'),
-            mock.call('v42', default_role, 'CoolSignal'),
-        ]
-        assert json.loads(mock_signal_conn.send.call_args[0][0]) == {
-            'parameters': mock_autoscaler.signal_config.parameters,
-        }
-        assert mock_logger.info.call_count == 2
-
-    def test_init_signal_error(self, mock_load_signal, mock_logger, mock_autoscaler):
-        default_role = staticconf.read_string('autoscaling.default_signal_role')
-        mock_load_signal.side_effect = SignalConnectionError()
-        with pytest.raises(SignalConnectionError):
-            mock_autoscaler._get_signal_connection(mock_autoscaler.signal_config, mock_autoscaler.apps[0])
-        assert mock_load_signal.call_args_list == [
-            mock.call('v42', mock_autoscaler.apps[0], 'CoolSignal'),
-            mock.call('v42', default_role, 'CoolSignal'),
-        ]
+    assert signal == (mock_autoscaler.default_signal if isinstance(signal_response, Exception) else signal)
 
 
 @pytest.mark.parametrize('dry_run', [True, False])
@@ -243,27 +92,6 @@ def test_autoscaler_dry_run(dry_run, mock_autoscaler, run_timestamp):
     assert mock_autoscaler.mesos_pool_manager.modify_target_capacity.call_count == 1
 
 
-@pytest.mark.parametrize('end_time', [arrow.get(3600), arrow.get(10000), arrow.get(35000)])
-def test_get_metrics(end_time, mock_autoscaler):
-    metrics = mock_autoscaler._get_metrics(end_time)
-    assert mock_autoscaler.metrics_client.get_metric_values.call_args_list == [
-        mock.call(
-            'cpus_allocated|cluster=mesos-test,pool=bar',
-            SYSTEM_METRICS,
-            end_time.shift(minutes=-10).timestamp,
-            end_time.timestamp,
-        ),
-        mock.call(
-            'cost',
-            APP_METRICS,
-            end_time.shift(minutes=-30).timestamp,
-            end_time.timestamp,
-        )
-    ]
-    assert 'cpus_allocated' in metrics
-    assert 'cost' in metrics
-
-
 @pytest.mark.parametrize('signal_cpus,total_cpus,expected_capacity', [
     (None, 1000, 125),
     (799, 1000, 125),  # above setpoint, but within setpoint margin
@@ -272,32 +100,27 @@ def test_get_metrics(end_time, mock_autoscaler):
     (490, 1000, 87.5),  # below setpoint margin
     (1400, 1000, 250),  # above setpoint margin and total
 ])
-@mock.patch('clusterman.autoscaler.autoscaler.evaluate_signal')
-def test_compute_target_capacity(mock_evaluate_signal, mock_autoscaler, signal_cpus, total_cpus,
+def test_compute_target_capacity(mock_autoscaler, signal_cpus, total_cpus,
                                  expected_capacity, run_timestamp):
-    mock_autoscaler._get_metrics = mock.Mock(return_value=[[1234, 3.5]])
-    mock_autoscaler.mesos_pool_manager.target_capacity = total_cpus / staticconf.read_int('autoscaling.cpus_per_weight')
-    mock_evaluate_signal.return_value = {'cpus': signal_cpus}
+    mock_autoscaler.mesos_pool_manager.target_capacity = \
+        total_cpus / mock_autoscaler.autoscaling_config.cpus_per_weight
+    mock_autoscaler.signal.evaluate.return_value = {'cpus': signal_cpus}
     new_target_capacity = mock_autoscaler._compute_target_capacity(run_timestamp)
     assert new_target_capacity == pytest.approx(expected_capacity)
-    assert mock_evaluate_signal.call_args == mock.call([[1234, 3.5]], run_timestamp, mock_autoscaler.signal_conn)
+    assert mock_autoscaler.signal.evaluate.call_args == mock.call(run_timestamp)
 
 
-@mock.patch('clusterman.autoscaler.autoscaler.evaluate_signal')
-def test_evaluate_failed(mock_evaluate_signal, mock_autoscaler, run_timestamp):
-    mock_autoscaler._get_metrics = mock.Mock(return_value=[[1234, 3.5]])
-    mock_evaluate_signal.side_effect = JSONDecodeError('foo', 'bar', 3)
+def test_evaluate_failed(mock_autoscaler, run_timestamp):
+    mock_autoscaler.signal.evaluate.side_effect = JSONDecodeError('foo', 'bar', 3)
 
     with pytest.raises(ClustermanSignalError):
         mock_autoscaler._compute_target_capacity(run_timestamp)
     assert mock_autoscaler._last_signal_traceback == 'bar'
 
 
-@mock.patch('clusterman.autoscaler.autoscaler.evaluate_signal')
 @pytest.mark.parametrize('last_traceback', ['foo', None])
-def test_evaluate_failed_again(mock_evaluate_signal, mock_autoscaler, run_timestamp, mock_logger, last_traceback):
-    mock_autoscaler._get_metrics = mock.Mock(return_value=[[1234, 3.5]])
-    mock_evaluate_signal.side_effect = BrokenPipeError
+def test_evaluate_failed_again(mock_autoscaler, run_timestamp, mock_logger, last_traceback):
+    mock_autoscaler.signal.evaluate.side_effect = BrokenPipeError
     mock_autoscaler._last_signal_traceback = last_traceback
 
     with pytest.raises(ClustermanSignalError):

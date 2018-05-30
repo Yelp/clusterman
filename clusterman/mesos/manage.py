@@ -7,7 +7,7 @@ import staticconf
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_pool_arg
 from clusterman.args import subparser
-from clusterman.autoscaler.util import LOG_STREAM_NAME
+from clusterman.autoscaler.config import LOG_STREAM_NAME
 from clusterman.config import POOL_NAMESPACE
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.util import ask_for_confirmation
