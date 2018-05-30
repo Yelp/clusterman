@@ -47,6 +47,7 @@ signalfx==1.0.17
 simplejson==3.14.0
 six==1.11.0
 sortedcontainers==1.5.7
+spotinst-sdk==1.0.29
 sseclient-py==1.4
 thriftpy==0.3.9
 urllib3==1.22

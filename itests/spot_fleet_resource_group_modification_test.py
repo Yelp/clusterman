@@ -10,6 +10,7 @@ from tests.conftest import clusterman_pool_config
 from tests.conftest import main_clusterman_config
 from tests.conftest import mock_aws_client_setup
 from tests.mesos.conftest import setup_ec2
+from tests.mesos.spot_fleet_resource_group_test import mock_sfr_response
 from tests.mesos.spot_fleet_resource_group_test import mock_spot_fleet_resource_group
 from tests.mesos.spot_fleet_resource_group_test import mock_subnet
 
@@ -19,7 +20,7 @@ pytest.mark.usefixtures(mock_aws_client_setup, main_clusterman_config, clusterma
 
 @pytest.fixture
 def mock_sfrs(setup_ec2):
-    sfrgs = [mock_spot_fleet_resource_group(mock_subnet()) for i in range(5)]
+    sfrgs = [mock_spot_fleet_resource_group(mock_sfr_response(mock_subnet())) for i in range(5)]
     for sfrg in sfrgs:
         ec2.modify_spot_fleet_request(SpotFleetRequestId=sfrg.id, TargetCapacity=1)
     return sfrgs

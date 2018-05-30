@@ -26,7 +26,7 @@ RUN     apt-get update \
 # See https://confluence.yelpcorp.com/display/~asottile/GettingPythonOffLucid
 # and https://migration-status.dev.yelp.com/metric/ToxNonLucid
 # for more information (e.g., using pip-custom-platform, tox virtualenv build, etc)
-COPY    tox.ini requirements.txt /code/
+COPY    tox.ini requirements.txt requirements-bootstrap.txt /code/
 RUN     cd code && tox -e virtualenv_run
 
 # User "nobody" needs to check out the clusterman_signals Git repo so it needs SSH

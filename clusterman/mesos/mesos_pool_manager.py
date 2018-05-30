@@ -20,6 +20,7 @@ from clusterman.exceptions import MesosPoolManagerError
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
 from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
+from clusterman.mesos.spotinst_resource_group import SpotInstResourceGroup
 from clusterman.mesos.util import get_mesos_agent_and_state_from_aws_instance
 from clusterman.mesos.util import get_task_count_per_agent
 from clusterman.mesos.util import get_total_resource_value
@@ -39,6 +40,7 @@ RESOURCE_GROUPS: Dict[
     Type[MesosPoolResourceGroup]
 ] = {
     "sfr": SpotFleetResourceGroup,
+    "spotinst": SpotInstResourceGroup,
 }
 
 

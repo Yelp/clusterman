@@ -24,7 +24,7 @@ def mock_subnet():
 
 
 @pytest.fixture
-def mock_spot_fleet_resource_group(mock_subnet):
+def mock_sfr_response(mock_subnet):
     sfr_response = ec2.request_spot_fleet(
         SpotFleetRequestConfig={
             'AllocationStrategy': 'diversified',
@@ -65,7 +65,12 @@ def mock_spot_fleet_resource_group(mock_subnet):
             'IamFleetRole': 'foo',
         },
     )
-    return SpotFleetResourceGroup(sfr_response['SpotFleetRequestId'])
+    return sfr_response
+
+
+@pytest.fixture
+def mock_spot_fleet_resource_group(mock_sfr_response):
+    return SpotFleetResourceGroup(mock_sfr_response['SpotFleetRequestId'])
 
 
 @mock_s3
