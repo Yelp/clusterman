@@ -1,4 +1,3 @@
-import os
 import socket
 import time
 from traceback import format_exc
@@ -18,11 +17,11 @@ from clusterman.args import add_env_config_path_arg
 from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import BatchRunningSentinelMixin
 from clusterman.batch.util import suppress_request_limit_exceeded
-from clusterman.config import get_cluster_config_directory
 from clusterman.config import get_pool_config_path
 from clusterman.config import load_cluster_pool_config
 from clusterman.config import setup_config
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
+from clusterman.mesos.util import get_pool_name_list
 from clusterman.util import get_clusterman_logger
 from clusterman.util import sensu_checkin
 from clusterman.util import splay_time_start
@@ -61,11 +60,7 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
 
         # Since we want to collect metrics for all the pools, we need to call setup_config
         # first to load the cluster config path, and then read all the entries in that directory
-        cluster_config_directory = get_cluster_config_directory(self.options.cluster)
-        self.pools = [
-            f[:-5] for f in os.listdir(cluster_config_directory)
-            if f[0] != '.' and f[-5:] == '.yaml'  # skip dotfiles and only read yaml-files
-        ]
+        self.pools = get_pool_name_list(self.options.cluster)
         for pool in self.pools:
             self.config.watchers.append({pool: get_pool_config_path(self.options.cluster, pool)})
             load_cluster_pool_config(self.options.cluster, pool, None)

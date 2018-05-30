@@ -1,8 +1,12 @@
+import os
 import random
 import socket
 
 import requests
+import staticconf
+from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
+from clusterman.config import get_cluster_config_directory
 from clusterman.exceptions import MesosPoolManagerError
 from clusterman.util import get_clusterman_logger
 
@@ -96,3 +100,16 @@ def mesos_post(url, endpoint):
         raise MesosPoolManagerError(f'Mesos master unreachable: check the logs for details') from e
 
     return response
+
+
+def get_cluster_name_list(config_namespace=DEFAULT_NAMESPACE):
+    namespace = staticconf.config.get_namespace(config_namespace)
+    return namespace.get_config_dict().get('mesos_clusters', {}).keys()
+
+
+def get_pool_name_list(cluster_name):
+    cluster_config_directory = get_cluster_config_directory(cluster_name)
+    return [
+        f[:-5] for f in os.listdir(cluster_config_directory)
+        if f[0] != '.' and f[-5:] == '.yaml'  # skip dotfiles and only read yaml-files
+    ]
