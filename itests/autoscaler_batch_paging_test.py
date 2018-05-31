@@ -14,6 +14,7 @@ from clusterman.batch.autoscaler import AutoscalerBatch
 from clusterman.batch.autoscaler import SERVICE_CHECK_NAME
 from clusterman.batch.autoscaler import SIGNAL_CHECK_NAME
 from clusterman.exceptions import AutoscalerError
+from clusterman.exceptions import ClustermanSignalError
 from tests.batch.conftest import mock_setup_config_directory
 from tests.conftest import clusterman_pool_config
 from tests.conftest import main_clusterman_config
@@ -102,26 +103,25 @@ def test_signal_setup_fallback(signal_type, autoscaler_batch):
 def test_signal_broke(autoscaler_batch):
     """ Test that we notify the client if the signal is broken or we get a broken pipe error """
     with mock.patch('clusterman.autoscaler.autoscaler.Signal') as mock_signal, \
-            mock.patch('clusterman.util.pysensu_yelp.send_event') as mock_sensu, \
-            mock.patch('clusterman.autoscaler.autoscaler.logger.error') as mock_logger_error, \
-            mock.patch('clusterman.batch.autoscaler.AutoscalerBatch.running', mock.PropertyMock(
-                side_effect=[True, True, False],
-            )):
+            mock.patch('clusterman.util.pysensu_yelp.send_event') as mock_sensu:
 
-        mock_signal.return_value.evaluate.side_effect = [JSONDecodeError('foo', 'bar', 3), BrokenPipeError]
+        mock_signal.side_effect = [mock.MagicMock(), mock.MagicMock()]
+
+        orig_error = JSONDecodeError('foo', 'bar', 3)
+        error_state = (ClustermanSignalError('baz'), 'traceback')
+        error_state[0].__cause__ = orig_error
+
         autoscaler_batch.configure_initial()
+        autoscaler_batch.autoscaler.signal.evaluate.side_effect = orig_error
+        autoscaler_batch.autoscaler.signal.error_state = error_state
+        autoscaler_batch.autoscaler.default_signal.evaluate.return_value = {'cpus': None}
         autoscaler_batch.run()
 
-        # sensu is called twice for configure but we care about checks 2 and 4
+        # sensu is called twice for configure but we care about checks 2 and 3
         check_sensu_args(mock_sensu.call_args_list[0], app_name='bar')
         check_sensu_args(mock_sensu.call_args_list[1])
         check_sensu_args(mock_sensu.call_args_list[2], app_name='bar', status=Status.CRITICAL)
         check_sensu_args(mock_sensu.call_args_list[3])
-        check_sensu_args(mock_sensu.call_args_list[4], app_name='bar', status=Status.CRITICAL)
-        check_sensu_args(mock_sensu.call_args_list[5])
-
-        assert autoscaler_batch.autoscaler._last_signal_traceback == 'bar'
-        assert all(['bar' in call[0][0] for call in mock_logger_error.call_args_list])
 
 
 def test_evaluate_signal_broke(autoscaler_batch):
@@ -162,6 +162,8 @@ def test_service_broke(autoscaler_batch):
 def test_everything_is_fine(autoscaler_batch):
     with mock.patch('clusterman.util.pysensu_yelp.send_event') as mock_sensu, \
             mock.patch('clusterman.autoscaler.autoscaler.Signal') as mock_signal:
+
+        mock_signal.return_value.error_state = None
 
         autoscaler_batch.configure_initial()
         mock_signal.return_value.evaluate.return_value = {'cpus': None}

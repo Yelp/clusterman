@@ -6,7 +6,6 @@ from simplejson.errors import JSONDecodeError
 
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.config import POOL_NAMESPACE
-from clusterman.exceptions import ClustermanSignalError
 from clusterman.exceptions import NoSignalConfiguredException
 
 
@@ -53,6 +52,7 @@ def mock_autoscaler():
             mock.patch('clusterman.autoscaler.autoscaler.Signal'), \
             staticconf.testing.PatchConfiguration({'autoscaling': autoscaling_config_dict}):
         mock_autoscaler = Autoscaler('mesos-test', 'bar', ['bar'])
+    mock_autoscaler.signal.error_state = None
     mock_autoscaler.mesos_pool_manager.target_capacity = 300
     mock_autoscaler.mesos_pool_manager.min_capacity = staticconf.read_int(
         'scaling_limits.min_capacity', namespace=POOL_NAMESPACE.format(pool='bar')
@@ -84,9 +84,11 @@ def test_get_signal_for_app(mock_autoscaler, signal_response):
 
 
 @pytest.mark.parametrize('dry_run', [True, False])
-def test_autoscaler_dry_run(dry_run, mock_autoscaler, run_timestamp):
+def test_autoscaler_run(dry_run, mock_autoscaler, run_timestamp):
     mock_autoscaler._compute_target_capacity = mock.Mock(return_value=100)
-    mock_autoscaler.run(dry_run=dry_run, timestamp=run_timestamp)
+    mock_autoscaler.signal.error_state = ValueError('foo'), 'traceback'
+    with pytest.raises(ValueError):
+        mock_autoscaler.run(dry_run=dry_run, timestamp=run_timestamp)
     assert mock_autoscaler.capacity_gauge.set.call_args == mock.call(100, {'dry_run': dry_run})
     assert mock_autoscaler._compute_target_capacity.call_args == mock.call(run_timestamp)
     assert mock_autoscaler.mesos_pool_manager.modify_target_capacity.call_count == 1
@@ -112,18 +114,5 @@ def test_compute_target_capacity(mock_autoscaler, signal_cpus, total_cpus,
 
 def test_evaluate_failed(mock_autoscaler, run_timestamp):
     mock_autoscaler.signal.evaluate.side_effect = JSONDecodeError('foo', 'bar', 3)
-
-    with pytest.raises(ClustermanSignalError):
-        mock_autoscaler._compute_target_capacity(run_timestamp)
-    assert mock_autoscaler._last_signal_traceback == 'bar'
-
-
-@pytest.mark.parametrize('last_traceback', ['foo', None])
-def test_evaluate_failed_again(mock_autoscaler, run_timestamp, mock_logger, last_traceback):
-    mock_autoscaler.signal.evaluate.side_effect = BrokenPipeError
-    mock_autoscaler._last_signal_traceback = last_traceback
-
-    with pytest.raises(ClustermanSignalError):
-        mock_autoscaler._compute_target_capacity(run_timestamp)
-    if last_traceback:
-        assert 'foo' in mock_logger.error.call_args[0][0]
+    mock_autoscaler._compute_target_capacity(run_timestamp)
+    assert mock_autoscaler.default_signal.evaluate.call_count == 1

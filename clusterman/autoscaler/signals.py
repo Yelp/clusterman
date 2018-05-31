@@ -3,6 +3,7 @@ import socket
 import struct
 import subprocess
 import time
+import traceback
 from collections import namedtuple
 from threading import Thread
 
@@ -11,10 +12,12 @@ import staticconf
 from clusterman_metrics import APP_METRICS
 from clusterman_metrics import generate_key_with_dimensions
 from clusterman_metrics import SYSTEM_METRICS
+from simplejson.errors import JSONDecodeError
 from staticconf.errors import ConfigurationError
 
 from clusterman.autoscaler.config import get_required_metric_configs
 from clusterman.autoscaler.config import MetricConfig
+from clusterman.exceptions import ClustermanSignalError
 from clusterman.exceptions import MetricsError
 from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.exceptions import SignalConnectionError
@@ -123,40 +126,69 @@ class Signal:
         self.metrics_client = metrics_client
         self.signal_namespace = signal_namespace or self.app
         self._signal_conn = self._load_signal_connection()
+        self.exception, self.traceback = None, None
 
-    def evaluate(self, timestamp):
+    def evaluate(self, timestamp, retry_on_broken_pipe=True):
         """ Communicate over a Unix socket with the signal to evaluate its result
 
-        :param metrics: a dict of metric_name -> timeseries data to send to the signal
         :param timestamp: a Unix timestamp to pass to the signal as the "current time"
+        :param retry_on_broken_pipe: if the signal socket pipe is broken, restart the signal process and try again
         :returns: a dict of resource_name -> requested resources from the signal
         :raises SignalConnectionError: if the signal connection fails for some reason
         """
         # Get the required metrics for the signal
         metrics = self._get_metrics(timestamp)
+        self.exception, self.traceback = None, None
 
-        # First send the length of the metrics data
-        metric_bytes = json.dumps({'metrics': metrics, 'timestamp': timestamp.timestamp}).encode()
-        len_metrics = struct.pack('>I', len(metric_bytes))  # bytes representation of the length, packed big-endian
-        self._signal_conn.send(len_metrics)
-        response = self._signal_conn.recv(SOCKET_MESG_SIZE)
-        if response != ACK:
-            raise SignalConnectionError(f'Unknown error occurred sending metric length to signal (response={response})')
+        try:
+            # First send the length of the metrics data
+            metric_bytes = json.dumps({'metrics': metrics, 'timestamp': timestamp.timestamp}).encode()
+            len_metrics = struct.pack('>I', len(metric_bytes))  # bytes representation of the length, packed big-endian
+            self._signal_conn.send(len_metrics)
+            response = self._signal_conn.recv(SOCKET_MESG_SIZE)
+            if response != ACK:
+                raise SignalConnectionError(f'Error occurred sending metric length to signal (response={response})')
 
-        # Then send the actual metrics data, broken up into chunks
-        for i in range(0, len(metric_bytes), SOCKET_MESG_SIZE):
-            self._signal_conn.send(metric_bytes[i:i + SOCKET_MESG_SIZE])
-        response = self._signal_conn.recv(SOCKET_MESG_SIZE)
-        ack_bit = response[:1]
-        if ack_bit != ACK:
-            raise SignalConnectionError(f'Unknown error occurred sending metric data to signal (response={response})')
+            # Then send the actual metrics data, broken up into chunks
+            for i in range(0, len(metric_bytes), SOCKET_MESG_SIZE):
+                self._signal_conn.send(metric_bytes[i:i + SOCKET_MESG_SIZE])
+            response = self._signal_conn.recv(SOCKET_MESG_SIZE)
+            ack_bit = response[:1]
+            if ack_bit != ACK:
+                raise SignalConnectionError(f'Error occurred sending metric data to signal (response={response})')
 
-        # Sometimes the signal sends the ack and the reponse "too quickly" so when we call
-        # recv above it gets both values.  This should handle that case, or call recv again
-        # if there's no more data in the previous message
-        response = response[1:] or self._signal_conn.recv(SOCKET_MESG_SIZE)
-        logger.info(response)
-        return json.loads(response)['Resources']
+            # Sometimes the signal sends the ack and the reponse "too quickly" so when we call
+            # recv above it gets both values.  This should handle that case, or call recv again
+            # if there's no more data in the previous message
+            response = response[1:] or self._signal_conn.recv(SOCKET_MESG_SIZE)
+            logger.info(response)
+            return json.loads(response)['Resources']
+
+        except JSONDecodeError as e:
+            error = ClustermanSignalError('Signal evaluation failed')
+            error.__cause__ = e
+            self.exception, self.traceback = error, e.doc
+            raise
+        except BrokenPipeError as e:
+            if retry_on_broken_pipe:
+                logger.error('Signal connection failed; reloading the signal and trying again')
+                self._signal_conn = self._load_signal_connection()
+                return self.evaluate(timestamp, retry_on_broken_pipe=False)
+            else:
+                error = ClustermanSignalError('Signal evaluation failed')
+                error.__cause__ = e
+                self.exception, self.traceback = error, traceback.format_exc()
+                raise
+        except Exception as e:
+            self.exception, self.traceback = e, traceback.format_exc()
+            raise
+
+    @property
+    def error_state(self):
+        if self.exception:
+            return self.exception, self.traceback
+        else:
+            return None
 
     def _get_signal_config(self, config_namespace):
         """Validate and return autoscaling signal config from the given namespace.

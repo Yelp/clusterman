@@ -3,13 +3,11 @@ import staticconf
 import yelp_meteorite
 from clusterman_metrics import ClustermanMetricsBotoClient
 from pysensu_yelp import Status
-from simplejson.errors import JSONDecodeError
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 from clusterman.autoscaler.config import get_autoscaling_config
 from clusterman.autoscaler.signals import Signal
 from clusterman.config import POOL_NAMESPACE
-from clusterman.exceptions import ClustermanSignalError
 from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.util import get_clusterman_logger
@@ -55,8 +53,6 @@ class Autoscaler:
             signal_namespace=staticconf.read_string('autoscaling.default_signal_role'),
         )
         self.signal = self._get_signal_for_app(self.apps[0])
-        self._last_signal_traceback = None
-
         logger.info('Initialization complete')
 
     @property
@@ -74,6 +70,11 @@ class Autoscaler:
         new_target_capacity = self._compute_target_capacity(timestamp)
         self.capacity_gauge.set(new_target_capacity, {'dry_run': dry_run})
         self.mesos_pool_manager.modify_target_capacity(new_target_capacity, dry_run=dry_run)
+
+        if self.signal.error_state:
+            signal_exception, signal_traceback = self.signal.error_state
+            logger.error('The client signal failed with:\n' + signal_traceback)
+            raise signal_exception
 
     def _get_signal_for_app(self, app):
         """Load the signal object to use for autoscaling for a particular app
@@ -117,24 +118,13 @@ class Autoscaler:
         try:
             signal_name = self.signal.config.name
             resource_request = self.signal.evaluate(timestamp)
-
-        # JSONDecodeError means that the signal returned something unexpected, so store the result
-        # from the signal and alert the signal owner.  Similarly, BrokenPipeError means that the
-        # signal process crashed (probably because of a JSONDecodeError earlier); so we print the
-        # last signal traceback in addition to the BrokenPipe traceback for ease of debugging
-        #
-        # Other errors will propagate upwards and notify the service owner
-        except JSONDecodeError as e:
-            self._last_signal_traceback = e.doc
-            logger.error(self._last_signal_traceback)
-            raise ClustermanSignalError('Signal evaluation failed') from e
-        except BrokenPipeError as e:
-            if self._last_signal_traceback:
-                logger.error('The most recent error from the signal was:\n' + self._last_signal_traceback)
-            raise ClustermanSignalError('The signal is down') from e
+        except Exception:
+            logger.error(f'Client signal {signal_name} failed; using default signal')
+            signal_name = self.default_signal.config.name
+            resource_request = self.default_signal.evaluate(timestamp)
 
         if resource_request['cpus'] is None:
-            logger.info(f'No data from signal, not changing capacity')
+            logger.info('No data from signal, not changing capacity')
             return self.mesos_pool_manager.target_capacity
         signal_cpus = float(resource_request['cpus'])
 
@@ -163,4 +153,5 @@ class Autoscaler:
         else:
             logger.info('Requested CPUs within setpoint margin, not changing target capacity')
             new_target_capacity = self.mesos_pool_manager.target_capacity
+
         return new_target_capacity
