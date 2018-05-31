@@ -180,3 +180,7 @@ class SpotFleetResourceGroup(MesosPoolResourceGroup):
         for instance in ec2_describe_instances(self.instance_ids):
             instance_dict[get_instance_market(instance)].append(instance)
         return instance_dict
+
+    @property
+    def is_stale(self):
+        return self.status.startswith('cancelled')

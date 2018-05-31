@@ -101,3 +101,8 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
     def status(self):  # pragma: no cover
         """ The status of the ResourceGroup (e.g., running, modifying, terminated, etc.) """
         pass
+
+    @abstractproperty
+    def is_stale(self):
+        """Whether this ResourceGroup is stale."""
+        pass

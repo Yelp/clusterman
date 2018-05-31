@@ -238,3 +238,7 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, MesosPoolResourceGrou
     @property
     def status(self):
         return 'active'
+
+    @property
+    def is_stale(self):
+        return False
