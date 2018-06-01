@@ -1,3 +1,5 @@
+import socket
+
 import mock
 import pytest
 from moto import mock_ec2
@@ -254,6 +256,8 @@ def test_idle_agents_by_market(mock_pool_manager):
         {'hostname': instance['PrivateIpAddress']}
         for instance in reservations['Instances']
     ]
+    agents_list.insert(1, {'hostname': '123.123.123.123'})
+    mock_pool_manager.__dict__['agents'] = agents_list
     mock_agents = mock.PropertyMock(return_value=agents_list)
     mock_pool_manager.resource_groups = [
         mock.Mock(instance_ids=[i['InstanceId'] for i in reservations['Instances']])
@@ -263,6 +267,7 @@ def test_idle_agents_by_market(mock_pool_manager):
             mock.patch('clusterman.mesos.mesos_pool_manager.get_mesos_state') as mock_mesos_state:
         mock_mesos_state.side_effect = [
             MesosAgentState.IDLE,
+            socket.gaierror,
             MesosAgentState.ORPHANED,
             MesosAgentState.RUNNING,
         ]
