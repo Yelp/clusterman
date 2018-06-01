@@ -68,6 +68,9 @@ utils.handleInputRejection {
                 ystage('performance-check') {
                     sh(script: $/paasta performance-check --service ${SERVICE_NAME}/$)
 
+
+                    pingList = authors['prod.non_canary'].collect{author -> "<@${author}>"}.join(', ')
+                    utils.nodebot(IRC_CHANNELS, $/ Hey ${pingList}, go click the button!  :easy_button: y/clusterman-jenkins /$)
                     timeout(time: 1, unit: 'HOURS') { input "Click to advance to next step" }
                 }
             }
