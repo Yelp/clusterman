@@ -70,7 +70,7 @@ utils.handleInputRejection {
 
                     if (authors['prod.non_canary']) {
                         pingList = authors['prod.non_canary'].split(' ').collect{author -> "<@${author}>"}.join(', ')
-                        utils.nodebot(IRC_CHANNELS, "Hey ${pingList}, go click the button! :easy_button: y/clusterman-jenkins"
+                        utils.nodebot(IRC_CHANNELS, "Hey ${pingList}, go click the button! :easy_button: y/clusterman-jenkins")
                     }
 
                     timeout(time: 1, unit: 'HOURS') { input "Click to advance to next step" }
