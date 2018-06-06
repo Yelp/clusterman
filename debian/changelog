@@ -1,3 +1,9 @@
+clusterman (2.7.0) trusty; urgency=low
+
+  * refactor signals into own class for more modularity
+
+ -- David Morrison <drmorr@yelp.com>  Wed, 06 Jun 2018 15:46:58 -0700
+
 clusterman (2.6.0) trusty; urgency=low
 
   * pass time into metrics client
