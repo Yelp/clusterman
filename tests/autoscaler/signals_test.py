@@ -5,16 +5,19 @@ import arrow
 import mock
 import pytest
 import simplejson as json
+import staticconf.testing
 from clusterman_metrics import APP_METRICS
 from clusterman_metrics import METADATA
 from clusterman_metrics import SYSTEM_METRICS
 
 from clusterman.autoscaler.config import MetricConfig
-from clusterman.autoscaler.config import SignalConfig
 from clusterman.autoscaler.signals import _get_local_signal_directory
 from clusterman.autoscaler.signals import ACK
 from clusterman.autoscaler.signals import Signal
+from clusterman.autoscaler.signals import SignalConfig
+from clusterman.autoscaler.signals import SIGNALS_REPO
 from clusterman.exceptions import MetricsError
+from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.exceptions import SignalConnectionError
 
 
@@ -52,9 +55,18 @@ def test_signal_not_present(local_signal_dir_patches):
 
 
 @pytest.fixture
+def signal_config_base():
+    return {'autoscale_signal': {
+        'name': 'BarSignal3',
+        'branch_or_tag': 'v42',
+        'period_minutes': 7,
+    }}
+
+
+@pytest.fixture
 def mock_signal():
-    with mock.patch('clusterman.autoscaler.signals._load_signal_connection'), \
-            mock.patch('clusterman.autoscaler.signals.get_signal_config') as mock_signal_config:
+    with mock.patch('clusterman.autoscaler.signals.Signal._load_signal_connection'), \
+            mock.patch('clusterman.autoscaler.signals.Signal._get_signal_config') as mock_signal_config:
         mock_signal_config.return_value = SignalConfig(
             'BarSignal3',
             'repo',
@@ -91,6 +103,77 @@ def test_evaluate_signal_sending_message(mock_signal, signal_recv):
     assert mock_signal._signal_conn.send.call_count == num_messages
     assert mock_signal._signal_conn.recv.call_count == len(signal_recv)
     assert resp == {'cpus': 5.2}
+
+
+def test_get_signal_config(mock_signal):
+    with staticconf.testing.MockConfiguration({}, namespace='util_testing'), pytest.raises(NoSignalConfiguredException):
+        mock_signal._get_signal_config('util_testing')
+
+
+def test_get_signal_config_optional_values(mock_signal):
+    config_dict = signal_config_base()
+    with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'):
+        config = mock_signal._get_signal_config('util_testing')
+
+    assert config == SignalConfig('BarSignal3', SIGNALS_REPO, 'v42', 7, [], {})
+
+
+def test_get_signal_config_valid_values(mock_signal):
+    config_dict = signal_config_base()
+    config_dict['autoscale_signal'].update({
+        'required_metrics': [
+            {
+                'name': 'metricB',
+                'type': APP_METRICS,
+                'minute_range': 1,
+            },
+            {
+                'name': 'metricEE',
+                'type': SYSTEM_METRICS,
+                'minute_range': 12,
+            },
+        ],
+        'parameters': [
+            {'paramA': 'abc'},
+            {'otherParam': 18},
+        ],
+    })
+    with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'):
+        config = mock_signal._get_signal_config('util_testing')
+
+    assert config == SignalConfig(
+        'BarSignal3',
+        SIGNALS_REPO,
+        'v42',
+        7,
+        mock.ANY,
+        {'paramA': 'abc', 'otherParam': 18},
+    )
+    assert config.required_metrics == sorted(
+        [MetricConfig('metricB', APP_METRICS, 1), MetricConfig('metricEE', SYSTEM_METRICS, 12)]
+    )
+
+
+@pytest.mark.parametrize('period_minutes', [1, -1])
+def test_get_signal_config_invalid_metrics(period_minutes):
+    config_dict = signal_config_base()
+    config_dict['autoscale_signal'].update({
+        'required_metrics': [
+            {
+                'name': 'metricB',
+                'type': APP_METRICS,
+                'minute_range': 1,
+            },
+            {
+                'name': 'metricEE',
+                'type': SYSTEM_METRICS,
+            },
+        ],
+        'period_minutes': period_minutes,
+    })
+    with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'):
+        with pytest.raises(Exception):
+            mock_signal._get_signal_config('util_testing', {})
 
 
 @pytest.mark.parametrize('end_time', [arrow.get(3600), arrow.get(10000), arrow.get(35000)])

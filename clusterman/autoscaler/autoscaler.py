@@ -85,10 +85,11 @@ class Autoscaler:
 
         # TODO (CLUSTERMAN-126, CLUSTERMAN-195) apps will eventually have separate namespaces from pools
         pool_namespace = POOL_NAMESPACE.format(pool=app)
+        signal_namespace = staticconf.get_string('autoscale_signal.namespace', None, namespace=pool_namespace)
 
         try:
             # see if the pool has set up a custom signal correctly; if not, fall back to the default signal
-            return Signal(self.cluster, self.pool, app, pool_namespace, self.metrics_client)
+            return Signal(self.cluster, self.pool, app, pool_namespace, self.metrics_client, signal_namespace)
         except NoSignalConfiguredException:
             logger.info(f'No signal configured for {app}, falling back to default')
             return self.default_signal

@@ -4,11 +4,8 @@ from collections import namedtuple
 import staticconf
 import yaml
 from clusterman_metrics import APP_METRICS
-from staticconf.errors import ConfigurationError
 
 from clusterman.aws.client import s3
-from clusterman.exceptions import NoSignalConfiguredException
-from clusterman.exceptions import SignalValidationError
 from clusterman.util import get_clusterman_logger
 
 logger = get_clusterman_logger(__name__)
@@ -17,10 +14,6 @@ AutoscalingConfig = namedtuple(
     ['setpoint', 'setpoint_margin', 'cpus_per_weight'],
 )
 MetricConfig = namedtuple('MetricConfig', ['name', 'type', 'minute_range'])
-SignalConfig = namedtuple(
-    'SignalConfig',
-    ['name', 'repo', 'branch_or_tag', 'period_minutes', 'required_metrics', 'parameters'],
-)
 LOG_STREAM_NAME = 'tmp_clusterman_scaling_decisions'
 SIGNALS_REPO = 'git@git.yelpcorp.com:clusterman_signals'  # TODO (CLUSTERMAN-xxx) make this a config param
 
@@ -81,51 +74,20 @@ def get_required_metric_configs(app_prefix, required_metrics_patterns):
             else:
                 metric_regex = re.compile(f'({metric.name})')
 
-            # NOTE: if we request a metric that doesn't exist in our index, nothing will happen
-            # here.  This *shouldn't* happen, but if it does the signal will fail if it tries
-            # to use that metric.
+            matched = False
             for match in (metric_regex.search(m) for m in stored_metrics[metric.type]):
                 if not match:
                     continue
+                matched = True
                 all_required_metrics.append(MetricConfig(match.group(1), metric.type, metric.minute_range))
+
+            if not matched:
+                logger.warning(f'Could not find {metric.name} in the index; is there a typo or is the index outdated?')
+                logger.warning(f'Adding unmatched metric to list just in case')
+                all_required_metrics.append(metric)
+
     else:
         all_required_metrics = required_metrics_patterns
 
     logger.info(f'Loading metrics data for {all_required_metrics}')
     return all_required_metrics
-
-
-def get_signal_config(config_namespace, metrics_index=None):
-    """Validate and return autoscaling signal config from the given namespace.
-
-    :param config_namespace: namespace to read values from
-    :param metrics_index: an index of "tracked" metric keys
-    :returns: SignalConfig object with the values filled in
-    :raises staticconf.errors.ConfigurationError: if the config namespace is missing a required value
-    :raises NoSignalConfiguredException: if the config namespace doesn't define a custom signal
-    :raises SignalValidationError: if some signal parameter is incorrectly set
-    """
-    reader = staticconf.NamespaceReaders(config_namespace)
-    try:
-        name = reader.read_string('autoscale_signal.name')
-    except ConfigurationError:
-        raise NoSignalConfiguredException(f'No signal was configured in {config_namespace}')
-
-    period_minutes = reader.read_int('autoscale_signal.period_minutes')
-    if period_minutes <= 0:
-        raise SignalValidationError(f'Length of signal period must be positive, got {period_minutes}')
-
-    parameter_dict_list = reader.read_list('autoscale_signal.parameters', default=[])
-    parameter_dict = {key: value for param_dict in parameter_dict_list for (key, value) in param_dict.items()}
-
-    required_metrics = reader.read_list('autoscale_signal.required_metrics', default=[])
-    required_metric_keys = set(MetricConfig._fields)
-    required_metric_configs = []
-    for metrics_dict in required_metrics:
-        missing = required_metric_keys - set(metrics_dict.keys())
-        if missing:
-            raise SignalValidationError(f'Missing required metric keys {missing} in {metrics_dict}')
-        metric_config = {key: metrics_dict[key] for key in metrics_dict if key in required_metric_keys}
-        required_metric_configs.append(MetricConfig(**metric_config))
-    branch_or_tag = reader.read_string('autoscale_signal.branch_or_tag')
-    return SignalConfig(name, SIGNALS_REPO, branch_or_tag, period_minutes, required_metric_configs, parameter_dict)

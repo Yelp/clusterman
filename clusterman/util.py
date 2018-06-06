@@ -73,7 +73,7 @@ def get_clusterman_logger(name):
     return logger
 
 
-def log_subprocess_run(logger, *args, **kwargs):
+def run_subprocess_and_log(logger, *args, **kwargs):
     result = subprocess.run(*args, **kwargs)
     logger.info(result.stdout.decode().strip())
     result.check_returncode()

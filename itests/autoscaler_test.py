@@ -6,8 +6,8 @@ from clusterman_metrics import SYSTEM_METRICS
 
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.autoscaler.config import MetricConfig
-from clusterman.autoscaler.config import SignalConfig
 from clusterman.autoscaler.signals import ACK
+from clusterman.autoscaler.signals import SignalConfig
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
 from tests.conftest import clusterman_pool_config
@@ -29,8 +29,8 @@ def resource_groups():
 
 @pytest.fixture
 def autoscaler(resource_groups):
-    with mock.patch('clusterman.autoscaler.signals.get_signal_config') as mock_signal_config, \
-            mock.patch('clusterman.autoscaler.signals._load_signal_connection'), \
+    with mock.patch('clusterman.autoscaler.signals.Signal._get_signal_config') as mock_signal_config, \
+            mock.patch('clusterman.autoscaler.signals.Signal._load_signal_connection'), \
             mock.patch('clusterman.autoscaler.autoscaler.yelp_meteorite'), \
             staticconf.testing.PatchConfiguration({'autoscaling': {'default_signal_role': 'bar'}}):
         mock_signal_config.return_value = SignalConfig(
