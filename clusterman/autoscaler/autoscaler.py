@@ -1,23 +1,16 @@
 import arrow
-import simplejson as json
 import staticconf
 import yelp_meteorite
 from clusterman_metrics import ClustermanMetricsBotoClient
-from clusterman_metrics import generate_key_with_dimensions
-from clusterman_metrics import SYSTEM_METRICS
 from pysensu_yelp import Status
 from simplejson.errors import JSONDecodeError
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
-from clusterman.autoscaler.util import evaluate_signal
-from clusterman.autoscaler.util import get_autoscaling_config
-from clusterman.autoscaler.util import get_metrics_index_from_s3
-from clusterman.autoscaler.util import load_signal_connection
-from clusterman.autoscaler.util import read_signal_config
+from clusterman.autoscaler.config import get_autoscaling_config
+from clusterman.autoscaler.signals import Signal
 from clusterman.config import POOL_NAMESPACE
 from clusterman.exceptions import ClustermanSignalError
 from clusterman.exceptions import NoSignalConfiguredException
-from clusterman.exceptions import SignalConnectionError
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.util import get_clusterman_logger
 from clusterman.util import sensu_checkin
@@ -29,6 +22,14 @@ logger = get_clusterman_logger(__name__)
 
 class Autoscaler:
     def __init__(self, cluster, pool, apps, *, pool_manager=None, metrics_client=None):
+        """ Class containing the core logic for autoscaling a cluster
+
+        :param cluster: the name of the cluster to autoscale
+        :param pool: the name of the pool to autoscale
+        :param apps: a list of apps running on the pool
+        :param pool_manager: a MesosPoolManager object (used for simulations)
+        :param metrics_client: a ClustermanMetricsBotoClient object (used for simulations)
+        """
         self.cluster = cluster
         self.pool = pool
         self.apps = apps
@@ -44,21 +45,29 @@ class Autoscaler:
         self.mesos_pool_manager = pool_manager or MesosPoolManager(self.cluster, self.pool)
 
         self.mesos_region = staticconf.read_string('aws.region')
-        self.metrics_client = metrics_client or ClustermanMetricsBotoClient(self.mesos_region, app_identifier=self.apps[0])
-        for app in self.apps:
-            self.load_signal_for_app(app)
+        self.metrics_client = metrics_client or ClustermanMetricsBotoClient(self.mesos_region)
+        self.default_signal = Signal(
+            self.cluster,
+            self.pool,
+            None,  # the default signal is not specific to any app
+            DEFAULT_NAMESPACE,
+            self.metrics_client,
+            signal_namespace=staticconf.read_string('autoscaling.default_signal_role'),
+        )
+        self.signal = self._get_signal_for_app(self.apps[0])
         self._last_signal_traceback = None
 
         logger.info('Initialization complete')
 
     @property
     def run_frequency(self):
-        return self.signal_config.period_minutes * 60
+        return self.signal.config.period_minutes * 60
 
     def run(self, dry_run=False, timestamp=None):
         """ Do a single check to scale the fleet up or down if necessary.
 
-        :param dry_run: Don't actually modify the fleet size, just print what would happen
+        :param dry_run: boolean; if True, don't modify the pool size, just print what would happen
+        :param timestamp: an arrow object indicating the current time
         """
         timestamp = timestamp or arrow.utcnow()
         logger.info(f'Autoscaling run starting at {timestamp}')
@@ -66,29 +75,26 @@ class Autoscaler:
         self.capacity_gauge.set(new_target_capacity, {'dry_run': dry_run})
         self.mesos_pool_manager.modify_target_capacity(new_target_capacity, dry_run=dry_run)
 
-    def load_signal_for_app(self, app):
-        """Load the signal object to use for autoscaling."""
-        logger.info(f'Loading autoscaling signal for {self.apps[0]} on {self.pool} in {self.cluster}')
+    def _get_signal_for_app(self, app):
+        """Load the signal object to use for autoscaling for a particular app
+
+        :param app: the name of the app to load a Signal for
+        :returns: the configured app signal, or the default signal in case of an error
+        """
+        logger.info(f'Loading autoscaling signal for {app} on {self.pool} in {self.cluster}')
 
         # TODO (CLUSTERMAN-126, CLUSTERMAN-195) apps will eventually have separate namespaces from pools
         pool_namespace = POOL_NAMESPACE.format(pool=app)
+        signal_namespace = staticconf.get_string('autoscale_signal.namespace', None, namespace=pool_namespace)
+
         try:
-            metrics_index_bucket = staticconf.read_string('aws.s3_metrics_index_bucket')
-            metrics_index = get_metrics_index_from_s3(metrics_index_bucket, self.mesos_region)
-        except staticconf.errors.ConfigurationError:
-            metrics_index = None
-            logger.warning('no metrics_index_bucket is configured.')
-        self.signal_config = read_signal_config(DEFAULT_NAMESPACE, metrics_index)
-        use_default = True
-        try:
-            # see if the pool has set up a custom signal correctly; if not, fall back to the default
-            # signal configuration (preloaded above)
-            self.signal_config = read_signal_config(pool_namespace, metrics_index)
-            use_default = False
+            # see if the pool has set up a custom signal correctly; if not, fall back to the default signal
+            return Signal(self.cluster, self.pool, app, pool_namespace, self.metrics_client, signal_namespace)
         except NoSignalConfiguredException:
-            logger.info(f'No signal configured for {self.pool}, falling back to default')
+            logger.info(f'No signal configured for {app}, falling back to default')
+            return self.default_signal
         except Exception:
-            msg = f'WARNING: loading signal for {self.pool} failed, falling back to default'
+            msg = f'WARNING: loading signal for {app} failed, falling back to default'
             logger.exception(msg)
             sensu_checkin(
                 check_name=SIGNAL_LOAD_CHECK_NAME,
@@ -99,73 +105,18 @@ class Autoscaler:
                 ttl=None,
                 app=app,
             )
-
-        try:
-            self._init_signal_connection(app, use_default)
-        except Exception as e:
-            raise ClustermanSignalError('Signal connection initialization failed') from e
-
-    def _init_signal_connection(self, app, use_default):
-        """ Initialize the signal socket connection/communication layer.
-
-        :param use_default: use the default signal with whatever parameters are stored in self.signal_config
-        """
-        if not use_default:
-            # Try to set up the (non-default) signal specified in the signal_config
-            #
-            # If it fails, it might be because the signal_config is requesting a different signal (or different
-            # configuration) for a signal in the default role, so we fall back to the default in that case
-            try:
-                # Look for the signal name under the "pool" directory in clusterman_signals
-                self.signal_conn = load_signal_connection(
-                    self.signal_config.branch_or_tag,
-                    app,
-                    self.signal_config.name,
-                )
-            except SignalConnectionError:
-                # If it's not there, see if the signal is one of our default signals
-                logger.info(f'Signal {self.signal_config.name} not found in {self.pool}.yaml, checking default signals')
-                use_default = True
-
-        # This is not an "else" because the value of use_default may have changed in the above block
-        if use_default:
-            default_role = staticconf.read_string('autoscaling.default_signal_role')
-            self.signal_conn = load_signal_connection(
-                self.signal_config.branch_or_tag,
-                default_role,
-                self.signal_config.name,
-            )
-
-        signal_kwargs = json.dumps({'parameters': self.signal_config.parameters})
-        self.signal_conn.send(signal_kwargs.encode())
-        logger.info(f'Loaded signal {self.signal_config.name}')
-
-    def _get_metrics(self, end_time):
-        metrics = {}
-        for metric in self.signal_config.required_metrics:
-            start_time = end_time.shift(minutes=-metric.minute_range)
-            metric_key = (
-                generate_key_with_dimensions(metric.name, {'cluster': self.cluster, 'pool': self.pool})
-                if metric.type == SYSTEM_METRICS
-                else metric.name
-            )
-            metrics[metric.name] = self.metrics_client.get_metric_values(
-                metric_key,
-                metric.type,
-                start_time.timestamp,
-                end_time.timestamp
-            )[1]
-        return metrics
+            return self.default_signal
 
     def _compute_target_capacity(self, timestamp):
         """ Compare signal to the resources allocated and compute appropriate capacity change.
 
+        :param timestamp: an arrow object indicating the current time
         :returns: the new target capacity we should scale to
         """
         # TODO (CLUSTERMAN-201) support other types of resource requests
-        metrics = self._get_metrics(timestamp)
         try:
-            resource_request = evaluate_signal(metrics, timestamp, self.signal_conn)
+            signal_name = self.signal.config.name
+            resource_request = self.signal.evaluate(timestamp)
 
         # JSONDecodeError means that the signal returned something unexpected, so store the result
         # from the signal and alert the signal owner.  Similarly, BrokenPipeError means that the
@@ -200,7 +151,7 @@ class Autoscaler:
         window_size = self.autoscaling_config.setpoint_margin * total_cpus
         lb, ub = setpoint_cpus - window_size, setpoint_cpus + window_size
         logger.info(f'Current CPU total is {total_cpus} (setpoint={setpoint_cpus}); setpoint window is [{lb}, {ub}]')
-        logger.info(f'Signal {self.signal_config.name} requested {signal_cpus} CPUs')
+        logger.info(f'Signal {signal_name} requested {signal_cpus} CPUs')
         if abs(cpus_difference_from_setpoint / total_cpus) >= self.autoscaling_config.setpoint_margin:
             # We want signal_cpus / new_total_cpus = setpoint.
             # So new_total_cpus should be signal_cpus / setpoint.

@@ -67,7 +67,7 @@ def test_parse_time_interval_seconds_invalid():
         parse_time_interval_seconds('asdf')
 
 
-@mock.patch('pysensu_yelp.send_event', autospec=True)
+@mock.patch('clusterman.util.pysensu_yelp', autospec=True)
 class TestSensu:
     @pytest.mark.parametrize('noop', [True, False])
     def test_sensu_checkin(self, mock_sensu, noop):
@@ -79,9 +79,9 @@ class TestSensu:
         )
 
         if noop:
-            assert mock_sensu.call_count == 0
+            assert mock_sensu.send_event.call_count == 0
         else:
-            assert mock_sensu.call_args == mock.call(
+            assert mock_sensu.send_event.call_args == mock.call(
                 name='my_check',
                 output='output',
                 source='my_source',
@@ -101,7 +101,7 @@ class TestSensu:
             app=app,
         )
         expected_runbook = 'y/my-runbook' if not app else 'y/their-runbook'
-        assert mock_sensu.call_args == mock.call(
+        assert mock_sensu.send_event.call_args == mock.call(
             name='my_check',
             output='output',
             source='my_source',
@@ -118,7 +118,7 @@ class TestSensu:
             source='my_source',
             app='non-existent',
         )
-        assert mock_sensu.call_args == mock.call(
+        assert mock_sensu.send_event.call_args == mock.call(
             name='my_check',
             output='output',
             source='my_source',

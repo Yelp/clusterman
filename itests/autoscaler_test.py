@@ -1,9 +1,13 @@
 import mock
 import pytest
 import staticconf.testing
+from clusterman_metrics import APP_METRICS
+from clusterman_metrics import SYSTEM_METRICS
 
 from clusterman.autoscaler.autoscaler import Autoscaler
-from clusterman.autoscaler.util import ACK
+from clusterman.autoscaler.config import MetricConfig
+from clusterman.autoscaler.signals import ACK
+from clusterman.autoscaler.signals import SignalConfig
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
 from tests.conftest import clusterman_pool_config
@@ -25,12 +29,21 @@ def resource_groups():
 
 @pytest.fixture
 def autoscaler(resource_groups):
-    with mock.patch('clusterman.autoscaler.autoscaler.Autoscaler.load_signal_for_app'), \
-            mock.patch('clusterman.autoscaler.autoscaler.yelp_meteorite'):
+    with mock.patch('clusterman.autoscaler.signals.Signal._get_signal_config') as mock_signal_config, \
+            mock.patch('clusterman.autoscaler.signals.Signal._load_signal_connection'), \
+            mock.patch('clusterman.autoscaler.autoscaler.yelp_meteorite'), \
+            staticconf.testing.PatchConfiguration({'autoscaling': {'default_signal_role': 'bar'}}):
+        mock_signal_config.return_value = SignalConfig(
+            'MySignal',
+            'repo',
+            'v42',
+            7,
+            [MetricConfig('cpus_allocated', SYSTEM_METRICS, 10), MetricConfig('cost', APP_METRICS, 30)],
+            {'paramA': 'abc', 'otherParam': 18},
+        )
+
         a = Autoscaler(cluster='mesos-test', pool='bar', apps=['bar'], metrics_client=mock.Mock())
-        a.signal_config = mock.Mock()
-        a.signal_conn = mock.Mock()
-        a._get_metrics = mock.Mock(return_value=[])
+        a.signal._get_metrics = mock.Mock(return_value={})
         a.mesos_pool_manager = mock.Mock(wraps=MesosPoolManager)(cluster='mesos-test', pool='bar')
         a.mesos_pool_manager.prune_excess_fulfilled_capacity = mock.Mock()
         return a
@@ -43,7 +56,7 @@ def test_autoscaler_no_change(autoscaler, signal_value):
     We ensure that repeated calls with a null resource request or with a constant resource request
     (within the setpoint window) do not change the capacity of the cluster.
     """
-    autoscaler.signal_conn.recv.side_effect = [ACK, ACK, '{"Resources": {"cpus": ' + signal_value + '}}'] * 2
+    autoscaler.signal._signal_conn.recv.side_effect = [ACK, ACK, '{"Resources": {"cpus": ' + signal_value + '}}'] * 2
     autoscaler.run()
     autoscaler.run()
     for group in autoscaler.mesos_pool_manager.resource_groups:
@@ -51,7 +64,7 @@ def test_autoscaler_no_change(autoscaler, signal_value):
 
 
 def test_autoscaler_scale_up(autoscaler):
-    autoscaler.signal_conn.recv.side_effect = [ACK, ACK, '{"Resources": {"cpus": 70}}']
+    autoscaler.signal._signal_conn.recv.side_effect = [ACK, ACK, '{"Resources": {"cpus": 70}}']
     autoscaler.run()
     assert autoscaler.mesos_pool_manager.resource_groups[0].modify_target_capacity.call_args == \
         mock.call(13, dry_run=False)
@@ -61,7 +74,7 @@ def test_autoscaler_scale_up(autoscaler):
 
 def test_autoscaler_scale_up_big(autoscaler):
     with staticconf.testing.PatchConfiguration({'mesos_clusters': {'mesos-test': {'max_weight_to_add': 10}}}):
-        autoscaler.signal_conn.recv.side_effect = [ACK, ACK, '{"Resources": {"cpus": 1000}}']
+        autoscaler.signal._signal_conn.recv.side_effect = [ACK, ACK, '{"Resources": {"cpus": 1000}}']
         autoscaler.run()
         assert autoscaler.mesos_pool_manager.resource_groups[0].modify_target_capacity.call_args == \
             mock.call(15, dry_run=False)
@@ -70,7 +83,7 @@ def test_autoscaler_scale_up_big(autoscaler):
 
 
 def test_autoscaler_scale_down(autoscaler):
-    autoscaler.signal_conn.recv.side_effect = [ACK, ACK, '{"Resources": {"cpus": 42}}']
+    autoscaler.signal._signal_conn.recv.side_effect = [ACK, ACK, '{"Resources": {"cpus": 42}}']
     autoscaler.run()
     assert autoscaler.mesos_pool_manager.resource_groups[0].modify_target_capacity.call_args == \
         mock.call(8, dry_run=False)
@@ -79,7 +92,7 @@ def test_autoscaler_scale_down(autoscaler):
 
 
 def test_autoscaler_scale_down_small(autoscaler):
-    autoscaler.signal_conn.recv.side_effect = [ACK, ACK, '{"Resources": {"cpus": 2}}']
+    autoscaler.signal._signal_conn.recv.side_effect = [ACK, ACK, '{"Resources": {"cpus": 2}}']
     autoscaler.run()
     assert autoscaler.mesos_pool_manager.resource_groups[0].modify_target_capacity.call_args == \
         mock.call(5, dry_run=False)
