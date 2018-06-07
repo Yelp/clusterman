@@ -43,5 +43,3 @@ def test_simulated_agents(mock_pool_manager):
         10 * get_market_resources(TEST_MARKET).mem
     assert get_total_resource_value(mock_pool_manager.agents, 'resources', 'disk') == \
         10 * get_market_resources(TEST_MARKET).disk
-    assert list(mock_pool_manager._idle_agents_by_market().keys()) == [TEST_MARKET]
-    assert len(mock_pool_manager._idle_agents_by_market()[TEST_MARKET]) == 10

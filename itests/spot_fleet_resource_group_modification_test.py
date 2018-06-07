@@ -1,13 +1,9 @@
-from collections import defaultdict
-from copy import deepcopy
-
 import mock
 import pytest
 from staticconf.testing import PatchConfiguration
 
 from clusterman.aws.client import ec2
 from clusterman.aws.client import ec2_describe_instances
-from clusterman.aws.markets import get_instance_market
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from tests.conftest import clusterman_pool_config
 from tests.conftest import main_clusterman_config
@@ -70,20 +66,25 @@ def test_scale_down(mock_manager, mock_sfrs):
     mock_manager.max_capacity = 101
     mock_manager.modify_target_capacity(1000)
     patched_config = {'mesos_clusters': {'mesos-test': {'max_weight_to_remove': 1000}}}
-    with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager._idle_agents_by_market') as mock_idle, \
-            PatchConfiguration(patched_config):
-        # Everything is idle
-        idle_agents = defaultdict(list)
-        for rg in mock_manager.resource_groups:
-            for instance in ec2_describe_instances(instance_ids=rg.instance_ids):
-                idle_agents[get_instance_market(instance)].append(instance['InstanceId'])
 
-        # Test an balanced scale down
-        mock_idle.return_value = deepcopy(idle_agents)
+    # all instances have agents with 0 tasks and are thus killable
+    agents = []
+    for rg in mock_manager.resource_groups:
+        for instance in ec2_describe_instances(instance_ids=rg.instance_ids):
+            agents.append({
+                'pid': f'slave(1)@{instance["PrivateIpAddress"]}:1', 'id': f'agent-{instance["InstanceId"]}'
+            })
+
+    mock_agents = mock.PropertyMock(return_value=agents)
+    mock_tasks = mock.PropertyMock(return_value=[])
+    with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.agents', mock_agents), \
+            mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.tasks', mock_tasks), \
+            PatchConfiguration(patched_config):
+
+        # Test a balanced scale down
         mock_manager.modify_target_capacity(80)
         assert sorted([rg.target_capacity for rg in mock_manager.resource_groups]) == [16, 16, 16, 16, 16]
 
-        mock_idle.return_value = deepcopy(idle_agents)
         ec2.modify_spot_fleet_request(SpotFleetRequestId=mock_sfrs[0].id, TargetCapacity=1)
 
         # Test dry run -- target and fulfilled capacities should remain the same
