@@ -109,12 +109,19 @@ def get_market_resources(market):
     return EC2_INSTANCE_TYPES[market.instance]
 
 
-def get_instance_market(aws_instance_object):
-    try:
-        az = subnet_to_az(aws_instance_object['SubnetId'])
-    except KeyError:
+def get_market(instance_type, subnet_id):
+    if subnet_id is not None:
+        az = subnet_to_az(subnet_id)
+    else:
         az = None
-    return InstanceMarket(aws_instance_object['InstanceType'], az)
+    return InstanceMarket(instance_type, az)
+
+
+def get_instance_market(aws_instance_object):
+    return get_market(
+        aws_instance_object['InstanceType'],
+        aws_instance_object.get('SubnetId'),
+    )
 
 
 @lru_cache(maxsize=32)
