@@ -28,13 +28,14 @@ from clusterman.util import sha_from_branch_or_tag
 
 logger = get_clusterman_logger(__name__)
 ACK = bytes([1])
-SIGNALS_REPO = 'git@git.yelpcorp.com:clusterman_signals'  # TODO (CLUSTERMAN-xxx) make this a config param
+SIGNALS_REPO = 'git@git.yelpcorp.com:clusterman_signals'  # TODO (CLUSTERMAN-254) make this a config param
 SOCKET_MESG_SIZE = 4096
-SOCKET_TIMEOUT_SECONDS = 60
+SOCKET_TIMEOUT_SECONDS = 300
 SignalConfig = namedtuple(
     'SignalConfig',
     ['name', 'repo', 'branch_or_tag', 'period_minutes', 'required_metrics', 'parameters'],
 )
+SIGNAL_LOGGERS = {}
 
 
 def _generate_metric_key(metric, cluster, pool, app):
@@ -48,25 +49,31 @@ def _generate_metric_key(metric, cluster, pool, app):
     return metric_key
 
 
-def _init_signal_output_pipes(signal_name, signal_process):
+def _init_signal_io_threads(signal_name, signal_process):
     """ Capture stdout/stderr from the signal """
+    global SIGNAL_LOGGERS
+
     def log_signal_output(fd, log_fn):
         while True:
             line = fd.readline().decode().strip()
             if not line:
                 break
             log_fn(line)
+        logger.info('Stopping signal IO threads')
 
-    stdout_logger = get_clusterman_logger(f'{signal_name}.stdout')
-    stderr_logger = get_clusterman_logger(f'{signal_name}.stderr')
+    if signal_name not in SIGNAL_LOGGERS:
+        SIGNAL_LOGGERS[signal_name] = (
+            get_clusterman_logger(f'{signal_name}.stdout').info,
+            get_clusterman_logger(f'{signal_name}.stderr').warning,
+        )
     stdout_thread = Thread(
         target=log_signal_output,
-        kwargs={'fd': signal_process.stdout, 'log_fn': stdout_logger.info},
+        kwargs={'fd': signal_process.stdout, 'log_fn': SIGNAL_LOGGERS[signal_name][0]},
         daemon=True,
     )
     stderr_thread = Thread(
         target=log_signal_output,
-        kwargs={'fd': signal_process.stderr, 'log_fn': stderr_logger.warn},
+        kwargs={'fd': signal_process.stderr, 'log_fn': SIGNAL_LOGGERS[signal_name][1]},
         daemon=True,
     )
     stdout_thread.start()
@@ -227,7 +234,8 @@ class Signal:
     def _load_signal_connection(self):
         """ Create a connection to the specified signal over a unix socket
 
-        :returns: a socket connection which can read/write data to the specified signal
+        :returns: a tuple consisting of the signal process (Popen) object and the socket connection
+            which can read/write data to the specified signal
         """
         signal_dir = _get_local_signal_directory(self.config.repo, self.config.branch_or_tag)
 
@@ -252,7 +260,7 @@ class Signal:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        _init_signal_output_pipes(self.config.name, signal_process)
+        _init_signal_io_threads(self.config.name, signal_process)
         time.sleep(2)  # Give the signal subprocess time to start, then check to see if it's running
         return_code = signal_process.poll()
         if return_code:
