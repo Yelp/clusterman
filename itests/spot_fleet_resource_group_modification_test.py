@@ -5,6 +5,7 @@ from staticconf.testing import PatchConfiguration
 from clusterman.aws.client import ec2
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
+from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 from tests.conftest import clusterman_pool_config
 from tests.conftest import main_clusterman_config
 from tests.conftest import mock_aws_client_setup
@@ -26,8 +27,16 @@ def mock_sfrs(setup_ec2):
 
 @pytest.fixture
 def mock_manager(main_clusterman_config, mock_aws_client_setup, mock_sfrs):
-    with mock.patch('clusterman.mesos.mesos_pool_manager.load_spot_fleets_from_s3') as mock_load:
-        mock_load.return_value = mock_sfrs
+    class FakeResourceGroupClass(MesosPoolResourceGroup):
+
+        @staticmethod
+        def load(cluster, pool, config):
+            return mock_sfrs
+
+    with mock.patch.dict(
+        'clusterman.mesos.mesos_pool_manager.RESOURCE_GROUPS',
+        {"sfr": FakeResourceGroupClass},
+    ):
         return MesosPoolManager('mesos-test', 'bar')
 
 

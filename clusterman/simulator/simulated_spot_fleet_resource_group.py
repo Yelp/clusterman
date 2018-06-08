@@ -242,3 +242,7 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, MesosPoolResourceGrou
     @property
     def is_stale(self):
         return False
+
+    @staticmethod
+    def load(cluster, pool, config):
+        raise NotImplementedError("Shouldn't be called")

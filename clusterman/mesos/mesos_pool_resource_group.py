@@ -1,6 +1,8 @@
 from abc import ABCMeta
 from abc import abstractmethod
 from abc import abstractproperty
+from abc import abstractstaticmethod
+from typing import Any
 from typing import Dict
 from typing import Sequence
 
@@ -114,4 +116,20 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
     @abstractproperty
     def is_stale(self) -> bool:
         """Whether this ResourceGroup is stale."""
+        pass
+
+    @staticmethod
+    @abstractstaticmethod
+    def load(
+        cluster: str,
+        pool: str,
+        config: Any,
+    ) -> Sequence['MesosPoolResourceGroup']:
+        """ Load a list of corresponding resource groups
+
+        :param cluster: a cluster name
+        :param pool: a pool name
+        :param config: a config specific to a resource group type
+        :returns: a list of resource groups
+        """
         pass

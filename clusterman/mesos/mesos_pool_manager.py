@@ -7,6 +7,7 @@ from typing import List
 from typing import Optional
 from typing import Sequence
 from typing import Tuple
+from typing import Type
 
 import staticconf
 from cached_property import timed_cached_property
@@ -18,8 +19,7 @@ from clusterman.config import POOL_NAMESPACE
 from clusterman.exceptions import MesosPoolManagerError
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
 from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
-from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_ec2
-from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_s3
+from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
 from clusterman.mesos.util import get_mesos_agent_and_state_from_aws_instance
 from clusterman.mesos.util import get_task_count_per_agent
 from clusterman.mesos.util import get_total_resource_value
@@ -33,6 +33,13 @@ logger = get_clusterman_logger(__name__)
 
 
 PoolInstance = namedtuple('PoolInstance', ['instance_id', 'agent_state', 'task_count', 'market'])
+
+RESOURCE_GROUPS: Dict[
+    str,
+    Type[MesosPoolResourceGroup]
+] = {
+    "sfr": SpotFleetResourceGroup,
+}
 
 
 class MesosPoolManager:
@@ -65,21 +72,25 @@ class MesosPoolManager:
         self.api_endpoint = f'http://{mesos_master_fqdn}:5050/'
         logger.info(f'Connecting to Mesos masters at {self.api_endpoint}')
 
-        self.resource_groups = load_spot_fleets_from_ec2(
-            cluster=self.cluster,
-            pool=self.pool,
-        )
-        # for backwards compatibility also load spot fleets from S3 files
-        # TODO: remove this once all SFRs are rolled with tags
-        # CLUSTERMAN-234
-        s3_resource_groups = load_spot_fleets_from_s3(
-            pool_config.read_string('resource_groups.s3.bucket'),
-            pool_config.read_string('resource_groups.s3.prefix'),
-            pool=self.pool,
-        )
-        for resource_group in s3_resource_groups:
-            if resource_group.id not in [group.id for group in self.resource_groups]:
-                self.resource_groups.append(resource_group)
+        self.resource_groups: List[MesosPoolResourceGroup] = list()
+        resource_groups = pool_config.read_list("resource_groups2")
+        for resource_group in resource_groups:
+            if not isinstance(resource_group, dict) or len(resource_group) != 1:
+                logger.error(f"Malformed config: {resource_group}")
+                continue
+            resource_group_type = list(resource_group.keys())[0]
+            resource_group_cls = RESOURCE_GROUPS.get(resource_group_type)
+            if resource_group_cls is None:
+                logger.warn(f"Unknown resource group {resource_group_type}")
+                continue
+
+            resource_group_config = list(resource_group.values())[0]
+
+            self.resource_groups.extend(resource_group_cls.load(
+                cluster=self.cluster,
+                pool=self.pool,
+                config=resource_group_config,
+            ))
 
         logger.info('Loaded resource groups: {ids}'.format(ids=[group.id for group in self.resource_groups]))
 
@@ -114,7 +125,11 @@ class MesosPoolManager:
 
         res_group_targets = self._compute_new_resource_group_targets(new_target_capacity)
         for i, target in enumerate(res_group_targets):
-            self.resource_groups[i].modify_target_capacity(target, dry_run=dry_run)
+            self.resource_groups[i].modify_target_capacity(
+                target,
+                terminate_excess_capacity=False,
+                dry_run=dry_run,
+            )
         if new_target_capacity <= orig_target_capacity:
             self.prune_excess_fulfilled_capacity(res_group_targets, dry_run)
         logger.info(f'Target capacity for {self.pool} changed from {orig_target_capacity} to {new_target_capacity}')

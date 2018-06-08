@@ -158,6 +158,37 @@ class SpotFleetResourceGroup(MesosPoolResourceGroup):
     def is_stale(self) -> bool:
         return self.status.startswith('cancelled')
 
+    @staticmethod
+    def load(
+        cluster: str,
+        pool: str,
+        config: SpotFleetResourceGroupConfig,
+    ) -> Sequence['SpotFleetResourceGroup']:
+        return load(cluster, pool, config)
+
+
+def load(
+    cluster: str,
+    pool: str,
+    config: SpotFleetResourceGroupConfig,
+) -> Sequence[SpotFleetResourceGroup]:
+    resource_groups = load_spot_fleets_from_ec2(
+        cluster=cluster,
+        pool=pool,
+    )
+    # for backwards compatibility also load spot fleets from S3 files
+    # TODO: remove this once all SFRs are rolled with tags
+    # CLUSTERMAN-234
+    s3_resource_groups = load_spot_fleets_from_s3(
+        config['s3']['bucket'],
+        config['s3']['prefix'],
+        pool=pool,
+    )
+    for resource_group in s3_resource_groups:
+        if resource_group.id not in [group.id for group in resource_groups]:
+            resource_groups.append(resource_group)
+    return resource_groups
+
 
 def load_spot_fleets_from_s3(bucket: str, prefix: str, pool: str=None) -> Sequence[SpotFleetResourceGroup]:
     object_list = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)

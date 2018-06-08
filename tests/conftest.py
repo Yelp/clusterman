@@ -76,12 +76,16 @@ def main_clusterman_config():
 @pytest.fixture(autouse=True)
 def clusterman_pool_config():
     config = {
-        'resource_groups': {
-            's3': {
-                'bucket': 'fake-bucket',
-                'prefix': 'none',
-            }
-        },
+        'resource_groups2': [
+            {
+                'sfr': {
+                    's3': {
+                        'bucket': 'fake-bucket',
+                        'prefix': 'none',
+                    }
+                },
+            },
+        ],
         'scaling_limits': {
             'min_capacity': 3,
             'max_capacity': 345,
