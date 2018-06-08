@@ -1,4 +1,3 @@
-import socket
 from bisect import bisect
 from collections import defaultdict
 from pprint import pformat
@@ -316,14 +315,7 @@ class MesosPoolManager:
         idle_agents_by_market = defaultdict(list)
         for group in self.resource_groups:
             for instance in ec2_describe_instances(instance_ids=group.instance_ids):
-
-                try:
-                    mesos_state = get_mesos_state(instance, self.agents)
-                except socket.gaierror as e:
-                    logger.warning('Could not get state for {instance}, cache likely out-of-date ({str(e)})')
-                    del self.__dict__['agents']  # clear the agent cache and try again
-                    mesos_state = get_mesos_state(instance, self.agents)
-
+                mesos_state = get_mesos_state(instance, self.agents)
                 if mesos_state in {MesosAgentState.ORPHANED, MesosAgentState.IDLE}:
                     idle_agents_by_market[get_instance_market(instance)].append(instance['InstanceId'])
         return idle_agents_by_market
