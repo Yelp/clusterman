@@ -1,3 +1,5 @@
+import traceback
+
 import arrow
 import staticconf
 import yelp_meteorite
@@ -67,14 +69,25 @@ class Autoscaler:
         """
         timestamp = timestamp or arrow.utcnow()
         logger.info(f'Autoscaling run starting at {timestamp}')
-        new_target_capacity = self._compute_target_capacity(timestamp)
+
+        try:
+            signal_name = self.signal.config.name
+            resource_request = self.signal.evaluate(timestamp)
+            exception = None
+        except Exception as e:
+            logger.error(f'Client signal {self.signal.config.name} failed; using default signal')
+            signal_name = self.default_signal.config.name
+            resource_request = self.default_signal.evaluate(timestamp)
+            exception, tb = e, traceback.format_exc()
+
+        logger.info(f'Signal {signal_name} requested {resource_request["cpus"]} CPUs')
+        new_target_capacity = self._compute_target_capacity(resource_request, timestamp)
         self.capacity_gauge.set(new_target_capacity, {'dry_run': dry_run})
         self.mesos_pool_manager.modify_target_capacity(new_target_capacity, dry_run=dry_run)
 
-        if self.signal.error_state:
-            signal_exception, signal_traceback = self.signal.error_state
-            logger.error('The client signal failed with:\n' + signal_traceback)
-            raise signal_exception
+        if exception:
+            logger.error(f'The client signal failed with:\n{tb}')
+            raise exception
 
     def _get_signal_for_app(self, app):
         """Load the signal object to use for autoscaling for a particular app
@@ -108,20 +121,14 @@ class Autoscaler:
             )
             return self.default_signal
 
-    def _compute_target_capacity(self, timestamp):
+    def _compute_target_capacity(self, resource_request, timestamp):
         """ Compare signal to the resources allocated and compute appropriate capacity change.
 
+        :param resource_request: a resource_request object from the signal evaluation
         :param timestamp: an arrow object indicating the current time
         :returns: the new target capacity we should scale to
         """
         # TODO (CLUSTERMAN-201) support other types of resource requests
-        try:
-            signal_name = self.signal.config.name
-            resource_request = self.signal.evaluate(timestamp)
-        except Exception:
-            logger.error(f'Client signal {signal_name} failed; using default signal')
-            signal_name = self.default_signal.config.name
-            resource_request = self.default_signal.evaluate(timestamp)
 
         if resource_request['cpus'] is None:
             logger.info('No data from signal, not changing capacity')
@@ -141,7 +148,6 @@ class Autoscaler:
         window_size = self.autoscaling_config.setpoint_margin * total_cpus
         lb, ub = setpoint_cpus - window_size, setpoint_cpus + window_size
         logger.info(f'Current CPU total is {total_cpus} (setpoint={setpoint_cpus}); setpoint window is [{lb}, {ub}]')
-        logger.info(f'Signal {signal_name} requested {signal_cpus} CPUs')
         if abs(cpus_difference_from_setpoint / total_cpus) >= self.autoscaling_config.setpoint_margin:
             # We want signal_cpus / new_total_cpus = setpoint.
             # So new_total_cpus should be signal_cpus / setpoint.

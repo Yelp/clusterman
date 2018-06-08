@@ -2,7 +2,6 @@ import arrow
 import mock
 import pytest
 import staticconf
-from simplejson.errors import JSONDecodeError
 
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.config import POOL_NAMESPACE
@@ -52,7 +51,6 @@ def mock_autoscaler():
             mock.patch('clusterman.autoscaler.autoscaler.Signal'), \
             staticconf.testing.PatchConfiguration({'autoscaling': autoscaling_config_dict}):
         mock_autoscaler = Autoscaler('mesos-test', 'bar', ['bar'])
-    mock_autoscaler.signal.error_state = None
     mock_autoscaler.mesos_pool_manager.target_capacity = 300
     mock_autoscaler.mesos_pool_manager.min_capacity = staticconf.read_int(
         'scaling_limits.min_capacity', namespace=POOL_NAMESPACE.format(pool='bar')
@@ -86,11 +84,12 @@ def test_get_signal_for_app(mock_autoscaler, signal_response):
 @pytest.mark.parametrize('dry_run', [True, False])
 def test_autoscaler_run(dry_run, mock_autoscaler, run_timestamp):
     mock_autoscaler._compute_target_capacity = mock.Mock(return_value=100)
-    mock_autoscaler.signal.error_state = ValueError('foo'), 'traceback'
+    mock_autoscaler.signal.evaluate.side_effect = ValueError
+    mock_autoscaler.default_signal.evaluate.return_value = {'cpus': 100000}
     with pytest.raises(ValueError):
         mock_autoscaler.run(dry_run=dry_run, timestamp=run_timestamp)
     assert mock_autoscaler.capacity_gauge.set.call_args == mock.call(100, {'dry_run': dry_run})
-    assert mock_autoscaler._compute_target_capacity.call_args == mock.call(run_timestamp)
+    assert mock_autoscaler._compute_target_capacity.call_args == mock.call({'cpus': 100000}, run_timestamp)
     assert mock_autoscaler.mesos_pool_manager.modify_target_capacity.call_count == 1
 
 
@@ -106,13 +105,5 @@ def test_compute_target_capacity(mock_autoscaler, signal_cpus, total_cpus,
                                  expected_capacity, run_timestamp):
     mock_autoscaler.mesos_pool_manager.target_capacity = \
         total_cpus / mock_autoscaler.autoscaling_config.cpus_per_weight
-    mock_autoscaler.signal.evaluate.return_value = {'cpus': signal_cpus}
-    new_target_capacity = mock_autoscaler._compute_target_capacity(run_timestamp)
+    new_target_capacity = mock_autoscaler._compute_target_capacity({'cpus': signal_cpus}, run_timestamp)
     assert new_target_capacity == pytest.approx(expected_capacity)
-    assert mock_autoscaler.signal.evaluate.call_args == mock.call(run_timestamp)
-
-
-def test_evaluate_failed(mock_autoscaler, run_timestamp):
-    mock_autoscaler.signal.evaluate.side_effect = JSONDecodeError('foo', 'bar', 3)
-    mock_autoscaler._compute_target_capacity(run_timestamp)
-    assert mock_autoscaler.default_signal.evaluate.call_count == 1

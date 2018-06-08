@@ -3,7 +3,6 @@ import socket
 import struct
 import subprocess
 import time
-import traceback
 from collections import namedtuple
 from threading import Thread
 
@@ -51,8 +50,6 @@ def _generate_metric_key(metric, cluster, pool, app):
 
 def _init_signal_io_threads(signal_name, signal_process):
     """ Capture stdout/stderr from the signal """
-    global SIGNAL_LOGGERS
-
     def log_signal_output(fd, log_fn):
         while True:
             line = fd.readline().decode().strip()
@@ -132,8 +129,7 @@ class Signal:
         self.config = self._get_signal_config(config_namespace)
         self.metrics_client = metrics_client
         self.signal_namespace = signal_namespace or self.app
-        self._signal_conn = self._load_signal_connection()
-        self.exception, self.traceback = None, None
+        self._signal_conn = self._start_signal_process()
 
     def evaluate(self, timestamp, retry_on_broken_pipe=True):
         """ Communicate over a Unix socket with the signal to evaluate its result
@@ -145,7 +141,6 @@ class Signal:
         """
         # Get the required metrics for the signal
         metrics = self._get_metrics(timestamp)
-        self.exception, self.traceback = None, None
 
         try:
             # First send the length of the metrics data
@@ -172,30 +167,14 @@ class Signal:
             return json.loads(response)['Resources']
 
         except JSONDecodeError as e:
-            error = ClustermanSignalError('Signal evaluation failed')
-            error.__cause__ = e
-            self.exception, self.traceback = error, e.doc
-            raise
+            raise ClustermanSignalError('Signal evaluation failed') from e
         except BrokenPipeError as e:
             if retry_on_broken_pipe:
                 logger.error('Signal connection failed; reloading the signal and trying again')
-                self._signal_conn = self._load_signal_connection()
+                self._signal_conn = self._start_signal_process()
                 return self.evaluate(timestamp, retry_on_broken_pipe=False)
             else:
-                error = ClustermanSignalError('Signal evaluation failed')
-                error.__cause__ = e
-                self.exception, self.traceback = error, traceback.format_exc()
-                raise
-        except Exception as e:
-            self.exception, self.traceback = e, traceback.format_exc()
-            raise
-
-    @property
-    def error_state(self):
-        if self.exception:
-            return self.exception, self.traceback
-        else:
-            return None
+                raise ClustermanSignalError('Signal evaluation failed') from e
 
     def _get_signal_config(self, config_namespace):
         """Validate and return autoscaling signal config from the given namespace.
@@ -231,7 +210,7 @@ class Signal:
         branch_or_tag = reader.read_string('autoscale_signal.branch_or_tag')
         return SignalConfig(name, SIGNALS_REPO, branch_or_tag, period_minutes, required_metric_configs, parameter_dict)
 
-    def _load_signal_connection(self):
+    def _start_signal_process(self):
         """ Create a connection to the specified signal over a unix socket
 
         :returns: a tuple consisting of the signal process (Popen) object and the socket connection

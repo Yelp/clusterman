@@ -6,7 +6,6 @@ import pytest
 import staticconf
 from botocore.exceptions import ClientError
 from pysensu_yelp import Status
-from simplejson import JSONDecodeError
 
 from clusterman.autoscaler.autoscaler import SIGNAL_LOAD_CHECK_NAME
 from clusterman.autoscaler.signals import ACK
@@ -107,13 +106,8 @@ def test_signal_broke(autoscaler_batch):
 
         mock_signal.side_effect = [mock.MagicMock(), mock.MagicMock()]
 
-        orig_error = JSONDecodeError('foo', 'bar', 3)
-        error_state = (ClustermanSignalError('baz'), 'traceback')
-        error_state[0].__cause__ = orig_error
-
         autoscaler_batch.configure_initial()
-        autoscaler_batch.autoscaler.signal.evaluate.side_effect = orig_error
-        autoscaler_batch.autoscaler.signal.error_state = error_state
+        autoscaler_batch.autoscaler.signal.evaluate.side_effect = ClustermanSignalError('foo')
         autoscaler_batch.autoscaler.default_signal.evaluate.return_value = {'cpus': None}
         autoscaler_batch.run()
 
@@ -162,8 +156,6 @@ def test_service_broke(autoscaler_batch):
 def test_everything_is_fine(autoscaler_batch):
     with mock.patch('clusterman.util.pysensu_yelp.send_event') as mock_sensu, \
             mock.patch('clusterman.autoscaler.autoscaler.Signal') as mock_signal:
-
-        mock_signal.return_value.error_state = None
 
         autoscaler_batch.configure_initial()
         mock_signal.return_value.evaluate.return_value = {'cpus': None}
