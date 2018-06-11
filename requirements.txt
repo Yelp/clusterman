@@ -21,6 +21,7 @@ jsonpickle==0.9.5
 jsonschema==2.6.0
 matplotlib==2.1.1
 monk==0.4.4
+mypy-extensions==0.3.0
 numpy==1.14.3
 parsedatetime==2.4
 ply==3.10

@@ -5,6 +5,9 @@ import subprocess
 import time
 from collections import namedtuple
 from threading import Thread
+from typing import Callable
+from typing import Dict
+from typing import Tuple
 
 import simplejson as json
 import staticconf
@@ -34,7 +37,13 @@ SignalConfig = namedtuple(
     'SignalConfig',
     ['name', 'repo', 'branch_or_tag', 'period_minutes', 'required_metrics', 'parameters'],
 )
-SIGNAL_LOGGERS = {}
+SIGNAL_LOGGERS: Dict[
+    str,
+    Tuple[
+        Callable[[str], None],
+        Callable[[str], None],
+    ]
+] = {}
 
 
 def _generate_metric_key(metric, cluster, pool, app):
