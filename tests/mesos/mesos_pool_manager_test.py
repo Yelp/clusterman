@@ -1,5 +1,3 @@
-import socket
-
 import mock
 import pytest
 from moto import mock_ec2
@@ -267,7 +265,6 @@ def test_idle_agents_by_market(mock_pool_manager):
             mock.patch('clusterman.mesos.mesos_pool_manager.get_mesos_state') as mock_mesos_state:
         mock_mesos_state.side_effect = [
             MesosAgentState.IDLE,
-            socket.gaierror,
             MesosAgentState.ORPHANED,
             MesosAgentState.RUNNING,
         ]

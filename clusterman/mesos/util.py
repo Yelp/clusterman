@@ -1,6 +1,6 @@
 import os
 import random
-import socket
+import re
 
 import requests
 import staticconf
@@ -20,9 +20,19 @@ class MesosAgentState:
     UNKNOWN = 'unknown'
 
 
+def agent_pid_to_ip(slave_pid):
+    """Convert the agent PID from Mesos into an IP address
+
+    :param: agent pid (this is in the format 'slave(1)@10.40.31.172:5051')
+    :returns: ip address
+    """
+    regex = re.compile(r'.+?@([\d\.]+):\d+')
+    return regex.match(slave_pid).group(1)
+
+
 def get_agent_by_ip(ip, mesos_agents):
     try:
-        return next(agent for agent in mesos_agents if socket.gethostbyname(agent['hostname']) == ip)
+        return next(agent for agent in mesos_agents if agent_pid_to_ip(agent['pid']) == ip)
     except StopIteration:
         return None
 
