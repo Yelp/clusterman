@@ -81,7 +81,7 @@ class Autoscaler:
             exception, tb = e, traceback.format_exc()
 
         logger.info(f'Signal {signal_name} requested {resource_request["cpus"]} CPUs')
-        new_target_capacity = self._compute_target_capacity(resource_request, timestamp)
+        new_target_capacity = self._compute_target_capacity(resource_request)
         self.capacity_gauge.set(new_target_capacity, {'dry_run': dry_run})
         self.mesos_pool_manager.modify_target_capacity(new_target_capacity, dry_run=dry_run)
 
@@ -121,11 +121,10 @@ class Autoscaler:
             )
             return self.default_signal
 
-    def _compute_target_capacity(self, resource_request, timestamp):
+    def _compute_target_capacity(self, resource_request):
         """ Compare signal to the resources allocated and compute appropriate capacity change.
 
         :param resource_request: a resource_request object from the signal evaluation
-        :param timestamp: an arrow object indicating the current time
         :returns: the new target capacity we should scale to
         """
         # TODO (CLUSTERMAN-201) support other types of resource requests

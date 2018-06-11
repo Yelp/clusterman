@@ -213,8 +213,7 @@ class Signal:
     def _start_signal_process(self):
         """ Create a connection to the specified signal over a unix socket
 
-        :returns: a tuple consisting of the signal process (Popen) object and the socket connection
-            which can read/write data to the specified signal
+        :returns: a socket connection which can read/write data to the specified signal
         """
         signal_dir = _get_local_signal_directory(self.config.repo, self.config.branch_or_tag)
 

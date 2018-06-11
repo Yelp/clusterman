@@ -89,7 +89,7 @@ def test_autoscaler_run(dry_run, mock_autoscaler, run_timestamp):
     with pytest.raises(ValueError):
         mock_autoscaler.run(dry_run=dry_run, timestamp=run_timestamp)
     assert mock_autoscaler.capacity_gauge.set.call_args == mock.call(100, {'dry_run': dry_run})
-    assert mock_autoscaler._compute_target_capacity.call_args == mock.call({'cpus': 100000}, run_timestamp)
+    assert mock_autoscaler._compute_target_capacity.call_args == mock.call({'cpus': 100000})
     assert mock_autoscaler.mesos_pool_manager.modify_target_capacity.call_count == 1
 
 
@@ -101,9 +101,8 @@ def test_autoscaler_run(dry_run, mock_autoscaler, run_timestamp):
     (490, 1000, 87.5),  # below setpoint margin
     (1400, 1000, 250),  # above setpoint margin and total
 ])
-def test_compute_target_capacity(mock_autoscaler, signal_cpus, total_cpus,
-                                 expected_capacity, run_timestamp):
+def test_compute_target_capacity(mock_autoscaler, signal_cpus, total_cpus, expected_capacity):
     mock_autoscaler.mesos_pool_manager.target_capacity = \
         total_cpus / mock_autoscaler.autoscaling_config.cpus_per_weight
-    new_target_capacity = mock_autoscaler._compute_target_capacity({'cpus': signal_cpus}, run_timestamp)
+    new_target_capacity = mock_autoscaler._compute_target_capacity({'cpus': signal_cpus})
     assert new_target_capacity == pytest.approx(expected_capacity)
