@@ -68,7 +68,7 @@ utils.handleInputRejection {
                 ystage('performance-check') {
                     sh(script: $/paasta performance-check --service ${SERVICE_NAME}/$)
 
-                    if (authors['prod.non_canary']) {
+                    if (!wasTimerTriggered() && authors['prod.non_canary']) {
                         pingList = authors['prod.non_canary'].split(' ').collect{author -> "<@${author}>"}.join(', ')
                         utils.nodebot(IRC_CHANNELS, "Hey ${pingList}, go click the button! :easy_button: y/clusterman-jenkins")
                     }
@@ -100,4 +100,8 @@ utils.handleInputRejection {
 
 node {
     utils.emitEeMetric("${env.job_name}", "jenkins", "${env.job_name}-${env.build_id}", "end")
+}
+
+private boolean wasTimerTriggered() {
+    (currentBuild.rawBuild.getCause(hudson.triggers.TimerTrigger$TimerTriggerCause)) ? true : false
 }
