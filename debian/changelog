@@ -1,3 +1,9 @@
+clusterman (2.8.1) trusty; urgency=low
+
+  * remove DNS lookups from pool manager
+
+ -- David Morrison <drmorr@yelp.com>  Mon, 11 Jun 2018 13:49:02 -0700
+
 clusterman (2.8.0) trusty; urgency=low
 
   * signals restart on failure
