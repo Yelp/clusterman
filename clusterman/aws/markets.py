@@ -1,30 +1,42 @@
-from collections import namedtuple
 from functools import lru_cache
+from typing import Dict
+from typing import List
+from typing import NamedTuple
+from typing import Optional
 
 from clusterman.aws.client import ec2
 
-InstanceResources = namedtuple('InstanceResources', ['cpus', 'mem', 'disk'])
+InstanceResources = NamedTuple('InstanceResources', [
+    ('cpus', float),
+    ('mem', float),
+    ('disk', Optional[float]),
+])
+
+_InstanceMarket = NamedTuple('_InstanceMarket', [
+    ('instance', str),
+    ('az', Optional[str]),
+])
 
 
-class InstanceMarket(namedtuple('InstanceMarket', ['instance', 'az'])):
+class InstanceMarket(_InstanceMarket):
     __slots__ = ()
 
-    def __new__(cls, instance, az):
+    def __new__(cls, instance: str, az: Optional[str]):
         if (instance in EC2_INSTANCE_TYPES and az in EC2_AZS):
             return super().__new__(cls, instance, az)
         else:
             raise ValueError(f'Invalid AWS market specified: <{instance}, {az}> (choices from {EC2_AZS})')
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<{self.instance}, {self.az}>'
 
     @classmethod
-    def parse(cls, string):
+    def parse(cls, string: str):
         sans_brackets = string[1:-1]
         return cls(*sans_brackets.split(', '))
 
 
-EC2_INSTANCE_TYPES = {
+EC2_INSTANCE_TYPES: Dict[str, InstanceResources] = {
     't2.nano': InstanceResources(1.0, 0.5, None),
     't2.micro': InstanceResources(1.0, 1.0, None),
     't2.small': InstanceResources(1.0, 2.0, None),
@@ -94,7 +106,7 @@ EC2_INSTANCE_TYPES = {
     # No GPU instances in this list for now
 }
 
-EC2_AZS = [
+EC2_AZS: List[Optional[str]] = [
     None,
     'us-west-1a',
     'us-west-1b',
@@ -105,19 +117,20 @@ EC2_AZS = [
 ]
 
 
-def get_market_resources(market):
+def get_market_resources(market: InstanceMarket) -> InstanceResources:
     return EC2_INSTANCE_TYPES[market.instance]
 
 
-def get_market(instance_type, subnet_id):
+def get_market(instance_type: str, subnet_id: Optional[str]) -> InstanceMarket:
     if subnet_id is not None:
         az = subnet_to_az(subnet_id)
     else:
-        az = None
+        # `ignore` is a workaround for mypy insisting that `az` is `str` and not `Optional[str]`
+        az = None  # type: ignore
     return InstanceMarket(instance_type, az)
 
 
-def get_instance_market(aws_instance_object):
+def get_instance_market(aws_instance_object: Dict) -> InstanceMarket:
     return get_market(
         aws_instance_object['InstanceType'],
         aws_instance_object.get('SubnetId'),
@@ -125,5 +138,5 @@ def get_instance_market(aws_instance_object):
 
 
 @lru_cache(maxsize=32)
-def subnet_to_az(subnet_id):
+def subnet_to_az(subnet_id: str) -> str:
     return ec2.describe_subnets(SubnetIds=[subnet_id])['Subnets'][0]['AvailabilityZone']

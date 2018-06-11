@@ -1,12 +1,17 @@
 from collections import defaultdict
+from typing import Dict
+from typing import List
+from typing import Sequence
 
 import simplejson as json
 from cached_property import timed_cached_property
+from mypy_extensions import TypedDict
 
 from clusterman.aws.client import ec2
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.client import s3
 from clusterman.aws.markets import get_instance_market
+from clusterman.aws.markets import InstanceMarket
 from clusterman.exceptions import ResourceGroupError
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
 from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
@@ -15,79 +20,41 @@ from clusterman.util import get_clusterman_logger
 
 logger = get_clusterman_logger(__name__)
 
-
-def load_spot_fleets_from_s3(bucket, prefix, pool=None):
-    object_list = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
-    spot_fleets = []
-    for obj_metadata in object_list['Contents']:
-        obj = s3.get_object(Bucket=bucket, Key=obj_metadata['Key'])
-        sfr_metadata = json.load(obj['Body'])
-        for resource_key, resource in sfr_metadata['cluster_autoscaling_resources'].items():
-            if not resource_key.startswith('aws_spot_fleet_request'):
-                continue
-            if pool and resource['pool'] != pool:
-                continue
-
-            spot_fleets.append(SpotFleetResourceGroup(resource['id']))
-
-    return spot_fleets
-
-
-def load_spot_fleets_from_ec2(cluster, pool):
-    """ Loads SpotFleetResourceGroups by filtering SFRs in the AWS account by tags
-    for pool, cluster and a tag that identifies paasta SFRs
-    """
-    spot_fleet_requests_tags = get_spot_fleet_request_tags()
-    spot_fleets = []
-    expected_tags = {
-        'paasta': 'true',
-        'pool': pool,
-        'cluster': cluster,
+_S3Config = TypedDict(
+    '_S3Config',
+    {
+        'bucket': str,
+        'prefix': str,
     }
-    for sfr_id, tags in spot_fleet_requests_tags.items():
-        try:
-            if all([tags[k] == v for k, v in expected_tags.items()]):
-                sfrg = SpotFleetResourceGroup(sfr_id)
-                if not sfrg.is_stale:
-                    spot_fleets.append(sfrg)
-        except KeyError:
-            continue
-    return spot_fleets
+)
 
-
-def get_spot_fleet_request_tags():
-    """ Gets a dictionary of SFR id -> a dictionary of tags. The tags are taken
-    from the TagSpecifications for the first LaunchSpecification
-    """
-    spot_fleet_requests = ec2.describe_spot_fleet_requests()
-    sfr_id_to_tags = {}
-    for sfr_config in spot_fleet_requests["SpotFleetRequestConfigs"]:
-        launch_specs = sfr_config["SpotFleetRequestConfig"]["LaunchSpecifications"]
-        try:
-            # we take the tags from the 0th launch spec for now
-            # they should always be identical in every launch spec
-            tags = launch_specs[0]["TagSpecifications"][0]["Tags"]
-        except (IndexError, KeyError):
-            # if this SFR is misssing the TagSpecifications
-            tags = []
-        tags_dict = {tag['Key']: tag['Value'] for tag in tags}
-        sfr_id_to_tags[sfr_config["SpotFleetRequestId"]] = tags_dict
-    return sfr_id_to_tags
+SpotFleetResourceGroupConfig = TypedDict(
+    'SpotFleetResourceGroupConfig',
+    {
+        's3': _S3Config,
+    }
+)
 
 
 class SpotFleetResourceGroup(MesosPoolResourceGroup):
 
-    def __init__(self, sfr_id):
+    def __init__(self, sfr_id: str) -> None:
         self.sfr_id = sfr_id
         self._market_weights = {  # Can't change WeightedCapacity of SFRs, so cache them here for frequent access
             get_instance_market(spec): spec['WeightedCapacity']
             for spec in self._configuration['SpotFleetRequestConfig']['LaunchSpecifications']
         }
 
-    def market_weight(self, market):
+    def market_weight(self, market: InstanceMarket) -> float:
         return self._market_weights[market]
 
-    def modify_target_capacity(self, target_capacity, *, terminate_excess_capacity=False, dry_run=False):
+    def modify_target_capacity(
+        self,
+        target_capacity: float,
+        *,
+        terminate_excess_capacity: bool = False,
+        dry_run: bool = False,
+    ) -> None:
         kwargs = {
             'SpotFleetRequestId': self.sfr_id,
             'TargetCapacity': int(target_capacity),
@@ -103,10 +70,14 @@ class SpotFleetResourceGroup(MesosPoolResourceGroup):
             raise ResourceGroupError('Could not change size of spot fleet: check logs for details')
 
     @protect_unowned_instances
-    def terminate_instances_by_id(self, instance_ids, batch_size=500):
+    def terminate_instances_by_id(
+        self,
+        instance_ids: List[str],
+        batch_size: int = 500,
+    ) -> Sequence[str]:
         if not instance_ids:
             logger.warn(f'No instances to terminate in {self.sfr_id}')
-            return [], 0
+            return []
 
         instance_weights = {}
         for instance in ec2_describe_instances(instance_ids):
@@ -137,11 +108,11 @@ class SpotFleetResourceGroup(MesosPoolResourceGroup):
         return terminated_instance_ids
 
     @property
-    def id(self):
+    def id(self) -> str:
         return self.sfr_id
 
     @timed_cached_property(ttl=CACHE_TTL_SECONDS)
-    def instance_ids(self):
+    def instance_ids(self) -> Sequence[str]:
         """ Responses from this API call are cached to prevent hitting any AWS request limits """
         return [
             instance['InstanceId']
@@ -150,7 +121,7 @@ class SpotFleetResourceGroup(MesosPoolResourceGroup):
         ]
 
     @property
-    def market_capacities(self):
+    def market_capacities(self) -> Dict[InstanceMarket, float]:
         return {
             market: len(instances) * self.market_weight(market)
             for market, instances in self._instances_by_market.items()
@@ -158,15 +129,15 @@ class SpotFleetResourceGroup(MesosPoolResourceGroup):
         }
 
     @property
-    def target_capacity(self):
+    def target_capacity(self) -> float:
         return self._configuration['SpotFleetRequestConfig']['TargetCapacity']
 
     @property
-    def fulfilled_capacity(self):
+    def fulfilled_capacity(self) -> float:
         return self._configuration['SpotFleetRequestConfig']['FulfilledCapacity']
 
     @property
-    def status(self):
+    def status(self) -> str:
         return self._configuration['SpotFleetRequestState']
 
     @timed_cached_property(ttl=CACHE_TTL_SECONDS)
@@ -178,11 +149,70 @@ class SpotFleetResourceGroup(MesosPoolResourceGroup):
     @timed_cached_property(ttl=CACHE_TTL_SECONDS)
     def _instances_by_market(self):
         """ Responses from this API call are cached to prevent hitting any AWS request limits """
-        instance_dict = defaultdict(list)
+        instance_dict: Dict[InstanceMarket, List[Dict]] = defaultdict(list)
         for instance in ec2_describe_instances(self.instance_ids):
             instance_dict[get_instance_market(instance)].append(instance)
         return instance_dict
 
     @property
-    def is_stale(self):
+    def is_stale(self) -> bool:
         return self.status.startswith('cancelled')
+
+
+def load_spot_fleets_from_s3(bucket: str, prefix: str, pool: str=None) -> Sequence[SpotFleetResourceGroup]:
+    object_list = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
+    spot_fleets = []
+    for obj_metadata in object_list['Contents']:
+        obj = s3.get_object(Bucket=bucket, Key=obj_metadata['Key'])
+        sfr_metadata = json.load(obj['Body'])
+        for resource_key, resource in sfr_metadata['cluster_autoscaling_resources'].items():
+            if not resource_key.startswith('aws_spot_fleet_request'):
+                continue
+            if pool and resource['pool'] != pool:
+                continue
+
+            spot_fleets.append(SpotFleetResourceGroup(resource['id']))
+
+    return spot_fleets
+
+
+def load_spot_fleets_from_ec2(cluster: str, pool: str) -> List[SpotFleetResourceGroup]:
+    """ Loads SpotFleetResourceGroups by filtering SFRs in the AWS account by tags
+    for pool, cluster and a tag that identifies paasta SFRs
+    """
+    spot_fleet_requests_tags = get_spot_fleet_request_tags()
+    spot_fleets = []
+    expected_tags = {
+        'paasta': 'true',
+        'pool': pool,
+        'cluster': cluster,
+    }
+    for sfr_id, tags in spot_fleet_requests_tags.items():
+        try:
+            if all([tags[k] == v for k, v in expected_tags.items()]):
+                sfrg = SpotFleetResourceGroup(sfr_id)
+                if not sfrg.is_stale:
+                    spot_fleets.append(sfrg)
+        except KeyError:
+            continue
+    return spot_fleets
+
+
+def get_spot_fleet_request_tags() -> Dict[str, Dict[str, str]]:
+    """ Gets a dictionary of SFR id -> a dictionary of tags. The tags are taken
+    from the TagSpecifications for the first LaunchSpecification
+    """
+    spot_fleet_requests = ec2.describe_spot_fleet_requests()
+    sfr_id_to_tags = {}
+    for sfr_config in spot_fleet_requests["SpotFleetRequestConfigs"]:
+        launch_specs = sfr_config["SpotFleetRequestConfig"]["LaunchSpecifications"]
+        try:
+            # we take the tags from the 0th launch spec for now
+            # they should always be identical in every launch spec
+            tags = launch_specs[0]["TagSpecifications"][0]["Tags"]
+        except (IndexError, KeyError):
+            # if this SFR is misssing the TagSpecifications
+            tags = []
+        tags_dict = {tag['Key']: tag['Value'] for tag in tags}
+        sfr_id_to_tags[sfr_config["SpotFleetRequestId"]] = tags_dict
+    return sfr_id_to_tags
