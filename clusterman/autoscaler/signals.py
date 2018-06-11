@@ -11,10 +11,12 @@ import staticconf
 from clusterman_metrics import APP_METRICS
 from clusterman_metrics import generate_key_with_dimensions
 from clusterman_metrics import SYSTEM_METRICS
+from simplejson.errors import JSONDecodeError
 from staticconf.errors import ConfigurationError
 
 from clusterman.autoscaler.config import get_required_metric_configs
 from clusterman.autoscaler.config import MetricConfig
+from clusterman.exceptions import ClustermanSignalError
 from clusterman.exceptions import MetricsError
 from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.exceptions import SignalConnectionError
@@ -25,13 +27,14 @@ from clusterman.util import sha_from_branch_or_tag
 
 logger = get_clusterman_logger(__name__)
 ACK = bytes([1])
-SIGNALS_REPO = 'git@git.yelpcorp.com:clusterman_signals'  # TODO (CLUSTERMAN-xxx) make this a config param
+SIGNALS_REPO = 'git@git.yelpcorp.com:clusterman_signals'  # TODO (CLUSTERMAN-254) make this a config param
 SOCKET_MESG_SIZE = 4096
-SOCKET_TIMEOUT_SECONDS = 60
+SOCKET_TIMEOUT_SECONDS = 300
 SignalConfig = namedtuple(
     'SignalConfig',
     ['name', 'repo', 'branch_or_tag', 'period_minutes', 'required_metrics', 'parameters'],
 )
+SIGNAL_LOGGERS = {}
 
 
 def _generate_metric_key(metric, cluster, pool, app):
@@ -45,7 +48,7 @@ def _generate_metric_key(metric, cluster, pool, app):
     return metric_key
 
 
-def _init_signal_output_pipes(signal_name, signal_process):
+def _init_signal_io_threads(signal_name, signal_process):
     """ Capture stdout/stderr from the signal """
     def log_signal_output(fd, log_fn):
         while True:
@@ -53,17 +56,21 @@ def _init_signal_output_pipes(signal_name, signal_process):
             if not line:
                 break
             log_fn(line)
+        logger.info('Stopping signal IO threads')
 
-    stdout_logger = get_clusterman_logger(f'{signal_name}.stdout')
-    stderr_logger = get_clusterman_logger(f'{signal_name}.stderr')
+    if signal_name not in SIGNAL_LOGGERS:
+        SIGNAL_LOGGERS[signal_name] = (
+            get_clusterman_logger(f'{signal_name}.stdout').info,
+            get_clusterman_logger(f'{signal_name}.stderr').warning,
+        )
     stdout_thread = Thread(
         target=log_signal_output,
-        kwargs={'fd': signal_process.stdout, 'log_fn': stdout_logger.info},
+        kwargs={'fd': signal_process.stdout, 'log_fn': SIGNAL_LOGGERS[signal_name][0]},
         daemon=True,
     )
     stderr_thread = Thread(
         target=log_signal_output,
-        kwargs={'fd': signal_process.stderr, 'log_fn': stderr_logger.warn},
+        kwargs={'fd': signal_process.stderr, 'log_fn': SIGNAL_LOGGERS[signal_name][1]},
         daemon=True,
     )
     stdout_thread.start()
@@ -122,41 +129,52 @@ class Signal:
         self.config = self._get_signal_config(config_namespace)
         self.metrics_client = metrics_client
         self.signal_namespace = signal_namespace or self.app
-        self._signal_conn = self._load_signal_connection()
+        self._signal_conn = self._start_signal_process()
 
-    def evaluate(self, timestamp):
+    def evaluate(self, timestamp, retry_on_broken_pipe=True):
         """ Communicate over a Unix socket with the signal to evaluate its result
 
-        :param metrics: a dict of metric_name -> timeseries data to send to the signal
         :param timestamp: a Unix timestamp to pass to the signal as the "current time"
+        :param retry_on_broken_pipe: if the signal socket pipe is broken, restart the signal process and try again
         :returns: a dict of resource_name -> requested resources from the signal
         :raises SignalConnectionError: if the signal connection fails for some reason
         """
         # Get the required metrics for the signal
         metrics = self._get_metrics(timestamp)
 
-        # First send the length of the metrics data
-        metric_bytes = json.dumps({'metrics': metrics, 'timestamp': timestamp.timestamp}).encode()
-        len_metrics = struct.pack('>I', len(metric_bytes))  # bytes representation of the length, packed big-endian
-        self._signal_conn.send(len_metrics)
-        response = self._signal_conn.recv(SOCKET_MESG_SIZE)
-        if response != ACK:
-            raise SignalConnectionError(f'Unknown error occurred sending metric length to signal (response={response})')
+        try:
+            # First send the length of the metrics data
+            metric_bytes = json.dumps({'metrics': metrics, 'timestamp': timestamp.timestamp}).encode()
+            len_metrics = struct.pack('>I', len(metric_bytes))  # bytes representation of the length, packed big-endian
+            self._signal_conn.send(len_metrics)
+            response = self._signal_conn.recv(SOCKET_MESG_SIZE)
+            if response != ACK:
+                raise SignalConnectionError(f'Error occurred sending metric length to signal (response={response})')
 
-        # Then send the actual metrics data, broken up into chunks
-        for i in range(0, len(metric_bytes), SOCKET_MESG_SIZE):
-            self._signal_conn.send(metric_bytes[i:i + SOCKET_MESG_SIZE])
-        response = self._signal_conn.recv(SOCKET_MESG_SIZE)
-        ack_bit = response[:1]
-        if ack_bit != ACK:
-            raise SignalConnectionError(f'Unknown error occurred sending metric data to signal (response={response})')
+            # Then send the actual metrics data, broken up into chunks
+            for i in range(0, len(metric_bytes), SOCKET_MESG_SIZE):
+                self._signal_conn.send(metric_bytes[i:i + SOCKET_MESG_SIZE])
+            response = self._signal_conn.recv(SOCKET_MESG_SIZE)
+            ack_bit = response[:1]
+            if ack_bit != ACK:
+                raise SignalConnectionError(f'Error occurred sending metric data to signal (response={response})')
 
-        # Sometimes the signal sends the ack and the reponse "too quickly" so when we call
-        # recv above it gets both values.  This should handle that case, or call recv again
-        # if there's no more data in the previous message
-        response = response[1:] or self._signal_conn.recv(SOCKET_MESG_SIZE)
-        logger.info(response)
-        return json.loads(response)['Resources']
+            # Sometimes the signal sends the ack and the reponse "too quickly" so when we call
+            # recv above it gets both values.  This should handle that case, or call recv again
+            # if there's no more data in the previous message
+            response = response[1:] or self._signal_conn.recv(SOCKET_MESG_SIZE)
+            logger.info(response)
+            return json.loads(response)['Resources']
+
+        except JSONDecodeError as e:
+            raise ClustermanSignalError('Signal evaluation failed') from e
+        except BrokenPipeError as e:
+            if retry_on_broken_pipe:
+                logger.error('Signal connection failed; reloading the signal and trying again')
+                self._signal_conn = self._start_signal_process()
+                return self.evaluate(timestamp, retry_on_broken_pipe=False)
+            else:
+                raise ClustermanSignalError('Signal evaluation failed') from e
 
     def _get_signal_config(self, config_namespace):
         """Validate and return autoscaling signal config from the given namespace.
@@ -192,7 +210,7 @@ class Signal:
         branch_or_tag = reader.read_string('autoscale_signal.branch_or_tag')
         return SignalConfig(name, SIGNALS_REPO, branch_or_tag, period_minutes, required_metric_configs, parameter_dict)
 
-    def _load_signal_connection(self):
+    def _start_signal_process(self):
         """ Create a connection to the specified signal over a unix socket
 
         :returns: a socket connection which can read/write data to the specified signal
@@ -220,7 +238,7 @@ class Signal:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        _init_signal_output_pipes(self.config.name, signal_process)
+        _init_signal_io_threads(self.config.name, signal_process)
         time.sleep(2)  # Give the signal subprocess time to start, then check to see if it's running
         return_code = signal_process.poll()
         if return_code:
