@@ -1,6 +1,5 @@
 import os
 import re
-from collections import defaultdict
 
 import requests
 import staticconf
@@ -28,41 +27,6 @@ def agent_pid_to_ip(slave_pid):
     """
     regex = re.compile(r'.+?@([\d\.]+):\d+')
     return regex.match(slave_pid).group(1)
-
-
-def _get_agent_by_ip(ip, mesos_agents):
-    try:
-        return next(agent for agent in mesos_agents if agent_pid_to_ip(agent['pid']) == ip)
-    except StopIteration:
-        return None
-
-
-# TODO(CLUSTERMAN-256): refactor this into a more general method that handles
-# creating unified representations of instances/agents.
-def get_mesos_agent_and_state_from_aws_instance(instance, mesos_agents):
-    try:
-        instance_ip = instance['PrivateIpAddress']
-    except KeyError:
-        return None, MesosAgentState.UNKNOWN
-    else:
-        agent = _get_agent_by_ip(instance_ip, mesos_agents)
-        if not agent:
-            state = MesosAgentState.ORPHANED
-        elif allocated_cpu_resources(agent) == 0:
-            state = MesosAgentState.IDLE
-        else:
-            state = MesosAgentState.RUNNING
-
-        return agent, state
-
-
-def get_task_count_per_agent(mesos_tasks):
-    """Given a list of mesos tasks, return a count of tasks per agent"""
-    agent_id_to_task_count = defaultdict(int)
-    for task in mesos_tasks:
-        if task['state'] == 'TASK_RUNNING':
-            agent_id_to_task_count[task['slave_id']] += 1
-    return agent_id_to_task_count
 
 
 def get_resource_value(resources, resource_name):

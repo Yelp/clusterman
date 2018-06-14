@@ -6,11 +6,9 @@ import humanize
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_pool_arg
 from clusterman.args import subparser
-from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import get_instance_market
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.mesos.util import allocated_cpu_resources
-from clusterman.mesos.util import get_mesos_agent_and_state_from_aws_instance
 from clusterman.mesos.util import MesosAgentState
 from clusterman.util import colored_status
 
@@ -30,18 +28,17 @@ def _write_resource_group_line(group):
 def _write_instance_line(instance, postfix=None):
     postfix = postfix or ''
     instance_status_str = colored_status(
-        instance['State']['Name'],
+        instance.instance_dict['State']['Name'],
         green=('running',),
         blue=('pending',),
         red=('shutting-down', 'terminated', 'stopping', 'stopped'),
     )
-    instance_id = instance['InstanceId']
-    market = get_instance_market(instance)
+    market = get_instance_market(instance.instance_dict)
     try:
-        instance_ip = instance['PrivateIpAddress']
+        instance_ip = instance.instance_dict['PrivateIpAddress']
     except KeyError:
         instance_ip = 'unknown'
-    print(f'\t - {instance_id} {market} ({instance_ip}): {instance_status_str} {postfix}')
+    print(f'\t - {instance.instance_id} {market} ({instance_ip}): {instance_status_str} {postfix}')
 
 
 def _write_summary(manager):
@@ -57,19 +54,19 @@ def _write_summary(manager):
     print(f'\tDisk allocation: {allocated_disk} disk space allocated to tasks, {total_disk} total')
 
 
-def _get_mesos_status_string(instance, mesos_agent, agent_state):
-    if agent_state == MesosAgentState.UNKNOWN:
+def _get_mesos_status_string(instance):
+    if instance.state == MesosAgentState.UNKNOWN:
         postfix_str = ''
-    elif agent_state == MesosAgentState.RUNNING:
-        allocated_cpus = allocated_cpu_resources(mesos_agent)
-        postfix_str = f', {allocated_cpus} CPUs allocated'
+    elif instance.state == MesosAgentState.RUNNING:
+        allocated_cpus = allocated_cpu_resources(instance.agent)
+        postfix_str = f', {allocated_cpus} CPUs allocated, {instance.task_count} tasks'
     else:
-        launch_time = instance['LaunchTime']
+        launch_time = instance.instance_dict['LaunchTime']
         uptime = humanize.naturaldelta(arrow.now() - arrow.get(launch_time))
         postfix_str = f', up for {uptime}'
 
     return colored_status(
-        agent_state,
+        instance.state,
         blue=(MesosAgentState.IDLE,),
         red=(MesosAgentState.ORPHANED, MesosAgentState.UNKNOWN),
         prefix='[',
@@ -82,16 +79,17 @@ def print_status(manager, args):
     print(f'Current status for the {manager.pool} pool in the {manager.cluster} cluster:\n')
     print(f'Resource groups ({manager.fulfilled_capacity} units out of {manager.target_capacity}):')
 
+    instances_by_group_id = manager.get_instances_by_resource_group() if args.verbose else {}
+
     for group in manager.resource_groups:
         _write_resource_group_line(group)
-        if args.verbose:
-            for instance in ec2_describe_instances(instance_ids=group.instance_ids):
-                agent, state = get_mesos_agent_and_state_from_aws_instance(instance, manager.agents)
-                if ((args.only_orphans and state != MesosAgentState.ORPHANED) or
-                        (args.only_idle and state != MesosAgentState.IDLE)):
-                    continue
-                postfix = _get_mesos_status_string(instance, agent, state)
-                _write_instance_line(instance, postfix)
+        for instance in instances_by_group_id.get(group.id, []):
+            if ((args.only_orphans and instance.state != MesosAgentState.ORPHANED) or
+                    (args.only_idle and instance.state != MesosAgentState.IDLE)):
+                continue
+            postfix = _get_mesos_status_string(instance)
+            _write_instance_line(instance, postfix)
+
         sys.stdout.write('\n')
 
     _write_summary(manager)

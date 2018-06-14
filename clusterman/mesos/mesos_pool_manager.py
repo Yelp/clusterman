@@ -2,6 +2,7 @@ from bisect import bisect
 from collections import defaultdict
 from collections import namedtuple
 from pprint import pformat
+from typing import DefaultDict
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -21,8 +22,8 @@ from clusterman.mesos.constants import CACHE_TTL_SECONDS
 from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
 from clusterman.mesos.spotinst_resource_group import SpotInstResourceGroup
-from clusterman.mesos.util import get_mesos_agent_and_state_from_aws_instance
-from clusterman.mesos.util import get_task_count_per_agent
+from clusterman.mesos.util import agent_pid_to_ip
+from clusterman.mesos.util import allocated_cpu_resources
 from clusterman.mesos.util import get_total_resource_value
 from clusterman.mesos.util import mesos_post
 from clusterman.mesos.util import MesosAgentState
@@ -33,7 +34,10 @@ MIN_CAPACITY_PER_GROUP = 1
 logger = get_clusterman_logger(__name__)
 
 
-PoolInstance = namedtuple('PoolInstance', ['instance_id', 'agent_state', 'task_count', 'market'])
+PoolInstance = namedtuple(
+    'PoolInstance',
+    ['instance_id', 'state', 'task_count', 'market', 'instance_dict', 'agent']
+)
 
 RESOURCE_GROUPS: Dict[
     str,
@@ -143,7 +147,7 @@ class MesosPoolManager:
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
         :returns: float
         """
-        return get_total_resource_value(self.agents, 'used_resources', resource_name)
+        return get_total_resource_value(self._agents, 'used_resources', resource_name)
 
     def get_resource_total(self, resource_name: str) -> float:
         """Get the total amount of the given resource for this Mesos pool.
@@ -151,7 +155,7 @@ class MesosPoolManager:
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
         :returns: float
         """
-        return get_total_resource_value(self.agents, 'resources', resource_name)
+        return get_total_resource_value(self._agents, 'resources', resource_name)
 
     def get_percent_resource_allocation(self, resource_name: str) -> float:
         """Get the overall proportion of the given resource that is in use.
@@ -253,9 +257,11 @@ class MesosPoolManager:
             # In each of the cases, the instance has been removed from consideration and we jump to the next iteration
 
             group_index, instance_group = self._find_resource_group(instance.instance_id)
+
             if not instance_group:  # case 1
                 logger.warn(f'Could not find instance {instance.instance_id} in any resource group')
                 continue
+
             instance_weight = instance_group.market_weight(instance.market)
 
             # Make sure we don't make a resource group go below its target capacity
@@ -359,34 +365,23 @@ class MesosPoolManager:
         killable_instances = self._get_killable_instances()
         return self._prioritize_killable_instances(killable_instances)
 
-    def _get_killable_instances(self) -> List[PoolInstance]:
-        killable_instances: List[PoolInstance] = []
-        agent_id_to_task_count = get_task_count_per_agent(self.tasks)
-        for group in self.resource_groups:
-            for instance in ec2_describe_instances(instance_ids=group.instance_ids):
-                agent, state = get_mesos_agent_and_state_from_aws_instance(instance, self.agents)
-                task_count = agent_id_to_task_count[agent['id']] if agent else 0
-                if self._is_instance_killable(state, task_count):
-                    killable_instances.append(
-                        PoolInstance(instance['InstanceId'], state, task_count, get_instance_market(instance))
-                    )
+    def _get_killable_instances(self):
+        return [instance for instance in self.get_instances() if self._is_instance_killable(instance)]
 
-        return killable_instances
-
-    def _is_instance_killable(self, agent_state: str, task_count: int) -> bool:
-        if agent_state == MesosAgentState.UNKNOWN:
+    def _is_instance_killable(self, instance: PoolInstance) -> bool:
+        if instance.state == MesosAgentState.UNKNOWN:
             return False
         elif self.max_tasks_to_kill > 0:
             return True
         else:
-            return task_count == 0
+            return instance.task_count == 0
 
     def _prioritize_killable_instances(self, killable_instances: List[PoolInstance]) -> List[PoolInstance]:
         return sorted(
             killable_instances,
             key=lambda x: (
-                0 if x.agent_state == MesosAgentState.ORPHANED else 1,
-                0 if x.agent_state == MesosAgentState.IDLE else 1,
+                0 if x.state == MesosAgentState.ORPHANED else 1,
+                0 if x.state == MesosAgentState.IDLE else 1,
                 x.task_count,
             )
         )
@@ -408,7 +403,7 @@ class MesosPoolManager:
         return sum(group.fulfilled_capacity for group in self.resource_groups)
 
     @timed_cached_property(CACHE_TTL_SECONDS)
-    def agents(self) -> Sequence[Dict]:
+    def _agents(self) -> Sequence[Dict]:
         response = mesos_post(self.api_endpoint, 'slaves').json()
         return [
             agent
@@ -417,13 +412,56 @@ class MesosPoolManager:
         ]
 
     @timed_cached_property(CACHE_TTL_SECONDS)
-    def frameworks(self):
+    def _frameworks(self) -> Sequence[Dict]:
         response = mesos_post(self.api_endpoint, 'master/frameworks').json()
         return response['frameworks']
 
     @property
-    def tasks(self):
-        tasks = []
-        for framework in self.frameworks:
+    def _tasks(self) -> Sequence[Dict]:
+        tasks: List[Dict] = []
+        for framework in self._frameworks:
             tasks.extend(framework['tasks'])
         return tasks
+
+    def get_instances_by_resource_group(self) -> DefaultDict[str, List[PoolInstance]]:
+        agent_id_to_task_count = self._count_tasks_per_agent()
+        ip_to_agent = {agent_pid_to_ip(agent['pid']): agent for agent in self._agents}
+        resource_group_to_instances: DefaultDict[str, List[PoolInstance]] = defaultdict(list)
+
+        for group in self.resource_groups:
+            for instance_dict in ec2_describe_instances(instance_ids=group.instance_ids):
+                instance_ip = instance_dict.get('PrivateIpAddress')
+                agent = ip_to_agent.get(instance_ip)
+
+                pool_instance = PoolInstance(
+                    instance_id=instance_dict['InstanceId'],
+                    state=self._get_instance_state(instance_ip, agent),
+                    task_count=agent_id_to_task_count[agent['id']] if agent else 0,
+                    market=get_instance_market(instance_dict),
+                    instance_dict=instance_dict,
+                    agent=agent,
+                )
+                resource_group_to_instances[group.id].append(pool_instance)
+
+        return resource_group_to_instances
+
+    def get_instances(self) -> List[PoolInstance]:
+        return [instance for instances in self.get_instances_by_resource_group().values() for instance in instances]
+
+    def _get_instance_state(self, instance_ip: Optional[str], agent: Optional[Dict]) -> str:
+        if not instance_ip:
+            return MesosAgentState.UNKNOWN
+        elif not agent:
+            return MesosAgentState.ORPHANED
+        elif allocated_cpu_resources(agent) == 0:
+            return MesosAgentState.IDLE
+        else:
+            return MesosAgentState.RUNNING
+
+    def _count_tasks_per_agent(self):
+        """Given a list of mesos tasks, return a count of tasks per agent"""
+        agent_id_to_task_count = defaultdict(int)
+        for task in self._tasks:
+            if task['state'] == 'TASK_RUNNING':
+                agent_id_to_task_count[task['slave_id']] += 1
+        return agent_id_to_task_count

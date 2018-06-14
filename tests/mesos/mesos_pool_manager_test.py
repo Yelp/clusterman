@@ -5,6 +5,7 @@ import pytest
 from moto import mock_ec2
 
 from clusterman.aws.client import ec2
+from clusterman.aws.markets import get_instance_market
 from clusterman.exceptions import MesosPoolManagerError
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.mesos.mesos_pool_manager import PoolInstance
@@ -83,6 +84,19 @@ def test_modify_target_capacity(new_target, constrain_return, mock_pool_manager)
     mock.PropertyMock(return_value=100),
 )
 class TestPruneFulfilledCapacity:
+
+    def create_pool_instance(self, **kwargs):
+        base_attributes = {
+            'instance_id': 'instance-1',
+            'state': MesosAgentState.RUNNING,
+            'task_count': 0,
+            'market': 'market-1',
+            'instance_dict': {},
+            'agent': {}
+        }
+        base_attributes.update(**kwargs)
+        return PoolInstance(**base_attributes)
+
     def test_no_killable_instances(self, mock_get_prioritized_killable_instances, mock_find_res_group, mock_logger,
                                    mock_pool_manager):
         mock_get_prioritized_killable_instances.return_value = []
@@ -91,7 +105,7 @@ class TestPruneFulfilledCapacity:
     def test_instance_error(self, mock_get_prioritized_killable_instances, mock_find_res_group, mock_logger,
                             mock_pool_manager):
         mock_get_prioritized_killable_instances.return_value = [
-            PoolInstance(instance_id='agent-1', agent_state=MesosAgentState.UNKNOWN, task_count=0, market='market-1')
+            self.create_pool_instance(state=MesosAgentState.UNKNOWN),
         ]
         mock_find_res_group.return_value = -1, None
         assert not mock_pool_manager.prune_excess_fulfilled_capacity()
@@ -99,9 +113,7 @@ class TestPruneFulfilledCapacity:
 
     def test_protected_group(self, mock_get_prioritized_killable_instances, mock_find_res_group, mock_logger,
                              mock_pool_manager):
-        mock_get_prioritized_killable_instances.return_value = [
-            PoolInstance(instance_id='agent-1', agent_state=MesosAgentState.RUNNING, task_count=0, market='market-1')
-        ]
+        mock_get_prioritized_killable_instances.return_value = [self.create_pool_instance()]
         index = 6
         res_group = mock_pool_manager.resource_groups[index]
         res_group.market_weight.return_value = 10000
@@ -111,31 +123,31 @@ class TestPruneFulfilledCapacity:
     def test_can_prune(self, mock_get_prioritized_killable_instances, mock_find_res_group, mock_logger,
                        mock_pool_manager):
         mock_get_prioritized_killable_instances.return_value = [
-            PoolInstance(instance_id='agent-1', agent_state=MesosAgentState.RUNNING, task_count=0, market='market-1'),
-            PoolInstance(instance_id='agent-2', agent_state=MesosAgentState.RUNNING, task_count=0, market='market-1'),
-            PoolInstance(instance_id='agent-3', agent_state=MesosAgentState.RUNNING, task_count=0, market='market-2'),
+            self.create_pool_instance(instance_id='instance-1', task_count=0, market='market-1'),
+            self.create_pool_instance(instance_id='instance-2', task_count=0, market='market-1'),
+            self.create_pool_instance(instance_id='instance-3', task_count=0, market='market-2'),
         ]
         index = 6
         res_group = mock_pool_manager.resource_groups[index]
         res_group.market_weight.return_value = 1
         res_group.terminate_instances_by_id.side_effect = lambda x: x
         mock_find_res_group.return_value = index, res_group
-        assert set(mock_pool_manager.prune_excess_fulfilled_capacity()) == {'agent-1', 'agent-2', 'agent-3'}
+        assert set(mock_pool_manager.prune_excess_fulfilled_capacity()) == {'instance-1', 'instance-2', 'instance-3'}
 
     def test_max_tasks_to_kill(self, mock_get_prioritized_killable_instances, mock_find_res_group, mock_logger,
                                mock_pool_manager):
         mock_pool_manager.max_tasks_to_kill = 10
         mock_get_prioritized_killable_instances.return_value = [
-            PoolInstance(instance_id='agent-1', agent_state=MesosAgentState.RUNNING, task_count=4, market='market-1'),
-            PoolInstance(instance_id='agent-2', agent_state=MesosAgentState.RUNNING, task_count=5, market='market-2'),
-            PoolInstance(instance_id='agent-3', agent_state=MesosAgentState.RUNNING, task_count=6, market='market-1'),
+            self.create_pool_instance(instance_id='instance-1', task_count=4, market='market-1'),
+            self.create_pool_instance(instance_id='instance-2', task_count=5, market='market-2'),
+            self.create_pool_instance(instance_id='instance-3', task_count=6, market='market-1'),
         ]
         index = 6
         res_group = mock_pool_manager.resource_groups[index]
         res_group.market_weight.return_value = 1
         mock_find_res_group.return_value = index, res_group
         res_group.terminate_instances_by_id.side_effect = lambda x: x
-        assert set(mock_pool_manager.prune_excess_fulfilled_capacity()) == {'agent-1', 'agent-2'}
+        assert set(mock_pool_manager.prune_excess_fulfilled_capacity()) == {'instance-1', 'instance-2'}
 
     def test_nothing_to_prune(self, mock_get_killable_instance_in_kill_order, mock_find_res_group, mock_logger,
                               mock_pool_manager):
@@ -275,6 +287,137 @@ def test_fulfilled_capacity(mock_pool_manager):
     assert mock_pool_manager.fulfilled_capacity == sum(i * 6 for i in range(7))
 
 
+class TestGetInstances:
+
+    @pytest.fixture(autouse=True)
+    def setup_ec2(self):
+        mock_ec2().start()
+        yield
+        mock_ec2().stop()
+
+    @pytest.fixture
+    def mock_pool_manager(self, mock_pool_manager):
+        reservations = ec2.run_instances(ImageId='ami-blargh', MinCount=4, MaxCount=4, InstanceType='t2.nano')
+        instance_ids = [i['InstanceId'] for i in reservations['Instances']]
+        mock_pool_manager.resource_groups = [
+            mock.Mock(id=1, instance_ids=instance_ids[0:2]),
+            mock.Mock(id=2, instance_ids=instance_ids[2:]),
+        ]
+
+        agents = []
+        tasks = []
+
+        mock_pool_manager.resource_groups[0].instance_ids[0]  # orphaned
+
+        mock_pool_manager.resource_groups[0].instance_ids[1]  # idle
+        agents.append({
+            'pid': f'slave(1)@{reservations["Instances"][1]["PrivateIpAddress"]}:1',
+            'id': 'idle',
+            'used_resources': {'cpus': 0}
+        })
+
+        mock_pool_manager.resource_groups[1].instance_ids[0]  # few tasks
+        agents.append({
+            'pid': f'slave(1)@{reservations["Instances"][2]["PrivateIpAddress"]}:1',
+            'id': 'few_tasks',
+            'used_resources': {'cpus': 1}
+        })
+        tasks.extend([{'slave_id': 'few_tasks', 'state': 'TASK_RUNNING'} for _ in range(3)])
+
+        mock_pool_manager.resource_groups[1].instance_ids[0]  # many tasks
+        agents.append({
+            'pid': f'slave(1)@{reservations["Instances"][3]["PrivateIpAddress"]}:1',
+            'id': 'many_tasks',
+            'used_resources': {'cpus': 1}
+        })
+        tasks.extend([{'slave_id': 'many_tasks', 'state': 'TASK_RUNNING'} for _ in range(8)])
+
+        mock_agents = mock.PropertyMock(return_value=agents)
+        mock_tasks = mock.PropertyMock(return_value=tasks)
+        with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager._agents', mock_agents), \
+                mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager._tasks', mock_tasks):
+            yield mock_pool_manager
+
+    def build_mock_pool_instance(self, state, task_count, market):
+        return PoolInstance(
+            instance_id=mock.ANY,
+            state=state,
+            task_count=task_count,
+            market=market,
+            instance_dict=mock.ANY,
+            agent=mock.ANY,
+        )
+
+    def test_get_instances(self, mock_pool_manager):
+        pool_instances_by_resource_group = mock_pool_manager.get_instances_by_resource_group()
+        pool_instances = mock_pool_manager.get_instances()
+
+        assert len(pool_instances_by_resource_group) == 2
+        assert len(pool_instances) == 4
+
+        group_1_pool_instances = pool_instances_by_resource_group[1]
+        assert len(group_1_pool_instances) == 2
+        group_2_pool_instances = pool_instances_by_resource_group[2]
+        assert len(group_2_pool_instances) == 2
+
+        orphan_pool_instance = next(filter(lambda i: i.agent is None, group_1_pool_instances))
+        idle_pool_instance = next(filter(lambda i: i.agent is not None, group_1_pool_instances))
+        few_tasks_pool_instance = next(filter(lambda i: i.agent['id'] == 'few_tasks', group_2_pool_instances))
+        many_tasks_pool_instance = next(filter(lambda i: i.agent['id'] == 'many_tasks', group_2_pool_instances))
+
+        instance_ids = {i.instance_id for i in pool_instances}
+        assert instance_ids == {
+            orphan_pool_instance.instance_id,
+            idle_pool_instance.instance_id,
+            few_tasks_pool_instance.instance_id,
+            many_tasks_pool_instance.instance_id,
+        }
+
+        assert orphan_pool_instance == self.build_mock_pool_instance(
+            state=MesosAgentState.ORPHANED,
+            task_count=0,
+            market=get_instance_market(orphan_pool_instance.instance_dict),
+        )
+        assert orphan_pool_instance.agent is None
+
+        assert idle_pool_instance == self.build_mock_pool_instance(
+            state=MesosAgentState.IDLE,
+            task_count=0,
+            market=get_instance_market(idle_pool_instance.instance_dict),
+        )
+        assert idle_pool_instance.agent['id'] == 'idle'
+
+        assert few_tasks_pool_instance == self.build_mock_pool_instance(
+            state=MesosAgentState.RUNNING,
+            task_count=3,
+            market=get_instance_market(few_tasks_pool_instance.instance_dict),
+        )
+        assert many_tasks_pool_instance == self.build_mock_pool_instance(
+            state=MesosAgentState.RUNNING,
+            task_count=8,
+            market=get_instance_market(many_tasks_pool_instance.instance_dict),
+        )
+
+
+def test_get_unknown_instance(mock_pool_manager):
+    with mock.patch(
+        'clusterman.mesos.mesos_pool_manager.ec2_describe_instances',
+    ) as mock_describe_instances, mock.patch(
+        'clusterman.mesos.mesos_pool_manager.MesosPoolManager._tasks', mock.PropertyMock(return_value=[]),
+    ), mock.patch(
+        'clusterman.mesos.mesos_pool_manager.MesosPoolManager._agents', mock.PropertyMock(return_value=[]),
+    ):
+        mock_pool_manager.resource_groups = [mock.Mock(instance_ids=[1])]
+        mock_describe_instances.return_value = [{  # missing the 'PrivateIpAddress' key
+            'InstanceId': 1,
+            'InstanceType': 't2.nano',
+        }]
+
+        instances = mock_pool_manager.get_instances()
+        assert len(instances) == 1
+        assert instances[0].state == MesosAgentState.UNKNOWN
+
+
 @mock_ec2
 def test_instance_kill_order(mock_pool_manager):
     reservations = ec2.run_instances(ImageId='ami-barfood', MinCount=4, MaxCount=4, InstanceType='t2.nano')
@@ -300,8 +443,8 @@ def test_instance_kill_order(mock_pool_manager):
 
     mock_agents = mock.PropertyMock(return_value=agents)
     mock_tasks = mock.PropertyMock(return_value=tasks)
-    with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.agents', mock_agents), \
-            mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.tasks', mock_tasks):
+    with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager._agents', mock_agents), \
+            mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager._tasks', mock_tasks):
 
         killable_instances = mock_pool_manager.get_prioritized_killable_instances()
         killable_instance_ids = [instance.instance_id for instance in killable_instances]
@@ -330,16 +473,15 @@ class TestInstanceKillability:
         mock_agents = mock.PropertyMock(return_value=agents)
         mock_tasks = mock.PropertyMock(return_value=tasks)
 
-        with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.agents', mock_agents), \
-                mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.tasks', mock_tasks):
+        with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager._agents', mock_agents), \
+                mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager._tasks', mock_tasks):
             yield
 
     def test_unknown_agent_state_is_not_killable(self, mock_pool_manager):
         with mock.patch(
-            'clusterman.mesos.mesos_pool_manager.get_mesos_agent_and_state_from_aws_instance',
-            autospec=True,
-        ) as mock_get_agent_and_state, self.setup_pool_manager(mock_pool_manager, has_agent=False, num_tasks=0):
-            mock_get_agent_and_state.return_value = (None, MesosAgentState.UNKNOWN)
+            'clusterman.mesos.mesos_pool_manager.MesosPoolManager._get_instance_state'
+        ) as mock_get_instance_state, self.setup_pool_manager(mock_pool_manager, has_agent=False, num_tasks=0):
+            mock_get_instance_state.return_value = MesosAgentState.UNKNOWN
             killable_instances = mock_pool_manager.get_prioritized_killable_instances()
             assert len(killable_instances) == 0
 
@@ -368,21 +510,34 @@ class TestInstanceKillability:
             assert killable_instances[0].instance_id == instance_id
 
 
+def test_count_tasks_by_agent(mock_pool_manager):
+    tasks = [
+        {'slave_id': 1, 'state': 'TASK_RUNNING'},
+        {'slave_id': 2, 'state': 'TASK_RUNNING'},
+        {'slave_id': 3, 'state': 'TASK_FINISHED'},
+        {'slave_id': 1, 'state': 'TASK_FAILED'},
+        {'slave_id': 2, 'state': 'TASK_RUNNING'}
+    ]
+    mock_tasks = mock.PropertyMock(return_value=tasks)
+    with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager._tasks', mock_tasks):
+        assert mock_pool_manager._count_tasks_per_agent() == {1: 1, 2: 2}
+
+
 @mock.patch('clusterman.mesos.mesos_pool_manager.mesos_post')
 class TestAgentListing:
     def test_agent_list_error(self, mock_post, mock_pool_manager):
         mock_post.side_effect = MesosPoolManagerError('dummy error')
         with pytest.raises(MesosPoolManagerError):
-            mock_pool_manager.agents
+            mock_pool_manager._agents
 
     def test_filter_pools(self, mock_post, mock_agents_response, mock_pool_manager):
         mock_post.return_value = mock_agents_response
-        agents = mock_pool_manager.agents
+        agents = mock_pool_manager._agents
         assert len(agents) == 1
         assert agents[0]['hostname'] == 'im-in-the-pool.yelpcorp.com'
 
         # Multiple calls should have the same result.
-        assert agents == mock_pool_manager.agents
+        assert agents == mock_pool_manager._agents
         assert mock_post.call_count == 2  # cache expires immediately in tests
 
 
@@ -390,7 +545,7 @@ class TestResources:
     @pytest.fixture
     def mock_agents(self, mock_pool_manager):
         with mock.patch(
-            'clusterman.mesos.mesos_pool_manager.MesosPoolManager.agents',
+            'clusterman.mesos.mesos_pool_manager.MesosPoolManager._agents',
             new_callable=mock.PropertyMock
         ) as mock_agents:
             mock_agents.return_value = [

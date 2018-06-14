@@ -87,8 +87,8 @@ def test_scale_down(mock_manager, mock_sfrs):
 
     mock_agents = mock.PropertyMock(return_value=agents)
     mock_tasks = mock.PropertyMock(return_value=[])
-    with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.agents', mock_agents), \
-            mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.tasks', mock_tasks), \
+    with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager._agents', mock_agents), \
+            mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager._tasks', mock_tasks), \
             PatchConfiguration(patched_config):
 
         # Test a balanced scale down

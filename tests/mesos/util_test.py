@@ -1,19 +1,13 @@
-from datetime import datetime
-
 import mock
 import pytest
 import staticconf
 
 from clusterman.exceptions import MesosPoolManagerError
-from clusterman.mesos.util import _get_agent_by_ip
 from clusterman.mesos.util import agent_pid_to_ip
 from clusterman.mesos.util import allocated_cpu_resources
 from clusterman.mesos.util import get_cluster_name_list
-from clusterman.mesos.util import get_mesos_agent_and_state_from_aws_instance
 from clusterman.mesos.util import get_pool_name_list
-from clusterman.mesos.util import get_task_count_per_agent
 from clusterman.mesos.util import mesos_post
-from clusterman.mesos.util import MesosAgentState
 
 
 @pytest.fixture
@@ -31,66 +25,6 @@ def mock_agent_pid_to_ip():
 def test_agent_pid_to_ip():
     ret = agent_pid_to_ip('slave(1)@10.40.31.172:5051')
     assert ret == '10.40.31.172'
-
-
-def test_get_agent_by_ip(mock_agent_pid_to_ip):
-    mock_agent = {'pid': 'slave(1)@1.2.3.4:5051'}
-    mock_agents = []
-    assert _get_agent_by_ip('1.1.1.1', mock_agents) is None
-    mock_agents = [mock_agent]
-    assert _get_agent_by_ip('1.1.1.1', mock_agents) is None
-    assert _get_agent_by_ip('1.2.3.4', mock_agents) is mock_agent
-
-
-@mock.patch('clusterman.mesos.util.allocated_cpu_resources')
-class TestGetMesosAgentAndStateFromAwsInstance:
-    def test_orphaned(self, mock_allocated):
-        instance = {'PrivateIpAddress': '1.2.3.4', 'LaunchTime': datetime.now()}
-        agents = []
-        mock_allocated.return_value = 100
-
-        agent, state = get_mesos_agent_and_state_from_aws_instance(instance, agents)
-        assert agent is None
-        assert state == MesosAgentState.ORPHANED
-
-    def test_idle(self, mock_allocated, mock_agent_pid_to_ip):
-        instance = {'PrivateIpAddress': '1.2.3.4', 'LaunchTime': datetime.now()}
-        agents = [{'hostname': 'foo.com', 'pid': 'slave(1)@1.2.3.4:5051'}]
-        mock_allocated.return_value = 0
-
-        agent, state = get_mesos_agent_and_state_from_aws_instance(instance, agents)
-        assert agent == agents[0]
-        assert state == MesosAgentState.IDLE
-
-    def test_running(self, mock_allocated, mock_agent_pid_to_ip):
-        instance = {'PrivateIpAddress': '1.2.3.4', 'LaunchTime': datetime.now()}
-        agents = [{'hostname': 'foo.com', 'pid': 'slave(1)@1.2.3.4:5051'}]
-        mock_allocated.return_value = 100
-
-        agent, state = get_mesos_agent_and_state_from_aws_instance(instance, agents)
-        assert agent == agents[0]
-        assert state == MesosAgentState.RUNNING
-
-    def test_unknown(self, mock_allocated, mock_agent_pid_to_ip):
-        instance = {}
-        agents = [{'hostname': 'foo.com', 'pid': 'slave(1)@1.2.3.4:5051'}]
-        mock_allocated.return_value = 100
-
-        agent, state = get_mesos_agent_and_state_from_aws_instance(instance, agents)
-        assert agent is None
-        assert state == MesosAgentState.UNKNOWN
-
-
-def test_task_count_per_agent():
-    tasks = [
-        {'slave_id': 1, 'state': 'TASK_RUNNING'},
-        {'slave_id': 2, 'state': 'TASK_RUNNING'},
-        {'slave_id': 3, 'state': 'TASK_FINISHED'},
-        {'slave_id': 1, 'state': 'TASK_FAILED'},
-        {'slave_id': 2, 'state': 'TASK_RUNNING'}
-    ]
-    task_count_per_agent = get_task_count_per_agent(tasks)
-    assert task_count_per_agent == {1: 1, 2: 2}
 
 
 def test_allocated_cpu_resources(mock_agents_response):
