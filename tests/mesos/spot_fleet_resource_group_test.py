@@ -112,7 +112,10 @@ def test_load_spot_fleets_from_ec2():
         'clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup.__init__',
     ) as mock_init, mock.patch(
         'clusterman.mesos.spot_fleet_resource_group.get_spot_fleet_request_tags',
-    ) as mock_get_spot_fleet_request_tags:
+    ) as mock_get_spot_fleet_request_tags, mock.patch(
+        'clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup.is_stale',
+        new=mock.PropertyMock(return_value=False),
+    ):
         mock_init.return_value = None
         mock_get_spot_fleet_request_tags.return_value = {
             'sfr-123': {
