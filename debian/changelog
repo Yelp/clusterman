@@ -1,3 +1,9 @@
+clusterman (2.8.2) trusty; urgency=low
+
+  * Ignore cancelled* SFRs for now, until we know how to deal with them.
+
+ -- Evan Krall <krall@yelp.com>  Thu, 14 Jun 2018 21:17:28 -0700
+
 clusterman (2.8.1) trusty; urgency=low
 
   * remove DNS lookups from pool manager

@@ -26,7 +26,8 @@ PADDING = 5
 
 
 PlotStruct = namedtuple('PlotStruct', ['data', 'error_data', 'range_', 'labels', 'ytick_formatter'])
-PlotStruct.__new__.__defaults__ = (lambda x: x,)  # ytick_formatter defaults to the identity function
+# ytick_formatter defaults to the identity function
+PlotStruct.__new__.__defaults__ = (lambda x: x,)  # type: ignore
 
 
 def generate_heatmap_trend_grid(fig, heatmap, trend, months, tz):

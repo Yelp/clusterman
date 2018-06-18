@@ -8,6 +8,7 @@ colorama
 humanize
 jsonpickle
 matplotlib
+mypy-extensions == 0.3.0
 numpy
 parsedatetime
 pysensu-yelp
