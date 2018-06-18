@@ -1,7 +1,10 @@
 from abc import ABCMeta
 from abc import abstractmethod
 from abc import abstractproperty
+from typing import Dict
+from typing import Sequence
 
+from clusterman.aws.markets import InstanceMarket
 from clusterman.util import get_clusterman_logger
 
 
@@ -33,7 +36,7 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
     as well as querying the state of the resource group.
     """
 
-    def market_weight(self, market):  # pragma: no cover
+    def market_weight(self, market: InstanceMarket) -> float:  # pragma: no cover
         """ Return the weighted capacity assigned to a particular EC2 market by this resource group
 
         The weighted capacity is a SpotFleet concept but for consistency we assume other resource group types will also
@@ -45,7 +48,13 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
         return 1
 
     @abstractmethod
-    def modify_target_capacity(self, target_capacity, *, terminate_excess_capacity, dry_run):  # pragma: no cover
+    def modify_target_capacity(
+        self,
+        target_capacity: float,
+        *,
+        terminate_excess_capacity: bool,
+        dry_run: bool,
+    ) -> None:  # pragma: no cover
         """ Modify the target capacity for the resource group
 
         :param target_capacity: the (weighted) new target capacity for the resource group
@@ -56,7 +65,7 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def terminate_instances_by_id(self, instance_ids):  # pragma: no cover
+    def terminate_instances_by_id(self, instance_ids: Sequence[str]) -> Sequence[str]:  # pragma: no cover
         """ Terminate instances in this resource group
 
         Subclasses should _always_ decorate this method with the @protect_unowned_instances decorator to prevent
@@ -68,22 +77,22 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
         pass
 
     @abstractproperty
-    def id(self):  # pragma: no cover
+    def id(self) -> str:  # pragma: no cover
         """ A unique identifier for this ResourceGroup """
         pass
 
     @abstractproperty
-    def instance_ids(self):  # pragma: no cover
+    def instance_ids(self) -> Sequence[str]:  # pragma: no cover
         """ The list of instance IDs belonging to this ResourceGroup """
         pass
 
     @abstractproperty
-    def market_capacities(self):  # pragma: no cover
+    def market_capacities(self) -> Dict[InstanceMarket, float]:  # pragma: no cover
         """ A dictionary of InstanceMarket -> total (fulfilled) capacity values """
         pass
 
     @abstractproperty
-    def target_capacity(self):  # pragma: no cover
+    def target_capacity(self) -> float:  # pragma: no cover
         """ The target (or desired) weighted capacity for this ResourceGroup
 
         Note that the actual weighted capacity in the ResourceGroup may be smaller or larger than the
@@ -93,16 +102,16 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
         pass
 
     @abstractproperty
-    def fulfilled_capacity(self):  # pragma: no cover
+    def fulfilled_capacity(self) -> float:  # pragma: no cover
         """ The actual weighted capacity for this ResourceGroup """
         pass
 
     @abstractproperty
-    def status(self):  # pragma: no cover
+    def status(self) -> str:  # pragma: no cover
         """ The status of the ResourceGroup (e.g., running, modifying, terminated, etc.) """
         pass
 
     @abstractproperty
-    def is_stale(self):
+    def is_stale(self) -> bool:
         """Whether this ResourceGroup is stale."""
         pass

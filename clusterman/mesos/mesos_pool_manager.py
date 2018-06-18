@@ -1,15 +1,22 @@
 from bisect import bisect
 from collections import defaultdict
 from pprint import pformat
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Sequence
+from typing import Tuple
 
 import staticconf
 from cached_property import timed_cached_property
 
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import get_instance_market
+from clusterman.aws.markets import InstanceMarket
 from clusterman.config import POOL_NAMESPACE
 from clusterman.exceptions import MesosPoolManagerError
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
+from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_ec2
 from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_s3
 from clusterman.mesos.util import find_largest_capacity_market
@@ -40,7 +47,7 @@ class MesosPoolManager:
        or AWS API endpoints.
     """
 
-    def __init__(self, cluster, pool):
+    def __init__(self, cluster: str, pool: str) -> None:
         self.cluster = cluster
         self.pool = pool
 
@@ -71,7 +78,12 @@ class MesosPoolManager:
 
         logger.info('Loaded resource groups: {ids}'.format(ids=[group.id for group in self.resource_groups]))
 
-    def modify_target_capacity(self, new_target_capacity, dry_run=False, force=False):
+    def modify_target_capacity(
+        self,
+        new_target_capacity: float,
+        dry_run: bool = False,
+        force: bool = False,
+    ) -> float:
         """ Change the desired :attr:`target_capacity` of the resource groups belonging to this pool.
 
         Capacity changes are roughly evenly distributed across the resource groups to ensure that
@@ -103,7 +115,7 @@ class MesosPoolManager:
         logger.info(f'Target capacity for {self.pool} changed from {orig_target_capacity} to {new_target_capacity}')
         return new_target_capacity
 
-    def get_resource_allocation(self, resource_name):
+    def get_resource_allocation(self, resource_name: str) -> float:
         """Get the total amount of the given resource currently allocated for this Mesos pool.
 
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
@@ -111,7 +123,7 @@ class MesosPoolManager:
         """
         return get_total_resource_value(self.agents, 'used_resources', resource_name)
 
-    def get_resource_total(self, resource_name):
+    def get_resource_total(self, resource_name: str) -> float:
         """Get the total amount of the given resource for this Mesos pool.
 
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
@@ -119,7 +131,7 @@ class MesosPoolManager:
         """
         return get_total_resource_value(self.agents, 'resources', resource_name)
 
-    def get_percent_resource_allocation(self, resource_name):
+    def get_percent_resource_allocation(self, resource_name: str) -> float:
         """Get the overall proportion of the given resource that is in use.
 
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
@@ -129,7 +141,11 @@ class MesosPoolManager:
         used = self.get_resource_allocation(resource_name)
         return used / total if total else 0
 
-    def _constrain_target_capacity(self, requested_target_capacity, force=False):
+    def _constrain_target_capacity(
+        self,
+        requested_target_capacity: float,
+        force: bool = False,
+    ) -> float:
         """ Signals can return arbitrary values, so make sure we don't add or remove too much capacity """
 
         # TODO (CLUSTERMAN-126) max_weight_to_add and max_weight_to_remove are clusterwide settings,
@@ -163,7 +179,11 @@ class MesosPoolManager:
                 )
         return constrained_target_capacity
 
-    def prune_excess_fulfilled_capacity(self, group_targets=None, dry_run=False):
+    def prune_excess_fulfilled_capacity(
+        self,
+        group_targets: Optional[Sequence[float]] = None,
+        dry_run: bool = False,
+    ) -> Sequence[str]:
         """ Decrease the capacity in the cluster
 
         We only remove idle instances (i.e., instances that have no resources allocated to tasks).  We remove instances
@@ -192,7 +212,8 @@ class MesosPoolManager:
 
         idle_agents = self._idle_agents_by_market()
         logger.debug('Idle agents found:\n{agents}'.format(
-            agents=pformat(dict(idle_agents), compact=True, width=100)
+            # `ignore` is a workaround for the bug of typeshed doesn't contain `compact` for `pformat`
+            agents=pformat(dict(idle_agents), compact=True, width=100)  # type: ignore
         ))
 
         # We can only reduce markets that have idle agents, so filter by the list of idle_agent keys
@@ -203,7 +224,7 @@ class MesosPoolManager:
 
         # Iterate through all of the idle agents and mark one at a time for removal; we remove an arbitrary idle
         # instance from the available market with the largest weight
-        marked_instances = defaultdict(list)
+        marked_instances: Dict[MesosPoolResourceGroup, List[str]] = defaultdict(list)
         while curr_capacity > target_capacity:
             market_to_shrink, available_capacity = find_largest_capacity_market(idle_market_capacities)
             # It's possible too many agents have allocated resources, so we conservatively do not kill any running jobs
@@ -239,7 +260,7 @@ class MesosPoolManager:
             curr_capacity -= instance_weight
 
         # Terminate the marked instances; it's possible that not all instances will be terminated
-        all_terminated_instance_ids = []
+        all_terminated_instance_ids: List[str] = []
         if not dry_run:
             for group, instances in marked_instances.items():
                 terminated_instances = group.terminate_instances_by_id(instances)
@@ -250,7 +271,7 @@ class MesosPoolManager:
         logger.info(f'The following instances have been terminated: {all_terminated_instance_ids}')
         return all_terminated_instance_ids
 
-    def _compute_new_resource_group_targets(self, new_target_capacity):
+    def _compute_new_resource_group_targets(self, new_target_capacity: float) -> Sequence[float]:
         """ Compute a balanced distribution of target capacities for the resource groups in the cluster
 
         :param new_target_capacity: the desired new target capacity that needs to be distributed
@@ -294,25 +315,25 @@ class MesosPoolManager:
             for __, target in sorted(zip(original_indices, [coeff * target for target in new_targets]))
         ]
 
-    def _find_resource_group(self, instance):
+    def _find_resource_group(self, instance: str) -> Tuple[int, Optional[MesosPoolResourceGroup]]:
         """ Find the resource group that an instance belongs to """
         for i, group in enumerate(self.resource_groups):
             if instance in group.instance_ids:
                 return i, group
         return -1, None
 
-    def _get_market_capacities(self, market_filter=None):
+    def _get_market_capacities(self, market_filter=None) -> Dict[InstanceMarket, float]:
         """ Return the total (fulfilled) capacities in the cluster across all resource groups """
-        total_market_capacities = defaultdict(float)
+        total_market_capacities: Dict[InstanceMarket, float] = defaultdict(float)
         for group in self.resource_groups:
             for market, capacity in group.market_capacities.items():
                 if not market_filter or market in market_filter:
                     total_market_capacities[market] += capacity
         return total_market_capacities
 
-    def _idle_agents_by_market(self):
+    def _idle_agents_by_market(self) -> Dict[InstanceMarket, List[str]]:
         """ Find a list of idle agents, grouped by the market they belong to """
-        idle_agents_by_market = defaultdict(list)
+        idle_agents_by_market: Dict[InstanceMarket, List[str]] = defaultdict(list)
         for group in self.resource_groups:
             for instance in ec2_describe_instances(instance_ids=group.instance_ids):
                 mesos_state = get_mesos_state(instance, self.agents)
@@ -321,14 +342,14 @@ class MesosPoolManager:
         return idle_agents_by_market
 
     @property
-    def target_capacity(self):
+    def target_capacity(self) -> float:
         """ The target capacity is the *desired* weighted capacity for the given Mesos cluster pool.  There is no
         guarantee that the actual capacity will equal the target capacity.
         """
         return sum(group.target_capacity for group in self.resource_groups)
 
     @property
-    def fulfilled_capacity(self):
+    def fulfilled_capacity(self) -> float:
         """ The fulfilled capacity is the *actual* weighted capacity for the given Mesos cluster pool at a particular
         point in time.  This may be equal to, above, or below the :attr:`target_capacity`, depending on the availability
         and state of AWS at the time.  In general, once the cluster has reached equilibrium, the fulfilled capacity will
@@ -337,7 +358,7 @@ class MesosPoolManager:
         return sum(group.fulfilled_capacity for group in self.resource_groups)
 
     @timed_cached_property(CACHE_TTL_SECONDS)
-    def agents(self):
+    def agents(self) -> Sequence[Dict]:
         response = mesos_post(self.api_endpoint, 'slaves').json()
         return [
             agent
