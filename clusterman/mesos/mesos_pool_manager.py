@@ -1,5 +1,6 @@
 from bisect import bisect
 from collections import defaultdict
+from collections import namedtuple
 from pprint import pformat
 from typing import Dict
 from typing import List
@@ -19,8 +20,8 @@ from clusterman.mesos.constants import CACHE_TTL_SECONDS
 from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_ec2
 from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_s3
-from clusterman.mesos.util import find_largest_capacity_market
-from clusterman.mesos.util import get_mesos_state
+from clusterman.mesos.util import get_mesos_agent_and_state_from_aws_instance
+from clusterman.mesos.util import get_task_count_per_agent
 from clusterman.mesos.util import get_total_resource_value
 from clusterman.mesos.util import mesos_post
 from clusterman.mesos.util import MesosAgentState
@@ -29,6 +30,9 @@ from clusterman.util import get_clusterman_logger
 
 MIN_CAPACITY_PER_GROUP = 1
 logger = get_clusterman_logger(__name__)
+
+
+PoolInstance = namedtuple('PoolInstance', ['instance_id', 'agent_state', 'task_count', 'market'])
 
 
 class MesosPoolManager:
@@ -56,6 +60,7 @@ class MesosPoolManager:
         mesos_master_fqdn = staticconf.read_string(f'mesos_clusters.{self.cluster}.fqdn')
         self.min_capacity = pool_config.read_int('scaling_limits.min_capacity')
         self.max_capacity = pool_config.read_int('scaling_limits.max_capacity')
+        self.max_tasks_to_kill = pool_config.read_int('scaling_limits.max_tasks_to_kill', default=0)
 
         self.api_endpoint = f'http://{mesos_master_fqdn}:5050/'
         logger.info(f'Connecting to Mesos masters at {self.api_endpoint}')
@@ -186,9 +191,8 @@ class MesosPoolManager:
     ) -> Sequence[str]:
         """ Decrease the capacity in the cluster
 
-        We only remove idle instances (i.e., instances that have no resources allocated to tasks).  We remove instances
-        from the markets that have the largest fulfilled capacity first, so as to maintain balance across all the
-        different spot groups.
+        The number of tasks killed is limited by self.max_tasks_to_kill, and the instances are terminated in an order
+        which (hopefully) reduces the impact on jobs running on the cluster.
 
         :param group_targets: a list of new resource group target_capacities; if None, use the existing
             target_capacities (this parameter is necessary in order for dry runs to work correctly)
@@ -197,7 +201,7 @@ class MesosPoolManager:
         """
 
         # If dry_run is True, the resource group target_capacity values will not have changed, so this function will not
-        # terminate any instances (see case #3 in the while loop below).  So instead we pass in a list of new target
+        # terminate any instances (see case #2 in the while loop below).  So instead we pass in a list of new target
         # capacities to use in that computation.
         #
         # We leave the option for group_targets to be None in the event that we want to call
@@ -210,63 +214,63 @@ class MesosPoolManager:
         if curr_capacity <= target_capacity:
             return []
 
-        idle_agents = self._idle_agents_by_market()
-        logger.debug('Idle agents found:\n{agents}'.format(
+        prioritized_killable_instances = self.get_prioritized_killable_instances()
+        logger.debug('Killable instances in kill order:\n{instances}'.format(
             # `ignore` is a workaround for the bug of typeshed doesn't contain `compact` for `pformat`
-            agents=pformat(dict(idle_agents), compact=True, width=100)  # type: ignore
+            instances=pformat(prioritized_killable_instances, compact=True, width=100)  # type: ignore
         ))
 
-        # We can only reduce markets that have idle agents, so filter by the list of idle_agent keys
-        if not idle_agents:
+        if not prioritized_killable_instances:
             return []
-        idle_market_capacities = self._get_market_capacities(market_filter=idle_agents.keys())
         rem_group_capacities = {group.id: group.fulfilled_capacity for group in self.resource_groups}
 
-        # Iterate through all of the idle agents and mark one at a time for removal; we remove an arbitrary idle
-        # instance from the available market with the largest weight
-        marked_instances: Dict[MesosPoolResourceGroup, List[str]] = defaultdict(list)
-        while curr_capacity > target_capacity:
-            market_to_shrink, available_capacity = find_largest_capacity_market(idle_market_capacities)
-            # It's possible too many agents have allocated resources, so we conservatively do not kill any running jobs
-            if available_capacity == 0:
-                logger.warn(f'No idle instances left to remove, aborting (fulfilled capacity at {curr_capacity})')
-                break
-
+        # Iterate through all of the idle agents and mark one at a time for removal until we reach our target capacity
+        # or have reached our limit of tasks to kill
+        marked_instance_ids: Dict[MesosPoolResourceGroup, List[str]] = defaultdict(list)
+        killed_task_count = 0
+        for instance in prioritized_killable_instances:
             # Try to mark the instance for removal; this could fail in a few different ways:
-            #  1) The market we want to shrink can't be reduced further
-            #  2) Something is wrong with the instance itself (e.g., it's not actually in a cluster)
-            #  3) The resource group the instance belongs to can't be reduced further
+            #  1) Something is wrong with the instance itself (e.g., it's not actually in a cluster)
+            #  2) The resource group the instance belongs to can't be reduced further
+            #  3) The killing the instance's tasks would take over the maximum number of tasks we are willing to kill
             # In each of the cases, the instance has been removed from consideration and we jump to the next iteration
-            if not idle_agents[market_to_shrink]:  # case 1
-                logger.debug(f'{market_to_shrink} is empty; removing from consideration')
-                del idle_market_capacities[market_to_shrink]
-                continue
 
-            instance = idle_agents[market_to_shrink].pop()
-            group_index, instance_group = self._find_resource_group(instance)
-            if not instance_group:  # case 2
-                logger.warn(f'Could not find instance {instance} in any resource group')
+            group_index, instance_group = self._find_resource_group(instance.instance_id)
+            if not instance_group:  # case 1
+                logger.warn(f'Could not find instance {instance.instance_id} in any resource group')
                 continue
-            instance_weight = instance_group.market_weight(market_to_shrink)
+            instance_weight = instance_group.market_weight(instance.market)
 
             # Make sure we don't make a resource group go below its target capacity
-            if rem_group_capacities[instance_group.id] - instance_weight < group_targets[group_index]:  # case 3
-                logger.debug(f'Resource group {instance_group.id} is at minimum capacity; skipping {instance}')
+            if rem_group_capacities[instance_group.id] - instance_weight < group_targets[group_index]:  # case 2
+                logger.debug(
+                    f'Resource group {instance_group.id} is at target capacity; skipping {instance.instance_id}'
+                )
                 continue
 
-            marked_instances[instance_group].append(instance)
+            if killed_task_count + instance.task_count > self.max_tasks_to_kill:  # case 3
+                logger.info(
+                    f'Killing instance {instance.instance_id} with {instance.task_count} tasks would take us over our '
+                    f'max_tasks_to_kill of {self.max_tasks_to_kill}. Skipping this instance.'
+                )
+                continue
+
+            marked_instance_ids[instance_group].append(instance.instance_id)
             rem_group_capacities[instance_group.id] -= instance_weight
-            idle_market_capacities[market_to_shrink] -= instance_weight
             curr_capacity -= instance_weight
+            killed_task_count += instance.task_count
+
+            if curr_capacity <= target_capacity:
+                break
 
         # Terminate the marked instances; it's possible that not all instances will be terminated
         all_terminated_instance_ids: List[str] = []
         if not dry_run:
-            for group, instances in marked_instances.items():
-                terminated_instances = group.terminate_instances_by_id(instances)
-                all_terminated_instance_ids.extend(terminated_instances)
+            for group, instance_ids in marked_instance_ids.items():
+                terminated_instance_ids = group.terminate_instances_by_id(instance_ids)
+                all_terminated_instance_ids.extend(terminated_instance_ids)
         else:
-            all_terminated_instance_ids = [i for instances in marked_instances.values() for i in instances]
+            all_terminated_instance_ids = [i for instances in marked_instance_ids.values() for i in instances]
 
         logger.info(f'The following instances have been terminated: {all_terminated_instance_ids}')
         return all_terminated_instance_ids
@@ -315,10 +319,10 @@ class MesosPoolManager:
             for __, target in sorted(zip(original_indices, [coeff * target for target in new_targets]))
         ]
 
-    def _find_resource_group(self, instance: str) -> Tuple[int, Optional[MesosPoolResourceGroup]]:
+    def _find_resource_group(self, instance_id: str) -> Tuple[int, Optional[MesosPoolResourceGroup]]:
         """ Find the resource group that an instance belongs to """
         for i, group in enumerate(self.resource_groups):
-            if instance in group.instance_ids:
+            if instance_id in group.instance_ids:
                 return i, group
         return -1, None
 
@@ -331,15 +335,44 @@ class MesosPoolManager:
                     total_market_capacities[market] += capacity
         return total_market_capacities
 
-    def _idle_agents_by_market(self) -> Dict[InstanceMarket, List[str]]:
-        """ Find a list of idle agents, grouped by the market they belong to """
-        idle_agents_by_market: Dict[InstanceMarket, List[str]] = defaultdict(list)
+    def get_prioritized_killable_instances(self) -> List[PoolInstance]:
+        """Get a list of killable instances in the cluster in the order in which they should be considered for
+        termination.
+        """
+        killable_instances = self._get_killable_instances()
+        return self._prioritize_killable_instances(killable_instances)
+
+    def _get_killable_instances(self) -> List[PoolInstance]:
+        killable_instances: List[PoolInstance] = []
+        agent_id_to_task_count = get_task_count_per_agent(self.tasks)
         for group in self.resource_groups:
             for instance in ec2_describe_instances(instance_ids=group.instance_ids):
-                mesos_state = get_mesos_state(instance, self.agents)
-                if mesos_state in {MesosAgentState.ORPHANED, MesosAgentState.IDLE}:
-                    idle_agents_by_market[get_instance_market(instance)].append(instance['InstanceId'])
-        return idle_agents_by_market
+                agent, state = get_mesos_agent_and_state_from_aws_instance(instance, self.agents)
+                task_count = agent_id_to_task_count[agent['id']] if agent else 0
+                if self._is_instance_killable(state, task_count):
+                    killable_instances.append(
+                        PoolInstance(instance['InstanceId'], state, task_count, get_instance_market(instance))
+                    )
+
+        return killable_instances
+
+    def _is_instance_killable(self, agent_state: str, task_count: int) -> bool:
+        if agent_state == MesosAgentState.UNKNOWN:
+            return False
+        elif self.max_tasks_to_kill > 0:
+            return True
+        else:
+            return task_count == 0
+
+    def _prioritize_killable_instances(self, killable_instances: List[PoolInstance]) -> List[PoolInstance]:
+        return sorted(
+            killable_instances,
+            key=lambda x: (
+                0 if x.agent_state == MesosAgentState.ORPHANED else 1,
+                0 if x.agent_state == MesosAgentState.IDLE else 1,
+                x.task_count,
+            )
+        )
 
     @property
     def target_capacity(self) -> float:
@@ -365,3 +398,15 @@ class MesosPoolManager:
             for agent in response['slaves']
             if agent.get('attributes', {}).get('pool', 'default') == self.pool
         ]
+
+    @timed_cached_property(CACHE_TTL_SECONDS)
+    def frameworks(self):
+        response = mesos_post(self.api_endpoint, 'master/frameworks').json()
+        return response['frameworks']
+
+    @property
+    def tasks(self):
+        tasks = []
+        for framework in self.frameworks:
+            tasks.extend(framework['tasks'])
+        return tasks

@@ -1,10 +1,7 @@
-from collections import defaultdict
-
 import staticconf
 
 from clusterman.config import POOL_NAMESPACE
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
-from clusterman.mesos.util import allocated_cpu_resources
 from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSpotFleetResourceGroup
 
 
@@ -37,15 +34,6 @@ class SimulatedMesosPoolManager(MesosPoolManager):
         pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool))
         self.min_capacity = pool_config.read_int('scaling_limits.min_capacity')
         self.max_capacity = pool_config.read_int('scaling_limits.max_capacity')
-
-    def _idle_agents_by_market(self):
-        idle_agents = [agent for agent in self.agents if allocated_cpu_resources(agent) == 0]
-
-        idle_agents_by_market = defaultdict(list)
-        for agent in idle_agents:
-            aws_instance = agent['_aws_instance']
-            idle_agents_by_market[aws_instance.market].append(aws_instance.id)
-        return idle_agents_by_market
 
     @property
     def agents(self):

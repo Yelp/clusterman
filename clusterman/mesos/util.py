@@ -1,6 +1,6 @@
 import os
-import random
 import re
+from collections import defaultdict
 
 import requests
 import staticconf
@@ -14,8 +14,8 @@ logger = get_clusterman_logger(__name__)
 
 
 class MesosAgentState:
-    IDLE = 'no tasks'
-    ORPHANED = 'orphan'
+    IDLE = 'idle'
+    ORPHANED = 'orphaned'
     RUNNING = 'running'
     UNKNOWN = 'unknown'
 
@@ -30,26 +30,39 @@ def agent_pid_to_ip(slave_pid):
     return regex.match(slave_pid).group(1)
 
 
-def get_agent_by_ip(ip, mesos_agents):
+def _get_agent_by_ip(ip, mesos_agents):
     try:
         return next(agent for agent in mesos_agents if agent_pid_to_ip(agent['pid']) == ip)
     except StopIteration:
         return None
 
 
-def get_mesos_state(instance, mesos_agents):
+# TODO(CLUSTERMAN-256): refactor this into a more general method that handles
+# creating unified representations of instances/agents.
+def get_mesos_agent_and_state_from_aws_instance(instance, mesos_agents):
     try:
         instance_ip = instance['PrivateIpAddress']
     except KeyError:
-        return MesosAgentState.UNKNOWN
+        return None, MesosAgentState.UNKNOWN
     else:
-        agent = get_agent_by_ip(instance_ip, mesos_agents)
+        agent = _get_agent_by_ip(instance_ip, mesos_agents)
         if not agent:
-            return MesosAgentState.ORPHANED
+            state = MesosAgentState.ORPHANED
         elif allocated_cpu_resources(agent) == 0:
-            return MesosAgentState.IDLE
+            state = MesosAgentState.IDLE
         else:
-            return MesosAgentState.RUNNING
+            state = MesosAgentState.RUNNING
+
+        return agent, state
+
+
+def get_task_count_per_agent(mesos_tasks):
+    """Given a list of mesos tasks, return a count of tasks per agent"""
+    agent_id_to_task_count = defaultdict(int)
+    for task in mesos_tasks:
+        if task['state'] == 'TASK_RUNNING':
+            agent_id_to_task_count[task['slave_id']] += 1
+    return agent_id_to_task_count
 
 
 def get_resource_value(resources, resource_name):
@@ -73,16 +86,6 @@ def get_total_resource_value(agents, value_name, resource_name):
 
 def allocated_cpu_resources(agent):
     return get_resource_value(agent.get('used_resources', {}), 'cpus')
-
-
-def find_largest_capacity_market(markets):
-    try:
-        return max(
-            ((m, c) for m, c in markets.items()),
-            key=lambda mc: (mc[1], random.random()),
-        )
-    except ValueError:
-        return None, 0
 
 
 def mesos_post(url, endpoint):
