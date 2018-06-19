@@ -41,6 +41,10 @@ class DummyResourceGroup(MesosPoolResourceGroup):
     def is_stale(self):
         pass
 
+    @staticmethod
+    def load(cluster, pool, config):
+        raise NotImplementedError("Shouldn't be called")
+
 
 def test_protect_unowned_instances():
     assert DummyResourceGroup().terminate_instances_by_id(['fake-1', 'fake-4']) == ['fake-1']

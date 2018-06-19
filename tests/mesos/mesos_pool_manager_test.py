@@ -8,7 +8,12 @@ from clusterman.aws.client import ec2
 from clusterman.exceptions import MesosPoolManagerError
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.mesos.mesos_pool_manager import PoolInstance
+from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 from clusterman.mesos.util import MesosAgentState
+from tests.conftest import clusterman_pool_config
+
+
+pytest.mark.usefixtures(clusterman_pool_config)
 
 
 @pytest.fixture
@@ -27,8 +32,16 @@ def mock_resource_groups():
 
 @pytest.fixture
 def mock_pool_manager(mock_resource_groups):
-    with mock.patch('clusterman.mesos.mesos_pool_manager.load_spot_fleets_from_s3') as mock_load:
-        mock_load.return_value = []
+    class FakeResourceGroupClass(MesosPoolResourceGroup):
+
+        @staticmethod
+        def load(cluster, pool, config):
+            return []
+
+    with mock.patch.dict(
+        'clusterman.mesos.mesos_pool_manager.RESOURCE_GROUPS',
+        {"sfr": FakeResourceGroupClass}
+    ):
         manager = MesosPoolManager('mesos-test', 'bar')
         manager.resource_groups = mock_resource_groups
 
