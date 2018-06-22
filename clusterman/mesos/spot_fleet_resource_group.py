@@ -55,6 +55,9 @@ class SpotFleetResourceGroup(MesosPoolResourceGroup):
         terminate_excess_capacity: bool = False,
         dry_run: bool = False,
     ) -> None:
+        if self.is_stale:
+            logger.debug(f"Not modifying spot fleet request since it is in state {self.status}")
+            return
         kwargs = {
             'SpotFleetRequestId': self.sfr_id,
             'TargetCapacity': int(target_capacity),
@@ -130,6 +133,10 @@ class SpotFleetResourceGroup(MesosPoolResourceGroup):
 
     @property
     def target_capacity(self) -> float:
+        if self.is_stale:
+            # If we're in cancelled, cancelled_running, or cancelled_terminated, then no more instances will be launched. This is
+            # effectively a target_capacity of 0, so let's just pretend like it is.
+            return 0
         return self._configuration['SpotFleetRequestConfig']['TargetCapacity']
 
     @property

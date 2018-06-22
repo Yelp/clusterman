@@ -1,5 +1,9 @@
+from typing import List
+from typing import Sequence
+
 import boto3
 import staticconf
+from mypy_extensions import TypedDict
 
 from clusterman.config import CREDENTIALS_NAMESPACE
 from clusterman.util import get_clusterman_logger
@@ -8,6 +12,17 @@ _session = None
 logger = get_clusterman_logger(__name__)
 
 MAX_PAGE_SIZE = 500
+
+
+InstanceDict = TypedDict(
+    'InstanceDict',
+    {
+        'InstanceId': str,
+        'InstanceType': str,
+        'SubnetId': str,
+        'PrivateIpAddress': str,
+    },
+)
 
 
 def _init_session():
@@ -50,7 +65,7 @@ class dynamodb(metaclass=_BotoForwarder):
     client = 'dynamodb'
 
 
-def ec2_describe_instances(instance_ids):
+def ec2_describe_instances(instance_ids: Sequence[str]) -> List[InstanceDict]:
     if not instance_ids:
         raise ValueError('instance_ids cannot be empty')
 

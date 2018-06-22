@@ -1,10 +1,10 @@
 from bisect import bisect
 from collections import defaultdict
-from collections import namedtuple
 from pprint import pformat
 from typing import DefaultDict
 from typing import Dict
 from typing import List
+from typing import NamedTuple
 from typing import Optional
 from typing import Sequence
 from typing import Tuple
@@ -14,6 +14,7 @@ import staticconf
 from cached_property import timed_cached_property
 
 from clusterman.aws.client import ec2_describe_instances
+from clusterman.aws.client import InstanceDict
 from clusterman.aws.markets import get_instance_market
 from clusterman.aws.markets import InstanceMarket
 from clusterman.config import POOL_NAMESPACE
@@ -26,6 +27,7 @@ from clusterman.mesos.util import agent_pid_to_ip
 from clusterman.mesos.util import allocated_cpu_resources
 from clusterman.mesos.util import get_total_resource_value
 from clusterman.mesos.util import mesos_post
+from clusterman.mesos.util import MesosAgentDict
 from clusterman.mesos.util import MesosAgentState
 from clusterman.util import get_clusterman_logger
 
@@ -34,10 +36,15 @@ MIN_CAPACITY_PER_GROUP = 1
 logger = get_clusterman_logger(__name__)
 
 
-PoolInstance = namedtuple(
-    'PoolInstance',
-    ['instance_id', 'state', 'task_count', 'market', 'instance_dict', 'agent']
-)
+class PoolInstance(NamedTuple):
+    instance_id: str
+    state: MesosAgentState
+    task_count: int
+    market: InstanceMarket
+    instance_dict: InstanceDict
+    agent: Optional[MesosAgentDict]
+    resource_group: MesosPoolResourceGroup
+
 
 RESOURCE_GROUPS: Dict[
     str,
@@ -136,8 +143,8 @@ class MesosPoolManager:
                 terminate_excess_capacity=False,
                 dry_run=dry_run,
             )
-        if new_target_capacity <= orig_target_capacity:
-            self.prune_excess_fulfilled_capacity(res_group_targets, dry_run)
+
+        self.prune_excess_fulfilled_capacity(res_group_targets, dry_run)
         logger.info(f'Target capacity for {self.pool} changed from {orig_target_capacity} to {new_target_capacity}')
         return new_target_capacity
 
@@ -205,6 +212,96 @@ class MesosPoolManager:
                 )
         return constrained_target_capacity
 
+    def choose_instances_to_prune(
+        self,
+        group_targets: Optional[Sequence[float]],
+    ) -> Dict[MesosPoolResourceGroup, List[str]]:
+        """ Choose instances to kill in order to decrease the capacity on the cluster.
+
+        The number of tasks killed is limited by self.max_tasks_to_kill, and the instances are terminated in an order
+        which (hopefully) reduces the impact on jobs running on the cluster.
+
+        :param group_targets: a list of new resource group target_capacities; if None, use the existing
+            target_capacities (this parameter is necessary in order for dry runs to work correctly)
+        :returns: a dict of resource group -> list of ids to terminate
+        """
+
+        # If dry_run is True, the resource group target_capacity values will not have changed, so this function will not
+        # terminate any instances (see case #2 in the while loop below).  So instead we pass in a list of new target
+        # capacities to use in that computation.
+        #
+        # We leave the option for group_targets to be None in the event that we want to call
+        # prune_excess_fulfilled_capacity outside the context of a modify_target_capacity call
+        if not group_targets:
+            group_targets = [rg.target_capacity for rg in self.resource_groups]
+        target_capacity = sum(group_targets)
+
+        curr_capacity = self.fulfilled_capacity
+        if curr_capacity <= target_capacity:
+            return {}
+
+        prioritized_killable_instances = self.get_prioritized_killable_instances()
+        logger.debug('Killable instances in kill order:\n{instances}'.format(
+            # `ignore` is a workaround for the bug of typeshed doesn't contain `compact` for `pformat`
+            instances=pformat(prioritized_killable_instances, compact=True, width=100)  # type: ignore
+        ))
+
+        if not prioritized_killable_instances:
+            return {}
+        rem_group_capacities = {group.id: group.fulfilled_capacity for group in self.resource_groups}
+
+        # We want to count non-orphan capacity even if an instance is non-killable for some reason.
+        remaining_non_orphan_capacity = self.non_orphan_fulfilled_capacity
+
+        # Iterate through all of the idle agents and mark one at a time for removal until we reach our target capacity
+        # or have reached our limit of tasks to kill
+        marked_instance_ids: Dict[MesosPoolResourceGroup, List[str]] = defaultdict(list)
+        killed_task_count = 0
+        for instance in prioritized_killable_instances:
+            # Try to mark the instance for removal; this could fail in a few different ways:
+            #  1) The resource group the instance belongs to can't be reduced further
+            #  2) The killing the instance's tasks would take over the maximum number of tasks we are willing to kill
+            #  3) Killing the instance would bring us under our target_capacity of non-orphaned instances.
+            # In each of the cases, the instance has been removed from consideration and we jump to the next iteration
+
+            group_index = self.resource_groups.index(instance.resource_group)
+            instance_weight = instance.resource_group.market_weight(instance.market)
+
+            # Make sure we don't make a resource group go below its target capacity
+            if rem_group_capacities[instance.resource_group.id] - instance_weight < group_targets[group_index]:  # case 1
+                logger.debug(
+                    f'Resource group {instance.resource_group.id} is at target capacity; skipping {instance.instance_id}'
+                )
+                continue
+
+            if killed_task_count + instance.task_count > self.max_tasks_to_kill:  # case 2
+                logger.info(
+                    f'Killing instance {instance.instance_id} with {instance.task_count} tasks would take us over our '
+                    f'max_tasks_to_kill of {self.max_tasks_to_kill}. Skipping this instance.'
+                )
+                continue
+
+            if instance.state != MesosAgentState.ORPHANED:
+                if (remaining_non_orphan_capacity - instance_weight < target_capacity):  # case 3
+                    logger.info(
+                        f"Killing instance {instance.instance_id} with weight {instance_weight} would take us under our "
+                        f"target_capacity for non-orphan boxes. Skipping this instance.")
+                    continue
+
+            logger.debug(f"marking {instance.instance_id} for termination")
+            marked_instance_ids[instance.resource_group].append(instance.instance_id)
+            rem_group_capacities[instance.resource_group.id] -= instance_weight
+            curr_capacity -= instance_weight
+            killed_task_count += instance.task_count
+            if instance.state != MesosAgentState.ORPHANED:
+                remaining_non_orphan_capacity -= instance_weight
+
+            if curr_capacity <= target_capacity:
+                logger.info("Seems like we've picked enough instances to kill; finishing")
+                break
+
+        return marked_instance_ids
+
     def prune_excess_fulfilled_capacity(
         self,
         group_targets: Optional[Sequence[float]] = None,
@@ -227,64 +324,8 @@ class MesosPoolManager:
         #
         # We leave the option for group_targets to be None in the event that we want to call
         # prune_excess_fulfilled_capacity outside the context of a modify_target_capacity call
-        if not group_targets:
-            group_targets = [rg.target_capacity for rg in self.resource_groups]
-        target_capacity = sum(group_targets)
 
-        curr_capacity = self.fulfilled_capacity
-        if curr_capacity <= target_capacity:
-            return []
-
-        prioritized_killable_instances = self.get_prioritized_killable_instances()
-        logger.debug('Killable instances in kill order:\n{instances}'.format(
-            # `ignore` is a workaround for the bug of typeshed doesn't contain `compact` for `pformat`
-            instances=pformat(prioritized_killable_instances, compact=True, width=100)  # type: ignore
-        ))
-
-        if not prioritized_killable_instances:
-            return []
-        rem_group_capacities = {group.id: group.fulfilled_capacity for group in self.resource_groups}
-
-        # Iterate through all of the idle agents and mark one at a time for removal until we reach our target capacity
-        # or have reached our limit of tasks to kill
-        marked_instance_ids: Dict[MesosPoolResourceGroup, List[str]] = defaultdict(list)
-        killed_task_count = 0
-        for instance in prioritized_killable_instances:
-            # Try to mark the instance for removal; this could fail in a few different ways:
-            #  1) Something is wrong with the instance itself (e.g., it's not actually in a cluster)
-            #  2) The resource group the instance belongs to can't be reduced further
-            #  3) The killing the instance's tasks would take over the maximum number of tasks we are willing to kill
-            # In each of the cases, the instance has been removed from consideration and we jump to the next iteration
-
-            group_index, instance_group = self._find_resource_group(instance.instance_id)
-
-            if not instance_group:  # case 1
-                logger.warn(f'Could not find instance {instance.instance_id} in any resource group')
-                continue
-
-            instance_weight = instance_group.market_weight(instance.market)
-
-            # Make sure we don't make a resource group go below its target capacity
-            if rem_group_capacities[instance_group.id] - instance_weight < group_targets[group_index]:  # case 2
-                logger.debug(
-                    f'Resource group {instance_group.id} is at target capacity; skipping {instance.instance_id}'
-                )
-                continue
-
-            if killed_task_count + instance.task_count > self.max_tasks_to_kill:  # case 3
-                logger.info(
-                    f'Killing instance {instance.instance_id} with {instance.task_count} tasks would take us over our '
-                    f'max_tasks_to_kill of {self.max_tasks_to_kill}. Skipping this instance.'
-                )
-                continue
-
-            marked_instance_ids[instance_group].append(instance.instance_id)
-            rem_group_capacities[instance_group.id] -= instance_weight
-            curr_capacity -= instance_weight
-            killed_task_count += instance.task_count
-
-            if curr_capacity <= target_capacity:
-                break
+        marked_instance_ids = self.choose_instances_to_prune(group_targets)
 
         # Terminate the marked instances; it's possible that not all instances will be terminated
         all_terminated_instance_ids: List[str] = []
@@ -304,18 +345,27 @@ class MesosPoolManager:
         :param new_target_capacity: the desired new target capacity that needs to be distributed
         :returns: A list of target_capacity values, sorted in order of resource groups
         """
-        if new_target_capacity == self.target_capacity:
-            return [group.target_capacity for group in self.resource_groups]
+
+        stale_groups = [group for group in self.resource_groups if group.is_stale]
+        non_stale_groups = [group for group in self.resource_groups if not group.is_stale]
 
         # If we're scaling down the logic is identical but reversed, so we multiply everything by -1
         coeff = -1 if new_target_capacity < self.target_capacity else 1
-        new_targets_with_indices = sorted(
-            [(i, coeff * group.target_capacity) for i, group in enumerate(self.resource_groups)],
-            key=lambda x: (x[1], x[0]),
+
+        targets: Dict[MesosPoolResourceGroup, float] = {}
+
+        # For stale groups, we set target_capacity to 0. This is a noop on SpotFleetResourceGroup.
+        for stale_group in stale_groups:
+            targets[stale_group] = 0
+
+        groups_to_change = sorted(
+            non_stale_groups,
+            key=lambda g: coeff * g.target_capacity,
         )
 
-        original_indices, new_targets = [list(a) for a in zip(*new_targets_with_indices)]
-        num_groups_to_change = len(self.resource_groups)
+        new_targets = [coeff * g.target_capacity for g in groups_to_change]
+        num_groups_to_change = len(groups_to_change)
+
         while True:
             # If any resource groups are currently above the new target "uniform" capacity, we need to recompute
             # the target while taking into account the over-supplied resource groups.  We never decrease the
@@ -337,17 +387,10 @@ class MesosPoolManager:
             new_target_capacity -= coeff * residual
             num_groups_to_change = pos
 
-        return [
-            target
-            for __, target in sorted(zip(original_indices, [coeff * target for target in new_targets]))
-        ]
+        for group_to_change, new_target in zip(groups_to_change, new_targets):
+            targets[group_to_change] = new_target / coeff
 
-    def _find_resource_group(self, instance_id: str) -> Tuple[int, Optional[MesosPoolResourceGroup]]:
-        """ Find the resource group that an instance belongs to """
-        for i, group in enumerate(self.resource_groups):
-            if instance_id in group.instance_ids:
-                return i, group
-        return -1, None
+        return [targets[group] for group in self.resource_groups]
 
     def _get_market_capacities(self, market_filter=None) -> Dict[InstanceMarket, float]:
         """ Return the total (fulfilled) capacities in the cluster across all resource groups """
@@ -377,13 +420,17 @@ class MesosPoolManager:
             return instance.task_count == 0
 
     def _prioritize_killable_instances(self, killable_instances: List[PoolInstance]) -> List[PoolInstance]:
+        """Returns killable_instances sorted with most-killable things first."""
+        def sort_key(killable_instance: PoolInstance) -> Tuple[int, int, int, int]:
+            return (
+                0 if killable_instance.state == MesosAgentState.ORPHANED else 1,
+                0 if killable_instance.state == MesosAgentState.IDLE else 1,
+                0 if killable_instance.resource_group.is_stale else 1,
+                killable_instance.task_count,
+            )
         return sorted(
             killable_instances,
-            key=lambda x: (
-                0 if x.state == MesosAgentState.ORPHANED else 1,
-                0 if x.state == MesosAgentState.IDLE else 1,
-                x.task_count,
-            )
+            key=sort_key,
         )
 
     @property
@@ -391,7 +438,12 @@ class MesosPoolManager:
         """ The target capacity is the *desired* weighted capacity for the given Mesos cluster pool.  There is no
         guarantee that the actual capacity will equal the target capacity.
         """
-        return sum(group.target_capacity for group in self.resource_groups)
+        return sum(group.target_capacity for group in self.resource_groups if not group.is_stale)
+
+    @property
+    def stale_capacity(self):
+        """Returns the curretn"""
+        return sum(group.target_capacity for group in self.resource_groups if group.is_stale)
 
     @property
     def fulfilled_capacity(self) -> float:
@@ -402,8 +454,14 @@ class MesosPoolManager:
         """
         return sum(group.fulfilled_capacity for group in self.resource_groups)
 
+    @property
+    def non_orphan_fulfilled_capacity(self) -> float:
+        return sum(
+            i.resource_group.market_weight(i.market) for i in self.get_instances() if i.state != MesosAgentState.ORPHANED
+        )
+
     @timed_cached_property(CACHE_TTL_SECONDS)
-    def _agents(self) -> Sequence[Dict]:
+    def _agents(self) -> Sequence[MesosAgentDict]:
         response = mesos_post(self.api_endpoint, 'slaves').json()
         return [
             agent
@@ -425,7 +483,7 @@ class MesosPoolManager:
 
     def get_instances_by_resource_group(self) -> DefaultDict[str, List[PoolInstance]]:
         agent_id_to_task_count = self._count_tasks_per_agent()
-        ip_to_agent = {agent_pid_to_ip(agent['pid']): agent for agent in self._agents}
+        ip_to_agent: Dict[Optional[str], MesosAgentDict] = {agent_pid_to_ip(agent['pid']): agent for agent in self._agents}
         resource_group_to_instances: DefaultDict[str, List[PoolInstance]] = defaultdict(list)
 
         for group in self.resource_groups:
@@ -440,6 +498,7 @@ class MesosPoolManager:
                     market=get_instance_market(instance_dict),
                     instance_dict=instance_dict,
                     agent=agent,
+                    resource_group=group,
                 )
                 resource_group_to_instances[group.id].append(pool_instance)
 
@@ -448,7 +507,7 @@ class MesosPoolManager:
     def get_instances(self) -> List[PoolInstance]:
         return [instance for instances in self.get_instances_by_resource_group().values() for instance in instances]
 
-    def _get_instance_state(self, instance_ip: Optional[str], agent: Optional[Dict]) -> str:
+    def _get_instance_state(self, instance_ip: Optional[str], agent: Optional[MesosAgentDict]) -> MesosAgentState:
         if not instance_ip:
             return MesosAgentState.UNKNOWN
         elif not agent:

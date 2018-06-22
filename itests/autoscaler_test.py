@@ -21,8 +21,8 @@ pytest.mark.usefixtures(mock_aws_client_setup, main_clusterman_config, clusterma
 
 @pytest.fixture
 def resource_groups():
-    rg1 = mock.Mock(spec=SpotFleetResourceGroup, target_capacity=10, fulfilled_capacity=10)
-    rg2 = mock.Mock(spec=SpotFleetResourceGroup, target_capacity=10, fulfilled_capacity=10)
+    rg1 = mock.Mock(spec=SpotFleetResourceGroup, target_capacity=10, fulfilled_capacity=10, is_stale=False)
+    rg2 = mock.Mock(spec=SpotFleetResourceGroup, target_capacity=10, fulfilled_capacity=10, is_stale=False)
 
     class FakeResourceGroupClass(MesosPoolResourceGroup):
 
