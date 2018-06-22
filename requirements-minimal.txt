@@ -8,7 +8,7 @@ colorama
 humanize
 jsonpickle
 matplotlib
-mypy-extensions == 0.3.0
+mypy-extensions
 numpy
 parsedatetime
 pysensu-yelp
@@ -16,7 +16,7 @@ PyYAML
 requests
 signalfx
 simplejson
-spotinst-sdk==1.0.29
+spotinst-sdk
 sortedcontainers
 yelp-batch
 yelp-meteorite
