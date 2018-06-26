@@ -1,8 +1,10 @@
 @Library('jenkinsfile_stdlib') _
 import com.yelpcorp.releng.Utils
+import com.yelpcorp.releng.EEMetrics
 
 yproperties()
 utils = new Utils()
+eeMetrics = new EEMetrics()
 
 SERVICE_NAME = 'clusterman'
 DEPLOY_GROUPS = ['prod.non_canary', 'dev.everything']
@@ -14,7 +16,7 @@ commit = ''
 authors = [:]
 
 node {
-    utils.emitEeMetric("${env.job_name}", "jenkins", "${env.job_name}-${env.build_id}", "start", '{"event_category": "deploy"}')
+    eeMetrics.emitEvent("${env.job_name}", 'jenkins', "${env.job_name}-${env.build_id}", 'start', '{"event_category": "deploy"}')
 }
 
 utils.handleInputRejection {
@@ -22,9 +24,8 @@ utils.handleInputRejection {
         emailResult(EMAILS) {
             node('trusty') {
                 ystage('clone') {
-                    clone("services/${SERVICE_NAME}")
-                    commit = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
-                    sh(script: "ee-metrics link sha ${commit} jenkins ${env.JOB_NAME}-${env.BUILD_ID}", returnStatus: true)
+                    commit = clone("services/${SERVICE_NAME}")['GIT_COMMIT']
+                    eeMetrics.emitLink('sha', "${commit}", 'jenkins', "${env.JOB_NAME}-${env.BUILD_ID}")
 
                     // Dont look, grossness
                     for (deploy_group in DEPLOY_GROUPS) {
@@ -35,29 +36,19 @@ utils.handleInputRejection {
                     }
                 }
 
-                ystage('test') {
-                    status = "passed"
-                    utils.emitEeMetric("${env.job_name}", "jenkins", "${env.job_name}-${env.build_id}-make-test", "start", '{"event_category": "test"}')
-                    try {
-                        sh(script: "make test")
-                    } catch (e) {
-                        status = "failed"
-                        throw e
-                    } finally {
-                        utils.emitEeMetric("${env.job_name}", "jenkins", "${env.job_name}-${env.build_id}-make-test", "end", "{\"status\": \"${status}\"}")
-                    }
-
+                ystage(eeMetricsWorkflow: 'test', 'test') {
+                    sh(script: 'make test')
                 }
 
-                ystage('paasta-itest') {
+                ystage('itest') {
                     sh(script: $/paasta itest --service ${SERVICE_NAME} --commit ${commit}/$)
                 }
 
                 ystage('security-check') {
                     try {
-                        sh(script: $/paasta security-check --service ${SERVICE_NAME} --commit ${commit}/$)
+                        sh(script: $/paasta security-check --service services-${SERVICE_NAME} --commit ${commit}/$)
                     } catch (hudson.AbortException e) {
-                        // Do Nothing
+                        // Do nothing
                     }
                 }
 
@@ -84,7 +75,7 @@ utils.handleInputRejection {
             // Now do the paasta service deploy
             node('trusty') {
 
-                ystage('prod.non_canary') {
+                ystage(eeMetricsWorkflow: 'deploy-prod', 'prod.non_canary') {
                     paastaDeploy(SERVICE_NAME, commit, 'prod.non_canary', waitForDeployment: true, confirmation: false, deployTimeout: false, autoRollback: false)
 
                     ircMsgPaastaDeploy(SERVICE_NAME, IRC_CHANNELS, 'prod.non_canary', authors['prod.non_canary'])
@@ -99,7 +90,7 @@ utils.handleInputRejection {
 }
 
 node {
-    utils.emitEeMetric("${env.job_name}", "jenkins", "${env.job_name}-${env.build_id}", "end")
+    eeMetrics.emitEvent("${env.job_name}", 'jenkins', "${env.job_name}-${env.build_id}", 'end')
 }
 
 private boolean wasTimerTriggered() {
