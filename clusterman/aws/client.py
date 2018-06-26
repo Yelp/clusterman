@@ -1,9 +1,6 @@
-from typing import List
-from typing import Sequence
-
+import arrow
 import boto3
 import staticconf
-from mypy_extensions import TypedDict
 
 from clusterman.config import CREDENTIALS_NAMESPACE
 from clusterman.util import get_clusterman_logger
@@ -12,25 +9,6 @@ _session = None
 logger = get_clusterman_logger(__name__)
 
 MAX_PAGE_SIZE = 500
-
-
-InstanceStateDict = TypedDict(
-    'InstanceStateDict',
-    {
-        'Name': str,
-    },
-)
-
-InstanceDict = TypedDict(
-    'InstanceDict',
-    {
-        'InstanceId': str,
-        'InstanceType': str,
-        'SubnetId': str,
-        'PrivateIpAddress': str,
-        'State': InstanceStateDict,
-    },
-)
 
 
 def _init_session():
@@ -73,9 +51,41 @@ class dynamodb(metaclass=_BotoForwarder):
     client = 'dynamodb'
 
 
-def ec2_describe_instances(instance_ids: Sequence[str]) -> List[InstanceDict]:
+def get_latest_ami(ami_type):
+    filters = [{
+        'Name': 'name',
+        'Values': [f'{ami_type}*']
+    }, {
+        'Name': 'state',
+        'Values': ['available']
+    }
+    ]
+
+    try:
+        response = ec2.describe_images(Filters=filters)
+    except Exception as e:
+        logger.warning(f'Describe images call failed with {e}')
+
+    if len(response['Images']) == 0:
+        print(f'Could not find any images matching the constraints.')
+        return
+
+    latest = None
+    for image in response['Images']:
+        if not latest:
+            latest = image
+            continue
+
+        if arrow.get(image['CreationDate']) > arrow.get(latest['CreationDate']):
+            latest = image
+
+    print(latest['ImageId'])
+    return latest['ImageId']
+
+
+def ec2_describe_instances(instance_ids):
     if not instance_ids:
-        return []
+        raise ValueError('instance_ids cannot be empty')
 
     # limit the page size to help prevent SSL read timeouts
     instance_id_pages = [

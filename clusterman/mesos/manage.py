@@ -8,7 +8,9 @@ from clusterman.args import add_cluster_arg
 from clusterman.args import add_pool_arg
 from clusterman.args import subparser
 from clusterman.autoscaler.config import LOG_STREAM_NAME
+from clusterman.aws.client import get_latest_ami
 from clusterman.config import POOL_NAMESPACE
+from clusterman.spotinst.utils import update_ami
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.util import ask_for_confirmation
 from clusterman.util import get_clusterman_logger
@@ -27,9 +29,32 @@ def get_target_capacity_value(target_capacity, pool):
         return int(target_capacity)
 
 
+def _recycle_cluster():
+    raise NotImplementedError('Cluster recycling is not yet supported')
+
+
 def main(args):
+    print(f'Received following args {args}')
     if args.recycle:
-        raise NotImplementedError('Cluster recycling is not yet supported')
+        _recycle_cluster()
+        return
+
+    if args.update_ami_to_latest is not None:
+        if args.dry_run is True:
+            print(f'Would have updated the AMI of {args.cluster} {args.pool} to the latest')
+        else:
+            update_ami(get_latest_ami(args.update_ami_to_latest), args.cluster, args.pool)
+        return
+
+    if args.update_ami_to is not None:
+        if args.dry_run is True:
+            print(f'Would have updated the AMI of the ElasticGroups in {args.cluster} cluster'
+                   'and {args.pool} pool to latest')
+        else:
+            # Fetch the latest AMI
+            update_ami(ami_id, args.cluster, args.pool)
+        return
+
     manager = MesosPoolManager(args.cluster, args.pool)
     old_target = manager.target_capacity
     requested_target = get_target_capacity_value(args.target_capacity, args.pool)
@@ -57,10 +82,10 @@ def main(args):
 def add_mesos_manager_parser(subparser, required_named_args, optional_named_args):  # pragma: no cover
     add_cluster_arg(required_named_args, required=True)
     add_pool_arg(required_named_args, required=True)
-    required_named_args.add_argument(
+    optional_named_args.add_argument(
         '--target-capacity',
         metavar='X',
-        required=True,
+        required=False,
         help='New target capacity for the cluster (valid options: min, max, positive integer)',
     )
     optional_named_args.add_argument(
@@ -72,4 +97,16 @@ def add_mesos_manager_parser(subparser, required_named_args, optional_named_args
         '--recycle',
         action='store_true',
         help='Tear down the existing cluster and create a new one',
+    )
+    optional_named_args.add_argument(
+        '--update-ami-to-latest',
+        metavar='PAASTA_HVM',
+        required=False,
+        help='Update the specified ElastcGroups to the latest AMI.'
+    )
+    optional_named_args.add_argument(
+        '--update-ami-to',
+        metavar='AMI-12345',
+        required=False,
+        help='Update the specified ElastcGroups to the specified AMI.'
     )

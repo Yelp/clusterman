@@ -269,11 +269,11 @@ def get_spotinst_tags(client: SpotinstClientType) -> Dict[str, Dict[str, str]]:
     spotinst_id_to_tags = {}
     for group in groups:
         try:
-            tags = group["compute"]["launch_specification"]["tags"]
+            tags = group['compute']['launch_specification']['tags']
         except (IndexError, KeyError):
             tags = []
         tags_dict = {tag['tag_key']: tag['tag_value'] for tag in tags}
-        spotinst_id_to_tags[group["id"]] = tags_dict
+        spotinst_id_to_tags[group['id']] = tags_dict
     return spotinst_id_to_tags
 
 
