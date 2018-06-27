@@ -1,13 +1,13 @@
 import spotinst_sdk
 
-from clusterman.mesos.spotinst_resource_group import load_spotinsts
+from clusterman.mesos.spotinst_resource_group import load_elastigroups
 from clusterman.aws.client import get_latest_ami
 from clusterman.spotinst.client import get_spotinst_client
 
 
 def update_ami(ami_id, cluster, pool):
     client = get_spotinst_client()
-    groups = load_spotinsts(client, cluster, pool)
+    groups = load_elastigroups(cluster, pool, None)
     if len(groups) == 0:
         print(f'No resource groups found matching the {cluster} and {pool}.')
         return
@@ -17,7 +17,7 @@ def update_ami(ami_id, cluster, pool):
         compute = spotinst_sdk.aws_elastigroup.Compute(launch_specification=spec)
         group_update = spotinst_sdk.aws_elastigroup.Elastigroup(compute=compute)
         print(f'Updating the AMI id of the elastic group {currgroup.id()} to {ami_id}')
-        client.client.update_elastigroup(group_update=group_update, group_id=currgroup.id())
+        client.update_elastigroup(group_update=group_update, group_id=currgroup.id())
 
 
 def create_new_eg(name, config):
@@ -39,27 +39,37 @@ def create_new_eg(name, config):
         unit=config['capacity']['unit']
     )
 
+    tags = []
     # Initialize group tags
-    tag1 = spotinst_sdk.aws_elastigroup.Tag(tag_key='Creator', tag_value='Spotinst-Python-SDK')
-    tag2 = spotinst_sdk.aws_elastigroup.Tag(tag_key='Name', tag_value='Spotinst-Python-SDK')
-    tags = [tag1, tag2]
+    for tag in config['compute']['launchSpecification']['tags']:
+        tags.append(
+            spotinst_sdk.aws_elastigroup.Tag(
+                tag_key=tag['tagKey'],
+                tag_value=tag['tagValue']
+            )
+        )
 
-    securityGroupIds = []
-    # Initialize group security group id list
-    for sg in config['compute']['launchSpecification']['securityGroupIds']:
-        securityGroupIds.append(sg)
+    if all(['amiType', 'imageId']) in config['compute']['launchSpecification']:
+        raise Exception('Both imageId and amiType provided in the config.'
+                        'Please specify either.')
 
-    if 'image_id' not in config['compute']['launchSpecification']:
-        # TODO: Get the latest AMI
-        pass
+    if 'imageId' in config['compute']['launchSpecification']:
+        ami_id = config['compute']['launchSpecification']['imageId']
+    elif 'amiType' in config['compute']['launchSpecification']:
+        ami_type = config['compute']['launchSpecification']['amiType']
+        ami_id = get_latest_ami(ami_type)
+
+        if ami_id is None:
+            raise Exception(f'Could not find an AMI for {ami_type}')
+    else:
+        raise Exception('Neither imageId nor amiType provided!')
 
     # Initialize Launch Specification
     launchSpec = spotinst_sdk.aws_elastigroup.LaunchSpecification(
-        image_id=config['compute']['launchSpecification']['imageId'],
-        # key_pair=config['compute']['launchSpecification']['keyPair'],
-        key_pair=None,
+        image_id=ami_id,
+        # No need to use KeyPair
         tags=tags,
-        security_group_ids=securityGroupIds,
+        security_group_ids=config['compute']['launchSpecification']['securityGroupIds'],
         monitoring=config['compute']['launchSpecification']['monitoring'],
         iam_role=config['compute']['launchSpecification']['iamRole'],
         network_interfaces=config['compute']['launchSpecification']['networkInterfaces'],
@@ -77,7 +87,7 @@ def create_new_eg(name, config):
 
     # Initialize spot and on demand instance types
     instance_types = spotinst_sdk.aws_elastigroup.InstanceTypes(
-        ondemand="c3.large",
+        ondemand=config['compute']['instanceTypes']['onDemand'],
         spot=config['compute']['instanceTypes']['spot'],
         preferred_spot=config['compute']['instanceTypes']['preferredSpot']
     )
@@ -93,11 +103,11 @@ def create_new_eg(name, config):
     # Initialize Elastigroup
     group = spotinst_sdk.aws_elastigroup.Elastigroup(
         name=name,
-        description="Created by the Python SDK",
         capacity=capacity,
         strategy=strategy,
         compute=compute
     )
 
-    group = get_spotinst_client().client.create_elastigroup(group)
+    group = client.create_elastigroup(group)
     group_id = group['id']
+    print(f'Created a new ElasticGroup with id {group_id}')

@@ -1,0 +1,77 @@
+strategy:
+  risk: 100
+  onDemandCount:
+  availabilityVsCost: balanced
+  drainingTimeout: 120
+  utilizeReservedInstances: false
+  fallbackToOd: false
+  lifetimePeriod: days
+  revertToSpot:
+    performAt: always
+  persistence: {}
+capacity:
+  target: 0
+  minimum: 0
+  maximum: 10
+  unit: instance
+scaling: {}
+compute:
+  instanceTypes:
+    onDemand: c3.large
+    spot:
+      - m5.large
+      - m5.xlarge
+      - m5.4xlarge
+      - m5.2xlarge
+      - c5.large
+      - c4.large
+      - c4.xlarge
+      - c4.2xlarge
+      - c4.4xlarge
+      - c5.xlarge
+      - c5.2xlarge
+      - c5.4xlarge
+    preferredSpot:
+      - c5.2xlarge
+      - c5.4xlarge
+      - c5.large
+      - c5.xlarge
+      - c4.xlarge
+      - c4.large
+      - c4.4xlarge
+  availabilityZones:
+    - name: us-west-2a
+      subnetIds:
+      - subnet-aa7bb7cf
+    - name: us-west-2b
+      subnetIds:
+      - subnet-9a33deed
+    - name: us-west-2c
+      subnetIds:
+      - subnet-6b828f2d
+  product: Linux/UNIX
+  launchSpecification:
+    iamRole:
+      arn: arn:aws:iam::528741615426:instance-profile/paasta
+    loadBalancerNames:
+    loadBalancersConfig:
+      loadBalancers:
+    securityGroupIds:
+    - sg-119f2e74
+    networkInterfaces:
+    monitoring: false
+    ebsOptimized: false
+    imageId: ami-3ef5b846
+    keyPair:
+    tags:
+    - tagKey: cluster
+      tagValue: everywhere-testopia
+    - tagKey: pool
+      tagValue: default
+    - tagKey: puppet_role
+      tagValue: paasta
+    userData:
+    shutdownScript:
+multai:
+scheduling: {}
+thirdPartiesIntegration: {}
