@@ -10,8 +10,8 @@ from clusterman.args import subparser
 from clusterman.autoscaler.config import LOG_STREAM_NAME
 from clusterman.aws.client import get_latest_ami
 from clusterman.config import POOL_NAMESPACE
-from clusterman.spotinst.utils import update_ami
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
+from clusterman.spotinst.utils import update_ami
 from clusterman.util import ask_for_confirmation
 from clusterman.util import get_clusterman_logger
 
@@ -34,7 +34,6 @@ def _recycle_cluster():
 
 
 def main(args):
-    print(f'Received following args {args}')
     if args.recycle:
         _recycle_cluster()
         return
@@ -49,10 +48,10 @@ def main(args):
     if args.update_ami_to is not None:
         if args.dry_run is True:
             print(f'Would have updated the AMI of the ElasticGroups in {args.cluster} cluster'
-                   'and {args.pool} pool to latest')
+                  'and {args.pool} pool to latest')
         else:
             # Fetch the latest AMI
-            update_ami(ami_id, args.cluster, args.pool)
+            update_ami(args.update_ami_to, args.cluster, args.pool)
         return
 
     manager = MesosPoolManager(args.cluster, args.pool)

@@ -1,7 +1,8 @@
 import spotinst_sdk
 
-from clusterman.mesos.spotinst_resource_group import load_elastigroups
 from clusterman.aws.client import get_latest_ami
+from clusterman.aws.markets import EC2_INSTANCE_TYPES
+from clusterman.mesos.spotinst_resource_group import load_elastigroups
 from clusterman.spotinst.client import get_spotinst_client
 
 
@@ -22,6 +23,21 @@ def update_ami(ami_id, cluster, pool):
 
 def create_new_eg(name, config):
     client = get_spotinst_client()
+
+    if 'amiType' in config['compute']['launchSpecification'] and 'imageId' in config['compute']['launchSpecification']:
+        raise Exception('Both imageId and amiType provided in the config.'
+                        'Please specify either.')
+
+    if 'imageId' in config['compute']['launchSpecification']:
+        ami_id = config['compute']['launchSpecification']['imageId']
+    elif 'amiType' in config['compute']['launchSpecification']:
+        ami_type = config['compute']['launchSpecification']['amiType']
+        ami_id = get_latest_ami(ami_type)
+
+        if ami_id is None:
+            raise Exception(f'Could not find an AMI for {ami_type}')
+    else:
+        raise Exception('Neither imageId nor amiType provided!')
 
     strategy = spotinst_sdk.aws_elastigroup.Strategy(
         risk=config['strategy']['risk'],
@@ -49,21 +65,6 @@ def create_new_eg(name, config):
             )
         )
 
-    if all(['amiType', 'imageId']) in config['compute']['launchSpecification']:
-        raise Exception('Both imageId and amiType provided in the config.'
-                        'Please specify either.')
-
-    if 'imageId' in config['compute']['launchSpecification']:
-        ami_id = config['compute']['launchSpecification']['imageId']
-    elif 'amiType' in config['compute']['launchSpecification']:
-        ami_type = config['compute']['launchSpecification']['amiType']
-        ami_id = get_latest_ami(ami_type)
-
-        if ami_id is None:
-            raise Exception(f'Could not find an AMI for {ami_type}')
-    else:
-        raise Exception('Neither imageId nor amiType provided!')
-
     # Initialize Launch Specification
     launchSpec = spotinst_sdk.aws_elastigroup.LaunchSpecification(
         image_id=ami_id,
@@ -85,11 +86,25 @@ def create_new_eg(name, config):
             )
         )
 
+    weights = []
+    if config['capacity']['unit'] == 'weight':
+        instance_types_to_use = config['compute']['instanceTypes']['spot']
+        instance_types_to_use.append(config['compute']['instanceTypes']['onDemand'])
+        for instance in instance_types_to_use:
+            weights.append(
+                {
+                    'instanceType': instance,
+                    'weightedCapacity': EC2_INSTANCE_TYPES[instance].cpus
+                }
+
+            )
+
     # Initialize spot and on demand instance types
     instance_types = spotinst_sdk.aws_elastigroup.InstanceTypes(
         ondemand=config['compute']['instanceTypes']['onDemand'],
         spot=config['compute']['instanceTypes']['spot'],
-        preferred_spot=config['compute']['instanceTypes']['preferredSpot']
+        preferred_spot=config['compute']['instanceTypes']['preferredSpot'],
+        weights=weights if 'weight' == config['capacity']['unit'] else None
     )
 
     # Initialize Compute

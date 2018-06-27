@@ -1,9 +1,6 @@
-from getpass import getuser
-from socket import gethostname
 import yaml
 
 from clusterman.args import subparser
-from clusterman.autoscaler.config import LOG_STREAM_NAME
 from clusterman.spotinst.utils import create_new_eg
 from clusterman.util import get_clusterman_logger
 
@@ -16,15 +13,15 @@ def main(args):
     with open(args.config) as fd:
         config = yaml.load(fd)
 
-    print(f'{config}')
-    create_new_eg(args.name, config)
+    if args.type == 'elastigroup':
+        create_new_eg(args.name, config)
 
 
 @subparser('create_resource', 'create new spotinst ElasticGroup', main)
 def add_create_resource_parser(subparser, required_named_args, optional_named_args):  # pragma: no cover
     required_named_args.add_argument(
         '--type',
-        metavar='X',
+        choices=['elastigroup'],
         required=True,
         help='Type of the resource.',
     )

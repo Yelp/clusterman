@@ -5,7 +5,6 @@ from typing import List
 from typing import Sequence
 from typing import TypeVar
 
-import staticconf
 from cached_property import timed_cached_property
 from mypy_extensions import TypedDict
 from spotinst_sdk import SpotinstClient
@@ -88,13 +87,6 @@ ElasticGroup = TypedDict(
         'compute': ElasticGroupCompute,
         'capacity': ElasticGroupCapacity,
         'id': str,
-    }
-)
-
-SpotInstResourceGroupConfig = TypedDict(
-    'SpotInstResourceGroupConfig',
-    {
-        'auth_config': str,
     }
 )
 
@@ -219,15 +211,13 @@ class SpotInstResourceGroup(MesosPoolResourceGroup):
     def load(
         cluster: str,
         pool: str,
-        config: SpotInstResourceGroupConfig,
     ) -> Sequence['SpotInstResourceGroup']:
-        return load_elastigroups(cluster, pool, config)
+        return load_elastigroups(cluster, pool)
 
 
 def load_elastigroups(
     cluster: str,
     pool: str,
-    config: SpotInstResourceGroupConfig,
 ) -> Sequence[SpotInstResourceGroup]:
     """ Loads SpotInst elasticgroups by filtering all elasticgroups from
     SpotInst account by tags for pool, cluster and a tag that identifies paasta

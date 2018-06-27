@@ -9,7 +9,11 @@ _CLIENT = None
 
 def get_spotinst_client():
     global _CLIENT
+    if _CLIENT is None:
+        _CLIENT = _create_spotinst_client()
+
     return _CLIENT
+
 
 def _create_spotinst_client():
     with open(SPOTINST_CONFIG) as fd:
@@ -19,7 +23,3 @@ def _create_spotinst_client():
         auth_token=data['api_token'],
         account_id=data['account_id']
     )
-
-
-if _CLIENT is None:
-    _CLIENT = _create_spotinst_client()
