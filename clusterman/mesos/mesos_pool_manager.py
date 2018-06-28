@@ -1,6 +1,7 @@
 from bisect import bisect
 from collections import defaultdict
 from pprint import pformat
+from typing import Collection
 from typing import DefaultDict
 from typing import Dict
 from typing import List
@@ -259,10 +260,10 @@ class MesosPoolManager:
         killed_task_count = 0
         for instance in prioritized_killable_instances:
             # Try to mark the instance for removal; this could fail in a few different ways:
-            #  1) The resource group the instance belongs to can't be reduced further
-            #  2) The killing the instance's tasks would take over the maximum number of tasks we are willing to kill
+            #  1) The resource group the instance belongs to can't be reduced further.
+            #  2) Killing the instance's tasks would take over the maximum number of tasks we are willing to kill.
             #  3) Killing the instance would bring us under our target_capacity of non-orphaned instances.
-            # In each of the cases, the instance has been removed from consideration and we jump to the next iteration
+            # In each of the cases, the instance has been removed from consideration and we jump to the next iteration.
 
             group_index = self.resource_groups.index(instance.resource_group)
             instance_weight = instance.resource_group.market_weight(instance.market)
@@ -392,7 +393,7 @@ class MesosPoolManager:
 
         return [targets[group] for group in self.resource_groups]
 
-    def _get_market_capacities(self, market_filter=None) -> Dict[InstanceMarket, float]:
+    def _get_market_capacities(self, market_filter: Optional[Collection[InstanceMarket]]=None) -> Dict[InstanceMarket, float]:
         """ Return the total (fulfilled) capacities in the cluster across all resource groups """
         total_market_capacities: Dict[InstanceMarket, float] = defaultdict(float)
         for group in self.resource_groups:
@@ -408,7 +409,7 @@ class MesosPoolManager:
         killable_instances = self._get_killable_instances()
         return self._prioritize_killable_instances(killable_instances)
 
-    def _get_killable_instances(self):
+    def _get_killable_instances(self) -> List[PoolInstance]:
         return [instance for instance in self.get_instances() if self._is_instance_killable(instance)]
 
     def _is_instance_killable(self, instance: PoolInstance) -> bool:
@@ -439,11 +440,6 @@ class MesosPoolManager:
         guarantee that the actual capacity will equal the target capacity.
         """
         return sum(group.target_capacity for group in self.resource_groups if not group.is_stale)
-
-    @property
-    def stale_capacity(self):
-        """Returns the curretn"""
-        return sum(group.target_capacity for group in self.resource_groups if group.is_stale)
 
     @property
     def fulfilled_capacity(self) -> float:
@@ -517,9 +513,9 @@ class MesosPoolManager:
         else:
             return MesosAgentState.RUNNING
 
-    def _count_tasks_per_agent(self):
+    def _count_tasks_per_agent(self) -> DefaultDict[str, int]:
         """Given a list of mesos tasks, return a count of tasks per agent"""
-        agent_id_to_task_count = defaultdict(int)
+        agent_id_to_task_count: DefaultDict[str, int] = defaultdict(int)
         for task in self._tasks:
             if task['state'] == 'TASK_RUNNING':
                 agent_id_to_task_count[task['slave_id']] += 1
