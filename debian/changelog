@@ -1,3 +1,9 @@
+clusterman (2.8.3) trusty; urgency=low
+
+  * c5d/m5d instance types
+
+ -- David Morrison <drmorr@yelp.com>  Fri, 29 Jun 2018 11:59:58 -0700
+
 clusterman (2.8.2) trusty; urgency=low
 
   * Ignore cancelled* SFRs for now, until we know how to deal with them.
