@@ -14,6 +14,13 @@ logger = get_clusterman_logger(__name__)
 MAX_PAGE_SIZE = 500
 
 
+InstanceStateDict = TypedDict(
+    'InstanceStateDict',
+    {
+        'Name': str,
+    },
+)
+
 InstanceDict = TypedDict(
     'InstanceDict',
     {
@@ -21,6 +28,7 @@ InstanceDict = TypedDict(
         'InstanceType': str,
         'SubnetId': str,
         'PrivateIpAddress': str,
+        'State': InstanceStateDict,
     },
 )
 

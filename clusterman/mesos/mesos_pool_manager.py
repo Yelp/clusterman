@@ -227,9 +227,9 @@ class MesosPoolManager:
         :returns: a dict of resource group -> list of ids to terminate
         """
 
-        # If dry_run is True, the resource group target_capacity values will not have changed, so this function will not
-        # terminate any instances (see case #2 in the while loop below).  So instead we pass in a list of new target
-        # capacities to use in that computation.
+        # If dry_run is True in modify_target_capacity, the resource group target_capacity values will not have changed, so this
+        # function would not choose to terminate any instances (see case #2 in the while loop below).  So instead we take a list of
+        # new target capacities to use in this computation.
         #
         # We leave the option for group_targets to be None in the event that we want to call
         # prune_excess_fulfilled_capacity outside the context of a modify_target_capacity call
@@ -319,13 +319,6 @@ class MesosPoolManager:
         :returns: a list of terminated instance ids
         """
 
-        # If dry_run is True, the resource group target_capacity values will not have changed, so this function will not
-        # terminate any instances (see case #2 in the while loop below).  So instead we pass in a list of new target
-        # capacities to use in that computation.
-        #
-        # We leave the option for group_targets to be None in the event that we want to call
-        # prune_excess_fulfilled_capacity outside the context of a modify_target_capacity call
-
         marked_instance_ids = self.choose_instances_to_prune(group_targets)
 
         # Terminate the marked instances; it's possible that not all instances will be terminated
@@ -353,18 +346,12 @@ class MesosPoolManager:
         # If we're scaling down the logic is identical but reversed, so we multiply everything by -1
         coeff = -1 if new_target_capacity < self.target_capacity else 1
 
-        targets: Dict[MesosPoolResourceGroup, float] = {}
-
-        # For stale groups, we set target_capacity to 0. This is a noop on SpotFleetResourceGroup.
-        for stale_group in stale_groups:
-            targets[stale_group] = 0
-
         groups_to_change = sorted(
             non_stale_groups,
             key=lambda g: coeff * g.target_capacity,
         )
 
-        new_targets = [coeff * g.target_capacity for g in groups_to_change]
+        targets_to_change = [coeff * g.target_capacity for g in groups_to_change]
         num_groups_to_change = len(groups_to_change)
 
         while True:
@@ -377,18 +364,24 @@ class MesosPoolManager:
             # (For scaling down, apply the same logic for resource groups below the target "uniform" capacity instead;
             # i.e., instances will below the target capacity will not be increased)
             capacity_per_group, remainder = divmod(new_target_capacity, num_groups_to_change)
-            pos = bisect(new_targets, coeff * capacity_per_group)
-            residual = sum(new_targets[pos:num_groups_to_change])
+            pos = bisect(targets_to_change, coeff * capacity_per_group)
+            residual = sum(targets_to_change[pos:num_groups_to_change])
 
             if residual == 0:
                 for i in range(num_groups_to_change):
-                    new_targets[i] = coeff * (capacity_per_group + (1 if i < remainder else 0))
+                    targets_to_change[i] = coeff * (capacity_per_group + (1 if i < remainder else 0))
                 break
 
             new_target_capacity -= coeff * residual
             num_groups_to_change = pos
 
-        for group_to_change, new_target in zip(groups_to_change, new_targets):
+        targets: Dict[MesosPoolResourceGroup, float] = {}
+
+        # For stale groups, we set target_capacity to 0. This is a noop on SpotFleetResourceGroup.
+        for stale_group in stale_groups:
+            targets[stale_group] = 0
+
+        for group_to_change, new_target in zip(groups_to_change, targets_to_change):
             targets[group_to_change] = new_target / coeff
 
         return [targets[group] for group in self.resource_groups]

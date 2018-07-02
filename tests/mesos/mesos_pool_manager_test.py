@@ -265,6 +265,9 @@ class TestChooseInstancesToPrune:
         mock_pool_manager,
         num_new_instances_up
     ):
+        """This tests the scenario where we've recently re-created the SFRs, but then clusterman has decided to scale down. We
+        start with 9 stale boxes (all running) among 3 RGs, and 9 nonstale boxes among 3 RGs, of which num_new_instances_are_up are
+        up. We set up the new RGs to have target_capacity of 2 each to indicate that we want to scale down."""
         stale_resource_groups, stale_instances = self.make_resource_groups_and_instances(
             count=3,
             id_prefix='stale',
@@ -289,27 +292,28 @@ class TestChooseInstancesToPrune:
 
         instances_to_prune = mock_pool_manager.choose_instances_to_prune(group_targets=None)
         # Since the total fulfilled capacity on stale resource groups is more than the total target_capacity, we should kill a few
-        # extra instances.
+        # stale instances. (But we can only kill as many stale instances as we have, hence the max)
         expected_stale_instances_to_kill = min(len(stale_instances), 3 + num_new_instances_up)
         assert expected_stale_instances_to_kill == sum(
             len(instances_to_prune[stale_rg]) for stale_rg in stale_resource_groups
         )
 
         # We should also expect to kill some new instances. Calculating the exact number is tricky:
-        # We should see at most 1
+        # We should see at most 1 instance killed per nonstale_rg, since fulfilled_capacity-target_capacity==1
+        # We can only kill RUNNING instances if we have at least 6 (2 per RG) other nonstale RUNNING instances.
         new_running_killed_so_far = 0
         max_new_running_to_kill = num_new_instances_up - 6
-        for i, nonstale_rg in enumerate(nonstale_rgs):
-            num_new_orphans = 9 - num_new_instances_up
-            if i * 3 < num_new_orphans:
-                # This RG will have an orphan, and we will kill that
+        for nonstale_rg in nonstale_rgs:
+            if any(i.state == MesosAgentState.ORPHANED and i.resource_group == nonstale_rg for i in nonstale_instances):
+                # Depending on num_new_instances_up, some RGs will have orphans and some will not.
+                # This RG has at least one orphan, and we will kill one of them.
                 assert len(instances_to_prune[nonstale_rg]) == 1
                 assert instances_to_prune[nonstale_rg][0] in {
                     i.instance_id for i in nonstale_instances if i.state == MesosAgentState.ORPHANED
                 }
-            elif (2 - i) * 3 < num_new_instances_up:
-                # This RG has no orphans, but we may kill a running new instance from this RG.
-                # However, we can only go down to 6 running instances.
+            else:
+                # This RG has no orphans, but we may kill a running new instance from this RG, as long as we have at least 6 other
+                # running instances.
                 if new_running_killed_so_far < max_new_running_to_kill:
                     new_running_killed_so_far += 1
                     assert len(instances_to_prune[nonstale_rg]) == 1

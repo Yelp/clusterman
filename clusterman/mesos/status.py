@@ -1,4 +1,5 @@
 import sys
+from typing import Optional
 
 import arrow
 import humanize
@@ -6,8 +7,8 @@ import humanize
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_pool_arg
 from clusterman.args import subparser
-from clusterman.aws.markets import get_instance_market
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
+from clusterman.mesos.mesos_pool_manager import PoolInstance
 from clusterman.mesos.util import allocated_cpu_resources
 from clusterman.mesos.util import MesosAgentState
 from clusterman.util import colored_status
@@ -25,7 +26,7 @@ def _write_resource_group_line(group):
     print(f'\t{group.id}: {status_str} ({group.fulfilled_capacity} / {group.target_capacity})')
 
 
-def _write_instance_line(instance, postfix=None):
+def _write_instance_line(instance: PoolInstance, postfix: Optional[str]=None):
     postfix = postfix or ''
     instance_status_str = colored_status(
         instance.instance_dict['State']['Name'],
@@ -33,12 +34,11 @@ def _write_instance_line(instance, postfix=None):
         blue=('pending',),
         red=('shutting-down', 'terminated', 'stopping', 'stopped'),
     )
-    market = get_instance_market(instance.instance_dict)
     try:
         instance_ip = instance.instance_dict['PrivateIpAddress']
     except KeyError:
         instance_ip = 'unknown'
-    print(f'\t - {instance.instance_id} {market} ({instance_ip}): {instance_status_str} {postfix}')
+    print(f'\t - {instance.instance_id} {instance.market} ({instance_ip}): {instance_status_str} {postfix}')
 
 
 def _write_summary(manager):
