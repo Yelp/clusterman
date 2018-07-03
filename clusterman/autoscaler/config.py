@@ -66,7 +66,8 @@ def get_required_metric_configs(app_prefix, required_metrics_patterns):
     :param required_metrics_patterns: a list of MetricsConfig objects
     :returns: a list of MetricsConfig objects
     """
-    stored_metrics = _reload_metrics_index()
+    # TODO (CLUSTERMAN-262) either fix this or delete it
+    stored_metrics = None  # _reload_metrics_index()
     if stored_metrics is not None:
         all_required_metrics = list()
         for metric in required_metrics_patterns:
