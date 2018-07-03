@@ -1,3 +1,9 @@
+clusterman (2.8.4) trusty; urgency=low
+
+  * disable writing/reading from metrics index
+
+ -- David Morrison <drmorr@yelp.com>  Tue, 03 Jul 2018 15:30:30 -0700
+
 clusterman (2.8.3) trusty; urgency=low
 
   * c5d/m5d instance types
