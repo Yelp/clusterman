@@ -6,6 +6,7 @@ from moto import mock_ec2
 
 from clusterman.aws.client import ec2
 from clusterman.aws.markets import get_instance_market
+from clusterman.exceptions import AllResourceGroupsAreStaleError
 from clusterman.exceptions import MesosPoolManagerError
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.mesos.mesos_pool_manager import PoolInstance
@@ -104,7 +105,7 @@ class TestPruneFulfilledCapacity:
     def test_no_killable_instances(self, mock_get_prioritized_killable_instances, mock_logger,
                                    mock_pool_manager):
         mock_get_prioritized_killable_instances.return_value = []
-        assert not mock_pool_manager.prune_excess_fulfilled_capacity()
+        assert not mock_pool_manager.prune_excess_fulfilled_capacity(new_target_capacity=mock_pool_manager.target_capacity)
 
     def test_protected_group(self, mock_get_prioritized_killable_instances, mock_logger,
                              mock_pool_manager):
@@ -113,7 +114,7 @@ class TestPruneFulfilledCapacity:
         ]
         res_group = mock_pool_manager.resource_groups[6]
         res_group.market_weight.return_value = 10000
-        assert not mock_pool_manager.prune_excess_fulfilled_capacity()
+        assert not mock_pool_manager.prune_excess_fulfilled_capacity(new_target_capacity=mock_pool_manager.target_capacity)
 
     def test_can_prune(self, mock_get_prioritized_killable_instances, mock_logger,
                        mock_pool_manager):
@@ -140,7 +141,11 @@ class TestPruneFulfilledCapacity:
         res_group = mock_pool_manager.resource_groups[6]
         res_group.market_weight.return_value = 1
         res_group.terminate_instances_by_id.side_effect = lambda x: x
-        assert set(mock_pool_manager.prune_excess_fulfilled_capacity()) == {'instance-1', 'instance-2', 'instance-3'}
+        assert set(mock_pool_manager.prune_excess_fulfilled_capacity(new_target_capacity=mock_pool_manager.target_capacity)) == {
+            'instance-1',
+            'instance-2',
+            'instance-3',
+        }
 
     def test_max_tasks_to_kill(self, mock_get_prioritized_killable_instances, mock_logger,
                                mock_pool_manager):
@@ -168,7 +173,10 @@ class TestPruneFulfilledCapacity:
         res_group = mock_pool_manager.resource_groups[6]
         res_group.market_weight.return_value = 1
         res_group.terminate_instances_by_id.side_effect = lambda x: x
-        assert set(mock_pool_manager.prune_excess_fulfilled_capacity()) == {'instance-1', 'instance-2'}
+        assert set(mock_pool_manager.prune_excess_fulfilled_capacity(new_target_capacity=mock_pool_manager.target_capacity)) == {
+            'instance-1',
+            'instance-2',
+        }
 
     def test_nothing_to_prune(self, mock_get_killable_instance_in_kill_order, mock_logger,
                               mock_pool_manager):
@@ -177,7 +185,7 @@ class TestPruneFulfilledCapacity:
             'clusterman.mesos.mesos_pool_manager.MesosPoolManager.fulfilled_capacity',
             mock.PropertyMock(return_value=10),
         ):
-            mock_pool_manager.prune_excess_fulfilled_capacity()
+            mock_pool_manager.prune_excess_fulfilled_capacity(new_target_capacity=mock_pool_manager.target_capacity)
 
         for group in mock_pool_manager.resource_groups:
             assert group.terminate_instances_by_id.call_count == 0
@@ -251,7 +259,10 @@ class TestChooseInstancesToPrune:
         )
         mock_pool_manager.max_tasks_to_kill = float('Inf')  # Only test the stale & orphaned logic.
 
-        instances_to_prune = mock_pool_manager.choose_instances_to_prune(group_targets=None)
+        instances_to_prune = mock_pool_manager.choose_instances_to_prune(
+            new_target_capacity=sum(g.target_capacity for g in nonstale_rgs),
+            group_targets=None,
+        )
 
         # Since the total fulfilled capacity on stale resource groups is equal to the total target_capacity, we should kill exactly
         # as many stale instances as we have nonstale instances up & in mesos (non-orphaned).
@@ -290,7 +301,10 @@ class TestChooseInstancesToPrune:
         )
         mock_pool_manager.max_tasks_to_kill = float('Inf')  # Only test the stale & orphaned logic.
 
-        instances_to_prune = mock_pool_manager.choose_instances_to_prune(group_targets=None)
+        instances_to_prune = mock_pool_manager.choose_instances_to_prune(
+            new_target_capacity=sum(g.target_capacity for g in nonstale_rgs),
+            group_targets=None,
+        )
         # Since the total fulfilled capacity on stale resource groups is more than the total target_capacity, we should kill a few
         # stale instances. (But we can only kill as many stale instances as we have, hence the max)
         expected_stale_instances_to_kill = min(len(stale_instances), 3 + num_new_instances_up)
@@ -352,7 +366,10 @@ class TestChooseInstancesToPrune:
         )
         mock_pool_manager.max_tasks_to_kill = float('Inf')  # Only test the stale & orphaned logic.
 
-        instances_to_prune = mock_pool_manager.choose_instances_to_prune(group_targets=None)
+        instances_to_prune = mock_pool_manager.choose_instances_to_prune(
+            new_target_capacity=sum(g.target_capacity for g in nonstale_rgs),
+            group_targets=None,
+        )
         # Since the total fulfilled capacity on stale resource groups is less than the total capacity
         assert max(0, num_new_instances_up - 3) == sum(
             len(instances_to_prune[stale_rg]) for stale_rg in stale_resource_groups
@@ -360,6 +377,29 @@ class TestChooseInstancesToPrune:
         assert 0 == sum(
             len(instances_to_prune[nonstale_rg]) for nonstale_rg in nonstale_rgs
         )
+
+    def test_dont_kill_everything_when_all_rgs_are_stale(
+        self,
+        mock_pool_manager,
+    ):
+        stale_resource_groups, stale_instances = self.make_resource_groups_and_instances(
+            count=3,
+            id_prefix='stale',
+            is_stale=True,
+            fulfilled_capacity=3,
+            target_capacity=0,
+        )
+
+        mock_pool_manager.resource_groups = stale_resource_groups
+        mock_pool_manager.get_instances = mock.Mock(
+            return_value=stale_instances,
+        )
+        mock_pool_manager.max_tasks_to_kill = float('Inf')  # Only test the stale & orphaned logic.
+        instances_to_prune = mock_pool_manager.choose_instances_to_prune(
+            new_target_capacity=9,
+            group_targets=None,
+        )
+        assert instances_to_prune == {}
 
 
 def test_compute_new_resource_group_targets_no_unfilled_capacity(mock_pool_manager):
@@ -441,6 +481,14 @@ def test_compute_new_resource_group_targets_below_delta_equal_scale_down_2(mock_
 
     new_targets = mock_pool_manager._compute_new_resource_group_targets(9)
     assert sorted(new_targets) == [1, 1, 1, 1, 1, 2, 2]
+
+
+def test_compute_new_resource_group_targets_all_rgs_are_stale(mock_pool_manager):
+    for group in mock_pool_manager.resource_groups:
+        group.is_stale = True
+
+    with pytest.raises(AllResourceGroupsAreStaleError):
+        mock_pool_manager._compute_new_resource_group_targets(9)
 
 
 @pytest.mark.parametrize('non_stale_capacity', [1, 5])

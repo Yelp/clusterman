@@ -81,6 +81,7 @@ class Autoscaler:
             exception, tb = e, traceback.format_exc()
 
         logger.info(f'Signal {signal_name} requested {resource_request["cpus"]} CPUs')
+        self.mesos_pool_manager.reload_state()
         new_target_capacity = self._compute_target_capacity(resource_request)
         self.capacity_gauge.set(new_target_capacity, {'dry_run': dry_run})
         self.mesos_pool_manager.modify_target_capacity(new_target_capacity, dry_run=dry_run)

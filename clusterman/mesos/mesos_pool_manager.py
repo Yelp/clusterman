@@ -19,6 +19,7 @@ from clusterman.aws.client import InstanceDict
 from clusterman.aws.markets import get_instance_market
 from clusterman.aws.markets import InstanceMarket
 from clusterman.config import POOL_NAMESPACE
+from clusterman.exceptions import AllResourceGroupsAreStaleError
 from clusterman.exceptions import MesosPoolManagerError
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
 from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
@@ -76,36 +77,38 @@ class MesosPoolManager:
         self.cluster = cluster
         self.pool = pool
 
-        pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool))
+        self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool))
 
         mesos_master_fqdn = staticconf.read_string(f'mesos_clusters.{self.cluster}.fqdn')
-        self.min_capacity = pool_config.read_int('scaling_limits.min_capacity')
-        self.max_capacity = pool_config.read_int('scaling_limits.max_capacity')
-        self.max_tasks_to_kill = pool_config.read_int('scaling_limits.max_tasks_to_kill', default=0)
+        self.min_capacity = self.pool_config.read_int('scaling_limits.min_capacity')
+        self.max_capacity = self.pool_config.read_int('scaling_limits.max_capacity')
+        self.max_tasks_to_kill = self.pool_config.read_int('scaling_limits.max_tasks_to_kill', default=0)
 
         self.api_endpoint = f'http://{mesos_master_fqdn}:5050/'
         logger.info(f'Connecting to Mesos masters at {self.api_endpoint}')
+        self.reload_resource_groups()
 
+    def reload_state(self) -> None:
+        """Fetch any state that may have changed behind our back, but which we do not want to change during an Autoscaler.run()."""
+        self.reload_resource_groups()
+
+    def reload_resource_groups(self) -> None:
         self.resource_groups: List[MesosPoolResourceGroup] = list()
-        resource_groups = pool_config.read_list("resource_groups2")
-        for resource_group in resource_groups:
-            if not isinstance(resource_group, dict) or len(resource_group) != 1:
-                logger.error(f"Malformed config: {resource_group}")
+        for resource_group_conf in self.pool_config.read_list("resource_groups2"):
+            if not isinstance(resource_group_conf, dict) or len(resource_group_conf) != 1:
+                logger.error(f"Malformed config: {resource_group_conf}")
                 continue
-            resource_group_type = list(resource_group.keys())[0]
+            resource_group_type = list(resource_group_conf.keys())[0]
             resource_group_cls = RESOURCE_GROUPS.get(resource_group_type)
             if resource_group_cls is None:
                 logger.warn(f"Unknown resource group {resource_group_type}")
                 continue
 
-            resource_group_config = list(resource_group.values())[0]
-
             self.resource_groups.extend(resource_group_cls.load(
                 cluster=self.cluster,
                 pool=self.pool,
-                config=resource_group_config,
+                config=list(resource_group_conf.values())[0],
             ))
-
         logger.info('Loaded resource groups: {ids}'.format(ids=[group.id for group in self.resource_groups]))
 
     def modify_target_capacity(
@@ -145,7 +148,7 @@ class MesosPoolManager:
                 dry_run=dry_run,
             )
 
-        self.prune_excess_fulfilled_capacity(res_group_targets, dry_run)
+        self.prune_excess_fulfilled_capacity(new_target_capacity, res_group_targets, dry_run)
         logger.info(f'Target capacity for {self.pool} changed from {orig_target_capacity} to {new_target_capacity}')
         return new_target_capacity
 
@@ -215,6 +218,7 @@ class MesosPoolManager:
 
     def choose_instances_to_prune(
         self,
+        new_target_capacity: float,
         group_targets: Optional[Sequence[float]],
     ) -> Dict[MesosPoolResourceGroup, List[str]]:
         """ Choose instances to kill in order to decrease the capacity on the cluster.
@@ -235,10 +239,9 @@ class MesosPoolManager:
         # prune_excess_fulfilled_capacity outside the context of a modify_target_capacity call
         if not group_targets:
             group_targets = [rg.target_capacity for rg in self.resource_groups]
-        target_capacity = sum(group_targets)
 
         curr_capacity = self.fulfilled_capacity
-        if curr_capacity <= target_capacity:
+        if curr_capacity <= new_target_capacity:
             return {}
 
         prioritized_killable_instances = self.get_prioritized_killable_instances()
@@ -283,7 +286,7 @@ class MesosPoolManager:
                 continue
 
             if instance.state != MesosAgentState.ORPHANED:
-                if (remaining_non_orphan_capacity - instance_weight < target_capacity):  # case 3
+                if (remaining_non_orphan_capacity - instance_weight < new_target_capacity):  # case 3
                     logger.info(
                         f"Killing instance {instance.instance_id} with weight {instance_weight} would take us under our "
                         f"target_capacity for non-orphan boxes. Skipping this instance.")
@@ -297,7 +300,7 @@ class MesosPoolManager:
             if instance.state != MesosAgentState.ORPHANED:
                 remaining_non_orphan_capacity -= instance_weight
 
-            if curr_capacity <= target_capacity:
+            if curr_capacity <= new_target_capacity:
                 logger.info("Seems like we've picked enough instances to kill; finishing")
                 break
 
@@ -305,6 +308,7 @@ class MesosPoolManager:
 
     def prune_excess_fulfilled_capacity(
         self,
+        new_target_capacity: float,
         group_targets: Optional[Sequence[float]] = None,
         dry_run: bool = False,
     ) -> Sequence[str]:
@@ -319,7 +323,7 @@ class MesosPoolManager:
         :returns: a list of terminated instance ids
         """
 
-        marked_instance_ids = self.choose_instances_to_prune(group_targets)
+        marked_instance_ids = self.choose_instances_to_prune(new_target_capacity, group_targets)
 
         # Terminate the marked instances; it's possible that not all instances will be terminated
         all_terminated_instance_ids: List[str] = []
@@ -354,26 +358,29 @@ class MesosPoolManager:
         targets_to_change = [coeff * g.target_capacity for g in groups_to_change]
         num_groups_to_change = len(groups_to_change)
 
-        while True:
-            # If any resource groups are currently above the new target "uniform" capacity, we need to recompute
-            # the target while taking into account the over-supplied resource groups.  We never decrease the
-            # capacity of a resource group here, so we just find the first index is above the desired target
-            # and remove those from consideration.  We have to repeat this multiple times, as new resource
-            # groups could be over the new "uniform" capacity after we've subtracted the overage value
-            #
-            # (For scaling down, apply the same logic for resource groups below the target "uniform" capacity instead;
-            # i.e., instances will below the target capacity will not be increased)
-            capacity_per_group, remainder = divmod(new_target_capacity, num_groups_to_change)
-            pos = bisect(targets_to_change, coeff * capacity_per_group)
-            residual = sum(targets_to_change[pos:num_groups_to_change])
+        if targets_to_change:
+            while True:
+                # If any resource groups are currently above the new target "uniform" capacity, we need to recompute
+                # the target while taking into account the over-supplied resource groups.  We never decrease the
+                # capacity of a resource group here, so we just find the first index is above the desired target
+                # and remove those from consideration.  We have to repeat this multiple times, as new resource
+                # groups could be over the new "uniform" capacity after we've subtracted the overage value
+                #
+                # (For scaling down, apply the same logic for resource groups below the target "uniform" capacity instead;
+                # i.e., instances will below the target capacity will not be increased)
+                capacity_per_group, remainder = divmod(new_target_capacity, num_groups_to_change)
+                pos = bisect(targets_to_change, coeff * capacity_per_group)
+                residual = sum(targets_to_change[pos:num_groups_to_change])
 
-            if residual == 0:
-                for i in range(num_groups_to_change):
-                    targets_to_change[i] = coeff * (capacity_per_group + (1 if i < remainder else 0))
-                break
+                if residual == 0:
+                    for i in range(num_groups_to_change):
+                        targets_to_change[i] = coeff * (capacity_per_group + (1 if i < remainder else 0))
+                    break
 
-            new_target_capacity -= coeff * residual
-            num_groups_to_change = pos
+                new_target_capacity -= coeff * residual
+                num_groups_to_change = pos
+        else:
+            logger.info("Cannot set target capacity as all of our known resource groups are stale.")
 
         targets: Dict[MesosPoolResourceGroup, float] = {}
 
@@ -432,7 +439,10 @@ class MesosPoolManager:
         """ The target capacity is the *desired* weighted capacity for the given Mesos cluster pool.  There is no
         guarantee that the actual capacity will equal the target capacity.
         """
-        return sum(group.target_capacity for group in self.resource_groups if not group.is_stale)
+        non_stale_groups = [group for group in self.resource_groups if not group.is_stale]
+        if not non_stale_groups:
+            raise AllResourceGroupsAreStaleError()
+        return sum(group.target_capacity for group in non_stale_groups)
 
     @property
     def fulfilled_capacity(self) -> float:
@@ -449,6 +459,7 @@ class MesosPoolManager:
             i.resource_group.market_weight(i.market) for i in self.get_instances() if i.state != MesosAgentState.ORPHANED
         )
 
+    # TODO: fetch this in reload_state
     @timed_cached_property(CACHE_TTL_SECONDS)
     def _agents(self) -> Sequence[MesosAgentDict]:
         response = mesos_post(self.api_endpoint, 'slaves').json()
@@ -458,6 +469,7 @@ class MesosPoolManager:
             if agent.get('attributes', {}).get('pool', 'default') == self.pool
         ]
 
+    # TODO: fetch this in reload_state
     @timed_cached_property(CACHE_TTL_SECONDS)
     def _frameworks(self) -> Sequence[Dict]:
         response = mesos_post(self.api_endpoint, 'master/frameworks').json()
