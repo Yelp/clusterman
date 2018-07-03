@@ -118,6 +118,7 @@ class SpotFleetResourceGroup(MesosPoolResourceGroup):
             instance['InstanceId']
             for page in ec2.get_paginator('describe_spot_fleet_instances').paginate(SpotFleetRequestId=self.sfr_id)
             for instance in page['ActiveInstances']
+            if instance is not None
         ]
 
     @property

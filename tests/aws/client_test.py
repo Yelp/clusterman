@@ -9,8 +9,7 @@ from clusterman.aws.client import MAX_PAGE_SIZE
 
 
 def test_empty_instance_ids():
-    with pytest.raises(ValueError):
-        ec2_describe_instances(instance_ids=None)
+    assert ec2_describe_instances(instance_ids=None) == []
 
 
 @pytest.mark.parametrize('value_numbers', [200, 500, 1100])

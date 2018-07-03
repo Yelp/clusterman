@@ -52,7 +52,7 @@ class dynamodb(metaclass=_BotoForwarder):
 
 def ec2_describe_instances(instance_ids):
     if not instance_ids:
-        raise ValueError('instance_ids cannot be empty')
+        return []
 
     # limit the page size to help prevent SSL read timeouts
     instance_id_pages = [
