@@ -306,7 +306,7 @@ class TestChooseInstancesToPrune:
             group_targets=None,
         )
         # Since the total fulfilled capacity on stale resource groups is more than the total target_capacity, we should kill a few
-        # stale instances. (But we can only kill as many stale instances as we have, hence the max)
+        # stale instances. (But we can only kill as many stale instances as we have, hence the min)
         expected_stale_instances_to_kill = min(len(stale_instances), 3 + num_new_instances_up)
         assert expected_stale_instances_to_kill == sum(
             len(instances_to_prune[stale_rg]) for stale_rg in stale_resource_groups
