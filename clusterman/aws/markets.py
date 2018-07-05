@@ -5,6 +5,7 @@ from typing import NamedTuple
 from typing import Optional
 
 from clusterman.aws.client import ec2
+from clusterman.aws.client import InstanceDict
 
 InstanceResources = NamedTuple('InstanceResources', [
     ('cpus', float),
@@ -142,7 +143,7 @@ def get_market(instance_type: str, subnet_id: Optional[str]) -> InstanceMarket:
     return InstanceMarket(instance_type, az)
 
 
-def get_instance_market(aws_instance_object: Dict) -> InstanceMarket:
+def get_instance_market(aws_instance_object: InstanceDict) -> InstanceMarket:
     return get_market(
         aws_instance_object['InstanceType'],
         aws_instance_object.get('SubnetId'),

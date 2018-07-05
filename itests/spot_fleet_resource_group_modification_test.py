@@ -69,12 +69,11 @@ def test_scale_up(mock_prune, mock_manager, mock_sfrs):
     mock_manager.modify_target_capacity(1000)
     assert sorted([rg.target_capacity for rg in mock_manager.resource_groups]) == [17, 18, 18, 18, 30]
 
-    assert mock_prune.call_count == 0
+    assert mock_prune.call_count == 4
 
 
 def test_scale_down(mock_manager, mock_sfrs):
     mock_manager.max_capacity = 101
-    mock_manager.modify_target_capacity(1000)
     patched_config = {'mesos_clusters': {'mesos-test': {'max_weight_to_remove': 1000}}}
 
     # all instances have agents with 0 tasks and are thus killable
@@ -90,6 +89,8 @@ def test_scale_down(mock_manager, mock_sfrs):
     with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager._agents', mock_agents), \
             mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager._tasks', mock_tasks), \
             PatchConfiguration(patched_config):
+
+        mock_manager.modify_target_capacity(1000)
 
         # Test a balanced scale down
         mock_manager.modify_target_capacity(80)

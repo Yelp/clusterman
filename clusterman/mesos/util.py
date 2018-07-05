@@ -1,8 +1,10 @@
+import enum
 import os
 import re
 
 import requests
 import staticconf
+from mypy_extensions import TypedDict
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 from clusterman.config import get_cluster_config_directory
@@ -12,7 +14,15 @@ from clusterman.util import get_clusterman_logger
 logger = get_clusterman_logger(__name__)
 
 
-class MesosAgentState:
+MesosAgentDict = TypedDict(
+    'MesosAgentDict',
+    {
+        'id': str,
+    },
+)
+
+
+class MesosAgentState(enum.Enum):
     IDLE = 'idle'
     ORPHANED = 'orphaned'
     RUNNING = 'running'
