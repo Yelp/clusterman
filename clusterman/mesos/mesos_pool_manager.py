@@ -86,6 +86,7 @@ class MesosPoolManager:
 
         self.api_endpoint = f'http://{mesos_master_fqdn}:5050/'
         logger.info(f'Connecting to Mesos masters at {self.api_endpoint}')
+        self.resource_groups: List[MesosPoolResourceGroup] = list()
         self.reload_resource_groups()
 
     def reload_state(self) -> None:
@@ -93,7 +94,7 @@ class MesosPoolManager:
         self.reload_resource_groups()
 
     def reload_resource_groups(self) -> None:
-        self.resource_groups: List[MesosPoolResourceGroup] = list()
+        resource_groups = []
         for resource_group_conf in self.pool_config.read_list("resource_groups2"):
             if not isinstance(resource_group_conf, dict) or len(resource_group_conf) != 1:
                 logger.error(f"Malformed config: {resource_group_conf}")
@@ -104,11 +105,12 @@ class MesosPoolManager:
                 logger.warn(f"Unknown resource group {resource_group_type}")
                 continue
 
-            self.resource_groups.extend(resource_group_cls.load(
+            resource_groups.extend(resource_group_cls.load(
                 cluster=self.cluster,
                 pool=self.pool,
                 config=list(resource_group_conf.values())[0],
             ))
+        self.resource_groups = resource_groups
         logger.info('Loaded resource groups: {ids}'.format(ids=[group.id for group in self.resource_groups]))
 
     def modify_target_capacity(
@@ -228,6 +230,9 @@ class MesosPoolManager:
 
         :param group_targets: a list of new resource group target_capacities; if None, use the existing
             target_capacities (this parameter is necessary in order for dry runs to work correctly)
+        :param new_target_capacity: The total new target capacity for the pool. Most of the time, this is equal to
+            self.target_capacity, but in some situations (such as when all resource groups are stale), modify_target_capacity
+            cannot make self.target_capacity equal new_target_capacity. We'd rather this method aim for the actual target value.
         :returns: a dict of resource group -> list of ids to terminate
         """
 
@@ -241,6 +246,7 @@ class MesosPoolManager:
             group_targets = [rg.target_capacity for rg in self.resource_groups]
 
         curr_capacity = self.fulfilled_capacity
+        # we use new_target_capacity instead of self.target_capacity here in case they are different (see docstring)
         if curr_capacity <= new_target_capacity:
             return {}
 
@@ -254,11 +260,11 @@ class MesosPoolManager:
             return {}
         rem_group_capacities = {group.id: group.fulfilled_capacity for group in self.resource_groups}
 
-        # We want to count non-orphan capacity even if an instance is non-killable for some reason.
+        # How much capacity is actually up and available in Mesos.
         remaining_non_orphan_capacity = self.non_orphan_fulfilled_capacity
 
         # Iterate through all of the idle agents and mark one at a time for removal until we reach our target capacity
-        # or have reached our limit of tasks to kill
+        # or have reached our limit of tasks to kill.
         marked_instance_ids: Dict[MesosPoolResourceGroup, List[str]] = defaultdict(list)
         killed_task_count = 0
         for instance in prioritized_killable_instances:
