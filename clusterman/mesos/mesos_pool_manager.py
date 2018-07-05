@@ -94,7 +94,7 @@ class MesosPoolManager:
         self.reload_resource_groups()
 
     def reload_resource_groups(self) -> None:
-        resource_groups = []
+        resource_groups: List[MesosPoolResourceGroup] = []
         for resource_group_conf in self.pool_config.read_list("resource_groups2"):
             if not isinstance(resource_group_conf, dict) or len(resource_group_conf) != 1:
                 logger.error(f"Malformed config: {resource_group_conf}")
