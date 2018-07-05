@@ -7,13 +7,16 @@ import staticconf
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_pool_arg
 from clusterman.args import subparser
-from clusterman.autoscaler.config import LOG_STREAM_NAME
 from clusterman.aws.client import get_latest_ami
 from clusterman.config import POOL_NAMESPACE
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.spotinst.utils import update_ami
 from clusterman.util import ask_for_confirmation
 from clusterman.util import get_clusterman_logger
+from clusterman.util import log_to_scribe
+
+
+LOG_TEMPLATE = f'{arrow.now()} {gethostname()} {__name__}'
 
 logger = get_clusterman_logger(__name__)
 
@@ -43,15 +46,18 @@ def main(args):
             print(f'Would have updated the AMI of {args.cluster} {args.pool} to the latest')
         else:
             update_ami(get_latest_ami(args.update_ami_to_latest), args.cluster, args.pool)
+            log_to_scribe(f'{LOG_TEMPLATE} updated the AMI of the ElastiGroups in {args.cluster} and {args.pool}'
+                          f' to latest.')
         return
 
     if args.update_ami_to is not None:
         if args.dry_run is True:
             print(f'Would have updated the AMI of the ElasticGroups in {args.cluster} cluster'
-                  'and {args.pool} pool to latest')
+                  'and {args.pool} pool to the specified AMI id.')
         else:
-            # Fetch the latest AMI
             update_ami(args.update_ami_to, args.cluster, args.pool)
+            log_to_scribe(f'{LOG_TEMPLATE} updated the AMI of the ElastiGroups in {args.cluster} and {args.pool}'
+                          f' to {args.update_ami_to}.')
         return
 
     manager = MesosPoolManager(args.cluster, args.pool)
@@ -69,12 +75,7 @@ def main(args):
                    f'from {old_target} to {new_target} by {getuser()}')
     print(log_message)
     if not args.dry_run:
-        try:
-            import clog
-            # manual modifications show up in the scribe history
-            clog.log_line(LOG_STREAM_NAME, f'{arrow.now()} {gethostname()} {__name__} {log_message}')
-        except ModuleNotFoundError:
-            logger.warn('clog not found, are you running on a Yelp host?')
+        log_to_scribe(f'{arrow.now()} {gethostname()} {__name__} {log_message}')
 
 
 @subparser('manage', 'check the status of a Mesos cluster', main)
@@ -101,11 +102,11 @@ def add_mesos_manager_parser(subparser, required_named_args, optional_named_args
         '--update-ami-to-latest',
         metavar='PAASTA_HVM',
         required=False,
-        help='Update the specified ElastcGroups to the latest AMI.'
+        help='Update the AMI of the ElastiGroups in the specified cluster and pool to latest.'
     )
     optional_named_args.add_argument(
         '--update-ami-to',
         metavar='AMI-12345',
         required=False,
-        help='Update the specified ElastcGroups to the specified AMI.'
+        help='Update the AMI of the ElastiGroups in the specified cluster and pool.'
     )

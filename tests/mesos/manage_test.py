@@ -50,10 +50,12 @@ def test_get_target_capacity_value_invalid():
 @mock.patch('clusterman.mesos.manage.get_target_capacity_value')
 @mock.patch('clusterman.mesos.manage._recycle_cluster')
 @mock.patch('clusterman.mesos.manage.update_ami')
+@mock.patch('clusterman.mesos.manage.log_to_scribe')
 class TestMain:
     @pytest.mark.parametrize('dry_run', [True, False])
     def test_manage(
         self,
+        mock_log_to_scribe,
         mock_update_ami,
         mock_recycle_cluster,
         mock_target_capacity,
@@ -71,9 +73,11 @@ class TestMain:
         assert sys.modules['clog'].log_line.call_count == 0 if dry_run else 1
         assert mock_manager.return_value.modify_target_capacity.call_args == mock.call(123, dry_run)
         assert mock_manager.return_value.modify_target_capacity.call_count == 1
+        assert mock_log_to_scribe.call_count == 0 if dry_run is True else 1
 
     def test_abort_manage(
         self,
+        mock_log_to_scribe,
         mock_update_ami,
         mock_recycle_cluster,
         mock_target_capacity,
@@ -89,10 +93,12 @@ class TestMain:
         assert mock_confirm.call_count == 1
         assert sys.modules['clog'].log_line.call_count == 0
         assert mock_manager.return_value.modify_target_capacity.call_count == 0
+        assert mock_log_to_scribe.call_count == 0
 
     @pytest.mark.parametrize('dry_run', [True, False])
     def test_update_ami_to_latest(
         self,
+        mock_log_to_scribe,
         mock_update_ami,
         mock_recycle_cluster,
         mock_target_capacity,
@@ -112,12 +118,15 @@ class TestMain:
         if dry_run is False:
             assert mock_update_ami.call_count == 1
             assert mock_update_ami.call_args == mock.call('abc-123', 'foo', 'bar')
+            assert mock_log_to_scribe.call_count == 1
         else:
             assert mock_update_ami.call_count == 0
+            assert mock_log_to_scribe.call_count == 0
 
     @pytest.mark.parametrize('dry_run', [True, False])
     def test_update_ami_to(
         self,
+        mock_log_to_scribe,
         mock_update_ami,
         mock_recycle_cluster,
         mock_target_capacity,
@@ -136,11 +145,14 @@ class TestMain:
         if dry_run is False:
             assert mock_update_ami.call_count == 1
             assert mock_update_ami.call_args == mock.call('abc-123', 'foo', 'bar')
+            assert mock_log_to_scribe.call_count == 1
         else:
             assert mock_update_ami.call_count == 0
+            assert mock_log_to_scribe.call_count == 0
 
     def test_recycle_cluster(
         self,
+        mock_log_to_scribe,
         mock_update_ami,
         mock_recycle_cluster,
         mock_target_capacity,
@@ -155,3 +167,4 @@ class TestMain:
         main(args)
 
         assert mock_recycle_cluster.call_count == 1
+        assert mock_log_to_scribe.call_count == 0

@@ -8,7 +8,7 @@ from clusterman.spotinst.client import get_spotinst_client
 
 def update_ami(ami_id, cluster, pool):
     client = get_spotinst_client()
-    groups = load_elastigroups(cluster, pool, None)
+    groups = load_elastigroups(cluster, pool)
     if len(groups) == 0:
         print(f'No resource groups found matching the {cluster} and {pool}.')
         return
@@ -17,8 +17,8 @@ def update_ami(ami_id, cluster, pool):
         spec = spotinst_sdk.aws_elastigroup.LaunchSpecification(image_id=ami_id)
         compute = spotinst_sdk.aws_elastigroup.Compute(launch_specification=spec)
         group_update = spotinst_sdk.aws_elastigroup.Elastigroup(compute=compute)
-        print(f'Updating the AMI id of the elastic group {currgroup.id()} to {ami_id}')
-        client.update_elastigroup(group_update=group_update, group_id=currgroup.id())
+        print(f'Updating the AMI id of the elastic group {currgroup.id} to {ami_id}')
+        client.update_elastigroup(group_update=group_update, group_id=currgroup.id)
 
 
 def create_new_eg(name, config):
