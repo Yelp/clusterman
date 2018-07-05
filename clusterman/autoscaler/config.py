@@ -1,6 +1,7 @@
 import re
 from collections import namedtuple
 
+import botocore.exceptions
 import staticconf
 import yaml
 from clusterman_metrics import APP_METRICS
@@ -32,6 +33,9 @@ def _reload_metrics_index():
         stored_metrics = _get_metrics_index_from_s3(metrics_index_bucket, aws_region)
     except staticconf.errors.ConfigurationError:
         logger.warning('no metrics_index_bucket is configured.')
+    except botocore.exceptions.ClientError:
+        logger.warning(f'Config loading error for metrics_index_bucket={metrics_index_bucket} '
+                       f'and aws_region={aws_region}.', exc_info=True)
     return stored_metrics
 
 
@@ -62,7 +66,8 @@ def get_required_metric_configs(app_prefix, required_metrics_patterns):
     :param required_metrics_patterns: a list of MetricsConfig objects
     :returns: a list of MetricsConfig objects
     """
-    stored_metrics = _reload_metrics_index()
+    # TODO (CLUSTERMAN-262) either fix this or delete it
+    stored_metrics = None  # _reload_metrics_index()
     if stored_metrics is not None:
         all_required_metrics = list()
         for metric in required_metrics_patterns:

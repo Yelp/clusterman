@@ -194,7 +194,7 @@ def test_get_spotinst_client(mock_config):
     ) as mock_SpotinstClient_init:
         mock_SpotinstClient_init.return_value = None
         get_spotinst_client(mock_config)
-        mock_SpotinstClient_init.assert_called_with(account_id='ACCOUNTID', auth_token='APITOKEN')
+        mock_SpotinstClient_init.assert_called_with(account_id='ACCOUNTID', auth_token='APITOKEN', print_output=False)
 
 
 def test_load_elastigroups(mock_spotinst_client, mock_get_spotinst_client, mock_config):

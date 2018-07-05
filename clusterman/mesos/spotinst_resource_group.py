@@ -171,6 +171,7 @@ class SpotInstResourceGroup(MesosPoolResourceGroup):
         )
         return instance_ids
 
+    @property
     def id(self) -> str:
         return self._group_id
 
@@ -229,6 +230,7 @@ def get_spotinst_client(config: SpotInstResourceGroupConfig) -> SpotinstClient:
     client = SpotinstClient(
         auth_token=auth_token,
         account_id=account_id,
+        print_output=False,
     )
     return client
 
