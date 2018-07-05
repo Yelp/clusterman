@@ -1,6 +1,9 @@
 import subprocess
 import time
 from datetime import datetime
+from typing import Collection
+from typing import Optional
+from typing import TypeVar
 
 import arrow
 import colorlog
@@ -51,7 +54,17 @@ def ask_for_choice(prompt, choices):
             return choices[int(ans)]
 
 
-def colored_status(status, green=None, blue=None, red=None, prefix=None, postfix=None):
+T = TypeVar('T')
+
+
+def colored_status(
+    status: T,
+    green: Optional[Collection[T]]=None,
+    blue: Optional[Collection[T]]=None,
+    red: Optional[Collection[T]]=None,
+    prefix: Optional[str]=None,
+    postfix: Optional[str]=None,
+):
     prefix = prefix or ''
     postfix = postfix or ''
     color_str = Fore.WHITE
@@ -61,7 +74,7 @@ def colored_status(status, green=None, blue=None, red=None, prefix=None, postfix
         color_str = Fore.BLUE
     elif red and status in red:
         color_str = Fore.RED
-    combined_str = prefix + status + postfix
+    combined_str = prefix + str(status) + postfix
     return color_str + combined_str + Style.RESET_ALL
 
 
