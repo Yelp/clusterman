@@ -230,8 +230,7 @@ def load_spot_fleets_from_ec2(cluster: str, pool: str) -> List[SpotFleetResource
         try:
             if all([tags[k] == v for k, v in expected_tags.items()]):
                 sfrg = SpotFleetResourceGroup(sfr_id)
-                if not sfrg.is_stale:
-                    spot_fleets.append(sfrg)
+                spot_fleets.append(sfrg)
         except KeyError:
             continue
     return spot_fleets
