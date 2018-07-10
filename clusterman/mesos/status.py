@@ -38,7 +38,8 @@ def _write_instance_line(instance: PoolInstance, postfix: Optional[str]=None):
         instance_ip = instance.instance_dict['PrivateIpAddress']
     except KeyError:
         instance_ip = 'unknown'
-    print(f'\t - {instance.instance_id} {instance.market} ({instance_ip}): {instance_status_str} {postfix}')
+    instance_weight = instance.resource_group.market_weight(instance.market)
+    print(f'\t - {instance.instance_id} {instance.market} {instance_weight} ({instance_ip}): {instance_status_str} {postfix}')
 
 
 def _write_summary(manager):
