@@ -199,6 +199,7 @@ def load(
 
 
 def load_spot_fleets_from_s3(bucket: str, prefix: str, pool: str=None) -> Sequence[SpotFleetResourceGroup]:
+    prefix = prefix.rstrip('/') + '/'
     object_list = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
     spot_fleets = []
     for obj_metadata in object_list['Contents']:
