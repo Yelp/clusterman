@@ -80,7 +80,7 @@ class Autoscaler:
             resource_request = self.default_signal.evaluate(timestamp)
             exception, tb = e, traceback.format_exc()
 
-        logger.info(f'Signal {signal_name} requested {resource_request["cpus"]} CPUs')
+        logger.info(f'Signal {signal_name} requested {resource_request}')
         self.mesos_pool_manager.reload_state()
         new_target_capacity = self._compute_target_capacity(resource_request)
         self.capacity_gauge.set(new_target_capacity, {'dry_run': dry_run})
@@ -128,36 +128,58 @@ class Autoscaler:
         :param resource_request: a resource_request object from the signal evaluation
         :returns: the new target capacity we should scale to
         """
-        # TODO (CLUSTERMAN-201) support other types of resource requests
-
-        if resource_request['cpus'] is None:
+        if all(requested_quantity is None for resource, requested_quantity in resource_request.items()):
             logger.info('No data from signal, not changing capacity')
             return self.mesos_pool_manager.target_capacity
-        signal_cpus = float(resource_request['cpus'])
+
+        current_cpus = self.mesos_pool_manager.target_capacity * self.autoscaling_config.cpus_per_weight
+        logger.info(f'Currently at target_capacity of {self.mesos_pool_manager.target_capacity} ({current_cpus} CPUs)')
+
+        most_constrained_resource, usage_pct = self._get_most_constrained_resource_for_request(resource_request)
+        logger.info(
+            f'Fulfilling resource request will cause {most_constrained_resource} to be the most constrained resource '
+            f'at {usage_pct} usage'
+        )
+
+        setpoint_distance = abs(usage_pct - self.autoscaling_config.setpoint)
+        logger.info(f'Distance from setpoint of {self.autoscaling_config.setpoint}: {setpoint_distance}')
 
         # If the percentage allocated differs by more than the allowable margin from the setpoint,
         # we scale up/down to reach the setpoint.  We want to use target_capacity here instead of
         # get_resource_total to protect against short-term fluctuations in the cluster.
-        total_cpus = self.mesos_pool_manager.target_capacity * self.autoscaling_config.cpus_per_weight
-        setpoint_cpus = self.autoscaling_config.setpoint * total_cpus
-        cpus_difference_from_setpoint = signal_cpus - setpoint_cpus
-
-        # Note that the setpoint window is based on the value of total_cpus, not setpoint_cpus
-        # This is so that, if you have a setpoint of 70% and a margin of 10%, you know that the
-        # window is going to be between 60% and 80%, not 63% and 77%.
-        window_size = self.autoscaling_config.setpoint_margin * total_cpus
-        lb, ub = setpoint_cpus - window_size, setpoint_cpus + window_size
-        logger.info(f'Current CPU total is {total_cpus} (setpoint={setpoint_cpus}); setpoint window is [{lb}, {ub}]')
-        if abs(cpus_difference_from_setpoint / total_cpus) >= self.autoscaling_config.setpoint_margin:
-            # We want signal_cpus / new_total_cpus = setpoint.
-            # So new_total_cpus should be signal_cpus / setpoint.
-            new_target_cpus = signal_cpus / self.autoscaling_config.setpoint
-
-            # Finally, convert CPUs to capacity units.
-            new_target_capacity = new_target_cpus / self.autoscaling_config.cpus_per_weight
-            logger.info(f'Computed target capacity is {new_target_capacity} units ({new_target_cpus} CPUs)')
+        if setpoint_distance >= self.autoscaling_config.setpoint_margin:
+            # We want to scale the cluster so that requested/(total*scale_factor) = setpoint.
+            # We already have requested/total in the form of usage_pct, so we can solve for scale_factor:
+            scale_factor = usage_pct / self.autoscaling_config.setpoint
+            new_target_capacity = self.mesos_pool_manager.target_capacity * scale_factor
+            new_target_cpus = new_target_capacity * self.autoscaling_config.cpus_per_weight
+            logger.info(
+                f'Difference from setpoint is greater than setpoint margin '
+                f'({self.autoscaling_config.setpoint_margin}). Scaling to {new_target_capacity} ({new_target_cpus} '
+                f'CPUs)'
+            )
         else:
-            logger.info('Requested CPUs within setpoint margin, not changing target capacity')
+            logger.info(
+                f'We are within our setpoint margin ({self.autoscaling_config.setpoint_margin}). Not changing target '
+                f'capacity'
+            )
             new_target_capacity = self.mesos_pool_manager.target_capacity
 
         return new_target_capacity
+
+    def _get_most_constrained_resource_for_request(self, resource_request):
+        """Determine what would be the most constrained resource if were to fulfill a resource_request without scaling
+        the cluster.
+
+        :param resource_rquest: dictionary of resource name (cpu, mem, disk) to the requested quantity of that resource
+        :returns: a tuple of the most constrained resource name and its utilization percentage if the provided request
+            were to be fulfilled
+        """
+        requested_resource_usage_pcts = {}
+        for resource in ('cpus', 'mem', 'disk'):
+            if resource not in resource_request or resource_request[resource] is None:
+                continue
+
+            resource_total = self.mesos_pool_manager.get_resource_total(resource)
+            requested_resource_usage_pcts[resource] = resource_request[resource]/resource_total
+        return max(requested_resource_usage_pcts.items(), key=lambda x: x[1])

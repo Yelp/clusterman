@@ -93,16 +93,35 @@ def test_autoscaler_run(dry_run, mock_autoscaler, run_timestamp):
     assert mock_autoscaler.mesos_pool_manager.modify_target_capacity.call_count == 1
 
 
-@pytest.mark.parametrize('signal_cpus,total_cpus,expected_capacity', [
-    (None, 1000, 125),
-    (799, 1000, 125),  # above setpoint, but within setpoint margin
-    (980, 1000, 175),  # above setpoint margin
-    (601, 1000, 125),  # below setpoint, but within setpoint margin
-    (490, 1000, 87.5),  # below setpoint margin
-    (1400, 1000, 250),  # above setpoint margin and total
-])
-def test_compute_target_capacity(mock_autoscaler, signal_cpus, total_cpus, expected_capacity):
-    mock_autoscaler.mesos_pool_manager.target_capacity = \
-        total_cpus / mock_autoscaler.autoscaling_config.cpus_per_weight
-    new_target_capacity = mock_autoscaler._compute_target_capacity({'cpus': signal_cpus})
-    assert new_target_capacity == pytest.approx(expected_capacity)
+class TestComputeTargetCapacity:
+
+    @pytest.mark.parametrize('resource', ['cpus', 'mem', 'disk'])
+    @pytest.mark.parametrize('signal_resource,total_resource,expected_capacity', [
+        (None, 1000, 125),
+        (799, 1000, 125),  # above setpoint, but within setpoint margin
+        (980, 1000, 175),  # above setpoint margin
+        (601, 1000, 125),  # below setpoint, but within setpoint margin
+        (490, 1000, 87.5),  # below setpoint margin
+        (1400, 1000, 250),  # above setpoint margin and total
+    ])
+    def test_single_resource(self, mock_autoscaler, resource, signal_resource, total_resource, expected_capacity):
+        mock_autoscaler.mesos_pool_manager.target_capacity = 125
+        mock_autoscaler.mesos_pool_manager.get_resource_total.return_value = total_resource
+        new_target_capacity = mock_autoscaler._compute_target_capacity({resource: signal_resource})
+        assert new_target_capacity == pytest.approx(expected_capacity)
+
+    def test__empty_request(self, mock_autoscaler):
+        new_target_capacity = mock_autoscaler._compute_target_capacity({})
+        assert new_target_capacity == mock_autoscaler.mesos_pool_manager.target_capacity
+
+    def test_scale_most_constrained_resource(self, mock_autoscaler):
+        resource_request = {'cpus': 500, 'mem': 30000, 'disk': 19000}
+        resource_totals = {'cpus': 1000, 'mem': 50000, 'disk': 20000}
+        mock_autoscaler.mesos_pool_manager.target_capacity = 100
+        mock_autoscaler.mesos_pool_manager.get_resource_total.side_effect = resource_totals.__getitem__
+        new_target_capacity = mock_autoscaler._compute_target_capacity(resource_request)
+
+        # disk would be the most constrained resource, so we should scale the target_capacity (100) by an amount
+        # such that requested/(total*scale_factor) = setpoint
+        expected_new_target_capacity = 100*19000/(20000*0.7)
+        assert new_target_capacity == expected_new_target_capacity
