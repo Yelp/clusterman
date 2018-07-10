@@ -1,3 +1,10 @@
+clusterman (2.8.6) trusty; urgency=low
+
+  * Show instance weight in status.
+  * Append / to s3 prefix so we don't load mesosstage2 SFRs for the mesosstage cluster.
+
+ -- Evan Krall <krall@yelp.com>  Tue, 10 Jul 2018 13:36:35 -0700
+
 clusterman (2.8.5) trusty; urgency=low
 
   * Handle stale resource groups
