@@ -32,6 +32,7 @@ SpotFleetResourceGroupConfig = TypedDict(
     'SpotFleetResourceGroupConfig',
     {
         's3': _S3Config,
+        'tag': str,
     }
 )
 
@@ -40,7 +41,12 @@ class SpotFleetResourceGroup(MesosPoolResourceGroup):
 
     def __init__(self, sfr_id: str) -> None:
         self.sfr_id = sfr_id
-        self._market_weights = {  # Can't change WeightedCapacity of SFRs, so cache them here for frequent access
+
+        # Can't change WeightedCapacity of SFRs, so cache them here for frequent access
+        self._market_weights = self._generate_market_weights()
+
+    def _generate_market_weights(self):
+        return {
             get_instance_market(spec): spec['WeightedCapacity']
             for spec in self._configuration['SpotFleetRequestConfig']['LaunchSpecifications']
         }
@@ -180,21 +186,35 @@ def load(
     pool: str,
     config: SpotFleetResourceGroupConfig,
 ) -> Sequence[SpotFleetResourceGroup]:
-    resource_groups = load_spot_fleets_from_ec2(
-        cluster=cluster,
-        pool=pool,
-    )
+    if 'tag' in config:
+        resource_groups = load_spot_fleets_from_ec2(
+            cluster=cluster,
+            pool=pool,
+            sfr_tag=config['tag'],
+        )
+        resource_group_ids = [resource_group.id for resource_group in resource_groups]
+        logger.info(f'SFRs loaded from ec2: {resource_group_ids}')
+    else:
+        resource_groups = []
+
     # for backwards compatibility also load spot fleets from S3 files
     # TODO: remove this once all SFRs are rolled with tags
     # CLUSTERMAN-234
-    s3_resource_groups = load_spot_fleets_from_s3(
-        config['s3']['bucket'],
-        config['s3']['prefix'],
-        pool=pool,
-    )
-    for resource_group in s3_resource_groups:
-        if resource_group.id not in [group.id for group in resource_groups]:
-            resource_groups.append(resource_group)
+    if 's3' in config:
+        s3_resource_groups = load_spot_fleets_from_s3(
+            config['s3']['bucket'],
+            config['s3']['prefix'],
+            pool=pool,
+        )
+        s3_resource_group_ids = [resource_group.id for resource_group in s3_resource_groups]
+        logger.info(f'SFRs loaded from s3: {s3_resource_group_ids}')
+        for resource_group in s3_resource_groups:
+            if resource_group.id not in [group.id for group in resource_groups]:
+                resource_groups.append(resource_group)
+
+        all_resource_group_ids = [resource_group.id for resource_group in resource_groups]
+        logger.info(f'Merged ec2 & s3 SFRs: {all_resource_group_ids}')
+
     return resource_groups
 
 
@@ -216,20 +236,16 @@ def load_spot_fleets_from_s3(bucket: str, prefix: str, pool: str=None) -> Sequen
     return spot_fleets
 
 
-def load_spot_fleets_from_ec2(cluster: str, pool: str) -> List[SpotFleetResourceGroup]:
+def load_spot_fleets_from_ec2(cluster: str, pool: str, sfr_tag: str) -> List[SpotFleetResourceGroup]:
     """ Loads SpotFleetResourceGroups by filtering SFRs in the AWS account by tags
     for pool, cluster and a tag that identifies paasta SFRs
     """
     spot_fleet_requests_tags = get_spot_fleet_request_tags()
     spot_fleets = []
-    expected_tags = {
-        'paasta': 'true',
-        'pool': pool,
-        'cluster': cluster,
-    }
     for sfr_id, tags in spot_fleet_requests_tags.items():
         try:
-            if all([tags[k] == v for k, v in expected_tags.items()]):
+            puppet_role_tags = json.loads(tags[sfr_tag])
+            if puppet_role_tags['pool'] == pool and puppet_role_tags['paasta_cluster'] == cluster:
                 sfrg = SpotFleetResourceGroup(sfr_id)
                 spot_fleets.append(sfrg)
         except KeyError:
