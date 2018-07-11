@@ -177,7 +177,7 @@ class SpotInstResourceGroup(MesosPoolResourceGroup):
 
     @property
     def instance_ids(self) -> Sequence[str]:
-        return [instance['instance_id'] for instance in self._instances]
+        return [instance['instance_id'] for instance in self._instances if instance['instance_id'] is not None]
 
     @property
     def market_capacities(self) -> Dict[InstanceMarket, float]:
