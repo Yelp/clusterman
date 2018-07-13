@@ -495,6 +495,9 @@ class MesosPoolManager:
 
         for group in self.resource_groups:
             for instance_dict in ec2_describe_instances(instance_ids=group.instance_ids):
+                if instance_dict['State']['Name'] != 'running':
+                    continue
+
                 instance_ip = instance_dict.get('PrivateIpAddress')
                 agent = ip_to_agent.get(instance_ip)
 

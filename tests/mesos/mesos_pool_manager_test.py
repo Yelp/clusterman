@@ -665,6 +665,9 @@ def test_get_unknown_instance(mock_pool_manager):
         mock_describe_instances.return_value = [{  # missing the 'PrivateIpAddress' key
             'InstanceId': 1,
             'InstanceType': 't2.nano',
+            'State': {
+                'Name': 'running',
+            },
         }]
 
         instances = mock_pool_manager.get_instances()
