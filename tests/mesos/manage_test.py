@@ -1,4 +1,3 @@
-import sys
 from argparse import Namespace
 
 import mock
@@ -19,12 +18,6 @@ def args():
         update_ami_to_latest=None,
         update_ami_to=None
     )
-
-
-@pytest.fixture(autouse=True)
-def mock_clog():
-    sys.modules['clog'] = mock.Mock()  # clog is imported in the main function so this is how we mock it
-    yield
 
 
 def test_get_target_capacity_value_min():
@@ -70,7 +63,6 @@ class TestMain:
 
         main(args)
         assert mock_confirm.call_count == 0 if dry_run else 1
-        assert sys.modules['clog'].log_line.call_count == 0 if dry_run else 1
         assert mock_manager.return_value.modify_target_capacity.call_args == mock.call(123, dry_run)
         assert mock_manager.return_value.modify_target_capacity.call_count == 1
         assert mock_log_to_scribe.call_count == 0 if dry_run is True else 1
@@ -91,7 +83,6 @@ class TestMain:
 
         main(args)
         assert mock_confirm.call_count == 1
-        assert sys.modules['clog'].log_line.call_count == 0
         assert mock_manager.return_value.modify_target_capacity.call_count == 0
         assert mock_log_to_scribe.call_count == 0
 

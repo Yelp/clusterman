@@ -68,3 +68,7 @@ def get_cluster_config_directory(cluster):
 
 def get_pool_config_path(cluster, pool):
     return os.path.join(get_cluster_config_directory(cluster), f'{pool}.yaml')
+
+
+def get_spotinst_config_path():
+    return staticconf.read_string('spotinst_config.auth_file')

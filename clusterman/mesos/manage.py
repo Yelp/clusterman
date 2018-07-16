@@ -36,46 +36,57 @@ def _recycle_cluster():
     raise NotImplementedError('Cluster recycling is not yet supported')
 
 
+def _update_ami_to_latest(args):
+    if args.dry_run is True:
+        print(f'Would have updated the AMI of {args.cluster} {args.pool} to the latest')
+
+    else:
+        update_ami(get_latest_ami(args.update_ami_to_latest), args.cluster, args.pool)
+        log_message = (f'Updated the AMI of the ElastiGroups in {args.cluster} and {args.pool}'
+                       f' to latest.')
+
+        print(log_message)
+        log_to_scribe(f'{LOG_TEMPLATE} {log_message}')
+
+
+def _update_ami_to(args):
+    if args.dry_run is True:
+        print(f'Would have updated the AMI of the ElasticGroups in {args.cluster} cluster'
+              f'and {args.pool} pool to the specified AMI id.')
+
+    else:
+        update_ami(args.update_ami_to, args.cluster, args.pool)
+        log_message = (f'Updated the AMI of the ElastiGroups in {args.cluster} and {args.pool}'
+                       f' to {args.update_ami_to}.')
+
+        print(log_message)
+        log_to_scribe(f'{LOG_TEMPLATE} {log_message}')
+
+
 def main(args):
     if args.recycle:
         _recycle_cluster()
-        return
+    elif args.update_ami_to_latest is not None:
+        _update_ami_to_latest(args)
+    elif args.update_ami_to is not None:
+        _update_ami_to(args)
+    elif args.target_capacity is not None:
+        manager = MesosPoolManager(args.cluster, args.pool)
+        old_target = manager.target_capacity
+        requested_target = get_target_capacity_value(args.target_capacity, args.pool)
+        if not args.dry_run:
+            if not ask_for_confirmation(
+                f'Modifying target capacity from {manager.target_capacity} to {requested_target}.  Proceed? '
+            ):
+                print('Aborting operation.')
+                return
 
-    if args.update_ami_to_latest is not None:
-        if args.dry_run is True:
-            print(f'Would have updated the AMI of {args.cluster} {args.pool} to the latest')
-        else:
-            update_ami(get_latest_ami(args.update_ami_to_latest), args.cluster, args.pool)
-            log_to_scribe(f'{LOG_TEMPLATE} updated the AMI of the ElastiGroups in {args.cluster} and {args.pool}'
-                          f' to latest.')
-        return
-
-    if args.update_ami_to is not None:
-        if args.dry_run is True:
-            print(f'Would have updated the AMI of the ElasticGroups in {args.cluster} cluster'
-                  'and {args.pool} pool to the specified AMI id.')
-        else:
-            update_ami(args.update_ami_to, args.cluster, args.pool)
-            log_to_scribe(f'{LOG_TEMPLATE} updated the AMI of the ElastiGroups in {args.cluster} and {args.pool}'
-                          f' to {args.update_ami_to}.')
-        return
-
-    manager = MesosPoolManager(args.cluster, args.pool)
-    old_target = manager.target_capacity
-    requested_target = get_target_capacity_value(args.target_capacity, args.pool)
-    if not args.dry_run:
-        if not ask_for_confirmation(
-            f'Modifying target capacity from {manager.target_capacity} to {requested_target}.  Proceed? '
-        ):
-            print('Aborting operation.')
-            return
-
-    new_target = manager.modify_target_capacity(requested_target, args.dry_run)
-    log_message = (f'Target capacity for {args.pool} on {args.cluster} manually changed '
-                   f'from {old_target} to {new_target} by {getuser()}')
-    print(log_message)
-    if not args.dry_run:
-        log_to_scribe(f'{arrow.now()} {gethostname()} {__name__} {log_message}')
+        new_target = manager.modify_target_capacity(requested_target, args.dry_run)
+        log_message = (f'Target capacity for {args.pool} on {args.cluster} manually changed '
+                       f'from {old_target} to {new_target} by {getuser()}')
+        print(log_message)
+        if not args.dry_run:
+            log_to_scribe(f'{LOG_TEMPLATE} {log_message}')
 
 
 @subparser('manage', 'check the status of a Mesos cluster', main)

@@ -1,6 +1,7 @@
 import arrow
 import boto3
 import staticconf
+from mypy_extensions import TypedDict
 
 from clusterman.config import CREDENTIALS_NAMESPACE
 from clusterman.util import get_clusterman_logger
@@ -9,6 +10,25 @@ _session = None
 logger = get_clusterman_logger(__name__)
 
 MAX_PAGE_SIZE = 500
+
+
+InstanceStateDict = TypedDict(
+    'InstanceStateDict',
+    {
+        'Name': str,
+    },
+)
+
+InstanceDict = TypedDict(
+    'InstanceDict',
+    {
+        'InstanceId': str,
+        'InstanceType': str,
+        'SubnetId': str,
+        'PrivateIpAddress': str,
+        'State': InstanceStateDict,
+    },
+)
 
 
 def _init_session():
@@ -64,10 +84,11 @@ def get_latest_ami(ami_type):
     try:
         response = ec2.describe_images(Filters=filters)
     except Exception as e:
-        logger.warning(f'Describe images call failed with {e}')
+        logger.warning(f'Describe images call failed with {str(e)}')
+        raise e
 
     if len(response['Images']) == 0:
-        print(f'Could not find any images matching the constraints.')
+        logger.warning(f'Could not find any images matching the constraints.')
         return
 
     latest = None
@@ -79,13 +100,12 @@ def get_latest_ami(ami_type):
         if arrow.get(image['CreationDate']) > arrow.get(latest['CreationDate']):
             latest = image
 
-    print(latest['ImageId'])
     return latest['ImageId']
 
 
 def ec2_describe_instances(instance_ids):
-    if not instance_ids:
-        raise ValueError('instance_ids cannot be empty')
+    if instance_ids is None or len(instance_ids) == 0:
+        raise ValueError('instance_ids cannot be None or empty')
 
     # limit the page size to help prevent SSL read timeouts
     instance_id_pages = [
