@@ -1,3 +1,4 @@
+import json
 from collections import defaultdict
 from typing import Dict
 from typing import List
@@ -248,14 +249,10 @@ def load_elastigroups(
 
     spotinst_groups_tags = get_spotinst_tags(client)
     spotinst_groups = []
-    expected_tags = {
-        'puppet_role': 'paasta',
-        'pool': pool,
-        'cluster': cluster,
-    }
     for group_id, tags in spotinst_groups_tags.items():
         try:
-            if all([tags[k] == v for k, v in expected_tags.items()]):
+            puppet_role_tags = json.loads(tags['puppet:role::paasta'])
+            if puppet_role_tags['pool'] == pool and puppet_role_tags['paasta_cluster'] == cluster:
                 spotinst_groups.append(SpotInstResourceGroup(
                     group_id,
                     client,
