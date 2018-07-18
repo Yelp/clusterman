@@ -1,3 +1,6 @@
+from typing import List
+from typing import Sequence
+
 import arrow
 import boto3
 import staticconf
@@ -103,9 +106,9 @@ def get_latest_ami(ami_type):
     return latest['ImageId']
 
 
-def ec2_describe_instances(instance_ids):
+def ec2_describe_instances(instance_ids: Sequence[str]) -> List[InstanceDict]:
     if instance_ids is None or len(instance_ids) == 0:
-        raise ValueError('instance_ids cannot be None or empty')
+        return []
 
     # limit the page size to help prevent SSL read timeouts
     instance_id_pages = [

@@ -10,8 +10,8 @@ from clusterman.aws.client import MAX_PAGE_SIZE
 
 
 def test_empty_instance_ids():
-    with pytest.raises(ValueError):
-        ec2_describe_instances(instance_ids=None)
+    assert ec2_describe_instances(instance_ids=None) == []
+    assert ec2_describe_instances(instance_ids=[]) == []
 
 
 def test_get_latest_ami_no_images_found():

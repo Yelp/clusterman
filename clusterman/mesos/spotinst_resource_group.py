@@ -90,12 +90,17 @@ ElasticGroup = TypedDict(
     }
 )
 
+SpotInstResourceGroupConfig = TypedDict(
+    'SpotInstResourceGroupConfig',
+    {}
+)
+
 
 class SpotInstResourceGroup(MesosPoolResourceGroup):
 
-    def __init__(self, group_id: str, client: SpotinstClientType) -> None:
+    def __init__(self, group_id: str) -> None:
         self._group_id = group_id
-        self._client = client
+        self._client = get_spotinst_client()
         self._target_capacity = self.fulfilled_capacity
 
     def market_weight(self, market: InstanceMarket) -> float:
@@ -211,6 +216,7 @@ class SpotInstResourceGroup(MesosPoolResourceGroup):
     def load(
         cluster: str,
         pool: str,
+        config: SpotInstResourceGroupConfig
     ) -> Sequence['SpotInstResourceGroup']:
         return load_elastigroups(cluster, pool)
 
@@ -232,8 +238,7 @@ def load_elastigroups(
             puppet_role_tags = json.loads(tags['puppet:role::paasta'])
             if puppet_role_tags['pool'] == pool and puppet_role_tags['paasta_cluster'] == cluster:
                 spotinst_groups.append(SpotInstResourceGroup(
-                    group_id,
-                    client,
+                    group_id
                 ))
         except KeyError:
             continue

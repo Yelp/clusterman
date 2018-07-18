@@ -169,7 +169,8 @@ def mock_get_spotinst_client(mock_spotinst_client):
 @pytest.fixture
 def mock_spotinst_resource_group(mock_sfr_response, mock_spotinst_client):
     client = SpotinstClientEmulator(mock_sfr_response['SpotFleetRequestId'])
-    return SpotInstResourceGroup(list(client._sig_id_to_sfr_ids.keys())[0], client)
+    with mock.patch('clusterman.mesos.spotinst_resource_group.get_spotinst_client', return_value=client):
+        return SpotInstResourceGroup(list(client._sig_id_to_sfr_ids.keys())[0])
 
 
 def test_load_elastigroups(mock_spotinst_client, mock_get_spotinst_client):
@@ -195,7 +196,7 @@ def test_load_elastigroups(mock_spotinst_client, mock_get_spotinst_client):
         }
         sigs = load_elastigroups(cluster='westeros-prod', pool='default')
         assert len(sigs) == 1
-        mock_init.assert_called_with('sig-123', mock_spotinst_client)
+        mock_init.assert_called_with('sig-123')
 
 
 def test_get_spotinst_tags(mock_spotinst_client):
