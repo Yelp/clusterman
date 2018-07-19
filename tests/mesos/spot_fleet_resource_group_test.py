@@ -8,8 +8,7 @@ from clusterman.aws.client import ec2
 from clusterman.aws.client import s3
 from clusterman.aws.markets import InstanceMarket
 from clusterman.mesos.spot_fleet_resource_group import get_spot_fleet_request_tags
-from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_ec2
-from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_s3
+from clusterman.mesos.spot_fleet_resource_group import load
 from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
 
 
@@ -104,46 +103,112 @@ def mock_sfr_bucket():
 
 
 def test_load_spot_fleets_from_s3(mock_sfr_bucket):
-    with mock.patch('clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup.__init__') as mock_init:
-        mock_init.return_value = None
-        sfrgs = load_spot_fleets_from_s3('fake-clusterman-sfrs', 'fake-region', 'my-pool')
+    with mock.patch(
+        'clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup._generate_market_weights',
+    ):
+        sfrgs = load(
+            cluster='westeros-prod',
+            pool='my-pool',
+            config={
+                's3': {
+                    'bucket': 'fake-clusterman-sfrs',
+                    'prefix': 'fake-region',
+                },
+            },
+        )
         assert len(sfrgs) == 2
-        assert mock_init.call_args_list[0][0][0] == 'sfr-1'
-        assert mock_init.call_args_list[1][0][0] == 'sfr-2'
+        assert {sfr.id for sfr in sfrgs} == {'sfr-1', 'sfr-2'}
 
 
 def test_load_spot_fleets_from_ec2():
     with mock.patch(
-        'clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup.__init__',
-    ) as mock_init, mock.patch(
+        'clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup._generate_market_weights',
+    ), mock.patch(
         'clusterman.mesos.spot_fleet_resource_group.get_spot_fleet_request_tags',
     ) as mock_get_spot_fleet_request_tags, mock.patch(
         'clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup.is_stale',
         new=mock.PropertyMock(return_value=False),
     ):
-        mock_init.return_value = None
         mock_get_spot_fleet_request_tags.return_value = {
             'sfr-123': {
                 'some': 'tag',
                 'paasta': 'true',
-                'pool': 'default',
-                'cluster': 'westeros-prod',
+                'puppet:role::paasta': json.dumps({
+                    'pool': 'default',
+                    'paasta_cluster': 'westeros-prod',
+                }),
             },
             'sfr-456': {
                 'some': 'tag',
                 'paasta': 'true',
-                'pool': 'another',
-                'cluster': 'westeros-prod',
+                'puppet:role::paasta': json.dumps({
+                    'pool': 'another',
+                    'paasta_cluster': 'westeros-prod',
+                }),
             },
             'sfr-789': {
                 'some': 'tag',
                 'paasta': 'true',
-                'cluster': 'westeros-prod',
+                'puppet:role::paasta': json.dumps({
+                    'paasta_cluster': 'westeros-prod',
+                }),
+            },
+            'sfr-abc': {
+                'paasta': 'false',
+                'puppet:role::riice': json.dumps({
+                    'pool': 'default',
+                    'paasta_cluster': 'westeros-prod',
+                }),
+            }
+        }
+        spot_fleets = load(
+            cluster='westeros-prod',
+            pool='default',
+            config={'tag': 'puppet:role::paasta'}
+        )
+        assert len(spot_fleets) == 1
+        assert spot_fleets[0].id == 'sfr-123'
+
+
+def test_load_spot_fleets(mock_sfr_bucket):
+    with mock.patch(
+        'clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup._generate_market_weights',
+    ), mock.patch(
+        'clusterman.mesos.spot_fleet_resource_group.get_spot_fleet_request_tags',
+    ) as mock_get_spot_fleet_request_tags, mock.patch(
+        'clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup.is_stale',
+        new=mock.PropertyMock(return_value=False),
+    ):
+        mock_get_spot_fleet_request_tags.return_value = {
+            'sfr-2': {
+                'some': 'tag',
+                'paasta': 'true',
+                'puppet:role::paasta': json.dumps({
+                    'pool': 'my-pool',
+                    'paasta_cluster': 'westeros-prod',
+                }),
+            },
+            'sfr-4': {
+                'some': 'tag',
+                'paasta': 'true',
+                'puppet:role::paasta': json.dumps({
+                    'pool': 'my-pool',
+                    'paasta_cluster': 'westeros-prod',
+                }),
             },
         }
-        spot_fleets = load_spot_fleets_from_ec2(cluster='westeros-prod', pool='default')
-        assert len(spot_fleets) == 1
-        mock_init.assert_called_with('sfr-123')
+        spot_fleets = load(
+            cluster='westeros-prod',
+            pool='my-pool',
+            config={
+                'tag': 'puppet:role::paasta',
+                's3': {
+                    'bucket': 'fake-clusterman-sfrs',
+                    'prefix': 'fake-region',
+                },
+            },
+        )
+        assert {spot_fleet.id for spot_fleet in spot_fleets} == {'sfr-1', 'sfr-2', 'sfr-4'}
 
 
 def test_get_spot_fleet_request_tags(mock_spot_fleet_resource_group):

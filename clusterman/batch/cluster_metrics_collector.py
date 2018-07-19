@@ -12,6 +12,7 @@ from yelp_batch.batch import batch_configure
 from yelp_batch.batch_daemon import BatchDaemon
 
 from clusterman.args import add_cluster_arg
+from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_disable_sensu_arg
 from clusterman.args import add_env_config_path_arg
 from clusterman.batch.util import BatchLoggingMixin
@@ -53,6 +54,7 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
         add_cluster_arg(arg_group, required=True)
         add_env_config_path_arg(arg_group)
         add_disable_sensu_arg(arg_group)
+        add_cluster_config_directory_arg(arg_group)
 
     @batch_configure
     def configure_initial(self):
