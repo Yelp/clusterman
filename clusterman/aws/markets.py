@@ -121,6 +121,9 @@ EC2_INSTANCE_TYPES: Dict[str, InstanceResources] = {
 
 EC2_AZS: List[Optional[str]] = [
     None,
+    'us-east-1a',
+    'us-east-1b',
+    'us-east-1c',
     'us-west-1a',
     'us-west-1b',
     'us-west-1c',
