@@ -158,4 +158,3 @@ class TestMain:
         main(args)
 
         assert mock_recycle_cluster.call_count == 1
-        assert mock_log_to_scribe.call_count == 0
