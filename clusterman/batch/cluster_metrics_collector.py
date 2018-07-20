@@ -71,21 +71,27 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
         self.run_interval = staticconf.read_int('batches.cluster_metrics.run_interval_seconds')
         self.logger = logger
 
-        self.mesos_managers = {
-            pool: MesosPoolManager(self.options.cluster, pool)
-            for pool in self.pools
-        }
         self.metrics_client = ClustermanMetricsBotoClient(region_name=self.region)
+
+    def load_mesos_managers(self):
+        logger.info('Reloading all MesosPoolManagers')
+        self.mesos_managers = {}
+        for pool in self.pools:
+            logger.info(f'Loading resource groups for {pool} on {self.options.cluster}')
+            self.mesos_managers[pool] = MesosPoolManager(self.options.cluster, pool)
 
     def write_metrics(self, writer, metrics_to_write):
         for metric, value_method in metrics_to_write:
             for pool, manager in self.mesos_managers.items():
+                manager.reload_state()
                 value = value_method(manager)
                 metric_name = generate_key_with_dimensions(metric, {'cluster': self.options.cluster, 'pool': pool})
+                logger.info(f'Writing {metric_name} to metric store')
                 data = (metric_name, int(time.time()), value)
                 writer.send(data)
 
     def run(self):
+        self.load_mesos_managers()  # Load the pools on the first run; do it here so we get logging
         while self.running:
             time.sleep(splay_time_start(
                 self.run_interval,

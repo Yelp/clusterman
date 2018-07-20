@@ -9,6 +9,8 @@ from clusterman.aws.client import s3
 from clusterman.aws.markets import InstanceMarket
 from clusterman.mesos.spot_fleet_resource_group import get_spot_fleet_request_tags
 from clusterman.mesos.spot_fleet_resource_group import load
+from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_ec2
+from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_s3
 from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
 
 
@@ -104,25 +106,20 @@ def mock_sfr_bucket():
 
 def test_load_spot_fleets_from_s3(mock_sfr_bucket):
     with mock.patch(
-        'clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup._generate_market_weights',
+        'clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup',
     ):
-        sfrgs = load(
-            cluster='westeros-prod',
+        sfrgs = load_spot_fleets_from_s3(
+            bucket='fake-clusterman-sfrs',
+            prefix='fake-region',
             pool='my-pool',
-            config={
-                's3': {
-                    'bucket': 'fake-clusterman-sfrs',
-                    'prefix': 'fake-region',
-                },
-            },
         )
         assert len(sfrgs) == 2
-        assert {sfr.id for sfr in sfrgs} == {'sfr-1', 'sfr-2'}
+        assert {sfr_id for sfr_id in sfrgs} == {'sfr-1', 'sfr-2'}
 
 
 def test_load_spot_fleets_from_ec2():
     with mock.patch(
-        'clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup._generate_market_weights',
+        'clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup',
     ), mock.patch(
         'clusterman.mesos.spot_fleet_resource_group.get_spot_fleet_request_tags',
     ) as mock_get_spot_fleet_request_tags, mock.patch(
@@ -161,42 +158,23 @@ def test_load_spot_fleets_from_ec2():
                 }),
             }
         }
-        spot_fleets = load(
+        spot_fleets = load_spot_fleets_from_ec2(
             cluster='westeros-prod',
             pool='default',
-            config={'tag': 'puppet:role::paasta'}
+            sfr_tag='puppet:role::paasta',
         )
         assert len(spot_fleets) == 1
-        assert spot_fleets[0].id == 'sfr-123'
+        assert list(spot_fleets) == ['sfr-123']
 
 
 def test_load_spot_fleets(mock_sfr_bucket):
     with mock.patch(
-        'clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup._generate_market_weights',
-    ), mock.patch(
-        'clusterman.mesos.spot_fleet_resource_group.get_spot_fleet_request_tags',
-    ) as mock_get_spot_fleet_request_tags, mock.patch(
-        'clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup.is_stale',
-        new=mock.PropertyMock(return_value=False),
-    ):
-        mock_get_spot_fleet_request_tags.return_value = {
-            'sfr-2': {
-                'some': 'tag',
-                'paasta': 'true',
-                'puppet:role::paasta': json.dumps({
-                    'pool': 'my-pool',
-                    'paasta_cluster': 'westeros-prod',
-                }),
-            },
-            'sfr-4': {
-                'some': 'tag',
-                'paasta': 'true',
-                'puppet:role::paasta': json.dumps({
-                    'pool': 'my-pool',
-                    'paasta_cluster': 'westeros-prod',
-                }),
-            },
-        }
+        'clusterman.mesos.spot_fleet_resource_group.load_spot_fleets_from_ec2',
+    ) as mock_ec2_load, mock.patch(
+        'clusterman.mesos.spot_fleet_resource_group.load_spot_fleets_from_s3',
+    ) as mock_s3_load:
+        mock_ec2_load.return_value = {'sfr-1': mock.Mock(id='sfr-1'), 'sfr-2': mock.Mock(id='sfr-2')}
+        mock_s3_load.return_value = {'sfr-2': mock.Mock(id='sfr-2'), 'sfr-4': mock.Mock(id='sfr-4')}
         spot_fleets = load(
             cluster='westeros-prod',
             pool='my-pool',
@@ -208,7 +186,7 @@ def test_load_spot_fleets(mock_sfr_bucket):
                 },
             },
         )
-        assert {spot_fleet.id for spot_fleet in spot_fleets} == {'sfr-1', 'sfr-2', 'sfr-4'}
+        assert {sf.id for sf in spot_fleets} == {'sfr-1', 'sfr-2', 'sfr-4'}
 
 
 def test_get_spot_fleet_request_tags(mock_spot_fleet_resource_group):

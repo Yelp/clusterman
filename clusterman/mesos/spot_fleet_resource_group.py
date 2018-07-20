@@ -3,6 +3,7 @@ from typing import Dict
 from typing import List
 from typing import Sequence
 
+import botocore
 import simplejson as json
 from cached_property import timed_cached_property
 from mypy_extensions import TypedDict
@@ -62,14 +63,14 @@ class SpotFleetResourceGroup(MesosPoolResourceGroup):
         dry_run: bool = False,
     ) -> None:
         if self.is_stale:
-            logger.debug(f"Not modifying spot fleet request since it is in state {self.status}")
+            logger.info(f"Not modifying spot fleet request since it is in state {self.status}")
             return
         kwargs = {
             'SpotFleetRequestId': self.sfr_id,
             'TargetCapacity': int(target_capacity),
             'ExcessCapacityTerminationPolicy': 'Default' if terminate_excess_capacity else 'NoTermination'
         }
-        logger.debug(f'Modifying spot fleet request with arguments: {kwargs}')
+        logger.info(f'Modifying spot fleet request with arguments: {kwargs}')
         if dry_run:
             return
 
@@ -170,7 +171,12 @@ class SpotFleetResourceGroup(MesosPoolResourceGroup):
 
     @property
     def is_stale(self) -> bool:
-        return self.status.startswith('cancelled')
+        try:
+            return self.status.startswith('cancelled')
+        except botocore.exception.ClientError as e:
+            if e.error.get('Code', 'Unknown') == 'InvalidSpotFleetRequestId.NotFound':
+                return True
+            raise e
 
     @staticmethod
     def load(
@@ -187,41 +193,47 @@ def load(
     config: SpotFleetResourceGroupConfig,
 ) -> Sequence[SpotFleetResourceGroup]:
     if 'tag' in config:
-        resource_groups = load_spot_fleets_from_ec2(
+        ec2_resource_groups = load_spot_fleets_from_ec2(
             cluster=cluster,
             pool=pool,
             sfr_tag=config['tag'],
         )
-        resource_group_ids = [resource_group.id for resource_group in resource_groups]
-        logger.info(f'SFRs loaded from ec2: {resource_group_ids}')
+        logger.info(f'SFRs loaded from ec2: {list(ec2_resource_groups)}')
     else:
-        resource_groups = []
+        ec2_resource_groups = {}
 
-    # for backwards compatibility also load spot fleets from S3 files
-    # TODO: remove this once all SFRs are rolled with tags
-    # CLUSTERMAN-234
     if 's3' in config:
         s3_resource_groups = load_spot_fleets_from_s3(
             config['s3']['bucket'],
             config['s3']['prefix'],
             pool=pool,
         )
-        s3_resource_group_ids = [resource_group.id for resource_group in s3_resource_groups]
-        logger.info(f'SFRs loaded from s3: {s3_resource_group_ids}')
-        for resource_group in s3_resource_groups:
-            if resource_group.id not in [group.id for group in resource_groups]:
-                resource_groups.append(resource_group)
+        logger.info(f'SFRs loaded from s3: {list(s3_resource_groups)}')
+    else:
+        s3_resource_groups = {}
 
-        all_resource_group_ids = [resource_group.id for resource_group in resource_groups]
-        logger.info(f'Merged ec2 & s3 SFRs: {all_resource_group_ids}')
+    # Nifty new syntax to merge dicts
+    resource_groups = {**ec2_resource_groups, **s3_resource_groups}
+    logger.info(f'Merged ec2 & s3 SFRs: {list(resource_groups)}')
 
-    return resource_groups
+    return list(resource_groups.values())
 
 
-def load_spot_fleets_from_s3(bucket: str, prefix: str, pool: str=None) -> Sequence[SpotFleetResourceGroup]:
+def no_cancelled_running_fleets(func):
+    def wrapper(*args, **kwargs):
+        resource_groups = func(*args, **kwargs)
+        return {
+            rgid: rg for rgid, rg in resource_groups.items()
+            if rg.status not in ('cancelled_terminating', 'cancelled')
+        }
+    return wrapper
+
+
+@no_cancelled_running_fleets
+def load_spot_fleets_from_s3(bucket: str, prefix: str, pool: str = None) -> Dict[str, SpotFleetResourceGroup]:
     prefix = prefix.rstrip('/') + '/'
     object_list = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
-    spot_fleets = []
+    spot_fleets = {}
     for obj_metadata in object_list['Contents']:
         obj = s3.get_object(Bucket=bucket, Key=obj_metadata['Key'])
         sfr_metadata = json.load(obj['Body'])
@@ -231,23 +243,24 @@ def load_spot_fleets_from_s3(bucket: str, prefix: str, pool: str=None) -> Sequen
             if pool and resource['pool'] != pool:
                 continue
 
-            spot_fleets.append(SpotFleetResourceGroup(resource['id']))
+            spot_fleets[resource['id']] = SpotFleetResourceGroup(resource['id'])
 
     return spot_fleets
 
 
-def load_spot_fleets_from_ec2(cluster: str, pool: str, sfr_tag: str) -> List[SpotFleetResourceGroup]:
+@no_cancelled_running_fleets
+def load_spot_fleets_from_ec2(cluster: str, pool: str, sfr_tag: str) -> Dict[str, SpotFleetResourceGroup]:
     """ Loads SpotFleetResourceGroups by filtering SFRs in the AWS account by tags
     for pool, cluster and a tag that identifies paasta SFRs
     """
     spot_fleet_requests_tags = get_spot_fleet_request_tags()
-    spot_fleets = []
+    spot_fleets = {}
     for sfr_id, tags in spot_fleet_requests_tags.items():
         try:
             puppet_role_tags = json.loads(tags[sfr_tag])
             if puppet_role_tags['pool'] == pool and puppet_role_tags['paasta_cluster'] == cluster:
                 sfrg = SpotFleetResourceGroup(sfr_id)
-                spot_fleets.append(sfrg)
+                spot_fleets[sfr_id] = sfrg
         except KeyError:
             continue
     return spot_fleets
