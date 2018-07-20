@@ -207,20 +207,15 @@ def test_load_elastigroups(mock_spotinst_client, mock_get_spotinst_client, mock_
         mock_get_spotinst_tags.return_value = {
             'sig-123': {
                 'some': 'tag',
-                'puppet_role': 'paasta',
-                'pool': 'default',
-                'cluster': 'westeros-prod',
+                'puppet:role::paasta': '{"pool": "default", "paasta_cluster": "westeros-prod"}'
             },
             'sig-456': {
                 'some': 'tag',
-                'puppet_role': 'paasta',
-                'pool': 'another',
-                'cluster': 'westeros-prod',
+                'puppet:role::paasta': '{"pool": "another", "paasta_cluster": "westeros-prod"}'
             },
             'sig-789': {
                 'some': 'tag',
-                'puppet_role': 'paasta',
-                'cluster': 'westeros-prod',
+                'puppet:role::paasta': '{"paasta_cluster": "westeros-prod"}'
             },
         }
         sigs = load_elastigroups(cluster='westeros-prod', pool='default', config=mock_config)
