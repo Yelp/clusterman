@@ -1,3 +1,10 @@
+clusterman (2.8.7) trusty; urgency=low
+
+  * Fix Clusterman CLI KeyError
+  * Some other minor changes
+
+ -- David Morrison <drmorr@yelp.com>  Fri, 20 Jul 2018 08:52:45 -0700
+
 clusterman (2.8.6) trusty; urgency=low
 
   * Show instance weight in status.
