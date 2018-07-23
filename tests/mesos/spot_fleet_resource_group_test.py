@@ -1,5 +1,6 @@
 import json
 
+import botocore
 import mock
 import pytest
 from moto import mock_s3
@@ -7,6 +8,7 @@ from moto import mock_s3
 from clusterman.aws.client import ec2
 from clusterman.aws.client import s3
 from clusterman.aws.markets import InstanceMarket
+from clusterman.exceptions import ResourceGroupError
 from clusterman.mesos.spot_fleet_resource_group import get_spot_fleet_request_tags
 from clusterman.mesos.spot_fleet_resource_group import load
 from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_ec2
@@ -261,6 +263,17 @@ def test_fulfilled_capacity(mock_spot_fleet_resource_group):
     assert mock_spot_fleet_resource_group.fulfilled_capacity == 11
 
 
+def test_modify_target_capacity_stale(mock_spot_fleet_resource_group):
+    with mock.patch('clusterman.mesos.spot_fleet_resource_group.ec2.describe_spot_fleet_requests') as mock_describe:
+        mock_describe.return_value = {
+            'SpotFleetRequestConfigs': [
+                {'SpotFleetRequestState': 'cancelled_running'}
+            ],
+        }
+        mock_spot_fleet_resource_group.modify_target_capacity(20)
+        assert mock_spot_fleet_resource_group.target_capacity == 0
+
+
 def test_modify_target_capacity_up(mock_spot_fleet_resource_group):
     mock_spot_fleet_resource_group.modify_target_capacity(20)
     assert mock_spot_fleet_resource_group.target_capacity == 20
@@ -283,6 +296,15 @@ def test_modify_target_capacity_down_terminate(mock_spot_fleet_resource_group):
 
 def test_modify_target_capacity_dry_run(mock_spot_fleet_resource_group):
     mock_spot_fleet_resource_group.modify_target_capacity(5, dry_run=True)
+    assert mock_spot_fleet_resource_group.target_capacity == 10
+    assert mock_spot_fleet_resource_group.fulfilled_capacity == 11
+
+
+def test_modify_target_capacity_error(mock_spot_fleet_resource_group):
+    with mock.patch('clusterman.mesos.spot_fleet_resource_group.ec2.modify_spot_fleet_request') as mock_modify, \
+            pytest.raises(ResourceGroupError):
+        mock_modify.return_value = {'Return': False}
+        mock_spot_fleet_resource_group.modify_target_capacity(5)
     assert mock_spot_fleet_resource_group.target_capacity == 10
     assert mock_spot_fleet_resource_group.fulfilled_capacity == 11
 
@@ -351,3 +373,23 @@ def test_market_capacities(mock_spot_fleet_resource_group, mock_subnet):
         InstanceMarket('c3.8xlarge', mock_subnet['Subnet']['AvailabilityZone']): 8,
         InstanceMarket('i2.4xlarge', mock_subnet['Subnet']['AvailabilityZone']): 3,
     }
+
+
+def test_is_stale(mock_spot_fleet_resource_group):
+    assert not mock_spot_fleet_resource_group.is_stale
+
+
+def test_is_stale_not_found(mock_spot_fleet_resource_group):
+    with mock.patch('clusterman.mesos.spot_fleet_resource_group.ec2.describe_spot_fleet_requests') as mock_describe:
+        mock_describe.side_effect = botocore.exceptions.ClientError(
+            {'Error': {'Code': 'InvalidSpotFleetRequestId.NotFound'}},
+            'foo',
+        )
+        assert mock_spot_fleet_resource_group.is_stale
+
+
+def test_is_stale_error(mock_spot_fleet_resource_group):
+    with mock.patch('clusterman.mesos.spot_fleet_resource_group.ec2.describe_spot_fleet_requests') as mock_describe, \
+            pytest.raises(botocore.exceptions.ClientError):
+        mock_describe.side_effect = botocore.exceptions.ClientError({}, 'foo')
+        mock_spot_fleet_resource_group.is_stale

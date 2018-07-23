@@ -142,8 +142,8 @@ class SpotFleetResourceGroup(MesosPoolResourceGroup):
     @property
     def target_capacity(self) -> float:
         if self.is_stale:
-            # If we're in cancelled, cancelled_running, or cancelled_terminated, then no more instances will be launched. This is
-            # effectively a target_capacity of 0, so let's just pretend like it is.
+            # If we're in cancelled, cancelled_running, or cancelled_terminated, then no more instances will be
+            # launched. This is effectively a target_capacity of 0, so let's just pretend like it is.
             return 0
         return self._configuration['SpotFleetRequestConfig']['TargetCapacity']
 
@@ -173,8 +173,8 @@ class SpotFleetResourceGroup(MesosPoolResourceGroup):
     def is_stale(self) -> bool:
         try:
             return self.status.startswith('cancelled')
-        except botocore.exception.ClientError as e:
-            if e.error.get('Code', 'Unknown') == 'InvalidSpotFleetRequestId.NotFound':
+        except botocore.exceptions.ClientError as e:
+            if e.response.get('Error', {}).get('Code', 'Unknown') == 'InvalidSpotFleetRequestId.NotFound':
                 return True
             raise e
 
