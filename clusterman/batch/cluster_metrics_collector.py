@@ -81,9 +81,11 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
             self.mesos_managers[pool] = MesosPoolManager(self.options.cluster, pool)
 
     def write_metrics(self, writer, metrics_to_write):
+        for manager in self.mesos_managers.values():
+            manager.reload_state()
+
         for metric, value_method in metrics_to_write:
             for pool, manager in self.mesos_managers.items():
-                manager.reload_state()
                 value = value_method(manager)
                 metric_name = generate_key_with_dimensions(metric, {'cluster': self.options.cluster, 'pool': pool})
                 logger.info(f'Writing {metric_name} to metric store')
