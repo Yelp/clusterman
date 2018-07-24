@@ -1,9 +1,11 @@
 import subprocess
 import time
 from datetime import datetime
+from typing import Callable
 from typing import Collection
 from typing import Optional
 from typing import TypeVar
+from typing import Union
 
 import arrow
 import colorlog
@@ -77,25 +79,23 @@ def ask_for_choice(prompt, choices):
 T = TypeVar('T')
 
 
-def colored_status(
-    status: T,
-    green: Optional[Collection[T]]=None,
-    blue: Optional[Collection[T]]=None,
-    red: Optional[Collection[T]]=None,
-    prefix: Optional[str]=None,
-    postfix: Optional[str]=None,
-):
+def color_conditions(
+    input_obj: T,
+    prefix: Optional[str] = None,
+    postfix: Optional[str] = None,
+    **kwargs: Union[Collection[T], Callable[[T], bool]],
+) -> str:
     prefix = prefix or ''
     postfix = postfix or ''
-    color_str = Fore.WHITE
-    if green and status in green:
-        color_str = Fore.GREEN
-    elif blue and status in blue:
-        color_str = Fore.BLUE
-    elif red and status in red:
-        color_str = Fore.RED
-    combined_str = prefix + str(status) + postfix
-    return color_str + combined_str + Style.RESET_ALL
+    color_str = ''
+    for color, condition in kwargs.items():
+        if not callable(condition):
+            condition_tuple = tuple(condition)
+            condition = lambda x: x in condition_tuple  # noqa
+        if condition(input_obj):
+            color_str = getattr(Fore, color.upper())
+            break
+    return color_str + prefix + str(input_obj) + postfix + Style.RESET_ALL
 
 
 def run_subprocess_and_log(logger, *args, **kwargs):

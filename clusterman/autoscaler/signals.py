@@ -88,7 +88,7 @@ def _init_signal_io_threads(signal_name, signal_process):
 
 def _get_cache_location():  # pragma: no cover
     """ Store clusterman-specific cached data in ~/.cache/clusterman """
-    return os.path.join(os.path.expanduser("~"), '.cache', 'clusterman')
+    return os.path.join(os.path.expanduser('~'), '.cache', 'clusterman')
 
 
 def _get_local_signal_directory(repo, branch_or_tag):

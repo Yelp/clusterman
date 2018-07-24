@@ -181,5 +181,5 @@ class Autoscaler:
                 continue
 
             resource_total = self.mesos_pool_manager.get_resource_total(resource)
-            requested_resource_usage_pcts[resource] = resource_request[resource]/resource_total
+            requested_resource_usage_pcts[resource] = resource_request[resource] / resource_total
         return max(requested_resource_usage_pcts.items(), key=lambda x: x[1])

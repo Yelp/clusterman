@@ -28,8 +28,12 @@ docs:
 docs-server: docs
 	python docs/doc_server.py
 
+.PHONY: mypy
+mypy:
+	tox -e mypy
+
 .PHONY: test
-test: clean-cache
+test: clean-cache mypy
 	tox
 
 .PHONY: itest

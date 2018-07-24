@@ -4,6 +4,10 @@ from collections import defaultdict
 from datetime import timedelta
 from heapq import heappop
 from heapq import heappush
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Set
 
 import staticconf
 import yaml
@@ -13,6 +17,7 @@ from clusterman_metrics import METADATA
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.aws.client import ec2
 from clusterman.aws.markets import get_instance_market
+from clusterman.aws.markets import InstanceMarket
 from clusterman.math.piecewise import hour_transform
 from clusterman.math.piecewise import piecewise_breakpoint_generator
 from clusterman.math.piecewise import PiecewiseConstantFunction
@@ -29,7 +34,7 @@ logger = get_clusterman_logger(__name__)
 
 class Simulator:
     def __init__(self, metadata, start_time, end_time, autoscaler_config_file=None, metrics_client=None,
-                 billing_frequency=timedelta(seconds=1), refund_outbid=True):
+                 billing_frequency=timedelta(seconds=1), refund_outbid=True) -> None:
         """ Maintains all of the state for a clusterman simulation
 
         :param metadata: a SimulationMetadata object
@@ -39,33 +44,36 @@ class Simulator:
         :param billing_frequency: a timedelta object indicating how often to charge for an instance
         :param refund_outbid: if True, do not incur any cost for an instance lost to an outbid event
         """
+        self.autoscaler: Optional[Autoscaler] = None
         self.metadata = metadata
         self.metrics_client = metrics_client
         self.start_time = start_time
         self.current_time = start_time
         self.end_time = end_time
 
-        self.instance_prices = defaultdict(lambda: PiecewiseConstantFunction())
+        self.instance_prices: Dict[InstanceMarket, PiecewiseConstantFunction] = defaultdict(
+            lambda: PiecewiseConstantFunction()
+        )
         self.cost_per_hour = PiecewiseConstantFunction()
         self.aws_cpus = PiecewiseConstantFunction()
         self.mesos_cpus = PiecewiseConstantFunction()
         self.mesos_cpus_allocated = PiecewiseConstantFunction()
-        self.markets = set()
+        self.markets: Set = set()
 
         self.billing_frequency = billing_frequency
         self.refund_outbid = refund_outbid
 
         if autoscaler_config_file:
             self._make_autoscaler(autoscaler_config_file)
-            self.aws_clusters = self.autoscaler.mesos_pool_manager.resource_groups
-            print(f'Autoscaler configured; will run every {self.autoscaler.signal_config.period_minutes} minutes')
+            self.aws_clusters = self.autoscaler.mesos_pool_manager.resource_groups.values()  # type: ignore
+            period = self.autoscaler.signal_config.period_minutes  # type: ignore
+            print(f'Autoscaler configured; will run every {period} minutes')
         else:
-            self.autoscaler = None
             self.aws_clusters = [SimulatedAWSCluster(self)]
             print('No autoscaler configured; using metrics for cluster size')
 
         # The event queue holds all of the simulation events, ordered by time
-        self.event_queue = []
+        self.event_queue: List[Event] = []
 
         # Don't use add_event here or the end_time event will get discarded
         heappush(self.event_queue, Event(self.start_time, msg='Simulation begins'))
@@ -205,8 +213,8 @@ class Simulator:
                 delta = prices.breakpoints[bp_timestamp] - last_billed_price
 
         # TODO (CLUSTERMAN-54) add some itests to make sure this is working correctly
-        # Determine whether or not to bill for the last billing period of the instance.  We charge for the last billing period if
-        # any of the following conditions are met:
+        # Determine whether or not to bill for the last billing period of the instance.  We charge for the last billing
+        # period if any of the following conditions are met:
         #   a) the instance is not a spot instance
         #   b) self.refund_outbid is false, e.g. we have "new-style" AWS pricing
         #   c) the instance bid price (when it was terminated) is greater than the current spot price

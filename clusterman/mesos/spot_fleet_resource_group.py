@@ -1,4 +1,5 @@
 from collections import defaultdict
+from typing import cast
 from typing import Dict
 from typing import List
 from typing import Sequence
@@ -64,7 +65,7 @@ class SpotFleetResourceGroup(MesosPoolResourceGroup):
         dry_run: bool = False,
     ) -> None:
         if self.is_stale:
-            logger.info(f"Not modifying spot fleet request since it is in state {self.status}")
+            logger.info(f'Not modifying spot fleet request since it is in state {self.status}')
             return
         kwargs = {
             'SpotFleetRequestId': self.sfr_id,
@@ -184,7 +185,7 @@ class SpotFleetResourceGroup(MesosPoolResourceGroup):
         cluster: str,
         pool: str,
         config: SpotFleetResourceGroupConfig,
-    ) -> Sequence['SpotFleetResourceGroup']:
+    ) -> Dict[str, MesosPoolResourceGroup]:
         return load(cluster, pool, config)
 
 
@@ -192,7 +193,7 @@ def load(
     cluster: str,
     pool: str,
     config: SpotFleetResourceGroupConfig,
-) -> Sequence[SpotFleetResourceGroup]:
+) -> Dict[str, MesosPoolResourceGroup]:
     if 'tag' in config:
         ec2_resource_groups = load_spot_fleets_from_ec2(
             cluster=cluster,
@@ -220,7 +221,7 @@ def load(
     }
     logger.info(f'Merged ec2 & s3 SFRs: {list(resource_groups)}')
 
-    return list(resource_groups.values())
+    return cast(Dict[str, MesosPoolResourceGroup], resource_groups)
 
 
 def load_spot_fleets_from_s3(bucket: str, prefix: str, pool: str = None) -> Dict[str, SpotFleetResourceGroup]:
@@ -264,15 +265,15 @@ def get_spot_fleet_request_tags() -> Dict[str, Dict[str, str]]:
     """
     spot_fleet_requests = ec2.describe_spot_fleet_requests()
     sfr_id_to_tags = {}
-    for sfr_config in spot_fleet_requests["SpotFleetRequestConfigs"]:
-        launch_specs = sfr_config["SpotFleetRequestConfig"]["LaunchSpecifications"]
+    for sfr_config in spot_fleet_requests['SpotFleetRequestConfigs']:
+        launch_specs = sfr_config['SpotFleetRequestConfig']['LaunchSpecifications']
         try:
             # we take the tags from the 0th launch spec for now
             # they should always be identical in every launch spec
-            tags = launch_specs[0]["TagSpecifications"][0]["Tags"]
+            tags = launch_specs[0]['TagSpecifications'][0]['Tags']
         except (IndexError, KeyError):
             # if this SFR is misssing the TagSpecifications
             tags = []
         tags_dict = {tag['Key']: tag['Value'] for tag in tags}
-        sfr_id_to_tags[sfr_config["SpotFleetRequestId"]] = tags_dict
+        sfr_id_to_tags[sfr_config['SpotFleetRequestId']] = tags_dict
     return sfr_id_to_tags

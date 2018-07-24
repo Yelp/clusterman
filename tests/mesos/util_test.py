@@ -4,7 +4,7 @@ import staticconf
 
 from clusterman.exceptions import MesosPoolManagerError
 from clusterman.mesos.util import agent_pid_to_ip
-from clusterman.mesos.util import allocated_cpu_resources
+from clusterman.mesos.util import allocated_agent_resources
 from clusterman.mesos.util import get_cluster_name_list
 from clusterman.mesos.util import get_pool_name_list
 from clusterman.mesos.util import mesos_post
@@ -27,10 +27,11 @@ def test_agent_pid_to_ip():
     assert ret == '10.40.31.172'
 
 
-def test_allocated_cpu_resources(mock_agents_response):
-    assert allocated_cpu_resources(mock_agents_response.json()['slaves'][0]) == 0
-    assert allocated_cpu_resources(mock_agents_response.json()['slaves'][1]) == 0
-    assert allocated_cpu_resources(mock_agents_response.json()['slaves'][2]) == 10
+def test_allocated_agent_resources(mock_agents_response):
+    assert allocated_agent_resources(mock_agents_response.json()['slaves'][0])[0] == 0
+    assert allocated_agent_resources(mock_agents_response.json()['slaves'][1])[0] == 0
+    assert allocated_agent_resources(mock_agents_response.json()['slaves'][2])[0] == 10
+    assert allocated_agent_resources(mock_agents_response.json()['slaves'][2])[1] == 20
 
 
 @mock.patch('clusterman.mesos.util.mesos_post', wraps=mesos_post)

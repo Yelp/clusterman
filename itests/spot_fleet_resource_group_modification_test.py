@@ -20,9 +20,12 @@ pytest.mark.usefixtures(mock_aws_client_setup, main_clusterman_config, clusterma
 
 @pytest.fixture
 def mock_sfrs(setup_ec2):
-    sfrgs = [mock_spot_fleet_resource_group(mock_sfr_response(mock_subnet())) for i in range(5)]
-    for sfrg in sfrgs:
-        ec2.modify_spot_fleet_request(SpotFleetRequestId=sfrg.id, TargetCapacity=1)
+    sfrgs = {}
+    for _ in range(5):
+        sfr = mock_sfr_response(mock_subnet())
+        sfrid = sfr['SpotFleetRequestId']
+        sfrgs[sfrid] = mock_spot_fleet_resource_group(sfr)
+        ec2.modify_spot_fleet_request(SpotFleetRequestId=sfrid, TargetCapacity=1)
     return sfrgs
 
 
@@ -36,7 +39,7 @@ def mock_manager(main_clusterman_config, mock_aws_client_setup, mock_sfrs):
 
     with mock.patch.dict(
         'clusterman.mesos.mesos_pool_manager.RESOURCE_GROUPS',
-        {"sfr": FakeResourceGroupClass},
+        {'sfr': FakeResourceGroupClass},
     ):
         return MesosPoolManager('mesos-test', 'bar')
 
@@ -46,39 +49,41 @@ def test_target_capacity(mock_manager):
 
 
 @mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.prune_excess_fulfilled_capacity')
-def test_scale_up(mock_prune, mock_manager, mock_sfrs):
+def test_scale_up(mock_prune, mock_manager):
     mock_manager.max_capacity = 101
 
     # Test balanced scale up
     mock_manager.modify_target_capacity(53)
-    assert sorted([rg.target_capacity for rg in mock_manager.resource_groups]) == [10, 10, 11, 11, 11]
+    rgs = list(mock_manager.resource_groups.values())
+    assert sorted([rg.target_capacity for rg in rgs]) == [10, 10, 11, 11, 11]
 
     # Test dry run -- target and fulfilled capacities should remain the same
     mock_manager.modify_target_capacity(1000, dry_run=True)
-    fulfilled_capacity = sorted([rg.fulfilled_capacity for rg in mock_manager.resource_groups])
-    assert sorted([rg.target_capacity for rg in mock_manager.resource_groups]) == [10, 10, 11, 11, 11]
-    assert sorted([rg.fulfilled_capacity for rg in mock_manager.resource_groups]) == fulfilled_capacity
+    fulfilled_capacity = sorted([rg.fulfilled_capacity for rg in rgs])
+    assert sorted([rg.target_capacity for rg in rgs]) == [10, 10, 11, 11, 11]
+    assert sorted([rg.fulfilled_capacity for rg in rgs]) == fulfilled_capacity
 
     # Test balanced scale up after an external modification
-    ec2.modify_spot_fleet_request(SpotFleetRequestId=mock_sfrs[0].id, TargetCapacity=13)
+    ec2.modify_spot_fleet_request(SpotFleetRequestId=rgs[0].id, TargetCapacity=13)
     mock_manager.modify_target_capacity(76)
-    assert sorted([rg.target_capacity for rg in mock_manager.resource_groups]) == [15, 15, 15, 15, 16]
+    assert sorted([rg.target_capacity for rg in rgs]) == [15, 15, 15, 15, 16]
 
     # Test an imbalanced scale up
-    ec2.modify_spot_fleet_request(SpotFleetRequestId=mock_sfrs[3].id, TargetCapacity=30)
+    ec2.modify_spot_fleet_request(SpotFleetRequestId=rgs[3].id, TargetCapacity=30)
     mock_manager.modify_target_capacity(1000)
-    assert sorted([rg.target_capacity for rg in mock_manager.resource_groups]) == [17, 18, 18, 18, 30]
+    assert sorted([rg.target_capacity for rg in rgs]) == [17, 18, 18, 18, 30]
 
     assert mock_prune.call_count == 4
 
 
-def test_scale_down(mock_manager, mock_sfrs):
+def test_scale_down(mock_manager):
     mock_manager.max_capacity = 101
     patched_config = {'mesos_clusters': {'mesos-test': {'max_weight_to_remove': 1000}}}
 
     # all instances have agents with 0 tasks and are thus killable
     agents = []
-    for rg in mock_manager.resource_groups:
+    rgs = list(mock_manager.resource_groups.values())
+    for rg in rgs:
         for instance in ec2_describe_instances(instance_ids=rg.instance_ids):
             agents.append({
                 'pid': f'slave(1)@{instance["PrivateIpAddress"]}:1', 'id': f'agent-{instance["InstanceId"]}'
@@ -94,16 +99,16 @@ def test_scale_down(mock_manager, mock_sfrs):
 
         # Test a balanced scale down
         mock_manager.modify_target_capacity(80)
-        assert sorted([rg.target_capacity for rg in mock_manager.resource_groups]) == [16, 16, 16, 16, 16]
+        assert sorted([rg.target_capacity for rg in rgs]) == [16, 16, 16, 16, 16]
 
-        ec2.modify_spot_fleet_request(SpotFleetRequestId=mock_sfrs[0].id, TargetCapacity=1)
+        ec2.modify_spot_fleet_request(SpotFleetRequestId=rgs[0].id, TargetCapacity=1)
 
         # Test dry run -- target and fulfilled capacities should remain the same
         mock_manager.modify_target_capacity(22, dry_run=True)
-        fulfilled_capacity = sorted([rg.fulfilled_capacity for rg in mock_manager.resource_groups])
-        assert sorted([rg.target_capacity for rg in mock_manager.resource_groups]) == [1, 16, 16, 16, 16]
-        assert sorted([rg.fulfilled_capacity for rg in mock_manager.resource_groups]) == fulfilled_capacity
+        fulfilled_capacity = sorted([rg.fulfilled_capacity for rg in rgs])
+        assert sorted([rg.target_capacity for rg in rgs]) == [1, 16, 16, 16, 16]
+        assert sorted([rg.fulfilled_capacity for rg in rgs]) == fulfilled_capacity
 
         # Test an imbalanced scale down
         mock_manager.modify_target_capacity(22)
-        assert sorted([rg.target_capacity for rg in mock_manager.resource_groups]) == [1, 5, 5, 5, 6]
+        assert sorted([rg.target_capacity for rg in rgs]) == [1, 5, 5, 5, 6]

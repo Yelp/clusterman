@@ -58,8 +58,20 @@ def get_total_resource_value(agents, value_name, resource_name):
     )
 
 
-def allocated_cpu_resources(agent):
-    return get_resource_value(agent.get('used_resources', {}), 'cpus')
+def allocated_agent_resources(agent):
+    return (
+        get_resource_value(agent.get('used_resources', {}), 'cpus'),
+        get_resource_value(agent.get('used_resources', {}), 'mem'),
+        get_resource_value(agent.get('used_resources', {}), 'disk'),
+    ) if agent else (0, 0, 0)
+
+
+def total_agent_resources(agent):
+    return (
+        get_resource_value(agent.get('resources', {}), 'cpus'),
+        get_resource_value(agent.get('resources', {}), 'mem'),
+        get_resource_value(agent.get('resources', {}), 'disk'),
+    ) if agent else (0, 0, 0)
 
 
 def mesos_post(url, endpoint):

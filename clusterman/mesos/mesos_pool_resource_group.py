@@ -114,22 +114,18 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
         pass
 
     @abstractproperty
-    def is_stale(self) -> bool:
+    def is_stale(self) -> bool:  # pragma: no cover
         """Whether this ResourceGroup is stale."""
         pass
 
     @staticmethod
     @abstractstaticmethod
-    def load(
-        cluster: str,
-        pool: str,
-        config: Any,
-    ) -> Sequence['MesosPoolResourceGroup']:
+    def load(cluster: str, pool: str, config: Any) -> Dict[str, 'MesosPoolResourceGroup']:
         """ Load a list of corresponding resource groups
 
         :param cluster: a cluster name
         :param pool: a pool name
         :param config: a config specific to a resource group type
-        :returns: a list of resource groups
+        :returns: a dictionary of resource groups, indexed by id
         """
         pass
