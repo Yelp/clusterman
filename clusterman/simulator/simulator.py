@@ -66,7 +66,7 @@ class Simulator:
         if autoscaler_config_file:
             self._make_autoscaler(autoscaler_config_file)
             self.aws_clusters = self.autoscaler.mesos_pool_manager.resource_groups.values()  # type: ignore
-            period = self.autoscaler.signal_config.period_minutes  # type: ignore
+            period = self.autoscaler.signal.config.period_minutes  # type: ignore
             print(f'Autoscaler configured; will run every {period} minutes')
         else:
             self.aws_clusters = [SimulatedAWSCluster(self)]
