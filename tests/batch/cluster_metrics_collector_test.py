@@ -40,9 +40,6 @@ def test_configure_initial(mock_ls, mock_mesos_pool_manager, mock_client_class, 
     assert batch.run_interval == 120
     assert mock_setup_config.call_count == 1
     assert batch.region == 'us-west-2'  # region from cluster configs
-    assert sorted(batch.mesos_managers.keys()) == pools
-    for manager in batch.mesos_managers.values():
-        assert isinstance(manager, MesosPoolManager)
 
     assert mock_client_class.call_args_list == [mock.call(region_name='us-west-2')]
     assert batch.metrics_client == mock_client_class.return_value
@@ -84,12 +81,14 @@ def test_run(mock_sensu, mock_running, mock_time, mock_sleep, batch):
     mock_time.side_effect = [101, 113, 148, 188]
     batch.run_interval = 10
     batch.metrics_client = mock.MagicMock(spec_set=ClustermanMetricsBotoClient)
+    batch.pools = ['pool-1', 'pool-2']
 
     writer_context = batch.metrics_client.get_writer.return_value
     writer = writer_context.__enter__.return_value
 
     with mock.patch('builtins.hash') as mock_hash, \
             mock.patch.object(batch, 'write_metrics', autospec=True) as write_metrics, \
+            mock.patch('clusterman.batch.cluster_metrics_collector.MesosPoolManager', autospec=True), \
             mock.patch('clusterman.batch.cluster_metrics_collector.logger') as mock_logger:
         def mock_write_metrics(end_time, writer):
             if mock_time.call_count == 4:

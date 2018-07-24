@@ -1,6 +1,5 @@
 from bisect import bisect
 from collections import defaultdict
-from pprint import pformat
 from typing import Collection
 from typing import DefaultDict
 from typing import Dict
@@ -251,9 +250,8 @@ class MesosPoolManager:
             return {}
 
         prioritized_killable_instances = self.get_prioritized_killable_instances()
-        logger.debug('Killable instances in kill order:\n{instances}'.format(
-            # `ignore` is a workaround for the bug of typeshed doesn't contain `compact` for `pformat`
-            instances=pformat(prioritized_killable_instances, compact=True, width=100)  # type: ignore
+        logger.info('Killable instance IDs in kill order:\n{instances}'.format(
+            instances=[instance.instance_id for instance in prioritized_killable_instances],
         ))
 
         if not prioritized_killable_instances:
@@ -279,7 +277,7 @@ class MesosPoolManager:
 
             # Make sure we don't make a resource group go below its target capacity
             if rem_group_capacities[instance.resource_group.id] - instance_weight < group_targets[group_index]:  # case 1
-                logger.debug(
+                logger.info(
                     f'Resource group {instance.resource_group.id} is at target capacity; skipping {instance.instance_id}'
                 )
                 continue
@@ -298,7 +296,7 @@ class MesosPoolManager:
                         f"target_capacity for non-orphan boxes. Skipping this instance.")
                     continue
 
-            logger.debug(f"marking {instance.instance_id} for termination")
+            logger.info(f"marking {instance.instance_id} for termination")
             marked_instance_ids[instance.resource_group].append(instance.instance_id)
             rem_group_capacities[instance.resource_group.id] -= instance_weight
             curr_capacity -= instance_weight
@@ -465,7 +463,7 @@ class MesosPoolManager:
             i.resource_group.market_weight(i.market) for i in self.get_instances() if i.state != MesosAgentState.ORPHANED
         )
 
-    # TODO: fetch this in reload_state
+    # TODO (CLUSTERMAN-278): fetch this in reload_state
     @timed_cached_property(CACHE_TTL_SECONDS)
     def _agents(self) -> Sequence[MesosAgentDict]:
         response = mesos_post(self.api_endpoint, 'slaves').json()
@@ -475,7 +473,7 @@ class MesosPoolManager:
             if agent.get('attributes', {}).get('pool', 'default') == self.pool
         ]
 
-    # TODO: fetch this in reload_state
+    # TODO (CLUSTERMAN-278): fetch this in reload_state
     @timed_cached_property(CACHE_TTL_SECONDS)
     def _frameworks(self) -> Sequence[Dict]:
         response = mesos_post(self.api_endpoint, 'master/frameworks').json()
