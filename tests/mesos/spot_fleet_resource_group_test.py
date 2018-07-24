@@ -176,7 +176,7 @@ def test_load_spot_fleets(mock_sfr_bucket):
         'clusterman.mesos.spot_fleet_resource_group.load_spot_fleets_from_s3',
     ) as mock_s3_load:
         mock_ec2_load.return_value = {'sfr-1': mock.Mock(id='sfr-1'), 'sfr-2': mock.Mock(id='sfr-2')}
-        mock_s3_load.return_value = {'sfr-2': mock.Mock(id='sfr-2'), 'sfr-4': mock.Mock(id='sfr-4')}
+        mock_s3_load.return_value = {'sfr-3': mock.Mock(id='sfr-3', status='cancelled'), 'sfr-4': mock.Mock(id='sfr-4')}
         spot_fleets = load(
             cluster='westeros-prod',
             pool='my-pool',

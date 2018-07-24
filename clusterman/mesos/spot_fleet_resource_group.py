@@ -20,6 +20,7 @@ from clusterman.mesos.mesos_pool_resource_group import protect_unowned_instances
 from clusterman.util import get_clusterman_logger
 
 logger = get_clusterman_logger(__name__)
+CANCELLED_STATES = ('cancelled', 'cancelled_terminating')
 
 _S3Config = TypedDict(
     '_S3Config',
@@ -213,23 +214,15 @@ def load(
         s3_resource_groups = {}
 
     # Nifty new syntax to merge dicts
-    resource_groups = {**ec2_resource_groups, **s3_resource_groups}
+    resource_groups = {
+        sfr_id: sfrg for sfr_id, sfrg in {**ec2_resource_groups, **s3_resource_groups}.items()
+        if sfrg.status not in CANCELLED_STATES
+    }
     logger.info(f'Merged ec2 & s3 SFRs: {list(resource_groups)}')
 
     return list(resource_groups.values())
 
 
-def no_cancelled_running_fleets(func):
-    def wrapper(*args, **kwargs):
-        resource_groups = func(*args, **kwargs)
-        return {
-            rgid: rg for rgid, rg in resource_groups.items()
-            if rg.status not in ('cancelled_terminating', 'cancelled')
-        }
-    return wrapper
-
-
-@no_cancelled_running_fleets
 def load_spot_fleets_from_s3(bucket: str, prefix: str, pool: str = None) -> Dict[str, SpotFleetResourceGroup]:
     prefix = prefix.rstrip('/') + '/'
     object_list = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
@@ -248,7 +241,6 @@ def load_spot_fleets_from_s3(bucket: str, prefix: str, pool: str = None) -> Dict
     return spot_fleets
 
 
-@no_cancelled_running_fleets
 def load_spot_fleets_from_ec2(cluster: str, pool: str, sfr_tag: str) -> Dict[str, SpotFleetResourceGroup]:
     """ Loads SpotFleetResourceGroups by filtering SFRs in the AWS account by tags
     for pool, cluster and a tag that identifies paasta SFRs
