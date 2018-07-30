@@ -76,7 +76,7 @@ def main_clusterman_config():
 @pytest.fixture(autouse=True)
 def clusterman_pool_config():
     config = {
-        'resource_groups2': [
+        'resource_groups': [
             {
                 'sfr': {
                     's3': {
