@@ -1,0 +1,36 @@
+---
+configs:
+    - LaunchSpecifications:
+        - WeightedCapacity: 35
+          SubnetId: "subnet-9a33deed"
+          InstanceType: "r3.8xlarge"
+          SpotPrice: 4
+        - WeightedCapacity: 45
+          SubnetId: "subnet-9a33deed"
+          InstanceType: "c4.4xlarge"
+          SpotPrice: 4
+        - WeightedCapacity: 55
+          SubnetId: "subnet-9a33deed"
+          InstanceType: "c3.8xlarge"
+          SpotPrice: 4
+        - WeightedCapacity: 35
+          SubnetId: "subnet-9a33deed"
+          InstanceType: "m4.10xlarge"
+          SpotPrice: 4
+        - WeightedCapacity: 45
+          SubnetId: "subnet-9a33deed"
+          InstanceType: "c3.8xlarge"
+          SpotPrice: 4
+        - WeightedCapacity: 55
+          SubnetId: "subnet-9a33deed"
+          InstanceType: "r3.8xlarge"
+          SpotPrice: 4
+        - WeightedCapacity: 35
+          SubnetId: "subnet-9a33deed"
+          InstanceType: "m4.10xlarge"
+          SpotPrice: 4
+        - WeightedCapacity: 45
+          SubnetId: "subnet-9a33deed"
+          InstanceType: "m4.4xlarge"
+          SpotPrice: 4
+      AllocationStrategy: diversified

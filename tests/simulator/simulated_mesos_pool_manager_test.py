@@ -36,10 +36,10 @@ def mock_pool_manager(mock_ssfrg, simulator):
 
 
 def test_simulated_agents(mock_pool_manager):
-    assert len(mock_pool_manager.agents) == 10
-    assert get_total_resource_value(mock_pool_manager.agents, 'resources', 'cpus') == \
+    assert len(mock_pool_manager._agents) == 10
+    assert get_total_resource_value(mock_pool_manager._agents, 'resources', 'cpus') == \
         10 * get_market_resources(TEST_MARKET).cpus
-    assert get_total_resource_value(mock_pool_manager.agents, 'resources', 'mem') == \
+    assert get_total_resource_value(mock_pool_manager._agents, 'resources', 'mem') == \
         10 * get_market_resources(TEST_MARKET).mem
-    assert get_total_resource_value(mock_pool_manager.agents, 'resources', 'disk') == \
+    assert get_total_resource_value(mock_pool_manager._agents, 'resources', 'disk') == \
         10 * get_market_resources(TEST_MARKET).disk
