@@ -1,5 +1,3 @@
-import json
-
 import mock
 import pytest
 from spotinst_sdk import SpotinstClient
@@ -7,11 +5,9 @@ from spotinst_sdk import SpotinstClient
 from clusterman.aws.client import ec2
 from clusterman.aws.markets import InstanceMarket
 from clusterman.aws.markets import subnet_to_az
-from clusterman.mesos.spotinst_resource_group import get_spotinst_client
 from clusterman.mesos.spotinst_resource_group import get_spotinst_tags
 from clusterman.mesos.spotinst_resource_group import load_elastigroups
 from clusterman.mesos.spotinst_resource_group import SpotInstResourceGroup
-from tests.conftest import mock_open
 from tests.mesos.spot_fleet_resource_group_test import mock_sfr_response
 from tests.mesos.spot_fleet_resource_group_test import mock_subnet
 
@@ -157,18 +153,6 @@ class SpotinstClientEmulator(object):
 
 
 @pytest.fixture
-def mock_config():
-    with mock_open(
-        '/etc/no_cfg/auth_config.json',
-        contents=json.dumps({
-            'api_token': 'APITOKEN',
-            'account_id': 'ACCOUNTID',
-        })
-    ):
-        yield {'auth_config': '/etc/no_cfg/auth_config.json'}
-
-
-@pytest.fixture
 def mock_spotinst_client():
     yield mock.Mock(spec_set=SpotinstClient)
 
@@ -185,19 +169,11 @@ def mock_get_spotinst_client(mock_spotinst_client):
 @pytest.fixture
 def mock_spotinst_resource_group(mock_sfr_response, mock_spotinst_client):
     client = SpotinstClientEmulator(mock_sfr_response['SpotFleetRequestId'])
-    return SpotInstResourceGroup(list(client._sig_id_to_sfr_ids.keys())[0], client)
+    with mock.patch('clusterman.mesos.spotinst_resource_group.get_spotinst_client', return_value=client):
+        return SpotInstResourceGroup(list(client._sig_id_to_sfr_ids.keys())[0])
 
 
-def test_get_spotinst_client(mock_config):
-    with mock.patch(
-        'clusterman.mesos.spotinst_resource_group.SpotinstClient.__init__',
-    ) as mock_SpotinstClient_init:
-        mock_SpotinstClient_init.return_value = None
-        get_spotinst_client(mock_config)
-        mock_SpotinstClient_init.assert_called_with(account_id='ACCOUNTID', auth_token='APITOKEN', print_output=False)
-
-
-def test_load_elastigroups(mock_spotinst_client, mock_get_spotinst_client, mock_config):
+def test_load_elastigroups(mock_spotinst_client, mock_get_spotinst_client):
     with mock.patch(
         'clusterman.mesos.spotinst_resource_group.SpotInstResourceGroup.__init__',
     ) as mock_init, mock.patch(
@@ -218,9 +194,9 @@ def test_load_elastigroups(mock_spotinst_client, mock_get_spotinst_client, mock_
                 'puppet:role::paasta': '{"paasta_cluster": "westeros-prod"}'
             },
         }
-        sigs = load_elastigroups(cluster='westeros-prod', pool='default', config=mock_config)
+        sigs = load_elastigroups(cluster='westeros-prod', pool='default')
         assert len(sigs) == 1
-        mock_init.assert_called_with('sig-123', mock_spotinst_client)
+        mock_init.assert_called_with('sig-123')
 
 
 def test_get_spotinst_tags(mock_spotinst_client):

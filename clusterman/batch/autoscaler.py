@@ -12,11 +12,11 @@ from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_env_config_path_arg
 from clusterman.args import add_pool_arg
 from clusterman.autoscaler.autoscaler import Autoscaler
-from clusterman.autoscaler.config import LOG_STREAM_NAME
 from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import BatchRunningSentinelMixin
 from clusterman.batch.util import suppress_request_limit_exceeded
 from clusterman.config import get_pool_config_path
+from clusterman.config import LOG_STREAM_NAME
 from clusterman.config import setup_config
 from clusterman.exceptions import AutoscalerError
 from clusterman.exceptions import ClustermanSignalError

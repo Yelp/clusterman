@@ -15,7 +15,27 @@ from colorama import Style
 from pysensu_yelp import Status
 from staticconf.errors import ConfigurationError
 
+from clusterman.config import LOG_STREAM_NAME
 from clusterman.config import POOL_NAMESPACE
+
+
+def get_clusterman_logger(name):
+    handler = colorlog.StreamHandler()
+    handler.setFormatter(colorlog.ColoredFormatter('%(log_color)s%(levelname)s:%(name)s:%(message)s'))
+    logger = colorlog.getLogger(name)
+    logger.addHandler(handler)
+    return logger
+
+
+logger = get_clusterman_logger(__name__)
+
+
+def log_to_scribe(message):
+    try:
+        import clog
+        clog.log_line(LOG_STREAM_NAME, message)
+    except ModuleNotFoundError:
+        logger.warn('clog not found, are you running on a Yelp host?')
 
 
 def ask_for_confirmation(prompt='Are you sure? ', default=True):
@@ -76,14 +96,6 @@ def colored_status(
         color_str = Fore.RED
     combined_str = prefix + str(status) + postfix
     return color_str + combined_str + Style.RESET_ALL
-
-
-def get_clusterman_logger(name):
-    handler = colorlog.StreamHandler()
-    handler.setFormatter(colorlog.ColoredFormatter('%(log_color)s%(levelname)s:%(name)s:%(message)s'))
-    logger = colorlog.getLogger(name)
-    logger.addHandler(handler)
-    return logger
 
 
 def run_subprocess_and_log(logger, *args, **kwargs):

@@ -1,3 +1,5 @@
+import sys
+
 import arrow
 import mock
 import pysensu_yelp
@@ -11,6 +13,12 @@ from clusterman.util import colored_status
 from clusterman.util import parse_time_interval_seconds
 from clusterman.util import parse_time_string
 from clusterman.util import sensu_checkin
+
+
+@pytest.fixture(autouse=True)
+def mock_clog():
+    sys.modules['clog'] = mock.Mock()  # clog is imported in the main function so this is how we mock it
+    yield
 
 
 @pytest.mark.parametrize('inp,response', [('\n', True), ('\n', False), ('yE', True), ('n', False)])

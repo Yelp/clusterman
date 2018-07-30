@@ -5,7 +5,6 @@ from typing import List
 from typing import Sequence
 from typing import TypeVar
 
-import staticconf
 from cached_property import timed_cached_property
 from mypy_extensions import TypedDict
 from spotinst_sdk import SpotinstClient
@@ -18,6 +17,7 @@ from clusterman.exceptions import ResourceGroupError
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
 from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 from clusterman.mesos.mesos_pool_resource_group import protect_unowned_instances
+from clusterman.spotinst.client import get_spotinst_client
 from clusterman.util import get_clusterman_logger
 
 logger = get_clusterman_logger(__name__)
@@ -92,17 +92,15 @@ ElasticGroup = TypedDict(
 
 SpotInstResourceGroupConfig = TypedDict(
     'SpotInstResourceGroupConfig',
-    {
-        'auth_config': str,
-    }
+    {}
 )
 
 
 class SpotInstResourceGroup(MesosPoolResourceGroup):
 
-    def __init__(self, group_id: str, client: SpotinstClientType) -> None:
+    def __init__(self, group_id: str) -> None:
         self._group_id = group_id
-        self._client = client
+        self._client = get_spotinst_client()
         self._target_capacity = self.fulfilled_capacity
 
     def market_weight(self, market: InstanceMarket) -> float:
@@ -218,34 +216,20 @@ class SpotInstResourceGroup(MesosPoolResourceGroup):
     def load(
         cluster: str,
         pool: str,
-        config: SpotInstResourceGroupConfig,
+        config: SpotInstResourceGroupConfig
     ) -> Sequence['SpotInstResourceGroup']:
-        return load_elastigroups(cluster, pool, config)
-
-
-def get_spotinst_client(config: SpotInstResourceGroupConfig) -> SpotinstClient:
-    creds_file = config["auth_config"]
-    staticconf.JSONConfiguration(creds_file, namespace=CREDENTIALS_NAMESPACE)
-    auth_token = staticconf.read_string("api_token", namespace=CREDENTIALS_NAMESPACE)
-    account_id = staticconf.read_string("account_id", namespace=CREDENTIALS_NAMESPACE)
-    client = SpotinstClient(
-        auth_token=auth_token,
-        account_id=account_id,
-        print_output=False,
-    )
-    return client
+        return load_elastigroups(cluster, pool)
 
 
 def load_elastigroups(
     cluster: str,
     pool: str,
-    config: SpotInstResourceGroupConfig,
 ) -> Sequence[SpotInstResourceGroup]:
     """ Loads SpotInst elasticgroups by filtering all elasticgroups from
     SpotInst account by tags for pool, cluster and a tag that identifies paasta
     SpotInst elasticgroups.
     """
-    client = get_spotinst_client(config)
+    client = get_spotinst_client()
 
     spotinst_groups_tags = get_spotinst_tags(client)
     spotinst_groups = []
@@ -254,8 +238,7 @@ def load_elastigroups(
             puppet_role_tags = json.loads(tags['puppet:role::paasta'])
             if puppet_role_tags['pool'] == pool and puppet_role_tags['paasta_cluster'] == cluster:
                 spotinst_groups.append(SpotInstResourceGroup(
-                    group_id,
-                    client,
+                    group_id
                 ))
         except KeyError:
             continue
@@ -269,11 +252,11 @@ def get_spotinst_tags(client: SpotinstClientType) -> Dict[str, Dict[str, str]]:
     spotinst_id_to_tags = {}
     for group in groups:
         try:
-            tags = group["compute"]["launch_specification"]["tags"]
+            tags = group['compute']['launch_specification']['tags']
         except (IndexError, KeyError):
             tags = []
         tags_dict = {tag['tag_key']: tag['tag_value'] for tag in tags}
-        spotinst_id_to_tags[group["id"]] = tags_dict
+        spotinst_id_to_tags[group['id']] = tags_dict
     return spotinst_id_to_tags
 
 
