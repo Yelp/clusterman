@@ -6,7 +6,7 @@ import time
 from collections import namedtuple
 from threading import Thread
 from typing import Callable
-from typing import Dict
+from typing import Mapping
 from typing import Tuple
 
 import simplejson as json
@@ -37,7 +37,7 @@ SignalConfig = namedtuple(
     'SignalConfig',
     ['name', 'repo', 'branch_or_tag', 'period_minutes', 'required_metrics', 'parameters'],
 )
-SIGNAL_LOGGERS: Dict[
+SIGNAL_LOGGERS: Mapping[
     str,
     Tuple[
         Callable[[str], None],
@@ -88,7 +88,7 @@ def _init_signal_io_threads(signal_name, signal_process):
 
 def _get_cache_location():  # pragma: no cover
     """ Store clusterman-specific cached data in ~/.cache/clusterman """
-    return os.path.join(os.path.expanduser("~"), '.cache', 'clusterman')
+    return os.path.join(os.path.expanduser('~'), '.cache', 'clusterman')
 
 
 def _get_local_signal_directory(repo, branch_or_tag):

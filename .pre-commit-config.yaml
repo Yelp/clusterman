@@ -2,6 +2,8 @@ repos:
 -   repo: git@git.yelpcorp.com:mirrors/pre-commit/pre-commit-hooks
     sha: v0.9.4
     hooks:
+    -   id: double-quote-string-fixer
+        language_version: python3.6
     -   id: trailing-whitespace
         language_version: python3.6
     -   id: end-of-file-fixer

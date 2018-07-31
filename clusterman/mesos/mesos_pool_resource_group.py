@@ -3,7 +3,7 @@ from abc import abstractmethod
 from abc import abstractproperty
 from abc import abstractstaticmethod
 from typing import Any
-from typing import Dict
+from typing import Mapping
 from typing import Sequence
 
 from clusterman.aws.markets import InstanceMarket
@@ -89,7 +89,7 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
         pass
 
     @abstractproperty
-    def market_capacities(self) -> Dict[InstanceMarket, float]:  # pragma: no cover
+    def market_capacities(self) -> Mapping[InstanceMarket, float]:  # pragma: no cover
         """ A dictionary of InstanceMarket -> total (fulfilled) capacity values """
         pass
 
@@ -114,22 +114,18 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
         pass
 
     @abstractproperty
-    def is_stale(self) -> bool:
+    def is_stale(self) -> bool:  # pragma: no cover
         """Whether this ResourceGroup is stale."""
         pass
 
     @staticmethod
     @abstractstaticmethod
-    def load(
-        cluster: str,
-        pool: str,
-        config: Any,
-    ) -> Sequence['MesosPoolResourceGroup']:
+    def load(cluster: str, pool: str, config: Any) -> Mapping[str, 'MesosPoolResourceGroup']:
         """ Load a list of corresponding resource groups
 
         :param cluster: a cluster name
         :param pool: a pool name
         :param config: a config specific to a resource group type
-        :returns: a list of resource groups
+        :returns: a dictionary of resource groups, indexed by id
         """
         pass

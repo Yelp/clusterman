@@ -30,6 +30,7 @@ InstanceDict = TypedDict(
         'SubnetId': str,
         'PrivateIpAddress': str,
         'State': InstanceStateDict,
+        'LaunchTime': str,
     },
 )
 

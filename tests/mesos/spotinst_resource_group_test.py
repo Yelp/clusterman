@@ -39,16 +39,16 @@ class SpotinstClientEmulator(object):
         sfr_ids = self._sig_id_to_sfr_ids[group_id]
         return [
             {
-                "availability_zone": instance.get('Placement', {}).get('AvailabilityZone'),
-                "created_at": instance.get("LaunchTime"),
-                "group_id": group_id,
-                "instance_id": instance["InstanceId"],
-                "instance_type": instance["InstanceType"],
-                "private_ip": instance.get("PrivateIpAddress"),
-                "product": "Linux/UNIX (Amazon VPC)",  # FIXME?
-                "public_ip": None,  # FIXME?
-                "spot_instance_request_id": instance['SpotInstanceRequestId'],
-                "status": "fulfilled",  # FIXME?
+                'availability_zone': instance.get('Placement', {}).get('AvailabilityZone'),
+                'created_at': instance.get('LaunchTime'),
+                'group_id': group_id,
+                'instance_id': instance['InstanceId'],
+                'instance_type': instance['InstanceType'],
+                'private_ip': instance.get('PrivateIpAddress'),
+                'product': 'Linux/UNIX (Amazon VPC)',  # FIXME?
+                'public_ip': None,  # FIXME?
+                'spot_instance_request_id': instance['SpotInstanceRequestId'],
+                'status': 'fulfilled',  # FIXME?
             }
             for sfr_id in sfr_ids
             for page in ec2.get_paginator('describe_spot_fleet_instances').paginate(SpotFleetRequestId=sfr_id)
@@ -63,86 +63,87 @@ class SpotinstClientEmulator(object):
                 active_sfr = sfr
                 break
         return {
-            "capacity": {
-                "maximum": 5,  # FIXME?
-                "minimum": 1,  # FIXME?
-                "target": sum(
-                    sfr['SpotFleetRequestConfig']["FulfilledCapacity"]
+            'capacity': {
+                'maximum': 5,  # FIXME?
+                'minimum': 1,  # FIXME?
+                'target': sum(
+                    sfr['SpotFleetRequestConfig']['FulfilledCapacity']
                     for sfr in sfrs
                 ),
-                "unit": "weight"
+                'unit': 'weight'
             },
-            "compute": {
-                "availability_zones": [
+            'compute': {
+                'availability_zones': [
                     {
-                        "name": subnet_to_az(spec['SubnetId']),
-                        "subnet_id": spec['SubnetId'],
-                        "subnet_ids": [
+                        'name': subnet_to_az(spec['SubnetId']),
+                        'subnet_id': spec['SubnetId'],
+                        'subnet_ids': [
                             spec['SubnetId']
                         ]
                     }
                     for sfr in sfrs
                     for spec in sfr['SpotFleetRequestConfig']['LaunchSpecifications']
                 ],
-                "instance_types": {
-                    "ondemand": None,  # FIXME?
-                    "spot": list({
-                        spec["InstanceType"]
+                'instance_types': {
+                    'ondemand': None,  # FIXME?
+                    'spot': list({
+                        spec['InstanceType']
                         for sfr in sfrs
-                        for spec in sfr['SpotFleetRequestConfig']["LaunchSpecifications"]
+                        for spec in sfr['SpotFleetRequestConfig']['LaunchSpecifications']
                     }),
-                    "weights": [
+                    'weights': [
                         {
-                            "instance_type": instance_type,
-                            "weighted_capacity": capacity,
+                            'instance_type': instance_type,
+                            'weighted_capacity': capacity,
                         }
                         for instance_type, capacity in dict(
                             {
-                                spec.get("InstanceType"): spec.get("WeightedCapacity")
+                                spec.get('InstanceType'): spec.get('WeightedCapacity')
                                 for sfr in sfrs
-                                for spec in sfr['SpotFleetRequestConfig']["LaunchSpecifications"]
+                                for spec in sfr['SpotFleetRequestConfig']['LaunchSpecifications']
                             },
                             **{
-                                spec.get("InstanceType"): spec.get("WeightedCapacity")
-                                for spec in active_sfr['SpotFleetRequestConfig']["LaunchSpecifications"]
+                                spec.get('InstanceType'): spec.get('WeightedCapacity')
+                                for spec in active_sfr['SpotFleetRequestConfig']['LaunchSpecifications']
                             },
                         ).items()
                     ]
                 },
-                "launch_specification": {
-                    "iam_role": {
-                        "arn": active_sfr['SpotFleetRequestConfig']["LaunchSpecifications"][0]["IamInstanceProfile"]["Arn"],
-                        "name": active_sfr['SpotFleetRequestConfig'].get("IamFleetRole"),
+                'launch_specification': {
+                    'iam_role': {
+                        'arn': active_sfr['SpotFleetRequestConfig']['LaunchSpecifications'][0].get(
+                            'IamInstanceProfile').get('Arn'),
+                        'name': active_sfr['SpotFleetRequestConfig'].get('IamFleetRole'),
                     },
-                    "image_id": active_sfr['SpotFleetRequestConfig']["LaunchSpecifications"][0]["ImageId"],
-                    "monitoring": False,
-                    "security_group_ids": [
+                    'image_id': active_sfr['SpotFleetRequestConfig']['LaunchSpecifications'][0]['ImageId'],
+                    'monitoring': False,
+                    'security_group_ids': [
                         secgroup
                         for sfr in sfrs
-                        for spec in sfr['SpotFleetRequestConfig']["LaunchSpecifications"]
-                        for secgroup in spec["SecurityGroups"]
+                        for spec in sfr['SpotFleetRequestConfig']['LaunchSpecifications']
+                        for secgroup in spec['SecurityGroups']
                     ],
-                    "tags": [
+                    'tags': [
                         {
-                            "tag_key": tag['Key'],
-                            "tag_value": tag['Value'],
+                            'tag_key': tag['Key'],
+                            'tag_value': tag['Value'],
                         }
-                        for tag in active_sfr['SpotFleetRequestConfig']["LaunchSpecifications"][0].get(
-                            "TagSpecifications", [{}])[0].get("Tags", [])
+                        for tag in active_sfr['SpotFleetRequestConfig']['LaunchSpecifications'][0].get(
+                            'TagSpecifications', [{}])[0].get('Tags', [])
                     ]
                 },
-                "product": "Linux/UNIX (Amazon VPC)"  # FIXME?
+                'product': 'Linux/UNIX (Amazon VPC)'  # FIXME?
             },
-            "created_at": None,  # FIXME? "2018-06-08T18:04:36.000Z",
-            "id": group_id,
-            "name": "MVP",  # FIXME?
-            "strategy": {
-                "availability_vs_cost": active_sfr['SpotFleetRequestConfig']["AllocationStrategy"],
-                "fallbackToOd": False,  # FIXME?
-                "risk": 100,  # FIXME?
-                "utilize_reserved_instances": False,  # FIXME?
+            'created_at': None,  # FIXME? "2018-06-08T18:04:36.000Z",
+            'id': group_id,
+            'name': 'MVP',  # FIXME?
+            'strategy': {
+                'availability_vs_cost': active_sfr['SpotFleetRequestConfig']['AllocationStrategy'],
+                'fallbackToOd': False,  # FIXME?
+                'risk': 100,  # FIXME?
+                'utilize_reserved_instances': False,  # FIXME?
             },
-            "updated_at": None,  # FIXME? "2018-06-19T18:04:58.000Z"
+            'updated_at': None,  # FIXME? "2018-06-19T18:04:58.000Z"
         }
 
     def get_elastigroups(self):
@@ -202,44 +203,44 @@ def test_load_elastigroups(mock_spotinst_client, mock_get_spotinst_client):
 def test_get_spotinst_tags(mock_spotinst_client):
     mock_spotinst_client.get_elastigroups.return_value = [
         {
-            "id": "sig-12",
-            "compute": {
-                "launch_specification": {
-                    "tags": [
+            'id': 'sig-12',
+            'compute': {
+                'launch_specification': {
+                    'tags': [
                         {
-                            "tag_key": "foo",
-                            "tag_value": "bar",
+                            'tag_key': 'foo',
+                            'tag_value': 'bar',
                         },
                     ]
                 },
             },
         },
         {
-            "id": "sig-34",
-            "compute": {
-                "launch_specification": {},
+            'id': 'sig-34',
+            'compute': {
+                'launch_specification': {},
             },
         },
         {
-            "id": "sig-56",
-            "compute": {
-                "launch_specification": {
-                    "tags": [],
+            'id': 'sig-56',
+            'compute': {
+                'launch_specification': {
+                    'tags': [],
                 },
             },
         },
         {
-            "id": "sig-78",
-            "compute": {
-                "launch_specification": {
-                    "tags": [
+            'id': 'sig-78',
+            'compute': {
+                'launch_specification': {
+                    'tags': [
                         {
-                            "tag_key": "foo",
-                            "tag_value": "bar",
+                            'tag_key': 'foo',
+                            'tag_value': 'bar',
                         },
                         {
-                            "tag_key": "spam",
-                            "tag_value": "baz",
+                            'tag_key': 'spam',
+                            'tag_value': 'baz',
                         },
                     ]
                 },

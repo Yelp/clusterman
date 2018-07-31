@@ -188,7 +188,7 @@ def test_load_spot_fleets(mock_sfr_bucket):
                 },
             },
         )
-        assert {sf.id for sf in spot_fleets} == {'sfr-1', 'sfr-2', 'sfr-4'}
+        assert {sf for sf in spot_fleets} == {'sfr-1', 'sfr-2', 'sfr-4'}
 
 
 def test_get_spot_fleet_request_tags(mock_spot_fleet_resource_group):
@@ -336,7 +336,10 @@ def test_terminate_all_instances_by_id_small_batch(mock_spot_fleet_resource_grou
         'clusterman.mesos.spot_fleet_resource_group.ec2.terminate_instances',
         wraps=ec2.terminate_instances,
     ) as mock_terminate:
-        mock_spot_fleet_resource_group.terminate_instances_by_id(mock_spot_fleet_resource_group.instance_ids, batch_size=1)
+        mock_spot_fleet_resource_group.terminate_instances_by_id(
+            mock_spot_fleet_resource_group.instance_ids,
+            batch_size=1,
+        )
         assert mock_terminate.call_count == 7
         assert mock_spot_fleet_resource_group.instance_ids == []
 
@@ -349,7 +352,9 @@ def test_terminate_some_instances_missing(mock_logger, mock_spot_fleet_resource_
                 {'InstanceId': i} for i in mock_spot_fleet_resource_group.instance_ids[:3]
             ]
         }
-        instances = mock_spot_fleet_resource_group.terminate_instances_by_id(mock_spot_fleet_resource_group.instance_ids)
+        instances = mock_spot_fleet_resource_group.terminate_instances_by_id(
+            mock_spot_fleet_resource_group.instance_ids,
+        )
 
         assert len(instances) == 3
         assert mock_logger.warn.call_count == 2

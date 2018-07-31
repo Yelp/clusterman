@@ -68,7 +68,12 @@ def get_historical_data(metric_key, metric_type, config, start_time, end_time):
     """
     aws_region = config['values']['aws_region']
     boto_client = ClustermanMetricsBotoClient(aws_region)
-    result_key, result_items = boto_client.get_metric_values(metric_key, metric_type, start_time.timestamp, end_time.timestamp)
+    result_key, result_items = boto_client.get_metric_values(
+        metric_key,
+        metric_type,
+        start_time.timestamp,
+        end_time.timestamp,
+    )
     metric = []
     a = config['values']['params']['a']
     b = config['values']['params']['b']

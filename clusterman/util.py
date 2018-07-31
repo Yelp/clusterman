@@ -1,7 +1,7 @@
 import subprocess
 import time
 from datetime import datetime
-from typing import Collection
+from typing import Callable
 from typing import Optional
 from typing import TypeVar
 
@@ -36,6 +36,13 @@ def log_to_scribe(message):
         clog.log_line(LOG_STREAM_NAME, message)
     except ModuleNotFoundError:
         logger.warn('clog not found, are you running on a Yelp host?')
+
+
+_T = TypeVar('_T')
+
+
+def any_of(*choices) -> Callable[[_T], bool]:
+    return lambda x: x in choices
 
 
 def ask_for_confirmation(prompt='Are you sure? ', default=True):
@@ -74,28 +81,20 @@ def ask_for_choice(prompt, choices):
             return choices[int(ans)]
 
 
-T = TypeVar('T')
-
-
-def colored_status(
-    status: T,
-    green: Optional[Collection[T]]=None,
-    blue: Optional[Collection[T]]=None,
-    red: Optional[Collection[T]]=None,
-    prefix: Optional[str]=None,
-    postfix: Optional[str]=None,
-):
+def color_conditions(
+    input_obj: _T,
+    prefix: Optional[str] = None,
+    postfix: Optional[str] = None,
+    **kwargs: Callable[[_T], bool],
+) -> str:
     prefix = prefix or ''
     postfix = postfix or ''
-    color_str = Fore.WHITE
-    if green and status in green:
-        color_str = Fore.GREEN
-    elif blue and status in blue:
-        color_str = Fore.BLUE
-    elif red and status in red:
-        color_str = Fore.RED
-    combined_str = prefix + str(status) + postfix
-    return color_str + combined_str + Style.RESET_ALL
+    color_str = ''
+    for color, condition in kwargs.items():
+        if condition(input_obj):
+            color_str = getattr(Fore, color.upper())
+            break
+    return color_str + prefix + str(input_obj) + postfix + Style.RESET_ALL
 
 
 def run_subprocess_and_log(logger, *args, **kwargs):

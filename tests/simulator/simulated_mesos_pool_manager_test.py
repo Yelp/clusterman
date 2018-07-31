@@ -31,7 +31,7 @@ def mock_ssfrg(ssfrg_config):
 @pytest.fixture
 def mock_pool_manager(mock_ssfrg, simulator):
     pool_manager = SimulatedMesosPoolManager('foo', 'bar', [], simulator)
-    pool_manager.resource_groups = [mock_ssfrg]
+    pool_manager.resource_groups = {'rg1': mock_ssfrg}
     return pool_manager
 
 

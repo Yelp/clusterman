@@ -74,7 +74,10 @@ def test_write_metrics(batch):
 
 @mock.patch('time.sleep')
 @mock.patch('time.time')
-@mock.patch('clusterman.batch.cluster_metrics_collector.ClusterMetricsCollector.running', new_callable=mock.PropertyMock)
+@mock.patch(
+    'clusterman.batch.cluster_metrics_collector.ClusterMetricsCollector.running',
+    new_callable=mock.PropertyMock,
+)
 @mock.patch('clusterman.batch.cluster_metrics_collector.sensu_checkin', autospec=True)
 def test_run(mock_sensu, mock_running, mock_time, mock_sleep, batch):
     mock_running.side_effect = [True, True, True, True, False]

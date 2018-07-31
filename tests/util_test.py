@@ -7,9 +7,10 @@ import pytest
 from colorama import Fore
 from colorama import Style
 
+from clusterman.util import any_of
 from clusterman.util import ask_for_choice
 from clusterman.util import ask_for_confirmation
-from clusterman.util import colored_status
+from clusterman.util import color_conditions
 from clusterman.util import parse_time_interval_seconds
 from clusterman.util import parse_time_string
 from clusterman.util import sensu_checkin
@@ -39,12 +40,19 @@ def test_ask_for_choice():
         assert mock_input.call_count == 4
 
 
-def test_colored_status():
-    assert colored_status('foo', ('foo', 'bar'), ('baz', 'asdf'), ('hjkl',)) == Fore.GREEN + 'foo' + Style.RESET_ALL
-    assert colored_status('baz', ('foo', 'bar'), ('baz', 'asdf'), ('hjkl',)) == Fore.BLUE + 'baz' + Style.RESET_ALL
-    assert colored_status('hjkl', ('foo', 'bar'), ('baz', 'asdf'), ('hjkl',)) == Fore.RED + 'hjkl' + Style.RESET_ALL
-    assert colored_status('qwerty', ('foo', 'bar'), ('baz', 'asdf'), ('hjkl',)) == \
-        Fore.WHITE + 'qwerty' + Style.RESET_ALL
+@pytest.mark.parametrize('input_str,color', [
+    ('foo', Fore.GREEN),
+    ('baz', Fore.BLUE),
+    ('hjkl', Fore.RED),
+    ('qwerty', '')
+])
+def test_color_conditions(input_str, color):
+    assert color_conditions(
+        input_str,
+        green=any_of('foo', 'bar'),
+        blue=any_of('baz', 'asdf'),
+        red=any_of('hjkl',)
+    ) == color + input_str + Style.RESET_ALL
 
 
 def test_parse_time_string_without_tz():

@@ -1,6 +1,6 @@
 from functools import lru_cache
-from typing import Dict
 from typing import List
+from typing import Mapping
 from typing import NamedTuple
 from typing import Optional
 
@@ -37,7 +37,7 @@ class InstanceMarket(_InstanceMarket):
         return cls(*sans_brackets.split(', '))
 
 
-EC2_INSTANCE_TYPES: Dict[str, InstanceResources] = {
+EC2_INSTANCE_TYPES: Mapping[str, InstanceResources] = {
     't2.nano': InstanceResources(1.0, 0.5, None),
     't2.micro': InstanceResources(1.0, 1.0, None),
     't2.small': InstanceResources(1.0, 2.0, None),

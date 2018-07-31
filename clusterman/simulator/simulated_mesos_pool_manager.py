@@ -27,10 +27,11 @@ class SimulatedMesosPoolManager(MesosPoolManager):
         self.cluster = cluster
         self.pool = pool
         self.simulator = simulator
-        self.resource_groups = [
+        groups = [
             SimulatedSpotFleetResourceGroup(config, self.simulator)
             for config in configs
         ]
+        self.resource_groups = {group.id: group for group in groups}
         pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool))
         self.min_capacity = pool_config.read_int('scaling_limits.min_capacity')
         self.max_capacity = pool_config.read_int('scaling_limits.max_capacity')
@@ -39,6 +40,6 @@ class SimulatedMesosPoolManager(MesosPoolManager):
     def agents(self):
         return [
             _make_agent(group.instances[instance_id])
-            for group in self.resource_groups
+            for group in self.resource_groups.values()
             for instance_id in group.instances
         ]

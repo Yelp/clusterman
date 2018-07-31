@@ -123,5 +123,5 @@ class TestComputeTargetCapacity:
 
         # disk would be the most constrained resource, so we should scale the target_capacity (100) by an amount
         # such that requested/(total*scale_factor) = setpoint
-        expected_new_target_capacity = 100*19000/(20000*0.7)
+        expected_new_target_capacity = 100 * 19000 / (20000 * 0.7)
         assert new_target_capacity == expected_new_target_capacity

@@ -1,7 +1,7 @@
 import json
 from collections import defaultdict
-from typing import Dict
 from typing import List
+from typing import Mapping
 from typing import Sequence
 from typing import TypeVar
 
@@ -105,14 +105,14 @@ class SpotInstResourceGroup(MesosPoolResourceGroup):
 
     def market_weight(self, market: InstanceMarket) -> float:
         try:
-            weights = self._group["compute"]["instance_types"]["weights"]
+            weights = self._group['compute']['instance_types']['weights']
         except KeyError:
             weights = []
         for weight in weights:
             # SpotInst doesn't allow to set different weights per AZ.
-            if weight["instance_type"] == market.instance:
-                return float(weight["weighted_capacity"])
-        raise ResourceGroupError(f"Cannot find weight for market {market}")
+            if weight['instance_type'] == market.instance:
+                return float(weight['weighted_capacity'])
+        raise ResourceGroupError(f'Cannot find weight for market {market}')
 
     def modify_target_capacity(
         self,
@@ -179,8 +179,8 @@ class SpotInstResourceGroup(MesosPoolResourceGroup):
         return [instance['instance_id'] for instance in self._instances if instance['instance_id'] is not None]
 
     @property
-    def market_capacities(self) -> Dict[InstanceMarket, float]:
-        instances_by_market: Dict[InstanceMarket, List[Instance]] = defaultdict(list)
+    def market_capacities(self) -> Mapping[InstanceMarket, float]:
+        instances_by_market: Mapping[InstanceMarket, List[Instance]] = defaultdict(list)
         for instance in self._instances:
             instances_by_market[get_spotinst_instance_market(instance)].append(instance)
         return {
@@ -198,7 +198,7 @@ class SpotInstResourceGroup(MesosPoolResourceGroup):
 
     @property
     def status(self) -> str:
-        return "active"
+        return 'active'
 
     @property
     def is_stale(self) -> bool:
@@ -216,15 +216,15 @@ class SpotInstResourceGroup(MesosPoolResourceGroup):
     def load(
         cluster: str,
         pool: str,
-        config: SpotInstResourceGroupConfig
-    ) -> Sequence['SpotInstResourceGroup']:
+        config: SpotInstResourceGroupConfig,
+    ) -> Mapping[str, MesosPoolResourceGroup]:
         return load_elastigroups(cluster, pool)
 
 
 def load_elastigroups(
     cluster: str,
     pool: str,
-) -> Sequence[SpotInstResourceGroup]:
+) -> Mapping[str, MesosPoolResourceGroup]:
     """ Loads SpotInst elasticgroups by filtering all elasticgroups from
     SpotInst account by tags for pool, cluster and a tag that identifies paasta
     SpotInst elasticgroups.
@@ -232,20 +232,18 @@ def load_elastigroups(
     client = get_spotinst_client()
 
     spotinst_groups_tags = get_spotinst_tags(client)
-    spotinst_groups = []
+    spotinst_groups = {}
     for group_id, tags in spotinst_groups_tags.items():
         try:
             puppet_role_tags = json.loads(tags['puppet:role::paasta'])
             if puppet_role_tags['pool'] == pool and puppet_role_tags['paasta_cluster'] == cluster:
-                spotinst_groups.append(SpotInstResourceGroup(
-                    group_id
-                ))
+                spotinst_groups[group_id] = SpotInstResourceGroup(group_id)
         except KeyError:
             continue
     return spotinst_groups
 
 
-def get_spotinst_tags(client: SpotinstClientType) -> Dict[str, Dict[str, str]]:
+def get_spotinst_tags(client: SpotinstClientType) -> Mapping[str, Mapping[str, str]]:
     """ Gets a dictionary of SpotInst group id -> a dictionary of tags.
     """
     groups: Sequence[ElasticGroup] = client.get_elastigroups()

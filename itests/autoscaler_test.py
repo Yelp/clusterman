@@ -28,11 +28,11 @@ def resource_groups():
 
         @staticmethod
         def load(cluster, pool, config):
-            return [rg1, rg2]
+            return {rg1.id: rg1, rg2.id: rg2}
 
     with mock.patch.dict(
         'clusterman.mesos.mesos_pool_manager.RESOURCE_GROUPS',
-        {"sfr": FakeResourceGroupClass},
+        {'sfr': FakeResourceGroupClass},
     ):
         yield
 
@@ -73,7 +73,7 @@ def test_autoscaler_no_change(autoscaler, signal_value):
     autoscaler.signal._signal_conn.recv.side_effect = [ACK, ACK, '{"Resources": {"cpus": ' + signal_value + '}}'] * 2
     autoscaler.run()
     autoscaler.run()
-    for group in autoscaler.mesos_pool_manager.resource_groups:
+    for group in autoscaler.mesos_pool_manager.resource_groups.values():
         assert group.modify_target_capacity.call_args_list == \
             [mock.call(10, terminate_excess_capacity=False, dry_run=False)] * 2
 
@@ -81,35 +81,31 @@ def test_autoscaler_no_change(autoscaler, signal_value):
 def test_autoscaler_scale_up(autoscaler):
     autoscaler.signal._signal_conn.recv.side_effect = [ACK, ACK, '{"Resources": {"cpus": 70}}']
     autoscaler.run()
-    assert autoscaler.mesos_pool_manager.resource_groups[0].modify_target_capacity.call_args == \
-        mock.call(13, terminate_excess_capacity=False, dry_run=False)
-    assert autoscaler.mesos_pool_manager.resource_groups[1].modify_target_capacity.call_args == \
-        mock.call(12, terminate_excess_capacity=False, dry_run=False)
+    rgs = list(autoscaler.mesos_pool_manager.resource_groups.values())
+    assert rgs[0].modify_target_capacity.call_args == mock.call(13, terminate_excess_capacity=False, dry_run=False)
+    assert rgs[1].modify_target_capacity.call_args == mock.call(12, terminate_excess_capacity=False, dry_run=False)
 
 
 def test_autoscaler_scale_up_big(autoscaler):
     with staticconf.testing.PatchConfiguration({'mesos_clusters': {'mesos-test': {'max_weight_to_add': 10}}}):
         autoscaler.signal._signal_conn.recv.side_effect = [ACK, ACK, '{"Resources": {"cpus": 1000}}']
         autoscaler.run()
-        assert autoscaler.mesos_pool_manager.resource_groups[0].modify_target_capacity.call_args == \
-            mock.call(15, terminate_excess_capacity=False, dry_run=False)
-        assert autoscaler.mesos_pool_manager.resource_groups[1].modify_target_capacity.call_args == \
-            mock.call(15, terminate_excess_capacity=False, dry_run=False)
+        rgs = list(autoscaler.mesos_pool_manager.resource_groups.values())
+        assert rgs[0].modify_target_capacity.call_args == mock.call(15, terminate_excess_capacity=False, dry_run=False)
+        assert rgs[1].modify_target_capacity.call_args == mock.call(15, terminate_excess_capacity=False, dry_run=False)
 
 
 def test_autoscaler_scale_down(autoscaler):
     autoscaler.signal._signal_conn.recv.side_effect = [ACK, ACK, '{"Resources": {"cpus": 42}}']
     autoscaler.run()
-    assert autoscaler.mesos_pool_manager.resource_groups[0].modify_target_capacity.call_args == \
-        mock.call(8, terminate_excess_capacity=False, dry_run=False)
-    assert autoscaler.mesos_pool_manager.resource_groups[1].modify_target_capacity.call_args == \
-        mock.call(8, terminate_excess_capacity=False, dry_run=False)
+    rgs = list(autoscaler.mesos_pool_manager.resource_groups.values())
+    assert rgs[0].modify_target_capacity.call_args == mock.call(8, terminate_excess_capacity=False, dry_run=False)
+    assert rgs[1].modify_target_capacity.call_args == mock.call(8, terminate_excess_capacity=False, dry_run=False)
 
 
 def test_autoscaler_scale_down_small(autoscaler):
     autoscaler.signal._signal_conn.recv.side_effect = [ACK, ACK, '{"Resources": {"cpus": 2}}']
     autoscaler.run()
-    assert autoscaler.mesos_pool_manager.resource_groups[0].modify_target_capacity.call_args == \
-        mock.call(5, terminate_excess_capacity=False, dry_run=False)
-    assert autoscaler.mesos_pool_manager.resource_groups[1].modify_target_capacity.call_args == \
-        mock.call(5, terminate_excess_capacity=False, dry_run=False)
+    rgs = list(autoscaler.mesos_pool_manager.resource_groups.values())
+    assert rgs[0].modify_target_capacity.call_args == mock.call(5, terminate_excess_capacity=False, dry_run=False)
+    assert rgs[1].modify_target_capacity.call_args == mock.call(5, terminate_excess_capacity=False, dry_run=False)
