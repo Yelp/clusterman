@@ -1,20 +1,25 @@
 import itertools
 from collections import defaultdict
+from ipaddress import ip_address
 
 from clusterman.aws.markets import get_market_resources
 
 
 class Instance:
     id = itertools.count()
+    ip = ip_address('10.0.0.1')
 
     def __init__(self, market, start_time, bid_price=None):
         self.id = next(Instance.id)
+        self.ip_address = Instance.ip
         self.market = market
         self.start_time = start_time
         self.join_time = None
         self.end_time = None
         self.resources = get_market_resources(self.market)
         self.bid_price = bid_price
+
+        Instance.ip += 1
 
     @property
     def spot(self):
