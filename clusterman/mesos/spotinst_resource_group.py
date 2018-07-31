@@ -1,8 +1,7 @@
 import json
 from collections import defaultdict
-from typing import cast
-from typing import Dict
 from typing import List
+from typing import Mapping
 from typing import Sequence
 from typing import TypeVar
 
@@ -180,8 +179,8 @@ class SpotInstResourceGroup(MesosPoolResourceGroup):
         return [instance['instance_id'] for instance in self._instances if instance['instance_id'] is not None]
 
     @property
-    def market_capacities(self) -> Dict[InstanceMarket, float]:
-        instances_by_market: Dict[InstanceMarket, List[Instance]] = defaultdict(list)
+    def market_capacities(self) -> Mapping[InstanceMarket, float]:
+        instances_by_market: Mapping[InstanceMarket, List[Instance]] = defaultdict(list)
         for instance in self._instances:
             instances_by_market[get_spotinst_instance_market(instance)].append(instance)
         return {
@@ -218,15 +217,14 @@ class SpotInstResourceGroup(MesosPoolResourceGroup):
         cluster: str,
         pool: str,
         config: SpotInstResourceGroupConfig,
-    ) -> Dict[str, 'SpotInstResourceGroup']:
-        return load_elastigroups(cluster, pool, config)
+    ) -> Mapping[str, MesosPoolResourceGroup]:
+        return load_elastigroups(cluster, pool)
 
 
 def load_elastigroups(
     cluster: str,
     pool: str,
-    config: SpotInstResourceGroupConfig,
-) -> Dict[str, SpotInstResourceGroup]:
+) -> Mapping[str, MesosPoolResourceGroup]:
     """ Loads SpotInst elasticgroups by filtering all elasticgroups from
     SpotInst account by tags for pool, cluster and a tag that identifies paasta
     SpotInst elasticgroups.
@@ -234,7 +232,7 @@ def load_elastigroups(
     client = get_spotinst_client()
 
     spotinst_groups_tags = get_spotinst_tags(client)
-    spotinst_groups: Dict[str, SpotInstResourceGroup] = {}
+    spotinst_groups = {}
     for group_id, tags in spotinst_groups_tags.items():
         try:
             puppet_role_tags = json.loads(tags['puppet:role::paasta'])
@@ -245,7 +243,7 @@ def load_elastigroups(
     return spotinst_groups
 
 
-def get_spotinst_tags(client: SpotinstClientType) -> Dict[str, Dict[str, str]]:
+def get_spotinst_tags(client: SpotinstClientType) -> Mapping[str, Mapping[str, str]]:
     """ Gets a dictionary of SpotInst group id -> a dictionary of tags.
     """
     groups: Sequence[ElasticGroup] = client.get_elastigroups()

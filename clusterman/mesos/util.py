@@ -1,6 +1,8 @@
 import enum
 import os
 import re
+from typing import NamedTuple
+from typing import Optional
 
 import requests
 import staticconf
@@ -12,12 +14,13 @@ from clusterman.exceptions import MesosPoolManagerError
 from clusterman.util import get_clusterman_logger
 
 logger = get_clusterman_logger(__name__)
-
-
+MesosResources = NamedTuple('MesosResources', [('cpus', float), ('mem', float), ('disk', float)])
 MesosAgentDict = TypedDict(
     'MesosAgentDict',
     {
         'id': str,
+        'used_resources': dict,
+        'resources': dict,
     },
 )
 
@@ -58,20 +61,20 @@ def get_total_resource_value(agents, value_name, resource_name):
     )
 
 
-def allocated_agent_resources(agent):
-    return (
+def allocated_agent_resources(agent: Optional[MesosAgentDict]) -> MesosResources:
+    return MesosResources(
         get_resource_value(agent.get('used_resources', {}), 'cpus'),
         get_resource_value(agent.get('used_resources', {}), 'mem'),
         get_resource_value(agent.get('used_resources', {}), 'disk'),
-    ) if agent else (0, 0, 0)
+    ) if agent else MesosResources(0, 0, 0)
 
 
-def total_agent_resources(agent):
-    return (
+def total_agent_resources(agent: Optional[MesosAgentDict]) -> MesosResources:
+    return MesosResources(
         get_resource_value(agent.get('resources', {}), 'cpus'),
         get_resource_value(agent.get('resources', {}), 'mem'),
         get_resource_value(agent.get('resources', {}), 'disk'),
-    ) if agent else (0, 0, 0)
+    ) if agent else MesosResources(0, 0, 0)
 
 
 def mesos_post(url, endpoint):

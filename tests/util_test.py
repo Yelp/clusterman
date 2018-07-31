@@ -7,6 +7,7 @@ import pytest
 from colorama import Fore
 from colorama import Style
 
+from clusterman.util import any_of
 from clusterman.util import ask_for_choice
 from clusterman.util import ask_for_confirmation
 from clusterman.util import color_conditions
@@ -48,9 +49,9 @@ def test_ask_for_choice():
 def test_color_conditions(input_str, color):
     assert color_conditions(
         input_str,
-        green=('foo', 'bar'),
-        blue=('baz', 'asdf'),
-        red=('hjkl',)
+        green=any_of('foo', 'bar'),
+        blue=any_of('baz', 'asdf'),
+        red=any_of('hjkl',)
     ) == color + input_str + Style.RESET_ALL
 
 

@@ -6,7 +6,7 @@ import time
 from collections import namedtuple
 from threading import Thread
 from typing import Callable
-from typing import Dict
+from typing import Mapping
 from typing import Tuple
 
 import simplejson as json
@@ -37,7 +37,7 @@ SignalConfig = namedtuple(
     'SignalConfig',
     ['name', 'repo', 'branch_or_tag', 'period_minutes', 'required_metrics', 'parameters'],
 )
-SIGNAL_LOGGERS: Dict[
+SIGNAL_LOGGERS: Mapping[
     str,
     Tuple[
         Callable[[str], None],

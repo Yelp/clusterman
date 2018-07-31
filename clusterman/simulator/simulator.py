@@ -4,8 +4,8 @@ from collections import defaultdict
 from datetime import timedelta
 from heapq import heappop
 from heapq import heappush
-from typing import Dict
 from typing import List
+from typing import Mapping
 from typing import Optional
 from typing import Set
 
@@ -51,7 +51,7 @@ class Simulator:
         self.current_time = start_time
         self.end_time = end_time
 
-        self.instance_prices: Dict[InstanceMarket, PiecewiseConstantFunction] = defaultdict(
+        self.instance_prices: Mapping[InstanceMarket, PiecewiseConstantFunction] = defaultdict(
             lambda: PiecewiseConstantFunction()
         )
         self.cost_per_hour = PiecewiseConstantFunction()

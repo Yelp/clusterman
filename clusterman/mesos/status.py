@@ -8,6 +8,7 @@ from clusterman.args import subparser
 from clusterman.mesos.mesos_pool_manager import InstanceMetadata
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.mesos.util import MesosAgentState
+from clusterman.util import any_of
 from clusterman.util import color_conditions
 
 
@@ -16,9 +17,9 @@ def _write_resource_group_line(group) -> None:
     # extend to other types of resource groups, so we should figure out what to do about that.
     status_str = color_conditions(
         group.status,
-        green=('active',),
-        blue=('modifying', 'submitted'),
-        red=('cancelled', 'failed', 'cancelled_running', 'cancelled_terminating'),
+        green=any_of('active',),
+        blue=any_of('modifying', 'submitted'),
+        red=any_of('cancelled', 'failed', 'cancelled_running', 'cancelled_terminating'),
     )
     print(f'\t{group.id}: {status_str} ({group.fulfilled_capacity} / {group.target_capacity})')
 
@@ -26,9 +27,9 @@ def _write_resource_group_line(group) -> None:
 def _write_agent_details(metadata: InstanceMetadata) -> None:
     agent_aws_state = color_conditions(
         metadata.aws_state,
-        green=('running',),
-        blue=('pending',),
-        red=('shutting-down', 'terminated', 'stopping', 'stopped'),
+        green=any_of('running',),
+        blue=any_of('pending',),
+        red=any_of('shutting-down', 'terminated', 'stopping', 'stopped'),
     )
     print(
         f'\t - {metadata.instance_id} {metadata.market} ({metadata.instance_ip}): '
@@ -37,9 +38,9 @@ def _write_agent_details(metadata: InstanceMetadata) -> None:
 
     agent_mesos_state = color_conditions(
         metadata.mesos_state,
-        green=(MesosAgentState.RUNNING,),
-        blue=(MesosAgentState.IDLE,),
-        red=(MesosAgentState.ORPHANED, MesosAgentState.UNKNOWN),
+        green=any_of(MesosAgentState.RUNNING,),
+        blue=any_of(MesosAgentState.IDLE,),
+        red=any_of(MesosAgentState.ORPHANED, MesosAgentState.UNKNOWN),
     )
     sys.stdout.write(f'\t   {agent_mesos_state} ')
 
@@ -84,11 +85,11 @@ def print_status(manager: MesosPoolManager, args) -> None:
     print(f'Current status for the {manager.pool} pool in the {manager.cluster} cluster:\n')
     print(f'Resource groups ({manager.fulfilled_capacity} units out of {manager.target_capacity}):')
 
-    agent_metadata = manager.get_instance_metadatas() if args.verbose else {}
+    instance_metadatas = manager.get_instance_metadatas() if args.verbose else {}
 
     for group in manager.resource_groups.values():
         _write_resource_group_line(group)
-        for metadata in agent_metadata:
+        for metadata in instance_metadatas:
             if (metadata.group_id != group.id or
                     (args.only_orphans and metadata.mesos_state != MesosAgentState.ORPHANED) or
                     (args.only_idle and metadata.mesos_state != MesosAgentState.IDLE)):

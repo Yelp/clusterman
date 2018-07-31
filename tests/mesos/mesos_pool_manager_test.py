@@ -101,7 +101,7 @@ class TestPruneFulfilledCapacity:
             'task_count': 0,
             'total_resources': (10, 10, 10),
             'market': 'market-1',
-            'is_stale': False,
+            'is_resource_group_stale': False,
             'uptime': 1000,
             'weight': 1,
         }
@@ -228,7 +228,7 @@ class TestChooseInstancesToPrune:
                     group_id=resource_group.id,
                     instance_id=instance_id,
                     instance_ip='1.2.3.4',
-                    is_stale=resource_group.is_stale,
+                    is_resource_group_stale=resource_group.is_stale,
                     market='market-1',
                     mesos_state=MesosAgentState.ORPHANED if orphaned else MesosAgentState.RUNNING,
                     task_count=0 if orphaned else 5,
@@ -612,7 +612,7 @@ class TestGetInstances:
             group_id=mock.ANY,
             instance_id=mock.ANY,
             instance_ip=mock.ANY,
-            is_stale=mock.ANY,
+            is_resource_group_stale=mock.ANY,
             mesos_state=state,
             task_count=task_count,
             total_resources=mock.ANY,
@@ -785,7 +785,7 @@ class TestInstanceKillability:
 
     def test_unknown_agent_state_is_not_killable(self, mock_pool_manager):
         with mock.patch(
-            'clusterman.mesos.mesos_pool_manager.MesosPoolManager._get_agent_state'
+            'clusterman.mesos.mesos_pool_manager.MesosPoolManager._get_mesos_agent_state'
         ) as mock_get_instance_state, self.setup_pool_manager(mock_pool_manager, has_agent=False, num_tasks=0):
             mock_get_instance_state.return_value = MesosAgentState.UNKNOWN
             killable_instances = mock_pool_manager._get_prioritized_killable_instances()
@@ -826,7 +826,7 @@ def test_count_tasks_by_agent(mock_pool_manager):
     ]
     mock_tasks = mock.PropertyMock(return_value=tasks)
     with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager._tasks', mock_tasks):
-        assert mock_pool_manager._count_tasks_per_agent() == {1: 1, 2: 2}
+        assert mock_pool_manager._count_tasks_per_mesos_agent() == {1: 1, 2: 2}
 
 
 @mock.patch('clusterman.mesos.mesos_pool_manager.mesos_post')
