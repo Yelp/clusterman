@@ -11,6 +11,7 @@ from clusterman.mesos.mesos_pool_manager import InstanceMetadata
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.mesos.util import agent_pid_to_ip
 from clusterman.mesos.util import allocated_agent_resources
+from clusterman.mesos.util import MesosAgentDict
 from clusterman.mesos.util import MesosAgentState
 from clusterman.mesos.util import total_agent_resources
 from clusterman.simulator.simulated_aws_cluster import SimulatedAWSCluster
@@ -55,7 +56,7 @@ class SimulatedMesosPoolManager(MesosPoolManager):
 
     def get_instance_metadatas(self, aws_state_filter: Optional[Collection[str]] = None) -> Sequence[InstanceMetadata]:
         agent_metadatas = []
-        ip_to_agent: Dict[Optional[str], Dict] = {
+        ip_to_agent: Dict[Optional[str], MesosAgentDict] = {
             agent_pid_to_ip(agent['pid']): agent for agent in self._agents
         }
         for group in self.resource_groups.values():
@@ -70,7 +71,7 @@ class SimulatedMesosPoolManager(MesosPoolManager):
                     group_id=group.id,
                     instance_id=instance.id,
                     instance_ip=instance.ip_address,
-                    is_stale=group.is_stale,
+                    is_resource_group_stale=group.is_stale,
                     market=instance.market,
                     mesos_state=(
                         MesosAgentState.ORPHANED
