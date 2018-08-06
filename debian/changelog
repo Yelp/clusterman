@@ -1,3 +1,9 @@
+clusterman (2.9.3) trusty; urgency=low
+
+  * remove cpus_per_weight from srv-configs
+
+ -- David Morrison <drmorr@yelp.com>  Mon, 06 Aug 2018 14:06:40 -0700
+
 clusterman (2.9.2) trusty; urgency=low
 
   * fixing mypy
