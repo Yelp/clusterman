@@ -54,13 +54,17 @@ def autoscaler(resource_groups):
 
         a = Autoscaler(cluster='mesos-test', pool='bar', apps=['bar'], metrics_client=mock.Mock())
         a.signal._get_metrics = mock.Mock(return_value={})
-        a.mesos_pool_manager = mock.Mock(wraps=MesosPoolManager)(cluster='mesos-test', pool='bar')
+        with mock.patch(
+            'clusterman.autoscaler.autoscaler.MesosPoolManager.non_orphan_fulfilled_capacity',
+            mock.PropertyMock(return_value=20),
+        ):
+            a.mesos_pool_manager = mock.Mock(wraps=MesosPoolManager)(cluster='mesos-test', pool='bar')
 
-        # two resource groups with target_capacity = 10 and cpus_per_weight = 4 means cpus = 10*2*4 = 80
-        resource_totals = {'cpus': 80}
-        a.mesos_pool_manager.get_resource_total = mock.Mock(side_effect=resource_totals.__getitem__)
-        a.mesos_pool_manager.prune_excess_fulfilled_capacity = mock.Mock()
-        return a
+            # two resource groups with target_capacity = 10 and cpus_per_weight = 4 means cpus = 10*2*4 = 80
+            resource_totals = {'cpus': 80}
+            a.mesos_pool_manager.get_resource_total = mock.Mock(side_effect=resource_totals.__getitem__)
+            a.mesos_pool_manager.prune_excess_fulfilled_capacity = mock.Mock()
+            yield a
 
 
 @pytest.mark.parametrize('signal_value', ['56', 'null', '51', '60'])

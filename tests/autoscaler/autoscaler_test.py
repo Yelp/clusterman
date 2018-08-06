@@ -41,7 +41,6 @@ def mock_autoscaler():
         'default_signal_role': 'clusterman',
         'setpoint': 0.7,
         'setpoint_margin': 0.1,
-        'cpus_per_weight': 8,
     }
 
     with mock.patch('clusterman.autoscaler.autoscaler.ClustermanMetricsBotoClient', autospec=True), \
@@ -98,26 +97,27 @@ class TestComputeTargetCapacity:
     @pytest.mark.parametrize('resource', ['cpus', 'mem', 'disk'])
     @pytest.mark.parametrize('signal_resource,total_resource,expected_capacity', [
         (None, 1000, 125),
-        (799, 1000, 125),  # above setpoint, but within setpoint margin
+        (767, 1000, 125),  # above setpoint, but within setpoint margin
         (980, 1000, 175),  # above setpoint margin
-        (601, 1000, 125),  # below setpoint, but within setpoint margin
+        (633, 1000, 125),  # below setpoint, but within setpoint margin
         (490, 1000, 87.5),  # below setpoint margin
         (1400, 1000, 250),  # above setpoint margin and total
     ])
     def test_single_resource(self, mock_autoscaler, resource, signal_resource, total_resource, expected_capacity):
         mock_autoscaler.mesos_pool_manager.target_capacity = 125
+        mock_autoscaler.mesos_pool_manager.non_orphan_fulfilled_capacity = 125
         mock_autoscaler.mesos_pool_manager.get_resource_total.return_value = total_resource
         new_target_capacity = mock_autoscaler._compute_target_capacity({resource: signal_resource})
         assert new_target_capacity == pytest.approx(expected_capacity)
 
-    def test__empty_request(self, mock_autoscaler):
+    def test_empty_request(self, mock_autoscaler):
         new_target_capacity = mock_autoscaler._compute_target_capacity({})
         assert new_target_capacity == mock_autoscaler.mesos_pool_manager.target_capacity
 
     def test_scale_most_constrained_resource(self, mock_autoscaler):
         resource_request = {'cpus': 500, 'mem': 30000, 'disk': 19000}
         resource_totals = {'cpus': 1000, 'mem': 50000, 'disk': 20000}
-        mock_autoscaler.mesos_pool_manager.target_capacity = 100
+        mock_autoscaler.mesos_pool_manager.non_orphan_fulfilled_capacity = 100
         mock_autoscaler.mesos_pool_manager.get_resource_total.side_effect = resource_totals.__getitem__
         new_target_capacity = mock_autoscaler._compute_target_capacity(resource_request)
 

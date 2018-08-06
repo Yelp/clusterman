@@ -26,11 +26,9 @@ def test_get_autoscaling_config():
     default_autoscaling_values = {
         'setpoint': 0.7,
         'setpoint_margin': 0.1,
-        'cpus_per_weight': 8,
     }
     pool_autoscaling_values = {
         'setpoint': 0.8,
-        'cpus_per_weight': 10,
     }
     with staticconf.testing.MockConfiguration({'autoscaling': default_autoscaling_values}), \
             staticconf.testing.MockConfiguration({'autoscaling': pool_autoscaling_values}, namespace='pool_namespace'):
@@ -38,7 +36,6 @@ def test_get_autoscaling_config():
 
         assert autoscaling_config.setpoint == 0.8
         assert autoscaling_config.setpoint_margin == 0.1
-        assert autoscaling_config.cpus_per_weight == 10
 
 
 # TODO (CLUSTERMAN-262) fix or delete

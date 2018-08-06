@@ -12,7 +12,7 @@ from clusterman.util import get_clusterman_logger
 logger = get_clusterman_logger(__name__)
 AutoscalingConfig = namedtuple(
     'AutoscalingConfig',
-    ['setpoint', 'setpoint_margin', 'cpus_per_weight'],
+    ['setpoint', 'setpoint_margin'],
 )
 MetricConfig = namedtuple('MetricConfig', ['name', 'type', 'minute_range'])
 LOG_STREAM_NAME = 'tmp_clusterman_scaling_decisions'
@@ -48,13 +48,11 @@ def get_autoscaling_config(config_namespace):
     """
     default_setpoint = staticconf.read_float('autoscaling.setpoint')
     default_setpoint_margin = staticconf.read_float('autoscaling.setpoint_margin')
-    default_cpus_per_weight = staticconf.read_int('autoscaling.cpus_per_weight')
 
     reader = staticconf.NamespaceReaders(config_namespace)
     return AutoscalingConfig(
         setpoint=reader.read_float('autoscaling.setpoint', default=default_setpoint),
         setpoint_margin=reader.read_float('autoscaling.setpoint_margin', default=default_setpoint_margin),
-        cpus_per_weight=reader.read_int('autoscaling.cpus_per_weight', default=default_cpus_per_weight),
     )
 
 
