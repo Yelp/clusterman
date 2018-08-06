@@ -42,7 +42,6 @@ def main_clusterman_config():
         'autoscaling': {
             'setpoint': 0.7,
             'setpoint_margin': 0.1,
-            'cpus_per_weight': 4,
         },
         'batches': {
             'spot_prices': {

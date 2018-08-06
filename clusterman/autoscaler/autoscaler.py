@@ -128,12 +128,12 @@ class Autoscaler:
         :param resource_request: a resource_request object from the signal evaluation
         :returns: the new target capacity we should scale to
         """
+        current_target_capacity = self.mesos_pool_manager.target_capacity
         if all(requested_quantity is None for resource, requested_quantity in resource_request.items()):
             logger.info('No data from signal, not changing capacity')
-            return self.mesos_pool_manager.target_capacity
+            return current_target_capacity
 
-        current_cpus = self.mesos_pool_manager.target_capacity * self.autoscaling_config.cpus_per_weight
-        logger.info(f'Currently at target_capacity of {self.mesos_pool_manager.target_capacity} ({current_cpus} CPUs)')
+        logger.info(f'Currently at target_capacity of {current_target_capacity}')
 
         most_constrained_resource, usage_pct = self._get_most_constrained_resource_for_request(resource_request)
         logger.info(
@@ -141,29 +141,44 @@ class Autoscaler:
             f'at {usage_pct} usage'
         )
 
-        setpoint_distance = abs(usage_pct - self.autoscaling_config.setpoint)
-        logger.info(f'Distance from setpoint of {self.autoscaling_config.setpoint}: {setpoint_distance}')
+        # We want to scale the cluster so that requested / (total * scale_factor) = setpoint.
+        # We already have requested/total in the form of usage_pct, so we can solve for scale_factor:
+        scale_factor = usage_pct / self.autoscaling_config.setpoint
 
-        # If the percentage allocated differs by more than the allowable margin from the setpoint,
+        # Because we scale by the percentage of the "most fulfilled resource" we want to make sure that the
+        # target capacity change is based on what's currently present.  A simple example illustrates the point:
+        #
+        #   * Suppose we have target_capacity = 50, fulfilled_capacity = 10, and setpoint = 0.5
+        #   * The signal requests 100 CPUs, and Mesos says there are 200 CPUs in the cluster (this is the
+        #       non_orphan_fulfilled_capacity)
+        #   * The new target capacity in this case should be 10, not 100 (as it would be if we scaled off the
+        #       current target_capacity)
+        #
+        # This also ensures that the right behavior happens when rolling a resource group.  To see this, let
+        # X be the target_capacity of the original resource group; if we create the new resource group with target
+        # capacity X, then our non_orphan_fulfilled_capacity will (eventually) be 2X and our scale_factor will be
+        # (setpoint / 2) / setpoint (assuming the utilization doesn't change), so our new target_capacity will be X.
+        # Since stale resource groups have a target_capacity of 0 and aren't included in modify_target_capacity
+        # calculations, this ensures the correct behaviour.  The math here continues to work out as the old resource
+        # group scales down, because as the fulfilled_capacity decreases, the scale_factor increases by the same
+        # amount.  Tada!
+        new_target_capacity = self.mesos_pool_manager.non_orphan_fulfilled_capacity * scale_factor
+
+        # If the percentage requested differs by more than the allowable margin from the setpoint,
         # we scale up/down to reach the setpoint.  We want to use target_capacity here instead of
         # get_resource_total to protect against short-term fluctuations in the cluster.
-        if setpoint_distance >= self.autoscaling_config.setpoint_margin:
-            # We want to scale the cluster so that requested/(total*scale_factor) = setpoint.
-            # We already have requested/total in the form of usage_pct, so we can solve for scale_factor:
-            scale_factor = usage_pct / self.autoscaling_config.setpoint
-            new_target_capacity = self.mesos_pool_manager.target_capacity * scale_factor
-            new_target_cpus = new_target_capacity * self.autoscaling_config.cpus_per_weight
+        setpoint_distance = abs(new_target_capacity - current_target_capacity) / current_target_capacity
+        logger.info(f'Distance from setpoint of {self.autoscaling_config.setpoint}: {setpoint_distance}')
+        margin = self.autoscaling_config.setpoint_margin
+        if setpoint_distance >= margin:
             logger.info(
-                f'Difference from setpoint is greater than setpoint margin '
-                f'({self.autoscaling_config.setpoint_margin}). Scaling to {new_target_capacity} ({new_target_cpus} '
-                f'CPUs)'
+                f'Setpoint distance is greater than setpoint margin ({margin}). Scaling to {new_target_capacity}.'
             )
         else:
             logger.info(
-                f'We are within our setpoint margin ({self.autoscaling_config.setpoint_margin}). Not changing target '
-                f'capacity'
+                f'We are within our setpoint margin ({margin}). Not changing target capacity.'
             )
-            new_target_capacity = self.mesos_pool_manager.target_capacity
+            new_target_capacity = current_target_capacity
 
         return new_target_capacity
 

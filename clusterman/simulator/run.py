@@ -76,7 +76,7 @@ def _populate_cluster_size_events(simulator, start_time, end_time):
         market_data = {}
         for market_str, value in data.items():
             market = InstanceMarket.parse(market_str)
-            weight = get_market_resources(market).cpus // staticconf.read_int('autoscaling.cpus_per_weight')
+            weight = get_market_resources(market).cpus // staticconf.read_int('cpus_per_weight')
             market_data[market] = int(value) // weight
         simulator.markets |= set(market_data.keys())
         use_join_delay = (i != 0)  # Want to start the cluster out at the expected capacity
@@ -139,6 +139,7 @@ def main(args):
     staticconf.DictConfiguration({
         'join_delay_mean_seconds': args.join_delay_params[0],
         'join_delay_stdev_seconds': args.join_delay_params[1],
+        'cpus_per_weight': args.cpus_per_weight,
     })
     # We can provide up to two simulation objects to compare.  If we load two simulator objects to compare,
     # we don't need to run a simulation here.  If the user specifies --compare but only gives one object,
@@ -204,6 +205,12 @@ def add_simulate_parser(subparser, required_named_args, optional_named_args):  #
         metavar='filename',
         nargs='+',
         help='provide simulated values for one or more metric time series',
+    )
+    optional_named_args.add_argument(
+        '--cpus-per-weight',
+        type=int,
+        default=1,
+        help='how many CPUs are present in one unit of weight',
     )
     optional_named_args.add_argument(
         '--discount',
