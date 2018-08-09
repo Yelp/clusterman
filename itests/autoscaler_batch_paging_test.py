@@ -49,7 +49,7 @@ def autoscaler_batch_patches():
             mock.patch('clusterman.autoscaler.autoscaler.MesosPoolManager'), \
             mock.patch('clusterman.autoscaler.autoscaler.yelp_meteorite'), \
             mock.patch('clusterman.autoscaler.autoscaler.ClustermanMetricsBotoClient'), \
-            mock.patch('clusterman.batch.autoscaler.splay_time_start') as mock_splay, \
+            mock.patch('clusterman.batch.autoscaler.splay_event_time') as mock_splay, \
             mock.patch('clusterman.batch.autoscaler.AutoscalerBatch.running', mock.PropertyMock(
                 side_effect=[True, False],
             )):

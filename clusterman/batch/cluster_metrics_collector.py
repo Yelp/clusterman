@@ -25,7 +25,7 @@ from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.mesos.util import get_pool_name_list
 from clusterman.util import get_clusterman_logger
 from clusterman.util import sensu_checkin
-from clusterman.util import splay_time_start
+from clusterman.util import splay_event_time
 
 logger = get_clusterman_logger(__name__)
 METRICS_TO_WRITE = {
@@ -92,10 +92,9 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
     def run(self):
         self.load_mesos_managers()  # Load the pools on the first run; do it here so we get logging
         while self.running:
-            time.sleep(splay_time_start(
+            time.sleep(splay_event_time(
                 self.run_interval,
-                self.get_name(),
-                staticconf.read_string('aws.region'),
+                self.get_name() + self.options.cluster,
             ))
 
             successful = True

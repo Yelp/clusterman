@@ -7,7 +7,7 @@ from yelp_servlib.config_util import load_default_config
 
 CREDENTIALS_NAMESPACE = 'boto_cfg'
 DEFAULT_CLUSTER_DIRECTORY = '/nail/srv/configs/clusterman-clusters'
-LOG_STREAM_NAME = 'tmp_clusterman_scaling_decisions'
+LOG_STREAM_NAME = 'tmp_clusterman_autoscaler'
 POOL_NAMESPACE = '{pool}_config'
 
 

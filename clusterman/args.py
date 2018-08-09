@@ -88,6 +88,7 @@ def add_pool_arg(parser, required=False):  # pragma: no cover
         '--pool', '--role',
         required=required,
         dest='pool',
+        default='default',
         action=deprecate_argument(depr_arg='--role', alt='--pool'),
         help='Identifier for a pool of machines to operate on',
     )
