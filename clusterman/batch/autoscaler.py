@@ -1,6 +1,5 @@
 import time
 
-import staticconf
 from pysensu_yelp import Status
 from yelp_batch.batch import batch_command_line_arguments
 from yelp_batch.batch import batch_configure
@@ -16,13 +15,13 @@ from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import BatchRunningSentinelMixin
 from clusterman.batch.util import suppress_request_limit_exceeded
 from clusterman.config import get_pool_config_path
-from clusterman.config import LOG_STREAM_NAME
 from clusterman.config import setup_config
 from clusterman.exceptions import AutoscalerError
 from clusterman.exceptions import ClustermanSignalError
+from clusterman.util import get_autoscaler_scribe_stream
 from clusterman.util import get_clusterman_logger
 from clusterman.util import sensu_checkin
-from clusterman.util import splay_time_start
+from clusterman.util import splay_event_time
 
 logger = get_clusterman_logger(__name__)
 get_clusterman_logger('clusterman_metrics')  # This just adds a handler to the clusterman_metrics logger
@@ -90,15 +89,15 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
         # Overrides the yelp_batch default, which is tmp_batch_<filename> (autoscaler in this case)
 
         # This controls the name of the scribe log for this batch. Without this, the log
-        # conflicts with other batches (like the Kew autoscaler).
-        return LOG_STREAM_NAME
+        # conflicts with other batches (like the Kew autoscaler).  We create a separate log for each
+        # cluster and (non-default) pool, for easy distinguishmentability
+        return get_autoscaler_scribe_stream(self.options.cluster, self.options.pool)
 
     @sensu_alert_triage()
     def _autoscale(self):
-        time.sleep(splay_time_start(
+        time.sleep(splay_event_time(
             self.autoscaler.run_frequency,
-            self.get_name(),
-            staticconf.read_string('aws.region'),
+            self.get_name() + self.options.cluster + self.options.pool,
         ))
         with suppress_request_limit_exceeded():
             self.autoscaler.run(dry_run=self.options.dry_run)

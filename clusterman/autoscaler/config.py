@@ -15,7 +15,6 @@ AutoscalingConfig = namedtuple(
     ['setpoint', 'setpoint_margin'],
 )
 MetricConfig = namedtuple('MetricConfig', ['name', 'type', 'minute_range'])
-LOG_STREAM_NAME = 'tmp_clusterman_scaling_decisions'
 SIGNALS_REPO = 'git@git.yelpcorp.com:clusterman_signals'  # TODO (CLUSTERMAN-xxx) make this a config param
 
 

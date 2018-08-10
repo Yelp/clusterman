@@ -30,10 +30,17 @@ def get_clusterman_logger(name):
 logger = get_clusterman_logger(__name__)
 
 
-def log_to_scribe(message):
+def get_autoscaler_scribe_stream(cluster, pool):
+    scribe_stream = f'{LOG_STREAM_NAME}_{cluster}'
+    if pool != 'default':
+        scribe_stream += f'_{pool}'
+    return scribe_stream
+
+
+def log_to_scribe(scribe_stream, message):
     try:
         import clog
-        clog.log_line(LOG_STREAM_NAME, message)
+        clog.log_line(scribe_stream, message)
     except ModuleNotFoundError:
         logger.warn('clog not found, are you running on a Yelp host?')
 
@@ -171,10 +178,19 @@ def sensu_checkin(*, check_name, output, source, status=Status.OK, app=None, noo
     )
 
 
-def splay_time_start(frequency, batch_name, region, timestamp=None):
+def splay_event_time(frequency: int, key: str, timestamp: float = None) -> float:
+    """ Return the length of time until the next event should trigger based on the given frequency;
+    randomly splay out the 'initial' start time based on some key, to prevent events with the same
+    frequency from all triggering at once
+
+    :param frequency: how often the event should occur (in seconds)
+    :param key: a string to hash to get the splay time
+    :param timestamp: what time it is "now" (uses time.time() if None)
+    :returns: the number of seconds until the next event should happen
+    """
     timestamp = timestamp or time.time()
-    random_wait_time = hash(batch_name + region) % 60
-    return frequency - timestamp % frequency + random_wait_time
+    random_wait_time = hash(key) % frequency
+    return frequency - (timestamp % frequency) + random_wait_time
 
 
 def sha_from_branch_or_tag(repo, branch_or_tag):

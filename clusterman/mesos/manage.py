@@ -12,6 +12,7 @@ from clusterman.config import POOL_NAMESPACE
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.spotinst.utils import update_ami
 from clusterman.util import ask_for_confirmation
+from clusterman.util import get_autoscaler_scribe_stream
 from clusterman.util import get_clusterman_logger
 from clusterman.util import log_to_scribe
 
@@ -32,10 +33,6 @@ def get_target_capacity_value(target_capacity, pool):
         return int(target_capacity)
 
 
-def _recycle_cluster():
-    raise NotImplementedError('Cluster recycling is not yet supported')
-
-
 def _update_ami_to_latest(args):
     update_ami(get_latest_ami(args.update_ami_to_latest), args.cluster, args.pool)
 
@@ -46,10 +43,7 @@ def _update_ami_to(args):
 
 def main(args):
     log_message = (f'')
-    if args.recycle:
-        _recycle_cluster()
-
-    elif args.update_ami_to_latest is not None:
+    if args.update_ami_to_latest is not None:
         if args.dry_run is True:
             log_message = (f'Would have updated the AMI of {args.cluster} {args.pool} to the latest')
         else:
@@ -88,7 +82,8 @@ def main(args):
 
     print(log_message)
     if not args.dry_run:
-        log_to_scribe(f'{LOG_TEMPLATE} {log_message}')
+        scribe_stream = get_autoscaler_scribe_stream(args.cluster, args.pool)
+        log_to_scribe(scribe_stream, f'{LOG_TEMPLATE} {log_message}')
 
 
 @subparser('manage', 'check the status of a Mesos cluster', main)

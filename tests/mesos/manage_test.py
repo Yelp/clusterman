@@ -41,7 +41,6 @@ def test_get_target_capacity_value_invalid():
 @mock.patch('clusterman.mesos.manage.ask_for_confirmation')
 @mock.patch('clusterman.mesos.manage.MesosPoolManager')
 @mock.patch('clusterman.mesos.manage.get_target_capacity_value')
-@mock.patch('clusterman.mesos.manage._recycle_cluster')
 @mock.patch('clusterman.mesos.manage.update_ami')
 @mock.patch('clusterman.mesos.manage.log_to_scribe')
 class TestMain:
@@ -50,7 +49,6 @@ class TestMain:
         self,
         mock_log_to_scribe,
         mock_update_ami,
-        mock_recycle_cluster,
         mock_target_capacity,
         mock_manager,
         mock_confirm,
@@ -71,7 +69,6 @@ class TestMain:
         self,
         mock_log_to_scribe,
         mock_update_ami,
-        mock_recycle_cluster,
         mock_target_capacity,
         mock_manager,
         mock_confirm,
@@ -91,7 +88,6 @@ class TestMain:
         self,
         mock_log_to_scribe,
         mock_update_ami,
-        mock_recycle_cluster,
         mock_target_capacity,
         mock_manager,
         mock_confirm,
@@ -119,7 +115,6 @@ class TestMain:
         self,
         mock_log_to_scribe,
         mock_update_ami,
-        mock_recycle_cluster,
         mock_target_capacity,
         mock_manager,
         mock_confirm,
@@ -140,21 +135,3 @@ class TestMain:
         else:
             assert mock_update_ami.call_count == 0
             assert mock_log_to_scribe.call_count == 0
-
-    def test_recycle_cluster(
-        self,
-        mock_log_to_scribe,
-        mock_update_ami,
-        mock_recycle_cluster,
-        mock_target_capacity,
-        mock_manager,
-        mock_confirm,
-        mock_logger,
-        args,
-    ):
-        args.target_capacity = None
-        args.recycle = True
-
-        main(args)
-
-        assert mock_recycle_cluster.call_count == 1

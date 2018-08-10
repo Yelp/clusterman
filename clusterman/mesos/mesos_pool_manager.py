@@ -267,12 +267,14 @@ class MesosPoolManager:
     ) -> float:
         """ Signals can return arbitrary values, so make sure we don't add or remove too much capacity """
 
-        # TODO (CLUSTERMAN-126) max_weight_to_add and max_weight_to_remove are clusterwide settings,
-        # not per-pool settings.  Right now we read them from the cluster-wide srv-configs, but the only
-        # place to apply the limits are in the pool-manager.  When we start to support multiple pools
-        # per cluster this will need to change.
-        max_weight_to_add = staticconf.read_int(f'mesos_clusters.{self.cluster}.max_weight_to_add')
-        max_weight_to_remove = staticconf.read_int(f'mesos_clusters.{self.cluster}.max_weight_to_remove')
+        max_weight_to_add = self.pool_config.read_int(
+            'scaling_limits.max_weight_to_add',
+            default=staticconf.read_int(f'mesos_clusters.{self.cluster}.max_weight_to_add'),
+        )
+        max_weight_to_remove = self.pool_config.read_int(
+            'scaling_limits.max_weight_to_remove',
+            default=staticconf.read_int(f'mesos_clusters.{self.cluster}.max_weight_to_remove'),
+        )
 
         requested_delta = requested_target_capacity - self.target_capacity
         if requested_delta > 0:
