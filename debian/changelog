@@ -1,3 +1,9 @@
+clusterman (2.9.4) trusty; urgency=low
+
+  * minor fixes; don't require --pool for default
+
+ -- David Morrison <drmorr@yelp.com>  Fri, 10 Aug 2018 11:17:45 -0700
+
 clusterman (2.9.3) trusty; urgency=low
 
   * remove cpus_per_weight from srv-configs
