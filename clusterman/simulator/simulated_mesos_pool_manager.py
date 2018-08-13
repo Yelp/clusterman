@@ -23,7 +23,7 @@ def _make_agent(instance):
         'resources': {
             'cpus': instance.resources.cpus,
             'mem': instance.resources.mem,
-            'disk': instance.resources.disk,
+            'disk': instance.resources.disk or 0,  # TODO (CLUSTERMAN-298)
         },
         'used_resources': {
             # TODO CLUSTERMAN-145 - at some point we should track task start and end time, as well as
