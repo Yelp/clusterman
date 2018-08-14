@@ -89,6 +89,7 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
                 data = (metric_name, int(time.time()), value)
                 writer.send(data)
 
+    @suppress_request_limit_exceeded()
     def run(self):
         self.load_mesos_managers()  # Load the pools on the first run; do it here so we get logging
         while self.running:
@@ -105,8 +106,7 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
             for metric_type, metrics in METRICS_TO_WRITE.items():
                 with self.metrics_client.get_writer(metric_type) as writer:
                     try:
-                        with suppress_request_limit_exceeded():
-                            self.write_metrics(writer, metrics)
+                        self.write_metrics(writer, metrics)
                     except socket.timeout:
                         # Try to get metrics for the rest of the clusters, but make sure we know this failed
                         logger.warn(f'Timed out getting cluster metric data:\n\n{format_exc()}')
