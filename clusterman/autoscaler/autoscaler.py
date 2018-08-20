@@ -1,6 +1,7 @@
 import traceback
 from typing import List
 from typing import Optional
+from typing import Tuple
 
 import arrow
 import colorlog
@@ -12,6 +13,7 @@ from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 from clusterman.autoscaler.config import get_autoscaling_config
 from clusterman.autoscaler.signals import Signal
+from clusterman.autoscaler.signals import SignalResponseDict
 from clusterman.config import POOL_NAMESPACE
 from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
@@ -68,10 +70,10 @@ class Autoscaler:
         logger.info('Initialization complete')
 
     @property
-    def run_frequency(self):
+    def run_frequency(self) -> int:
         return self.signal.period_minutes * 60
 
-    def run(self, dry_run=False, timestamp=None):
+    def run(self, dry_run: bool = False, timestamp: Optional[arrow.Arrow] = None) -> None:
         """ Do a single check to scale the fleet up or down if necessary.
 
         :param dry_run: boolean; if True, don't modify the pool size, just print what would happen
@@ -132,18 +134,21 @@ class Autoscaler:
             )
             return self.default_signal
 
-    def _compute_target_capacity(self, resource_request):
+    def _compute_target_capacity(self, resource_request: SignalResponseDict) -> float:
         """ Compare signal to the resources allocated and compute appropriate capacity change.
 
         :param resource_request: a resource_request object from the signal evaluation
         :returns: the new target capacity we should scale to
         """
         current_target_capacity = self.mesos_pool_manager.target_capacity
-        if all(requested_quantity is None for resource, requested_quantity in resource_request.items()):
+        logger.info(f'Currently at target_capacity of {current_target_capacity}')
+
+        if not any(resource_request.values()):
             logger.info('No data from signal, not changing capacity')
             return current_target_capacity
-
-        logger.info(f'Currently at target_capacity of {current_target_capacity}')
+        elif current_target_capacity == 0:
+            logger.info('Current capacity is 0, scaling up by 1 to get some data')
+            return 1
 
         most_constrained_resource, usage_pct = self._get_most_constrained_resource_for_request(resource_request)
         logger.info(
@@ -192,7 +197,7 @@ class Autoscaler:
 
         return new_target_capacity
 
-    def _get_most_constrained_resource_for_request(self, resource_request):
+    def _get_most_constrained_resource_for_request(self, resource_request: SignalResponseDict) -> Tuple[str, float]:
         """Determine what would be the most constrained resource if were to fulfill a resource_request without scaling
         the cluster.
 
@@ -206,5 +211,6 @@ class Autoscaler:
                 continue
 
             resource_total = self.mesos_pool_manager.get_resource_total(resource)
-            requested_resource_usage_pcts[resource] = resource_request[resource] / resource_total
+            # mypy isn't smart enough to see resource_request[resource] can't be None here
+            requested_resource_usage_pcts[resource] = resource_request[resource] / resource_total  # type: ignore
         return max(requested_resource_usage_pcts.items(), key=lambda x: x[1])

@@ -100,3 +100,28 @@ def test_autoscaler_scale_down_small(autoscaler):
     rgs = list(autoscaler.mesos_pool_manager.resource_groups.values())
     assert rgs[0].modify_target_capacity.call_args == mock.call(5, terminate_excess_capacity=False, dry_run=False)
     assert rgs[1].modify_target_capacity.call_args == mock.call(5, terminate_excess_capacity=False, dry_run=False)
+
+
+def test_autoscaler_resource_total_0_request_0(autoscaler):
+    rgs = list(autoscaler.mesos_pool_manager.resource_groups.values())
+    rgs[0].target_capacity = 0
+    rgs[1].target_capacity = 0
+    autoscaler.mesos_pool_manager.get_resource_total = mock.Mock(return_value=0)
+    autoscaler.signal._signal_conn.recv.side_effect = [ACK, ACK, '{"Resources": {"cpus": 0}}']
+    autoscaler.run()
+    assert rgs[0].modify_target_capacity.call_args == mock.call(0, terminate_excess_capacity=False, dry_run=False)
+    assert rgs[1].modify_target_capacity.call_args == mock.call(0, terminate_excess_capacity=False, dry_run=False)
+
+
+def test_autoscaler_resource_total_0_request_pos(autoscaler):
+    rgs = list(autoscaler.mesos_pool_manager.resource_groups.values())
+    rgs[0].target_capacity = 0
+    rgs[1].target_capacity = 0
+    rgs[0].fulfilled_capacity = 0
+    rgs[1].fulfilled_capacity = 0
+    autoscaler.mesos_pool_manager.get_resource_total = mock.Mock(return_value=0)
+    autoscaler.mesos_pool_manager.non_orphan_fulfilled_capacity = 0
+    autoscaler.signal._signal_conn.recv.side_effect = [ACK, ACK, '{"Resources": {"cpus": 20}}']
+    autoscaler.run()
+    assert rgs[0].modify_target_capacity.call_args == mock.call(1, terminate_excess_capacity=False, dry_run=False)
+    assert rgs[1].modify_target_capacity.call_args == mock.call(0, terminate_excess_capacity=False, dry_run=False)

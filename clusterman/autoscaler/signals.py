@@ -52,6 +52,7 @@ MetricsConfigDict = TypedDict(
         'regex': bool,
     }
 )
+SignalResponseDict = Dict[str, Optional[float]]
 
 
 def _init_signal_io_threads(signal_name, signal_process):
@@ -167,7 +168,7 @@ class Signal:
         self.signal_namespace: str = signal_namespace or self.app
         self._signal_conn: socket.socket = self._start_signal_process()
 
-    def evaluate(self, timestamp: arrow.Arrow, retry_on_broken_pipe: bool = True) -> Dict:
+    def evaluate(self, timestamp: arrow.Arrow, retry_on_broken_pipe: bool = True) -> SignalResponseDict:
         """ Communicate over a Unix socket with the signal to evaluate its result
 
         :param timestamp: a Unix timestamp to pass to the signal as the "current time"
