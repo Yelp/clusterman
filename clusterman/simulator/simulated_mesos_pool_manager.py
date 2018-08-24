@@ -58,7 +58,7 @@ class SimulatedMesosPoolManager(MesosPoolManager):
     def get_instance_metadatas(self, aws_state_filter: Optional[Collection[str]] = None) -> Sequence[InstanceMetadata]:
         agent_metadatas = []
         ip_to_agent: Dict[Optional[str], MesosAgentDict] = {
-            agent_pid_to_ip(agent['pid']): agent for agent in self._agents
+            agent_pid_to_ip(agent['pid']): agent for agent in self.agents
         }
         for group in self.resource_groups.values():
             for instance in cast(SimulatedAWSCluster, group).instances.values():
@@ -90,7 +90,7 @@ class SimulatedMesosPoolManager(MesosPoolManager):
         return agent_metadatas
 
     @property
-    def _agents(self):
+    def agents(self):
         return [
             _make_agent(group.instances[instance_id])
             for group in self.resource_groups.values()
@@ -98,9 +98,9 @@ class SimulatedMesosPoolManager(MesosPoolManager):
         ]
 
     @property
-    def _frameworks(self):
+    def frameworks(self):
         return []
 
     @property
-    def _tasks(self):
+    def tasks(self):
         return []

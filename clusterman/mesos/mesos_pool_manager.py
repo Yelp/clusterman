@@ -178,7 +178,7 @@ class MesosPoolManager:
         """
         instance_id_to_task_count = self._count_tasks_per_mesos_agent()
         ip_to_agent: Mapping[Optional[str], MesosAgentDict] = {
-            agent_pid_to_ip(agent['pid']): agent for agent in self._agents
+            agent_pid_to_ip(agent['pid']): agent for agent in self.agents
         }
         instance_metadatas = []
 
@@ -217,7 +217,7 @@ class MesosPoolManager:
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
         :returns: float
         """
-        return get_total_resource_value(self._agents, 'used_resources', resource_name)
+        return get_total_resource_value(self.agents, 'used_resources', resource_name)
 
     def get_resource_total(self, resource_name: str) -> float:
         """Get the total amount of the given resource for this Mesos pool.
@@ -225,7 +225,7 @@ class MesosPoolManager:
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
         :returns: float
         """
-        return get_total_resource_value(self._agents, 'resources', resource_name)
+        return get_total_resource_value(self.agents, 'resources', resource_name)
 
     def get_percent_resource_allocation(self, resource_name: str) -> float:
         """Get the overall proportion of the given resource that is in use.
@@ -425,7 +425,7 @@ class MesosPoolManager:
 
         return {group_id: targets[group_id] for group_id in self.resource_groups}
 
-    def _get_market_capacities(
+    def get_market_capacities(
         self,
         market_filter: Optional[Collection[InstanceMarket]] = None
     ) -> Mapping[InstanceMarket, float]:
@@ -482,7 +482,7 @@ class MesosPoolManager:
     def _count_tasks_per_mesos_agent(self) -> MutableMapping[str, int]:
         """Given a list of mesos tasks, return a count of tasks per agent"""
         instance_id_to_task_count: MutableMapping[str, int] = defaultdict(int)
-        for task in self._tasks:
+        for task in self.tasks:
             if task['state'] == 'TASK_RUNNING':
                 instance_id_to_task_count[task['slave_id']] += 1
         return instance_id_to_task_count
@@ -515,7 +515,7 @@ class MesosPoolManager:
 
     # TODO (CLUSTERMAN-278): fetch this in reload_state
     @timed_cached_property(CACHE_TTL_SECONDS)
-    def _agents(self) -> Sequence[MesosAgentDict]:
+    def agents(self) -> Sequence[MesosAgentDict]:
         response = mesos_post(self.api_endpoint, 'slaves').json()
         return [
             agent
@@ -525,13 +525,12 @@ class MesosPoolManager:
 
     # TODO (CLUSTERMAN-278): fetch this in reload_state
     @timed_cached_property(CACHE_TTL_SECONDS)
-    def _frameworks(self) -> Sequence[Mapping]:
-        response = mesos_post(self.api_endpoint, 'master/frameworks').json()
-        return response['frameworks']
+    def frameworks(self) -> Sequence[Mapping]:
+        return mesos_post(self.api_endpoint, 'master/frameworks').json()
 
     @property
-    def _tasks(self) -> Sequence[Mapping]:
+    def tasks(self) -> Sequence[Mapping]:
         tasks: List[Mapping] = []
-        for framework in self._frameworks:
+        for framework in self.frameworks['frameworks']:
             tasks.extend(framework['tasks'])
         return tasks
