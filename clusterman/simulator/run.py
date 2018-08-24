@@ -63,14 +63,18 @@ def _populate_autoscaling_events(simulator, start_time, end_time):
 
 
 def _populate_cluster_size_events(simulator, start_time, end_time):
-    __, capacity_ts = simulator.metrics_client.get_metric_values(
-        f'fulfilled_capacity|cluster={simulator.metadata.cluster},pool={simulator.metadata.pool}',
+    capacity_metrics = simulator.metrics_client.get_metric_values(
+        f'fulfilled_capacity',
         METADATA,
         start_time.timestamp,
         end_time.timestamp,
         use_cache=False,
+        extra_dimensions={
+            'cluster': simulator.metadata.cluster,
+            'pool': simulator.metadata.pool,
+        }
     )
-    for i, (timestamp, data) in enumerate(capacity_ts):
+    for i, (timestamp, data) in enumerate(capacity_metrics['fulfilled_capacity']):
         market_data = {}
         for market_str, value in data.items():
             market = InstanceMarket.parse(market_str)
@@ -82,32 +86,40 @@ def _populate_cluster_size_events(simulator, start_time, end_time):
 
 
 def _populate_allocated_resources(simulator, start_time, end_time):
-    __, allocated_ts = simulator.metrics_client.get_metric_values(
-        f'cpus_allocated|cluster={simulator.metadata.cluster},pool={simulator.metadata.pool}',
+    allocated_metrics = simulator.metrics_client.get_metric_values(
+        f'cpus_allocated',
         SYSTEM_METRICS,
         start_time.timestamp,
         end_time.timestamp,
         use_cache=False,
+        extra_dimensions={
+            'cluster': simulator.metadata.cluster,
+            'pool': simulator.metadata.pool,
+        }
     )
     # It's OK to just directly set up the timeseries here, instead of using events; if the autoscaler
     # depends on these values it will re-read it from the metrics client anyways.
     #
     # In the future, we may want to make the simulator smarter (if the value of cpus_allocated exceeds the
     # simulated total cpus, for example), but for right now I don't care (CLUSTERMAN-145)
-    for timestamp, data in allocated_ts:
+    for timestamp, data in allocated_metrics['cpus_allocated']:
         simulator.mesos_cpus_allocated.add_breakpoint(arrow.get(timestamp), float(data))
 
 
 def _populate_price_changes(simulator, start_time, end_time, discount):
     for market in simulator.markets:
-        __, market_prices = simulator.metrics_client.get_metric_values(
-            f'spot_prices|aws_availability_zone={market.az},aws_instance_type={market.instance}',
+        market_prices = simulator.metrics_client.get_metric_values(
+            f'spot_prices',
             METADATA,
             start_time.timestamp,
             end_time.timestamp,
             use_cache=False,
+            extra_dimensions={
+                'aws_availability_zone': market.az,
+                'aws_instance_type': market.instance,
+            }
         )
-        for timestamp, price in market_prices:
+        for timestamp, price in market_prices['spot_prices']:
             price = float(price) * (discount or 1.0)
             simulator.add_event(InstancePriceChangeEvent(
                 arrow.get(timestamp),

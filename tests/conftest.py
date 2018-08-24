@@ -5,6 +5,8 @@ import mock
 import pytest
 import staticconf.testing
 import yelp_meteorite
+from clusterman_metrics import APP_METRICS
+from clusterman_metrics import SYSTEM_METRICS
 
 from clusterman.config import CREDENTIALS_NAMESPACE
 from clusterman.math.piecewise import PiecewiseConstantFunction
@@ -65,7 +67,12 @@ def main_clusterman_config():
                 'team': 'my_team',
                 'runbook': 'y/my-runbook',
             }
-        ]
+        ],
+        'autoscale_signal': {
+            'name': 'DefaultSignal',
+            'branch_or_tag': 'master',
+            'period_minutes': 10,
+        }
     }
 
     with staticconf.testing.MockConfiguration(config):
@@ -94,7 +101,16 @@ def clusterman_pool_config():
                 'team': 'other-team',
                 'runbook': 'y/their-runbook',
             }
-        ]
+        ],
+        'autoscale_signal': {
+            'name': 'BarSignal3',
+            'branch_or_tag': 'v42',
+            'period_minutes': 7,
+            'required_metrics': [
+                {'name': 'cpus_allocated', 'type': SYSTEM_METRICS, 'minute_range': 10},
+                {'name': 'cost', 'type': APP_METRICS, 'minute_range': 30},
+            ],
+        }
     }
     with staticconf.testing.MockConfiguration(config, namespace='bar_config'):
         yield

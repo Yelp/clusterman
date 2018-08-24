@@ -3,22 +3,25 @@ import socket
 import struct
 import subprocess
 import time
-from collections import namedtuple
+from collections import defaultdict
 from threading import Thread
 from typing import Callable
+from typing import Dict
 from typing import Mapping
+from typing import Optional
 from typing import Tuple
 
+import arrow
 import simplejson as json
 import staticconf
 from clusterman_metrics import APP_METRICS
-from clusterman_metrics import generate_key_with_dimensions
+from clusterman_metrics import ClustermanMetricsBotoClient
+from clusterman_metrics import MetricsValuesDict
 from clusterman_metrics import SYSTEM_METRICS
+from mypy_extensions import TypedDict
 from simplejson.errors import JSONDecodeError
 from staticconf.errors import ConfigurationError
 
-from clusterman.autoscaler.config import get_required_metric_configs
-from clusterman.autoscaler.config import MetricConfig
 from clusterman.exceptions import ClustermanSignalError
 from clusterman.exceptions import MetricsError
 from clusterman.exceptions import NoSignalConfiguredException
@@ -33,10 +36,6 @@ ACK = bytes([1])
 SIGNALS_REPO = 'git@git.yelpcorp.com:clusterman_signals'  # TODO (CLUSTERMAN-254) make this a config param
 SOCKET_MESG_SIZE = 4096
 SOCKET_TIMEOUT_SECONDS = 300
-SignalConfig = namedtuple(
-    'SignalConfig',
-    ['name', 'repo', 'branch_or_tag', 'period_minutes', 'required_metrics', 'parameters'],
-)
 SIGNAL_LOGGERS: Mapping[
     str,
     Tuple[
@@ -44,17 +43,15 @@ SIGNAL_LOGGERS: Mapping[
         Callable[[str], None],
     ]
 ] = {}
-
-
-def _generate_metric_key(metric, cluster, pool, app):
-    # Create the key to query the datastore with
-    if metric.type == SYSTEM_METRICS:
-        metric_key = generate_key_with_dimensions(metric.name, {'cluster': cluster, 'pool': pool})
-    elif metric.type == APP_METRICS:
-        metric_key = app + ',' + metric.name
-    else:
-        raise MetricsError('Signal cannot read {metric.type} metrics')
-    return metric_key
+MetricsConfigDict = TypedDict(
+    'MetricsConfigDict',
+    {
+        'name': str,
+        'type': str,
+        'minute_range': int,
+        'regex': bool,
+    }
+)
 
 
 def _init_signal_io_threads(signal_name, signal_process):
@@ -121,7 +118,15 @@ def _get_local_signal_directory(repo, branch_or_tag):
 
 
 class Signal:
-    def __init__(self, cluster, pool, app, config_namespace, metrics_client, signal_namespace=None):
+    def __init__(
+        self,
+        cluster: str,
+        pool: str,
+        app: str,
+        config_namespace: str,
+        metrics_client: ClustermanMetricsBotoClient,
+        signal_namespace: Optional[str] = None
+    ) -> None:
         """ Create an encapsulation of the Unix sockets via which we communicate with signals
 
         :param cluster: the name of the cluster this signal is for
@@ -132,15 +137,37 @@ class Signal:
         :param signal_namespace: the namespace in the signals repo to find the signal class
             (if this is None, we default to the app name)
         """
-        self.cluster = cluster
-        self.pool = pool
-        self.app = app
-        self.config = self._get_signal_config(config_namespace)
-        self.metrics_client = metrics_client
-        self.signal_namespace = signal_namespace or self.app
-        self._signal_conn = self._start_signal_process()
+        reader = staticconf.NamespaceReaders(config_namespace)
 
-    def evaluate(self, timestamp, retry_on_broken_pipe=True):
+        try:
+            self.name: str = reader.read_string('autoscale_signal.name')
+        except ConfigurationError:
+            raise NoSignalConfiguredException(f'No signal was configured in {config_namespace}')
+
+        self.cluster: str = cluster
+        self.pool: str = pool
+        self.app: str = app
+
+        self.period_minutes: int = reader.read_int('autoscale_signal.period_minutes')
+        if self.period_minutes <= 0:
+            raise SignalValidationError(f'Length of signal period must be positive, got {self.period_minutes}')
+
+        self.parameters: Dict = {
+            key: value
+            for param_dict in reader.read_list('autoscale_signal.parameters', default=[])
+            for (key, value) in param_dict.items()
+        }
+
+        self.required_metrics: list = reader.read_list('autoscale_signal.required_metrics', default=[])
+
+        self.repo: str = SIGNALS_REPO
+        self.branch_or_tag: str = reader.read_string('autoscale_signal.branch_or_tag')
+
+        self.metrics_client: ClustermanMetricsBotoClient = metrics_client
+        self.signal_namespace: str = signal_namespace or self.app
+        self._signal_conn: socket.socket = self._start_signal_process()
+
+    def evaluate(self, timestamp: arrow.Arrow, retry_on_broken_pipe: bool = True) -> Dict:
         """ Communicate over a Unix socket with the signal to evaluate its result
 
         :param timestamp: a Unix timestamp to pass to the signal as the "current time"
@@ -173,7 +200,9 @@ class Signal:
             # if there's no more data in the previous message
             response = response[1:] or self._signal_conn.recv(SOCKET_MESG_SIZE)
             logger.info(response)
-            return json.loads(response)['Resources']
+
+            # simplejson auto-decodes bytes data but mypy doesn't like it
+            return json.loads(response)['Resources']  # type: ignore
 
         except JSONDecodeError as e:
             raise ClustermanSignalError('Signal evaluation failed') from e
@@ -185,50 +214,16 @@ class Signal:
             else:
                 raise ClustermanSignalError('Signal evaluation failed') from e
 
-    def _get_signal_config(self, config_namespace):
-        """Validate and return autoscaling signal config from the given namespace.
-
-        :param config_namespace: namespace to read values from
-        :returns: SignalConfig object with the values filled in
-        :raises staticconf.errors.ConfigurationError: if the config namespace is missing a required value
-        :raises NoSignalConfiguredException: if the config namespace doesn't define a custom signal
-        :raises SignalValidationError: if some signal parameter is incorrectly set
-        """
-        reader = staticconf.NamespaceReaders(config_namespace)
-        try:
-            name = reader.read_string('autoscale_signal.name')
-        except ConfigurationError:
-            raise NoSignalConfiguredException(f'No signal was configured in {config_namespace}')
-
-        period_minutes = reader.read_int('autoscale_signal.period_minutes')
-        if period_minutes <= 0:
-            raise SignalValidationError(f'Length of signal period must be positive, got {period_minutes}')
-
-        parameter_dict_list = reader.read_list('autoscale_signal.parameters', default=[])
-        parameter_dict = {key: value for param_dict in parameter_dict_list for (key, value) in param_dict.items()}
-
-        required_metrics = reader.read_list('autoscale_signal.required_metrics', default=[])
-        required_metric_keys = set(MetricConfig._fields)
-        required_metric_configs = []
-        for metrics_dict in required_metrics:
-            missing = required_metric_keys - set(metrics_dict.keys())
-            if missing:
-                raise SignalValidationError(f'Missing required metric keys {missing} in {metrics_dict}')
-            metric_config = {key: metrics_dict[key] for key in metrics_dict if key in required_metric_keys}
-            required_metric_configs.append(MetricConfig(**metric_config))
-        branch_or_tag = reader.read_string('autoscale_signal.branch_or_tag')
-        return SignalConfig(name, SIGNALS_REPO, branch_or_tag, period_minutes, required_metric_configs, parameter_dict)
-
-    def _start_signal_process(self):
+    def _start_signal_process(self) -> socket.socket:
         """ Create a connection to the specified signal over a unix socket
 
         :returns: a socket connection which can read/write data to the specified signal
         """
-        signal_dir = _get_local_signal_directory(self.config.repo, self.config.branch_or_tag)
+        signal_dir = _get_local_signal_directory(self.repo, self.branch_or_tag)
 
         # this creates an abstract namespace socket which is auto-cleaned on program exit
         s = socket.socket(socket.AF_UNIX)
-        s.bind(f'\0{self.signal_namespace}-{self.config.name}-socket')
+        s.bind(f'\0{self.signal_namespace}-{self.name}-socket')
         s.listen(1)  # only allow one connection at a time
         s.settimeout(SOCKET_TIMEOUT_SECONDS)
 
@@ -241,41 +236,52 @@ class Signal:
                 '-m',
                 'clusterman_signals.run',
                 self.signal_namespace,
-                self.config.name,
+                self.name,
             ],
             cwd=signal_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        _init_signal_io_threads(self.config.name, signal_process)
+        _init_signal_io_threads(self.name, signal_process)
         time.sleep(2)  # Give the signal subprocess time to start, then check to see if it's running
         return_code = signal_process.poll()
         if return_code:
-            raise SignalConnectionError(f'Could not load signal {self.config.name}; aborting')
+            raise SignalConnectionError(f'Could not load signal {self.name}; aborting')
         signal_conn, __ = s.accept()
         signal_conn.settimeout(SOCKET_TIMEOUT_SECONDS)
 
-        signal_kwargs = json.dumps({'parameters': self.config.parameters})
+        signal_kwargs = json.dumps({'parameters': self.parameters})
         signal_conn.send(signal_kwargs.encode())
-        logger.info(f'Loaded signal {self.config.name} from {self.signal_namespace}')
+        logger.info(f'Loaded signal {self.name} from {self.signal_namespace}')
 
         return signal_conn
 
-    def _get_metrics(self, end_time):
+    def _get_metrics(self, end_time: arrow.Arrow) -> MetricsValuesDict:
         """ Get the metrics required for a signal """
 
-        # We re-query the metrics index every time we evaluate the signal, in case we've started logging
-        # new (matching) metrics since the batch has started
-        all_required_metrics = get_required_metric_configs(self.app, self.config.required_metrics)
-        metrics = {}
-        for metric in all_required_metrics:
-            start_time = end_time.shift(minutes=-metric.minute_range)
+        metrics: MetricsValuesDict = defaultdict(list)
+        metric_dict: MetricsConfigDict
+        for metric_dict in self.required_metrics:
+            if metric_dict['type'] not in (SYSTEM_METRICS, APP_METRICS):
+                raise MetricsError(f"Metrics of type {metric_dict['type']} cannot be queried by signals.")
 
-            metric_key = _generate_metric_key(metric, self.cluster, self.pool, self.app)
-            __, metrics[metric.name] = self.metrics_client.get_metric_values(
-                metric_key,
-                metric.type,
+            # Need to add the cluster/pool to get the right system metrics
+            # TODO (CLUSTERMAN-126) this should probably be cluster/pool/app eventually
+            dims = {'cluster': self.cluster, 'pool': self.pool} if metric_dict['type'] == SYSTEM_METRICS else {}
+
+            # We only support regex expressions for APP_METRICS
+            if 'regex' not in metric_dict:
+                metric_dict['regex'] = False
+
+            start_time = end_time.shift(minutes=-metric_dict['minute_range'])
+            query_results = self.metrics_client.get_metric_values(
+                metric_dict['name'],
+                metric_dict['type'],
                 start_time.timestamp,
-                end_time.timestamp
+                end_time.timestamp,
+                is_regex=metric_dict['regex'],
+                extra_dimensions=dims,
+                app_identifier=self.app,
             )
+            metrics.update(query_results)
         return metrics

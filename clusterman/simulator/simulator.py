@@ -11,7 +11,6 @@ from typing import Set
 
 import staticconf
 import yaml
-from clusterman_metrics import generate_key_with_dimensions
 from clusterman_metrics import METADATA
 
 from clusterman.autoscaler.autoscaler import Autoscaler
@@ -66,7 +65,7 @@ class Simulator:
         if autoscaler_config_file:
             self._make_autoscaler(autoscaler_config_file)
             self.aws_clusters = self.autoscaler.mesos_pool_manager.resource_groups.values()  # type: ignore
-            period = self.autoscaler.signal.config.period_minutes  # type: ignore
+            period = self.autoscaler.signal.period_minutes  # type: ignore
             print(f'Autoscaler configured; will run every {period} minutes')
         else:
             self.aws_clusters = [SimulatedAWSCluster(self)]
@@ -231,19 +230,17 @@ class Simulator:
             configs.extend([config['SpotFleetRequestConfig'] for config in aws_configs['SpotFleetRequestConfigs']])
         pool_manager = SimulatedMesosPoolManager(self.metadata.cluster, self.metadata.pool, configs, self)
         metric_values = self.metrics_client.get_metric_values(
-            generate_key_with_dimensions(
-                'target_capacity',
-                {'cluster': self.metadata.cluster, 'pool': self.metadata.pool},
-            ),
+            'target_capacity',
             METADATA,
             self.start_time.timestamp,
             # metrics collector runs 1x/min, but we'll try to get five data points in case some data is missing
             self.start_time.shift(minutes=5).timestamp,
             use_cache=False,
+            extra_dimensions={'cluster': self.metadata.cluster, 'pool': self.metadata.pool},
         )
         # take the earliest data point available - this is a Decimal, which doesn't play nicely, so convert to an int
         with patch_join_delay():
-            actual_target_capacity = int(metric_values[1][0][1])
+            actual_target_capacity = int(metric_values['target_capacity'][0][1])
             pool_manager.modify_target_capacity(actual_target_capacity, force=True)
 
         for config in configs:

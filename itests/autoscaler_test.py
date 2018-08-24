@@ -1,13 +1,9 @@
 import mock
 import pytest
 import staticconf.testing
-from clusterman_metrics import APP_METRICS
-from clusterman_metrics import SYSTEM_METRICS
 
 from clusterman.autoscaler.autoscaler import Autoscaler
-from clusterman.autoscaler.config import MetricConfig
 from clusterman.autoscaler.signals import ACK
-from clusterman.autoscaler.signals import SignalConfig
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
@@ -39,18 +35,9 @@ def resource_groups():
 
 @pytest.fixture
 def autoscaler(resource_groups):
-    with mock.patch('clusterman.autoscaler.signals.Signal._get_signal_config') as mock_signal_config, \
-            mock.patch('clusterman.autoscaler.signals.Signal._start_signal_process'), \
+    with mock.patch('clusterman.autoscaler.signals.Signal._start_signal_process'), \
             mock.patch('clusterman.autoscaler.autoscaler.yelp_meteorite'), \
             staticconf.testing.PatchConfiguration({'autoscaling': {'default_signal_role': 'bar'}}):
-        mock_signal_config.return_value = SignalConfig(
-            'MySignal',
-            'repo',
-            'v42',
-            7,
-            [MetricConfig('cpus_allocated', SYSTEM_METRICS, 10), MetricConfig('cost', APP_METRICS, 30)],
-            {'paramA': 'abc', 'otherParam': 18},
-        )
 
         a = Autoscaler(cluster='mesos-test', pool='bar', apps=['bar'], metrics_client=mock.Mock())
         a.signal._get_metrics = mock.Mock(return_value={})

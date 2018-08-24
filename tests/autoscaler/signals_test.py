@@ -5,20 +5,15 @@ import arrow
 import mock
 import pytest
 import simplejson as json
-import staticconf.testing
 from clusterman_metrics import APP_METRICS
 from clusterman_metrics import METADATA
 from clusterman_metrics import SYSTEM_METRICS
 
-from clusterman.autoscaler.config import MetricConfig
 from clusterman.autoscaler.signals import _get_local_signal_directory
 from clusterman.autoscaler.signals import ACK
 from clusterman.autoscaler.signals import Signal
-from clusterman.autoscaler.signals import SignalConfig
-from clusterman.autoscaler.signals import SIGNALS_REPO
 from clusterman.exceptions import ClustermanSignalError
 from clusterman.exceptions import MetricsError
-from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.exceptions import SignalConnectionError
 
 
@@ -56,28 +51,9 @@ def test_signal_not_present(local_signal_dir_patches):
 
 
 @pytest.fixture
-def signal_config_base():
-    return {'autoscale_signal': {
-        'name': 'BarSignal3',
-        'branch_or_tag': 'v42',
-        'period_minutes': 7,
-    }}
-
-
-@pytest.fixture
 def mock_signal():
-    with mock.patch('clusterman.autoscaler.signals.Signal._start_signal_process'), \
-            mock.patch('clusterman.autoscaler.signals.Signal._get_signal_config') as mock_signal_config:
-        mock_signal_config.return_value = SignalConfig(
-            'BarSignal3',
-            'repo',
-            'v42',
-            7,
-            [MetricConfig('cpus_allocated', SYSTEM_METRICS, 10), MetricConfig('cost', APP_METRICS, 30)],
-            {},
-        )
-        mock_signal = Signal('foo', 'bar', 'app1', 'bar_namespace', mock.Mock())
-        return mock_signal
+    with mock.patch('clusterman.autoscaler.signals.Signal._start_signal_process'):
+        return Signal('foo', 'bar', 'app1', 'bar_config', mock.Mock())
 
 
 @pytest.mark.parametrize('conn_response', [['foo'], [ACK, 'foo']])
@@ -134,109 +110,38 @@ def test_evaluate_signal_sending_message(mock_signal, signal_recv):
     assert resp == {'cpus': 5.2}
 
 
-def test_get_signal_config(mock_signal):
-    with staticconf.testing.MockConfiguration({}, namespace='util_testing'), pytest.raises(NoSignalConfiguredException):
-        mock_signal._get_signal_config('util_testing')
-
-
-def test_get_signal_config_optional_values(mock_signal):
-    config_dict = signal_config_base()
-    with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'):
-        config = mock_signal._get_signal_config('util_testing')
-
-    assert config == SignalConfig('BarSignal3', SIGNALS_REPO, 'v42', 7, [], {})
-
-
-def test_get_signal_config_valid_values(mock_signal):
-    config_dict = signal_config_base()
-    config_dict['autoscale_signal'].update({
-        'required_metrics': [
-            {
-                'name': 'metricB',
-                'type': APP_METRICS,
-                'minute_range': 1,
-            },
-            {
-                'name': 'metricEE',
-                'type': SYSTEM_METRICS,
-                'minute_range': 12,
-            },
-        ],
-        'parameters': [
-            {'paramA': 'abc'},
-            {'otherParam': 18},
-        ],
-    })
-    with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'):
-        config = mock_signal._get_signal_config('util_testing')
-
-    assert config == SignalConfig(
-        'BarSignal3',
-        SIGNALS_REPO,
-        'v42',
-        7,
-        mock.ANY,
-        {'paramA': 'abc', 'otherParam': 18},
-    )
-    assert config.required_metrics == sorted(
-        [MetricConfig('metricB', APP_METRICS, 1), MetricConfig('metricEE', SYSTEM_METRICS, 12)]
-    )
-
-
-@pytest.mark.parametrize('period_minutes', [1, -1])
-def test_get_signal_config_invalid_metrics(period_minutes):
-    config_dict = signal_config_base()
-    config_dict['autoscale_signal'].update({
-        'required_metrics': [
-            {
-                'name': 'metricB',
-                'type': APP_METRICS,
-                'minute_range': 1,
-            },
-            {
-                'name': 'metricEE',
-                'type': SYSTEM_METRICS,
-            },
-        ],
-        'period_minutes': period_minutes,
-    })
-    with staticconf.testing.MockConfiguration(config_dict, namespace='util_testing'):
-        with pytest.raises(Exception):
-            mock_signal._get_signal_config('util_testing', {})
-
-
 @pytest.mark.parametrize('end_time', [arrow.get(3600), arrow.get(10000), arrow.get(35000)])
 def test_get_metrics(mock_signal, end_time):
     mock_signal.metrics_client.get_metric_values.side_effect = [
-        ('cpus_allocated|cluster=foo,pool=bar', [(1, 2), (3, 4)]),
-        ('cost', [(1, 2.5), (3, 4.5)]),
+        {'cpus_allocated': [(1, 2), (3, 4)]},
+        {'app1,cost': [(1, 2.5), (3, 4.5)]},
     ]
-    with mock.patch('clusterman.autoscaler.signals.get_required_metric_configs') as mock_get_configs:
-        mock_get_configs.return_value = [
-            MetricConfig('cpus_allocated', SYSTEM_METRICS, 10),
-            MetricConfig('cost', APP_METRICS, 30),
-        ]
-        metrics = mock_signal._get_metrics(end_time)
+    metrics = mock_signal._get_metrics(end_time)
     assert mock_signal.metrics_client.get_metric_values.call_args_list == [
         mock.call(
-            'cpus_allocated|cluster=foo,pool=bar',
+            'cpus_allocated',
             SYSTEM_METRICS,
             end_time.shift(minutes=-10).timestamp,
             end_time.timestamp,
+            app_identifier='app1',
+            extra_dimensions={'cluster': 'foo', 'pool': 'bar'},
+            is_regex=False,
         ),
         mock.call(
-            'app1,cost',
+            'cost',
             APP_METRICS,
             end_time.shift(minutes=-30).timestamp,
             end_time.timestamp,
-        )
+            app_identifier='app1',
+            extra_dimensions={},
+            is_regex=False,
+        ),
     ]
     assert 'cpus_allocated' in metrics
-    assert 'cost' in metrics
+    assert 'app1,cost' in metrics
 
 
 def test_get_metadata_metrics(mock_signal):
-    with mock.patch('clusterman.autoscaler.signals.get_required_metric_configs') as mock_get_configs, \
-            pytest.raises(MetricsError):
-        mock_get_configs.return_value = [MetricConfig('total_cpus', METADATA, 10)]
+    with pytest.raises(MetricsError):
+        mock_signal.required_metrics = [{'name': 'total_cpus', 'type': METADATA, 'minute_range': 10}]
         mock_signal._get_metrics(arrow.get(0))

@@ -59,7 +59,7 @@ class Autoscaler:
 
     @property
     def run_frequency(self):
-        return self.signal.config.period_minutes * 60
+        return self.signal.period_minutes * 60
 
     def run(self, dry_run=False, timestamp=None):
         """ Do a single check to scale the fleet up or down if necessary.
@@ -71,12 +71,12 @@ class Autoscaler:
         logger.info(f'Autoscaling run starting at {timestamp}')
 
         try:
-            signal_name = self.signal.config.name
+            signal_name = self.signal.name
             resource_request = self.signal.evaluate(timestamp)
             exception = None
         except Exception as e:
-            logger.error(f'Client signal {self.signal.config.name} failed; using default signal')
-            signal_name = self.default_signal.config.name
+            logger.error(f'Client signal {self.signal.name} failed; using default signal')
+            signal_name = self.default_signal.name
             resource_request = self.default_signal.evaluate(timestamp)
             exception, tb = e, traceback.format_exc()
 
