@@ -34,7 +34,7 @@ highlight_exec apt-get install -y --force-yes git make tox
 highlight_exec dpkg -i "/dist/${DISTRIB_CODENAME}/${PACKAGE_NAME}_${PACKAGE_VERSION}-${SHA}_amd64.deb" || true
 highlight_exec apt-get install -y --force-yes  -f
 
-echo -e "Host git.yelpcorp.com\n\tStrictHostKeyChecking no\n\tUserKnownHostsFile=/dev/null" > $HOME/.ssh/config
+echo -e "Host sysgit.yelpcorp.com\n\tStrictHostKeyChecking no\n\tUserKnownHostsFile=/dev/null" > $HOME/.ssh/config
 
 # Run the critical clusterman CLI commands
 highlight_exec /usr/bin/clusterman --version

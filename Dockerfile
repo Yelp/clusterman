@@ -34,7 +34,7 @@ RUN     cd code && tox -e virtualenv_run
 # parameter in yelpsoa_configs
 RUN     mkdir -p /home/nobody/.ssh /home/nobody/.cache/clusterman && chown -R nobody /home/nobody
 RUN     usermod -d /home/nobody nobody
-RUN     echo 'Host git.yelpcorp.com\n\tStrictHostKeyChecking no\n\tUserKnownHostsFile /dev/null' > /home/nobody/.ssh/config
+RUN     echo 'Host sysgit.yelpcorp.com\n\tStrictHostKeyChecking no\n\tUserKnownHostsFile /dev/null' > /home/nobody/.ssh/config
 
 # Code is COPY'ed here after the pip install above, so that code changes do not
 # break the preceding cache layer.
