@@ -200,7 +200,7 @@ def add_simulate_parser(subparser, required_named_args, optional_named_args):  #
         'simulation end time',
     )
     add_cluster_arg(required_named_args, required=False)
-    add_pool_arg(required_named_args, required=False)
+    add_pool_arg(required_named_args)
     add_cluster_config_directory_arg(optional_named_args)
     add_branch_or_tag_arg(optional_named_args)
     required_named_args.add_argument(

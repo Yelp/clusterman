@@ -59,7 +59,15 @@ class _BotoForwarder(type):
         if _session is None:
             _init_session()
         if cls._client is None:
-            cls._client = _session.client(cls.client)
+            # Used for the dockerized cluster; endpoint_url needs to be a string containing '{svc}',
+            # which will have the service name (ec2, s3, etc) substituted in here
+            endpoint_url = staticconf.read_string('aws.endpoint_url', default=None)
+            if endpoint_url:
+                endpoint_url = endpoint_url.format(svc=cls.client)
+            cls._client = _session.client(
+                cls.client,
+                endpoint_url=endpoint_url,
+            )
         return getattr(cls._client, key)
 
 

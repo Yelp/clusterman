@@ -63,7 +63,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
     def parse_args(self, parser):
         arg_group = parser.add_argument_group('AutoscalerBatch options')
         add_cluster_arg(arg_group, required=True)
-        add_pool_arg(arg_group, required=True)
+        add_pool_arg(arg_group)
         add_cluster_config_directory_arg(arg_group)
         add_env_config_path_arg(arg_group)
         add_branch_or_tag_arg(arg_group)

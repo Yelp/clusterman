@@ -1,0 +1,17 @@
+---
+resource_groups:
+  - sfr:
+      s3:
+        bucket: clusterman-resource-groups
+        prefix: acceptance
+
+scaling_limits:
+  min_capacity: 10
+  max_capacity: 60
+  max_tasks_to_kill: 100
+
+autoscale_signal:
+  namespace: clusterman
+  name: ConstantSignal
+  branch_or_tag: v3.5.3
+  period_minutes: 10

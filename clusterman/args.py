@@ -82,11 +82,10 @@ def add_cluster_arg(parser, required=False):  # pragma: no cover
     )
 
 
-def add_pool_arg(parser, required=False):  # pragma: no cover
+def add_pool_arg(parser):  # pragma: no cover
     """ Add --pool argument to a parser """
     parser.add_argument(
         '--pool', '--role',
-        required=required,
         dest='pool',
         default='default',
         action=deprecate_argument(depr_arg='--role', alt='--pool'),

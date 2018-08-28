@@ -25,3 +25,4 @@ docker-venv
 .cache
 .pytest_cache/
 .mypy_cache/
+yelp_package/itest/autoscaler_config.yaml

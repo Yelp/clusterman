@@ -110,7 +110,7 @@ def main(args):  # pragma: no cover
 @subparser('status', 'check the status of a Mesos cluster', main)
 def add_mesos_status_parser(subparser, required_named_args, optional_named_args):  # pragma: no cover
     add_cluster_arg(required_named_args, required=True)
-    add_pool_arg(required_named_args, required=True)
+    add_pool_arg(required_named_args)
 
     optional_named_args.add_argument(
         '--only-idle',

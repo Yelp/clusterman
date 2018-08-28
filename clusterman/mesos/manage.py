@@ -89,7 +89,7 @@ def main(args):
 @subparser('manage', 'check the status of a Mesos cluster', main)
 def add_mesos_manager_parser(subparser, required_named_args, optional_named_args):  # pragma: no cover
     add_cluster_arg(required_named_args, required=True)
-    add_pool_arg(required_named_args, required=True)
+    add_pool_arg(required_named_args)
     optional_named_args.add_argument(
         '--target-capacity',
         metavar='X',

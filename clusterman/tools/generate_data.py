@@ -118,7 +118,7 @@ def load_experimental_design(inputfile):
     :returns: a dictionary of metric_type -> (metric_name -> timeseries data)
     """
     with open(inputfile) as f:
-        design = yaml.safe_load(f.read(), Loader=yaml.CLoader)
+        design = yaml.safe_load(f.read())
 
     metrics = {}
     for metric_type, metric_design in design.items():

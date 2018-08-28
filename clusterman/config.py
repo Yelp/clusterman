@@ -33,15 +33,15 @@ def setup_config(args):
     # we might want to be operating on a cluster in one region while running from a
     # different region.
     elif cluster:
-        aws_region = staticconf.read_string(f'mesos_clusters.{cluster}.aws_region')
-
+        aws_region = staticconf.read_string(f'mesos_clusters.{cluster}.aws_region', default=None)
         if pool:
             load_cluster_pool_config(cluster, pool, signals_branch_or_tag)
 
     staticconf.DictConfiguration({'aws': {'region': aws_region}})
 
-    boto_creds_file = staticconf.read_string('aws.access_key_file')
-    staticconf.JSONConfiguration(boto_creds_file, namespace=CREDENTIALS_NAMESPACE)
+    boto_creds_file = staticconf.read_string('aws.access_key_file', default=None)
+    if boto_creds_file:
+        staticconf.JSONConfiguration(boto_creds_file, namespace=CREDENTIALS_NAMESPACE)
 
     if signals_branch_or_tag:
         staticconf.DictConfiguration({'autoscale_signal': {'branch_or_tag': signals_branch_or_tag}})
