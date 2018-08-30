@@ -13,7 +13,6 @@ import staticconf
 from colorama import Fore
 from colorama import Style
 from pysensu_yelp import Status
-from staticconf.errors import ConfigurationError
 
 from clusterman.config import LOG_STREAM_NAME
 from clusterman.config import POOL_NAMESPACE
@@ -151,21 +150,33 @@ def parse_time_interval_seconds(time_str):
 
 
 def sensu_checkin(*, check_name, output, source, status=Status.OK, app=None, noop=False, page=True, **kwargs):
+    # This function feels like a massive hack, let's revisit and see if we can make it better (CLUSTERMAN-304)
     if noop:
         return
 
-    # read the sensu configuration from srv-configs; signals are not required to define this, so in the case
-    # that they do not define anything, we fall back to the default config.  The default config _is_ required
-    # to define this, so we know that someone is going to get the notification
-    #
     # TODO (CLUSTERMAN-126) right now there's only one app per pool so use the global pool namespace
     # We assume the "pool" name and the "app" name are the same
-    pool_namespace = POOL_NAMESPACE.format(pool=app) if app else None
-    try:
-        sensu_config = staticconf.read_list('sensu_config', namespace=pool_namespace).pop()
-    except ConfigurationError:
-        sensu_config = staticconf.read_list('sensu_config').pop()
-    sensu_config.update(kwargs)  # values passed in to this function override config file values
+    #
+    # Use 'no-namespace' instead of None so we don't skip the per-cluster override
+    pool_namespace = POOL_NAMESPACE.format(pool=app) if app else 'no-namespace'
+
+    # read the sensu configuration from srv-configs; signals are not required to define this, so in the case
+    # that they do not define anything, we fall back to the clusterman config.  The clusterman config can override
+    # alerts on a per-cluster basis, so first check there; if nothing is defined there, fall back to the default,
+    # which is required to be defined, so we know that someone is going to get the notification
+    #
+    sensu_config = dict(staticconf.read_list('sensu_config', default=[{}], namespace=pool_namespace).pop())
+    if not sensu_config:
+        sensu_config = dict(staticconf.read_list(f'mesos_clusters.{source}.sensu_config', default=[{}]).pop())
+    if not sensu_config:
+        sensu_config = dict(staticconf.read_list('sensu_config').pop())
+
+    # If we've turned off paging in the config, we don't want this function to ever page
+    config_page = sensu_config.pop('page', None)
+    page = False if config_page is False else page
+
+    # values passed in to this function override config file values (is this really correct??)
+    sensu_config.update(kwargs)
 
     # team and runbook are required entries in srv-configs, so we know this will go to the "right" place
     pysensu_yelp.send_event(
