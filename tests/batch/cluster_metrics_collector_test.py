@@ -8,6 +8,7 @@ from clusterman_metrics import ClustermanMetricsBotoClient
 from clusterman.batch.cluster_metrics_collector import ClusterMetricsCollector
 from clusterman.batch.cluster_metrics_collector import METRICS_TO_WRITE
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
+from clusterman.util import splay_event_time
 
 
 @pytest.fixture
@@ -89,7 +90,12 @@ def test_run(mock_sensu, mock_running, mock_time, mock_sleep, batch):
     writer_context = batch.metrics_client.get_writer.return_value
     writer = writer_context.__enter__.return_value
 
-    with mock.patch('builtins.hash') as mock_hash, \
+    # modify splay_event_time to avoid any splaying
+    def mock_splay_event_time(frequency, key):
+        fake_key = mock.Mock(__hash__=lambda x: 0)
+        return splay_event_time(frequency, fake_key)
+
+    with mock.patch('clusterman.batch.cluster_metrics_collector.splay_event_time', mock_splay_event_time), \
             mock.patch.object(batch, 'write_metrics', autospec=True) as write_metrics, \
             mock.patch('clusterman.batch.cluster_metrics_collector.MesosPoolManager', autospec=True), \
             mock.patch('clusterman.batch.cluster_metrics_collector.logger') as mock_logger:
@@ -99,7 +105,6 @@ def test_run(mock_sensu, mock_running, mock_time, mock_sleep, batch):
             else:
                 return
 
-        mock_hash.return_value = 0  # patch hash to avoid splaying
         write_metrics.side_effect = mock_write_metrics
         batch.run()
 
