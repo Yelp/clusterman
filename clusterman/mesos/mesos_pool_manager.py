@@ -4,11 +4,9 @@ from typing import Collection
 from typing import List
 from typing import Mapping
 from typing import MutableMapping
-from typing import NamedTuple
 from typing import Optional
 from typing import Sequence
 from typing import Tuple
-from typing import Type
 
 import arrow
 import staticconf
@@ -18,19 +16,19 @@ from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import get_instance_market
 from clusterman.aws.markets import InstanceMarket
 from clusterman.config import POOL_NAMESPACE
+from clusterman.draining.queue import SqsClient
 from clusterman.exceptions import AllResourceGroupsAreStaleError
 from clusterman.exceptions import MesosPoolManagerError
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
 from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
-from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
-from clusterman.mesos.spotinst_resource_group import SpotInstResourceGroup
 from clusterman.mesos.util import agent_pid_to_ip
 from clusterman.mesos.util import allocated_agent_resources
 from clusterman.mesos.util import get_total_resource_value
+from clusterman.mesos.util import InstanceMetadata
 from clusterman.mesos.util import mesos_post
 from clusterman.mesos.util import MesosAgentDict
 from clusterman.mesos.util import MesosAgentState
-from clusterman.mesos.util import MesosResources
+from clusterman.mesos.util import RESOURCE_GROUPS
 from clusterman.mesos.util import total_agent_resources
 from clusterman.util import get_clusterman_logger
 
@@ -38,30 +36,6 @@ from clusterman.util import get_clusterman_logger
 AWS_RUNNING_STATES = ('running',)
 MIN_CAPACITY_PER_GROUP = 1
 logger = get_clusterman_logger(__name__)
-
-
-class InstanceMetadata(NamedTuple):
-    allocated_resources: MesosResources
-    aws_state: str
-    group_id: str
-    instance_id: str
-    instance_ip: Optional[str]
-    is_resource_group_stale: bool
-    market: InstanceMarket
-    mesos_state: MesosAgentState
-    task_count: int
-    total_resources: MesosResources
-    uptime: arrow.Arrow
-    weight: float
-
-
-RESOURCE_GROUPS: Mapping[
-    str,
-    Type[MesosPoolResourceGroup]
-] = {
-    'sfr': SpotFleetResourceGroup,
-    'spotinst': SpotInstResourceGroup,
-}
 
 
 class MesosPoolManager:
@@ -87,6 +61,9 @@ class MesosPoolManager:
         self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool))
 
         mesos_master_fqdn = staticconf.read_string(f'mesos_clusters.{self.cluster}.fqdn')
+        self.draining_enabled = staticconf.read_bool(f'mesos_clusters.{self.cluster}.draining_enabled', default=False)
+        if self.draining_enabled:
+            self.sqs_client = SqsClient(cluster)
         self.min_capacity = self.pool_config.read_int('scaling_limits.min_capacity')
         self.max_capacity = self.pool_config.read_int('scaling_limits.max_capacity')
         self.max_tasks_to_kill = self.pool_config.read_int('scaling_limits.max_tasks_to_kill', default=0)
@@ -168,7 +145,7 @@ class MesosPoolManager:
         new_target_capacity: float,
         group_targets: Optional[Mapping[str, float]] = None,
         dry_run: bool = False,
-    ) -> Sequence[str]:
+    ) -> None:
         """ Decrease the capacity in the cluster
 
         The number of tasks killed is limited by self.max_tasks_to_kill, and the instances are terminated in an order
@@ -177,22 +154,21 @@ class MesosPoolManager:
         :param group_targets: a list of new resource group target_capacities; if None, use the existing
             target_capacities (this parameter is necessary in order for dry runs to work correctly)
         :param dry_run: if True, do not modify the state of the cluster, just log actions
-        :returns: a list of terminated instance ids
         """
 
-        marked_instance_ids = self._choose_instances_to_prune(new_target_capacity, group_targets)
+        marked_instances = self._choose_instances_to_prune(new_target_capacity, group_targets)
 
-        # Terminate the marked instances; it's possible that not all instances will be terminated
-        all_terminated_instance_ids: List[str] = []
         if not dry_run:
-            for group_id, instance_ids in marked_instance_ids.items():
-                terminated_instance_ids = self.resource_groups[group_id].terminate_instances_by_id(instance_ids)
-                all_terminated_instance_ids.extend(terminated_instance_ids)
-        else:
-            all_terminated_instance_ids = [i for instances in marked_instance_ids.values() for i in instances]
-
-        logger.info(f'The following instances have been terminated: {all_terminated_instance_ids}')
-        return all_terminated_instance_ids
+            if self.draining_enabled:
+                for group_id, instances in marked_instances.items():
+                    for instance in instances:
+                        self.sqs_client.submit_host_for_draining(
+                            instance,
+                            sender=self.resource_groups[group_id].__class__,
+                        )
+            else:
+                for group_id, instances in marked_instances.items():
+                    self.resource_groups[group_id].terminate_instances_by_id([i.instance_id for i in instances])
 
     def get_instance_metadatas(self, aws_state_filter: Optional[Collection[str]] = None) -> Sequence[InstanceMetadata]:
         """ Get a list of metadata about the instances currently in the pool
@@ -217,6 +193,7 @@ class MesosPoolManager:
                 agent = ip_to_agent.get(instance_ip)
 
                 metadata = InstanceMetadata(
+                    hostname=agent['hostname'] if agent else '',
                     allocated_resources=allocated_agent_resources(agent),
                     aws_state=aws_state,
                     group_id=group.id,
@@ -304,7 +281,7 @@ class MesosPoolManager:
         self,
         new_target_capacity: float,
         group_targets: Optional[Mapping[str, float]],
-    ) -> Mapping[str, List[str]]:
+    ) -> Mapping[str, List[InstanceMetadata]]:
         """ Choose instances to kill in order to decrease the capacity on the cluster.
 
         The number of tasks killed is limited by self.max_tasks_to_kill, and the instances are terminated in an order
@@ -347,7 +324,7 @@ class MesosPoolManager:
 
         # Iterate through all of the idle agents and mark one at a time for removal until we reach our target capacity
         # or have reached our limit of tasks to kill.
-        marked_instance_ids: Mapping[str, List[str]] = defaultdict(list)
+        marked_instances: Mapping[str, List[InstanceMetadata]] = defaultdict(list)
         killed_task_count = 0
         for instance in prioritized_killable_instances:
             # Try to mark the instance for removal; this could fail in a few different ways:
@@ -379,7 +356,7 @@ class MesosPoolManager:
                     continue
 
             logger.info(f'marking {instance.instance_id} for termination')
-            marked_instance_ids[instance.group_id].append(instance.instance_id)
+            marked_instances[instance.group_id].append(instance)
             rem_group_capacities[instance.group_id] -= instance.weight
             curr_capacity -= instance.weight
             killed_task_count += instance.task_count
@@ -390,7 +367,7 @@ class MesosPoolManager:
                 logger.info("Seems like we've picked enough instances to kill; finishing")
                 break
 
-        return marked_instance_ids
+        return marked_instances
 
     def _compute_new_resource_group_targets(self, new_target_capacity: float) -> Mapping[str, float]:
         """ Compute a balanced distribution of target capacities for the resource groups in the cluster

@@ -71,6 +71,10 @@ class ec2(metaclass=_BotoForwarder):
     client = 'ec2'
 
 
+class sqs(metaclass=_BotoForwarder):
+    client = 'sqs'
+
+
 class dynamodb(metaclass=_BotoForwarder):
     client = 'dynamodb'
 

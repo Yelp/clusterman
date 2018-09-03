@@ -1,16 +1,23 @@
 import enum
 import os
 import re
+from typing import Mapping
 from typing import NamedTuple
 from typing import Optional
+from typing import Type
 
+import arrow
 import requests
 import staticconf
 from mypy_extensions import TypedDict
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
+from clusterman.aws.markets import InstanceMarket
 from clusterman.config import get_cluster_config_directory
 from clusterman.exceptions import MesosPoolManagerError
+from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
+from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
+from clusterman.mesos.spotinst_resource_group import SpotInstResourceGroup
 from clusterman.util import get_clusterman_logger
 
 logger = get_clusterman_logger(__name__)
@@ -21,8 +28,20 @@ MesosAgentDict = TypedDict(
         'id': str,
         'used_resources': dict,
         'resources': dict,
+        'hostname': str,
     },
 )
+RESOURCE_GROUPS: Mapping[
+    str,
+    Type[MesosPoolResourceGroup]
+] = {
+    'sfr': SpotFleetResourceGroup,
+    'spotinst': SpotInstResourceGroup,
+}
+RESOURCE_GROUPS_REV: Mapping[
+    Type[MesosPoolResourceGroup],
+    str
+] = {v: k for k, v in RESOURCE_GROUPS.items()}
 
 
 class MesosAgentState(enum.Enum):
@@ -30,6 +49,22 @@ class MesosAgentState(enum.Enum):
     ORPHANED = 'orphaned'
     RUNNING = 'running'
     UNKNOWN = 'unknown'
+
+
+class InstanceMetadata(NamedTuple):
+    hostname: str
+    allocated_resources: MesosResources
+    aws_state: str
+    group_id: str
+    instance_id: str
+    instance_ip: Optional[str]
+    is_resource_group_stale: bool
+    market: InstanceMarket
+    mesos_state: MesosAgentState
+    task_count: int
+    total_resources: MesosResources
+    uptime: arrow.Arrow
+    weight: float
 
 
 def agent_pid_to_ip(slave_pid):

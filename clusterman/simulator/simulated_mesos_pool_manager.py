@@ -66,6 +66,7 @@ class SimulatedMesosPoolManager(MesosPoolManager):
 
                 agent = ip_to_agent.get(instance.ip_address)
                 metadata = InstanceMetadata(
+                    hostname='host123',
                     allocated_resources=allocated_agent_resources(agent),
                     aws_state='running',
                     group_id=group.id,

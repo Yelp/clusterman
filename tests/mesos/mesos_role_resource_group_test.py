@@ -47,9 +47,9 @@ class DummyResourceGroup(MesosPoolResourceGroup):
 
 
 def test_protect_unowned_instances():
-    assert DummyResourceGroup().terminate_instances_by_id(['fake-1', 'fake-4']) == ['fake-1']
+    assert DummyResourceGroup('some-id').terminate_instances_by_id(['fake-1', 'fake-4']) == ['fake-1']
 
 
 def test_protect_unowned_instances_noop():
-    assert sorted(DummyResourceGroup().terminate_instances_by_id(['fake-1', 'fake-2', 'fake-3'])) == \
+    assert sorted(DummyResourceGroup('some-id').terminate_instances_by_id(['fake-1', 'fake-2', 'fake-3'])) == \
         ['fake-1', 'fake-2', 'fake-3']

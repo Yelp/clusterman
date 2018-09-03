@@ -86,7 +86,9 @@ def test_scale_down(mock_manager):
     for rg in rgs:
         for instance in ec2_describe_instances(instance_ids=rg.instance_ids):
             agents.append({
-                'pid': f'slave(1)@{instance["PrivateIpAddress"]}:1', 'id': f'agent-{instance["InstanceId"]}'
+                'pid': f'slave(1)@{instance["PrivateIpAddress"]}:1',
+                'id': f'agent-{instance["InstanceId"]}',
+                'hostname': 'host1'
             })
 
     mock_agents = mock.PropertyMock(return_value=agents)

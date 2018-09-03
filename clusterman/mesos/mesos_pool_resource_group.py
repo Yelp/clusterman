@@ -38,6 +38,9 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
     as well as querying the state of the resource group.
     """
 
+    def __init__(self, group_id: str) -> None:
+        pass
+
     def market_weight(self, market: InstanceMarket) -> float:  # pragma: no cover
         """ Return the weighted capacity assigned to a particular EC2 market by this resource group
 

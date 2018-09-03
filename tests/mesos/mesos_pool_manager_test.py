@@ -46,6 +46,8 @@ def mock_pool_manager(mock_resource_groups):
     with mock.patch.dict(
         'clusterman.mesos.mesos_pool_manager.RESOURCE_GROUPS',
         {'sfr': FakeResourceGroupClass}
+    ), mock.patch(
+        'clusterman.mesos.mesos_pool_manager.SqsClient', autospec=True
     ):
         manager = MesosPoolManager('mesos-test', 'bar')
         manager.resource_groups = mock_resource_groups
@@ -92,6 +94,7 @@ class TestPruneFulfilledCapacity:
 
     def create_pool_instance(self, **kwargs):
         base_attributes = {
+            'hostname': 'host1',
             'allocated_resources': (0, 0, 0),
             'aws_state': 'running',
             'group_id': 'rg1',
@@ -147,11 +150,34 @@ class TestPruneFulfilledCapacity:
         res_group.market_weight.return_value = 1
         res_group.terminate_instances_by_id.side_effect = lambda x: x
         target_capacity = mock_pool_manager.target_capacity
-        assert set(mock_pool_manager.prune_excess_fulfilled_capacity(new_target_capacity=target_capacity)) == {
-            'instance-1',
-            'instance-2',
-            'instance-3',
-        }
+        mock_pool_manager.prune_excess_fulfilled_capacity(new_target_capacity=target_capacity)
+        res_group.terminate_instances_by_id.assert_called_with(['instance-1', 'instance-2', 'instance-3'])
+
+    def test_can_prune_with_draining(self, mock_get_prioritized_killable_instances, mock_logger, mock_pool_manager):
+        mock_pool_manager.draining_enabled = True
+        instance1 = self.create_pool_instance(
+            instance_id='instance-1',
+            task_count=0,
+            market='market-1',
+            group_id='sfr-6',
+        )
+        instance2 = self.create_pool_instance(
+            instance_id='instance-2',
+            task_count=0,
+            market='market-1',
+            group_id='sfr-6',
+        )
+        mock_get_prioritized_killable_instances.return_value = [instance1, instance2]
+        res_group = mock_pool_manager.resource_groups['sfr-6']
+        res_group.market_weight.return_value = 1
+        res_group.terminate_instances_by_id.side_effect = lambda x: x
+        target_capacity = mock_pool_manager.target_capacity
+        mock_pool_manager.prune_excess_fulfilled_capacity(new_target_capacity=target_capacity)
+        assert not res_group.terminate_instances_by_id.called
+        mock_pool_manager.sqs_client.submit_host_for_draining.assert_has_calls([
+            mock.call(instance1, sender=MesosPoolResourceGroup),
+            mock.call(instance2, sender=MesosPoolResourceGroup),
+        ])
 
     def test_max_tasks_to_kill(self, mock_get_prioritized_killable_instances, mock_logger, mock_pool_manager):
         mock_pool_manager.max_tasks_to_kill = 10
@@ -179,10 +205,8 @@ class TestPruneFulfilledCapacity:
         res_group.market_weight.return_value = 1
         res_group.terminate_instances_by_id.side_effect = lambda x: x
         target_capacity = mock_pool_manager.target_capacity
-        assert set(mock_pool_manager.prune_excess_fulfilled_capacity(new_target_capacity=target_capacity)) == {
-            'instance-1',
-            'instance-2',
-        }
+        mock_pool_manager.prune_excess_fulfilled_capacity(new_target_capacity=target_capacity)
+        res_group.terminate_instances_by_id.assert_called_with(['instance-1', 'instance-2'])
 
     def test_nothing_to_prune(self, mock_get_killable_instance_in_kill_order, mock_logger, mock_pool_manager):
         # Override global PropertyMock above
@@ -223,6 +247,7 @@ class TestChooseInstancesToPrune:
             for i, instance_id in enumerate(resource_group.instance_ids):
                 orphaned = (len(instances) < orphaned_instances)
                 instances.append(InstanceMetadata(
+                    hostname='host1',
                     allocated_resources=(0, 0, 0) if orphaned else (10, 0, 0),
                     aws_state='running',
                     group_id=resource_group.id,
@@ -335,7 +360,7 @@ class TestChooseInstancesToPrune:
                 # Depending on num_new_instances_up, some RGs will have orphans and some will not.
                 # This RG has at least one orphan, and we will kill one of them.
                 assert len(instances_to_prune[nonstale_rg.id]) == 1
-                assert instances_to_prune[nonstale_rg.id][0] in {
+                assert instances_to_prune[nonstale_rg.id][0].instance_id in {
                     i.instance_id for i in nonstale_instances if i.mesos_state == MesosAgentState.ORPHANED
                 }
             else:
@@ -344,7 +369,7 @@ class TestChooseInstancesToPrune:
                 if new_running_killed_so_far < max_new_running_to_kill:
                     new_running_killed_so_far += 1
                     assert len(instances_to_prune[nonstale_rg.id]) == 1
-                    assert instances_to_prune[nonstale_rg.id][0] in {
+                    assert instances_to_prune[nonstale_rg.id][0].instance_id in {
                         i.instance_id for i in nonstale_instances if i.mesos_state == MesosAgentState.RUNNING
                     }
                 else:
@@ -580,14 +605,16 @@ class TestGetInstances:
         agents.append({
             'pid': f'slave(1)@{reservations["Instances"][1]["PrivateIpAddress"]}:1',
             'id': 'idle',
-            'used_resources': {'cpus': 0}
+            'used_resources': {'cpus': 0},
+            'hostname': 'host1',
         })
 
         mock_pool_manager.resource_groups['rg2'].instance_ids[0]  # few tasks
         agents.append({
             'pid': f'slave(1)@{reservations["Instances"][2]["PrivateIpAddress"]}:1',
             'id': 'few_tasks',
-            'used_resources': {'cpus': 1}
+            'used_resources': {'cpus': 1},
+            'hostname': 'host1',
         })
         tasks.extend([{'slave_id': 'few_tasks', 'state': 'TASK_RUNNING'} for _ in range(3)])
 
@@ -595,7 +622,8 @@ class TestGetInstances:
         agents.append({
             'pid': f'slave(1)@{reservations["Instances"][3]["PrivateIpAddress"]}:1',
             'id': 'many_tasks',
-            'used_resources': {'cpus': 1}
+            'used_resources': {'cpus': 1},
+            'hostname': 'host1',
         })
         tasks.extend([{'slave_id': 'many_tasks', 'state': 'TASK_RUNNING'} for _ in range(8)])
 
@@ -607,6 +635,7 @@ class TestGetInstances:
 
     def build_mock_pool_instance(self, state, task_count, market):
         return InstanceMetadata(
+            hostname=mock.ANY,
             allocated_resources=mock.ANY,
             aws_state=mock.ANY,
             group_id=mock.ANY,
@@ -706,6 +735,7 @@ def test_instance_kill_order(mock_pool_manager):
         'pid': f'slave(1)@{reservations["Instances"][1]["PrivateIpAddress"]}:1',
         'id': 'idle',
         'used_resources': {'cpus': 0},
+        'hostname': 'host1'
     })
 
     few_tasks_instance_id = instance_ids[2]
@@ -713,6 +743,7 @@ def test_instance_kill_order(mock_pool_manager):
         'pid': f'slave(2)@{reservations["Instances"][2]["PrivateIpAddress"]}:1',
         'id': 'few_tasks',
         'used_resources': {'cpus': 3},
+        'hostname': 'host2'
     })
     tasks.extend([{'slave_id': 'few_tasks', 'state': 'TASK_RUNNING'} for _ in range(3)])
 
@@ -721,6 +752,7 @@ def test_instance_kill_order(mock_pool_manager):
         'pid': f'slave(3)@{reservations["Instances"][3]["PrivateIpAddress"]}:1',
         'id': 'many_tasks',
         'used_resources': {'cpus': 8},
+        'hostname': 'host3'
     })
     tasks.extend([{'slave_id': 'many_tasks', 'state': 'TASK_RUNNING'} for _ in range(8)])
 
@@ -729,6 +761,7 @@ def test_instance_kill_order(mock_pool_manager):
         'pid': f'slave(4)@{reservations["Instances"][4]["PrivateIpAddress"]}:1',
         'id': 'few_tasks_stale',
         'used_resources': {'cpus': 3},
+        'hostname': 'host4'
     })
     tasks.extend([{'slave_id': 'few_tasks_stale', 'state': 'TASK_RUNNING'} for _ in range(3)])
 
@@ -737,6 +770,7 @@ def test_instance_kill_order(mock_pool_manager):
         'pid': f'slave(5)@{reservations["Instances"][5]["PrivateIpAddress"]}:1',
         'id': 'many_tasks_stale',
         'used_resources': {'cpus': 8},
+        'hostname': 'host5'
     })
     tasks.extend([{'slave_id': 'many_tasks_stale', 'state': 'TASK_RUNNING'} for _ in range(8)])
 
@@ -770,7 +804,11 @@ class TestInstanceKillability:
 
         tasks = []
         if has_agent:
-            agents = [{'pid': f'slave(1)@{reservations["Instances"][0]["PrivateIpAddress"]}:1', 'id': 'agent_id'}]
+            agents = [{
+                'pid': f'slave(1)@{reservations["Instances"][0]["PrivateIpAddress"]}:1',
+                'id': 'agent_id',
+                'hostname': 'host123'
+            }]
             for _ in range(num_tasks):
                 tasks.append({'slave_id': 'agent_id', 'state': 'TASK_RUNNING'})
         else:
