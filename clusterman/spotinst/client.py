@@ -22,5 +22,6 @@ def _create_spotinst_client():
 
     return SpotinstClient(
         auth_token=data['api_token'],
-        account_id=data['account_id']
+        account_id=data['account_id'],
+        print_output=False,
     )
