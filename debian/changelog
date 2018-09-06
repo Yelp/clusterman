@@ -1,3 +1,9 @@
+clusterman (2.10.0) trusty; urgency=low
+
+  * use a GSI in dynamodb for querying regex'ed metric names
+
+ -- David Morrison <drmorr@yelp.com>  Thu, 06 Sep 2018 14:08:34 -0700
+
 clusterman (2.9.5) trusty; urgency=low
 
   * temporary fix for EBS-backed instances in the simulator
