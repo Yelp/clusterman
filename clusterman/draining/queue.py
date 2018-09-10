@@ -13,7 +13,7 @@ import staticconf
 from yelp_servlib.config_util import load_default_config
 
 from clusterman.args import add_cluster_arg
-from clusterman.args import add_env_config_path_arg
+from clusterman.args import subparser
 from clusterman.aws.client import sqs
 from clusterman.config import CREDENTIALS_NAMESPACE
 from clusterman.draining.mesos import down
@@ -65,7 +65,7 @@ class SqsClient():
         )
 
     def submit_host_for_termination(self, host: Host, delay: Optional[int] = None) -> None:
-        delay_seconds = delay if delay else staticconf.read_int(
+        delay_seconds = delay if delay is not None else staticconf.read_int(
             f'drain_termination_timeout_seconds.{host.sender}', default=90
         )
         logger.info(f'Delaying terminating {host.instance_id} for {delay_seconds} seconds')
@@ -144,7 +144,7 @@ def process_drain_queue(
         # so instead we send them to terminate straight away
         if not host_to_process.hostname:
             logger.info(f'Host to submit for termination immediately: {host_to_process}')
-            sqs_client.submit_host_for_termination(host_to_process, delay=1)
+            sqs_client.submit_host_for_termination(host_to_process, delay=0)
         else:
             logger.info(f'Host to drain and submit for termination: {host_to_process}')
             try:
@@ -222,8 +222,7 @@ def setup_config(cluster: str, env_config_path: str, log_level: str) -> None:
     staticconf.JSONConfiguration(boto_creds_file, namespace=CREDENTIALS_NAMESPACE)
 
 
-def main() -> None:
-    args = get_args()
+def main(args: argparse.Namespace) -> None:
     setup_config(
         cluster=args.cluster,
         env_config_path=args.env_config_path,
@@ -232,17 +231,10 @@ def main() -> None:
     process_queues(args.cluster)
 
 
-def get_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser()
-    add_cluster_arg(parser, required=True)
-    add_env_config_path_arg(parser)
-    parser.add_argument(
-        '--log-level',
-        default='warning',
-        choices=['debug', 'info', 'warning', 'error', 'critical'],
-    )
-    return parser.parse_args()
-
-
-if __name__ == '__main__':
-    main()
+@subparser('drain', 'Drains and terminates instances submitted to SQS by clusterman', main)
+def add_queue_parser(
+    subparser: argparse.ArgumentParser,
+    required_named_args: argparse.Namespace,
+    optional_named_args: argparse.Namespace
+) -> None:
+    add_cluster_arg(required_named_args, required=True)

@@ -155,6 +155,7 @@ class TestPruneFulfilledCapacity:
 
     def test_can_prune_with_draining(self, mock_get_prioritized_killable_instances, mock_logger, mock_pool_manager):
         mock_pool_manager.draining_enabled = True
+        mock_pool_manager.sqs_client = mock.Mock()
         instance1 = self.create_pool_instance(
             instance_id='instance-1',
             task_count=0,

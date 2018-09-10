@@ -38,6 +38,7 @@ def _make_agent(instance):
 class SimulatedMesosPoolManager(MesosPoolManager):
 
     def __init__(self, cluster, pool, configs, simulator):
+        self.draining_enabled = False
         self.cluster = cluster
         self.pool = pool
         self.simulator = simulator
