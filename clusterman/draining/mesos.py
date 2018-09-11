@@ -16,33 +16,33 @@ Credentials = namedtuple('Credentials', ['file', 'principal', 'secret'])
 log = get_clusterman_logger(__name__)
 
 
-def get_principal(mesos_secrets='/nail/etc/mesos-slave-secret'):
+def get_principal(mesos_secret_path):
     """Helper function to get the principal from the mesos-slave credentials
-    :param mesos_secrets: optional argument specifying the path to the file containing the mesos-slave credentials
+    :param mesos_secret_paths: specifying the path to the file containing the mesos-slave credentials
     :returns: a string containing the principal/username
     """
-    return load_credentials(mesos_secrets).principal
+    return load_credentials(mesos_secret_path).principal
 
 
-def get_secret(mesos_secrets='/nail/etc/mesos-slave-secret'):
+def get_secret(mesos_secret_path):
     """Helper function to get the secret from the mesos-slave credentials
-    :param mesos_secrets: optional argument specifying the path to the file containing the mesos-slave credentials
+    :param mesos_secret_paths: argument specifying the path to the file containing the mesos-slave credentials
     :returns: a string containing the secret/password
     """
-    return load_credentials(mesos_secrets).secret
+    return load_credentials(mesos_secret_path).secret
 
 
-def load_credentials(mesos_secrets='/nail/etc/mesos-slave-secret'):
+def load_credentials(mesos_secret_path):
     """Loads the mesos-slave credentials from the specified file. These credentials will be used for all
     maintenance API requests.
-    :param mesos_secrets: optional argument specifying the path to the file containing the mesos-slave credentials
+    :param mesos_secret_paths: argument specifying the path to the file containing the mesos-slave credentials
     :returns: a tuple of the form (username, password)
     """
     try:
-        with open(mesos_secrets) as data_file:
+        with open(mesos_secret_path) as data_file:
             data = json.load(data_file)
     except EnvironmentError:
-        log.error('maintenance calls must be run on a Mesos slave containing valid credentials (%s)' % mesos_secrets)
+        log.error(f'maintenance calls must be run on a Mesos slave containing valid credentials ({mesos_secret_path})')
         raise
     try:
         username = data['principal']
@@ -50,13 +50,13 @@ def load_credentials(mesos_secrets='/nail/etc/mesos-slave-secret'):
     except KeyError:
         log.error(
             '%s does not contain Mesos slave credentials in the expected format. '
-            'See http://mesos.apache.org/documentation/latest/authentication/ for details' % mesos_secrets,
+            'See http://mesos.apache.org/documentation/latest/authentication/ for details' % mesos_secret_path,
         )
         raise
-    return Credentials(file=mesos_secrets, principal=username, secret=password)
+    return Credentials(file=mesos_secret_path, principal=username, secret=password)
 
 
-def base_api(mesos_master_fqdn):
+def base_api(mesos_master_fqdn, mesos_secret_path):
     """Helper function for making all API requests
     :returns: a function that can be called to make a request
     """
@@ -64,7 +64,7 @@ def base_api(mesos_master_fqdn):
     def execute_request(method, endpoint, timeout=(3, 1), **kwargs):
         url = 'http://%s:%d%s' % (mesos_master_fqdn, MESOS_MASTER_PORT, endpoint)
         s = Session()
-        s.auth = (get_principal(), get_secret())
+        s.auth = (get_principal(mesos_secret_path), get_secret(mesos_secret_path))
         req = Request(method, url, **kwargs)
         prepared = s.prepare_request(req)
         try:
@@ -79,9 +79,9 @@ def base_api(mesos_master_fqdn):
     return execute_request
 
 
-def operator_api(mesos_master_fqdn):
+def operator_api(mesos_master_fqdn, mesos_secret_path):
     def execute_operator_api_request(**kwargs):
-        base_api_client = base_api(mesos_master_fqdn)
+        base_api_client = base_api(mesos_master_fqdn, mesos_secret_path)
         if 'headers' in kwargs:
             kwargs['headers']['Content-Type'] = 'application/json'
         else:

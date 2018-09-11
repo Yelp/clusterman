@@ -314,7 +314,7 @@ def test_load_credentials(
 
     mock_open.side_effect = mock.mock_open(read_data=json.dumps(credentials))
 
-    credentials = load_credentials()
+    credentials = load_credentials('/nail/blah')
 
     assert credentials.principal == principal
     assert credentials.secret == secret
@@ -325,7 +325,7 @@ def test_load_credentials_missing_file(
     mock_open,
 ):
     with pytest.raises(IOError):
-        assert load_credentials()
+        assert load_credentials('/nail/blah')
 
 
 @mock.patch('clusterman.draining.mesos.open', create=True, autospec=None)
@@ -337,7 +337,7 @@ def test_load_credentials_keyerror(
     mock_open.side_effect = mock.mock_open(read_data=json.dumps(credentials))
 
     with pytest.raises(KeyError):
-        assert load_credentials()
+        assert load_credentials('/nail/blah')
 
 
 def test_get_maintenance_schedule():

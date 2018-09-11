@@ -164,7 +164,8 @@ def process_drain_queue(
 def process_queues(cluster_name: str) -> None:
     sqs_client = SqsClient(cluster_name)
     mesos_master_fqdn = staticconf.read_string(f'mesos_clusters.{cluster_name}.fqdn')
-    operator_client = operator_api(mesos_master_fqdn)
+    mesos_secret_path = staticconf.read_string(f'mesos.mesos_agent_secret_path', default='/nail/etc/mesos-slave-secret')
+    operator_client = operator_api(mesos_master_fqdn, mesos_secret_path)
     logger.info('Polling SQS for messages every 5s')
     while True:
         process_drain_queue(
