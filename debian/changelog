@@ -1,3 +1,9 @@
+clusterman (2.10.1) trusty; urgency=low
+
+  * read signals repo location from srv-configs
+
+ -- David Morrison <drmorr@yelp.com>  Tue, 11 Sep 2018 13:22:45 -0700
+
 clusterman (2.10.0) trusty; urgency=low
 
   * use a GSI in dynamodb for querying regex'ed metric names
