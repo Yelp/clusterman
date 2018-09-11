@@ -33,7 +33,7 @@ from clusterman.util import sha_from_branch_or_tag
 
 logger = get_clusterman_logger(__name__)
 ACK = bytes([1])
-SIGNALS_REPO = 'git@git.yelpcorp.com:clusterman_signals'  # TODO (CLUSTERMAN-254) make this a config param
+DEFAULT_SIGNALS_REPO = 'git@sysgit.yelpcorp.com:clusterman_signals'
 SOCKET_MESG_SIZE = 4096
 SOCKET_TIMEOUT_SECONDS = 300
 SIGNAL_LOGGERS: Mapping[
@@ -160,7 +160,7 @@ class Signal:
 
         self.required_metrics: list = reader.read_list('autoscale_signal.required_metrics', default=[])
 
-        self.repo: str = SIGNALS_REPO
+        self.repo: str = reader.read_string('autoscale_signal.repository', default=DEFAULT_SIGNALS_REPO)
         self.branch_or_tag: str = reader.read_string('autoscale_signal.branch_or_tag')
 
         self.metrics_client: ClustermanMetricsBotoClient = metrics_client
