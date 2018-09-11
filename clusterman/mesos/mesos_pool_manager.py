@@ -16,7 +16,7 @@ from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import get_instance_market
 from clusterman.aws.markets import InstanceMarket
 from clusterman.config import POOL_NAMESPACE
-from clusterman.draining.queue import SqsClient
+from clusterman.draining.queue import DrainingClient
 from clusterman.exceptions import AllResourceGroupsAreStaleError
 from clusterman.exceptions import MesosPoolManagerError
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
@@ -63,7 +63,7 @@ class MesosPoolManager:
         mesos_master_fqdn = staticconf.read_string(f'mesos_clusters.{self.cluster}.fqdn')
         self.draining_enabled = staticconf.read_bool(f'mesos_clusters.{self.cluster}.draining_enabled', default=False)
         if self.draining_enabled:
-            self.sqs_client = SqsClient(cluster)
+            self.draining_client = DrainingClient(cluster)
         self.min_capacity = self.pool_config.read_int('scaling_limits.min_capacity')
         self.max_capacity = self.pool_config.read_int('scaling_limits.max_capacity')
         self.max_tasks_to_kill = self.pool_config.read_int('scaling_limits.max_tasks_to_kill', default=0)
@@ -162,7 +162,7 @@ class MesosPoolManager:
             if self.draining_enabled:
                 for group_id, instances in marked_instances.items():
                     for instance in instances:
-                        self.sqs_client.submit_host_for_draining(
+                        self.draining_client.submit_host_for_draining(
                             instance,
                             sender=self.resource_groups[group_id].__class__,
                         )

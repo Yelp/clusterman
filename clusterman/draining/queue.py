@@ -38,7 +38,7 @@ class Host(NamedTuple):
     receipt_handle: str
 
 
-class SqsClient():
+class DrainingClient():
     def __init__(self, cluster_name: str) -> None:
         self.client = sqs
         self.cluster = cluster_name
@@ -132,79 +132,71 @@ class SqsClient():
                 ReceiptHandle=host.receipt_handle,
             )
 
+    def process_termination_queue(
+        self,
+        mesos_operator_client: Callable[..., Callable[[str], Callable[..., None]]],
+    ) -> None:
+        host_to_terminate = self.get_host_to_terminate()
+        if host_to_terminate:
+            # as for draining if it has a hostname we should down + up around the termination
+            if host_to_terminate.hostname:
+                logger.info(f'Hosts to down+terminate+up: {host_to_terminate}')
+                hostname_ip = f'{host_to_terminate.hostname}|{host_to_terminate.ip}'
+                try:
+                    down(mesos_operator_client, [hostname_ip])
+                except Exception as e:
+                    logger.error(f'Failed to down {hostname_ip} continuing to terminate anyway: {e}')
+                terminate_host(host_to_terminate)
+                try:
+                    up(mesos_operator_client, [hostname_ip])
+                except Exception as e:
+                    logger.error(f'Failed to up {hostname_ip} continuing to terminate anyway: {e}')
+            else:
+                logger.info(f'Host to terminate: {host_to_terminate}')
+                terminate_host(host_to_terminate)
+            self.delete_terminate_messages([host_to_terminate])
 
-def process_drain_queue(
-    sqs_client: SqsClient,
-    mesos_operator_client: Callable[..., Callable[[str], Callable[..., None]]],
-    mesos_master_fqdn: str
-) -> None:
-    host_to_process = sqs_client.get_host_to_drain()
-    if host_to_process:
-        # if hosts do not have hostname it means they are likely not in mesos and don't need draining
-        # so instead we send them to terminate straight away
-        if not host_to_process.hostname:
-            logger.info(f'Host to submit for termination immediately: {host_to_process}')
-            sqs_client.submit_host_for_termination(host_to_process, delay=0)
-        else:
-            logger.info(f'Host to drain and submit for termination: {host_to_process}')
-            try:
-                drain(
-                    mesos_operator_client,
-                    [f'{host_to_process.hostname}|{host_to_process.ip}'],
-                    int(datetime.datetime.now().strftime('%s')) * 1000000000,
-                    staticconf.read_int('mesos_maintenance_timeout_seconds', default=600) * 1000000000
-                )
-            except Exception as e:
-                logger.error(f'Failed to drain {host_to_process.hostname} continuing to terminate anyway: {e}')
-            finally:
-                sqs_client.submit_host_for_termination(host_to_process)
-        sqs_client.delete_drain_messages([host_to_process])
+    def process_drain_queue(
+        self,
+        mesos_operator_client: Callable[..., Callable[[str], Callable[..., None]]],
+    ) -> None:
+        host_to_process = self.get_host_to_drain()
+        if host_to_process:
+            # if hosts do not have hostname it means they are likely not in mesos and don't need draining
+            # so instead we send them to terminate straight away
+            if not host_to_process.hostname:
+                logger.info(f'Host to submit for termination immediately: {host_to_process}')
+                self.submit_host_for_termination(host_to_process, delay=0)
+            else:
+                logger.info(f'Host to drain and submit for termination: {host_to_process}')
+                try:
+                    drain(
+                        mesos_operator_client,
+                        [f'{host_to_process.hostname}|{host_to_process.ip}'],
+                        int(datetime.datetime.now().strftime('%s')) * 1000000000,
+                        staticconf.read_int('mesos_maintenance_timeout_seconds', default=600) * 1000000000
+                    )
+                except Exception as e:
+                    logger.error(f'Failed to drain {host_to_process.hostname} continuing to terminate anyway: {e}')
+                finally:
+                    self.submit_host_for_termination(host_to_process)
+            self.delete_drain_messages([host_to_process])
 
 
 def process_queues(cluster_name: str) -> None:
-    sqs_client = SqsClient(cluster_name)
+    draining_client = DrainingClient(cluster_name)
     mesos_master_fqdn = staticconf.read_string(f'mesos_clusters.{cluster_name}.fqdn')
     mesos_secret_path = staticconf.read_string(f'mesos.mesos_agent_secret_path', default='/nail/etc/mesos-slave-secret')
     operator_client = operator_api(mesos_master_fqdn, mesos_secret_path)
     logger.info('Polling SQS for messages every 5s')
     while True:
-        process_drain_queue(
-            sqs_client=sqs_client,
+        draining_client.process_drain_queue(
             mesos_operator_client=operator_client,
-            mesos_master_fqdn=mesos_master_fqdn,
         )
-        process_termination_queue(
-            sqs_client=sqs_client,
+        draining_client.process_termination_queue(
             mesos_operator_client=operator_client,
-            mesos_master_fqdn=mesos_master_fqdn,
         )
         time.sleep(5)
-
-
-def process_termination_queue(
-    sqs_client: SqsClient,
-    mesos_operator_client: Callable[..., Callable[[str], Callable[..., None]]],
-    mesos_master_fqdn: str
-) -> None:
-    host_to_terminate = sqs_client.get_host_to_terminate()
-    if host_to_terminate:
-        # as for draining if it has a hostname we should down + up around the termination
-        if host_to_terminate.hostname:
-            logger.info(f'Hosts to down+terminate+up: {host_to_terminate}')
-            hostname_ip = f'{host_to_terminate.hostname}|{host_to_terminate.ip}'
-            try:
-                down(mesos_operator_client, [hostname_ip])
-            except Exception as e:
-                logger.error(f'Failed to down {hostname_ip} continuing to terminate anyway: {e}')
-            terminate_host(host_to_terminate)
-            try:
-                up(mesos_operator_client, [hostname_ip])
-            except Exception as e:
-                logger.error(f'Failed to up {hostname_ip} continuing to terminate anyway: {e}')
-        else:
-            logger.info(f'Host to terminate: {host_to_terminate}')
-            terminate_host(host_to_terminate)
-        sqs_client.delete_terminate_messages([host_to_terminate])
 
 
 def terminate_host(host: Host) -> None:

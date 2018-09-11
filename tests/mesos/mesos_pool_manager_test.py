@@ -47,7 +47,7 @@ def mock_pool_manager(mock_resource_groups):
         'clusterman.mesos.mesos_pool_manager.RESOURCE_GROUPS',
         {'sfr': FakeResourceGroupClass}
     ), mock.patch(
-        'clusterman.mesos.mesos_pool_manager.SqsClient', autospec=True
+        'clusterman.mesos.mesos_pool_manager.DrainingClient', autospec=True
     ):
         manager = MesosPoolManager('mesos-test', 'bar')
         manager.resource_groups = mock_resource_groups
@@ -155,7 +155,7 @@ class TestPruneFulfilledCapacity:
 
     def test_can_prune_with_draining(self, mock_get_prioritized_killable_instances, mock_logger, mock_pool_manager):
         mock_pool_manager.draining_enabled = True
-        mock_pool_manager.sqs_client = mock.Mock()
+        mock_pool_manager.draining_client = mock.Mock()
         instance1 = self.create_pool_instance(
             instance_id='instance-1',
             task_count=0,
@@ -175,7 +175,7 @@ class TestPruneFulfilledCapacity:
         target_capacity = mock_pool_manager.target_capacity
         mock_pool_manager.prune_excess_fulfilled_capacity(new_target_capacity=target_capacity)
         assert not res_group.terminate_instances_by_id.called
-        mock_pool_manager.sqs_client.submit_host_for_draining.assert_has_calls([
+        mock_pool_manager.draining_client.submit_host_for_draining.assert_has_calls([
             mock.call(instance1, sender=MesosPoolResourceGroup),
             mock.call(instance2, sender=MesosPoolResourceGroup),
         ])
