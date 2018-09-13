@@ -1,8 +1,7 @@
+import argparse
 import os
-from argparse import ArgumentError
 
 import staticconf
-import yaml
 from yelp_servlib.config_util import load_default_config
 
 CREDENTIALS_NAMESPACE = 'boto_cfg'
@@ -11,7 +10,7 @@ LOG_STREAM_NAME = 'tmp_clusterman_autoscaler'
 POOL_NAMESPACE = '{pool}_config'
 
 
-def setup_config(args):
+def setup_config(args: argparse.Namespace) -> None:
     # load_default_config merges the 'module_config' key from the first file
     # and the 'module_env_config' key from the second file to configure packages.
     # This allows us to configure packages differently in different hiera envs by
@@ -25,17 +24,26 @@ def setup_config(args):
     aws_region = getattr(args, 'aws_region', None)
     cluster = getattr(args, 'cluster', None)
     pool = getattr(args, 'pool', None)
+    healthcheck_only = getattr(args, 'healthcheck_only', False)
     if aws_region and cluster:
-        raise ArgumentError(None, 'Cannot specify both cluster and aws_region')
+        raise argparse.ArgumentError(None, 'Cannot specify both cluster and aws_region')
 
     # If there is a cluster specified via --cluster, load cluster-specific attributes
     # into staticconf.  These values are not specified using hiera in srv-configs because
     # we might want to be operating on a cluster in one region while running from a
     # different region.
     elif cluster:
+        if healthcheck_only:
+            staticconf.DictConfiguration({
+                'mesos_clusters': {args.cluster: {
+                    'fqdn': args.cluster + '.healthcheck',
+                    'aws_region': 'us-west-1',
+                }
+                },
+            })
         aws_region = staticconf.read_string(f'mesos_clusters.{cluster}.aws_region', default=None)
         if pool:
-            load_cluster_pool_config(cluster, pool, signals_branch_or_tag)
+            load_cluster_pool_config(cluster, pool, signals_branch_or_tag, mock_config=healthcheck_only)
 
     staticconf.DictConfiguration({'aws': {'region': aws_region}})
 
@@ -47,19 +55,20 @@ def setup_config(args):
         staticconf.DictConfiguration({'autoscale_signal': {'branch_or_tag': signals_branch_or_tag}})
 
 
-def load_cluster_pool_config(cluster, pool, signals_branch_or_tag):
+def load_cluster_pool_config(cluster, pool, signals_branch_or_tag, mock_config=False):
+    if mock_config:
+        _load_mock_cluster_pool_config(cluster, pool, signals_branch_or_tag)
+        return
+
+    pool_namespace = POOL_NAMESPACE.format(pool=pool)
     pool_config_file = get_pool_config_path(cluster, pool)
 
-    with open(pool_config_file) as f:
-        config = yaml.safe_load(f)
-        pool_namespace = POOL_NAMESPACE.format(pool=pool)
-        staticconf.DictConfiguration(config, namespace=pool_namespace)
-
-        if signals_branch_or_tag:
-            staticconf.DictConfiguration(
-                {'autoscale_signal': {'branch_or_tag': signals_branch_or_tag}},
-                namespace=pool_namespace,
-            )
+    staticconf.YamlConfiguration(pool_config_file, namespace=pool_namespace)
+    if signals_branch_or_tag:
+        staticconf.DictConfiguration(
+            {'autoscale_signal': {'branch_or_tag': signals_branch_or_tag}},
+            namespace=pool_namespace,
+        )
 
 
 def get_cluster_config_directory(cluster):
@@ -72,3 +81,14 @@ def get_pool_config_path(cluster, pool):
 
 def get_spotinst_config_path():
     return staticconf.read_string('spotinst_config.auth_file')
+
+
+def _load_mock_cluster_pool_config(cluster, pool, signals_branch_or_tag):
+    pool_namespace = POOL_NAMESPACE.format(pool=pool)
+    staticconf.DictConfiguration(
+        {
+            'resource_groups': [],
+            'scaling_limits': {'min_capacity': 1, 'max_capacity': 10},
+        },
+        namespace=pool_namespace,
+    )

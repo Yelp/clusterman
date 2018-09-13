@@ -12,6 +12,7 @@ from yelp_batch.batch_daemon import BatchDaemon
 
 from clusterman.args import add_disable_sensu_arg
 from clusterman.args import add_env_config_path_arg
+from clusterman.args import add_healthcheck_only_arg
 from clusterman.aws.spot_prices import spot_price_generator
 from clusterman.aws.spot_prices import write_prices_with_dedupe
 from clusterman.batch.util import BatchLoggingMixin
@@ -39,6 +40,7 @@ class SpotPriceCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMix
         )
         add_env_config_path_arg(arg_group)
         add_disable_sensu_arg(arg_group)
+        add_healthcheck_only_arg(arg_group)
         arg_group.add_argument(
             '--start-time',
             default=arrow.utcnow(),
@@ -72,6 +74,9 @@ class SpotPriceCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMix
                 self.run_interval,
                 self.get_name() + staticconf.read_string('aws.region'),
             ))
+            if self.options.healthcheck_only:
+                continue
+
             now = arrow.utcnow()
             with self.metrics_client.get_writer(METADATA) as writer:
                 try:
