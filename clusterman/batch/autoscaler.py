@@ -1,5 +1,6 @@
 import time
 
+import colorlog
 from pysensu_yelp import Status
 from yelp_batch.batch import batch_command_line_arguments
 from yelp_batch.batch import batch_configure
@@ -20,12 +21,12 @@ from clusterman.config import setup_config
 from clusterman.exceptions import AutoscalerError
 from clusterman.exceptions import ClustermanSignalError
 from clusterman.util import get_autoscaler_scribe_stream
-from clusterman.util import get_clusterman_logger
 from clusterman.util import sensu_checkin
+from clusterman.util import setup_logging
 from clusterman.util import splay_event_time
 
-logger = get_clusterman_logger(__name__)
-get_clusterman_logger('clusterman_metrics')  # This just adds a handler to the clusterman_metrics logger
+logger = colorlog.getLogger(__name__)
+colorlog.getLogger('clusterman_metrics')  # This just adds a handler to the clusterman_metrics logger
 SIGNAL_CHECK_NAME = 'check_clusterman_autoscaler_signal'
 SERVICE_CHECK_NAME = 'check_clusterman_autoscaler_service'
 DEFAULT_TTL = '25m'
@@ -155,4 +156,5 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
 
 
 if __name__ == '__main__':
+    setup_logging()
     AutoscalerBatch().start()

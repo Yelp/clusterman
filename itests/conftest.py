@@ -12,7 +12,7 @@ from clusterman.simulator.simulator import Simulator
 
 @pytest.fixture(scope='session', autouse=True)
 def logging_info():
-    logging.getLogger().setLevel(logging.DEBUG)
+    logging.getLogger().setLevel(logging.INFO)
 
 
 @pytest.fixture

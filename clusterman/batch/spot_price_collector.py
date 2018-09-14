@@ -3,6 +3,7 @@ import time
 from traceback import format_exc
 
 import arrow
+import colorlog
 import staticconf
 from clusterman_metrics import ClustermanMetricsBotoClient
 from clusterman_metrics import METADATA
@@ -19,11 +20,11 @@ from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import BatchRunningSentinelMixin
 from clusterman.batch.util import suppress_request_limit_exceeded
 from clusterman.config import setup_config
-from clusterman.util import get_clusterman_logger
 from clusterman.util import sensu_checkin
+from clusterman.util import setup_logging
 from clusterman.util import splay_event_time
 
-logger = get_clusterman_logger(__name__)
+logger = colorlog.getLogger(__name__)
 
 
 class SpotPriceCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
@@ -100,4 +101,5 @@ class SpotPriceCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMix
 
 
 if __name__ == '__main__':
+    setup_logging()
     SpotPriceCollector().start()

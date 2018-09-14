@@ -1,11 +1,10 @@
+import colorlog
 import signalfx
 from arrow import Arrow
 from signalfx.signalflow.messages import DataMessage
 
-from clusterman.util import get_clusterman_logger
 
-
-logger = get_clusterman_logger(__name__)
+logger = colorlog.getLogger(__name__)
 
 
 TS_QUERY_PROGRAM_TEMPLATE = """data(

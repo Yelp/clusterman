@@ -6,11 +6,12 @@ from typing import Any
 from typing import Mapping
 from typing import Sequence
 
+import colorlog
+
 from clusterman.aws.markets import InstanceMarket
-from clusterman.util import get_clusterman_logger
 
 
-logger = get_clusterman_logger(__name__)
+logger = colorlog.getLogger(__name__)
 
 
 def protect_unowned_instances(func):

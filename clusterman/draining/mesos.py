@@ -6,15 +6,14 @@ import os
 from collections import namedtuple
 from socket import gethostbyname
 
+import colorlog
 from requests import Request
 from requests import Session
 from requests.exceptions import HTTPError
-
-from clusterman.util import get_clusterman_logger
 Hostname = namedtuple('Hostname', ['host', 'ip'])
 MESOS_MASTER_PORT = 5050
 Credentials = namedtuple('Credentials', ['file', 'principal', 'secret'])
-log = get_clusterman_logger(__name__)
+log = colorlog.getLogger(__name__)
 
 
 def get_principal(mesos_secret_path):

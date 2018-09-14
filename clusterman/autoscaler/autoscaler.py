@@ -1,6 +1,7 @@
 import traceback
 
 import arrow
+import colorlog
 import staticconf
 import yelp_meteorite
 from clusterman_metrics import ClustermanMetricsBotoClient
@@ -12,12 +13,11 @@ from clusterman.autoscaler.signals import Signal
 from clusterman.config import POOL_NAMESPACE
 from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
-from clusterman.util import get_clusterman_logger
 from clusterman.util import sensu_checkin
 
 SIGNAL_LOAD_CHECK_NAME = 'signal_configuration_failed'
 CAPACITY_GAUGE_NAME = 'clusterman.autoscaler.target_capacity'
-logger = get_clusterman_logger(__name__)
+logger = colorlog.getLogger(__name__)
 
 
 class Autoscaler:

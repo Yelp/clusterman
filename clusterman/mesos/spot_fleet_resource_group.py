@@ -4,6 +4,7 @@ from typing import Mapping
 from typing import Sequence
 
 import botocore
+import colorlog
 import simplejson as json
 from cached_property import timed_cached_property
 from mypy_extensions import TypedDict
@@ -17,9 +18,8 @@ from clusterman.exceptions import ResourceGroupError
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
 from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 from clusterman.mesos.mesos_pool_resource_group import protect_unowned_instances
-from clusterman.util import get_clusterman_logger
 
-logger = get_clusterman_logger(__name__)
+logger = colorlog.getLogger(__name__)
 CANCELLED_STATES = ('cancelled', 'cancelled_terminating')
 
 _S3Config = TypedDict(

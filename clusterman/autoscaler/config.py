@@ -1,10 +1,9 @@
 from collections import namedtuple
 
+import colorlog
 import staticconf
 
-from clusterman.util import get_clusterman_logger
-
-logger = get_clusterman_logger(__name__)
+logger = colorlog.getLogger(__name__)
 AutoscalingConfig = namedtuple(
     'AutoscalingConfig',
     ['setpoint', 'setpoint_margin'],

@@ -9,6 +9,7 @@ from typing import Optional
 from typing import Sequence
 from typing import Type
 
+import colorlog
 import staticconf
 from yelp_servlib.config_util import load_default_config
 
@@ -24,9 +25,8 @@ from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 from clusterman.mesos.util import InstanceMetadata
 from clusterman.mesos.util import RESOURCE_GROUPS
 from clusterman.mesos.util import RESOURCE_GROUPS_REV
-from clusterman.util import get_clusterman_logger
 
-logger = get_clusterman_logger(__name__)
+logger = colorlog.getLogger(__name__)
 
 
 class Host(NamedTuple):

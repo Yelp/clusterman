@@ -3,13 +3,12 @@ import os
 from contextlib import contextmanager
 
 import botocore.exceptions
+import colorlog
 import yelp_meteorite
 from yelp_batch.batch import batch_context
 
-from clusterman.util import get_clusterman_logger
-
 RLE_COUNTER_NAME = 'clusterman.request_limit_exceeded'
-logger = get_clusterman_logger(__name__)
+logger = colorlog.getLogger(__name__)
 
 
 class BatchLoggingMixin:  # pragma: no cover

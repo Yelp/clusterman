@@ -5,6 +5,7 @@ from typing import Mapping
 from typing import Sequence
 from typing import TypeVar
 
+import colorlog
 from cached_property import timed_cached_property
 from mypy_extensions import TypedDict
 from spotinst_sdk import SpotinstClient
@@ -18,9 +19,8 @@ from clusterman.mesos.constants import CACHE_TTL_SECONDS
 from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 from clusterman.mesos.mesos_pool_resource_group import protect_unowned_instances
 from clusterman.spotinst.client import get_spotinst_client
-from clusterman.util import get_clusterman_logger
 
-logger = get_clusterman_logger(__name__)
+logger = colorlog.getLogger(__name__)
 
 CREDENTIALS_NAMESPACE = 'spotinst_cfg'
 

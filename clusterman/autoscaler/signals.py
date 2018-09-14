@@ -12,6 +12,7 @@ from typing import Optional
 from typing import Tuple
 
 import arrow
+import colorlog
 import simplejson as json
 import staticconf
 from clusterman_metrics import APP_METRICS
@@ -27,11 +28,10 @@ from clusterman.exceptions import MetricsError
 from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.exceptions import SignalConnectionError
 from clusterman.exceptions import SignalValidationError
-from clusterman.util import get_clusterman_logger
 from clusterman.util import run_subprocess_and_log
 from clusterman.util import sha_from_branch_or_tag
 
-logger = get_clusterman_logger(__name__)
+logger = colorlog.getLogger(__name__)
 ACK = bytes([1])
 DEFAULT_SIGNALS_REPO = 'git@sysgit.yelpcorp.com:clusterman_signals'
 SOCKET_MESG_SIZE = 4096
@@ -66,8 +66,8 @@ def _init_signal_io_threads(signal_name, signal_process):
 
     if signal_name not in SIGNAL_LOGGERS:
         SIGNAL_LOGGERS[signal_name] = (
-            get_clusterman_logger(f'{signal_name}.stdout').info,
-            get_clusterman_logger(f'{signal_name}.stderr').warning,
+            colorlog.getLogger(f'{signal_name}.stdout').info,
+            colorlog.getLogger(f'{signal_name}.stderr').warning,
         )
     stdout_thread = Thread(
         target=log_signal_output,

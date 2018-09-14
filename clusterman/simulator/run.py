@@ -3,6 +3,7 @@ import operator
 from collections import defaultdict
 
 import arrow
+import colorlog
 import staticconf
 from clusterman_metrics import ClustermanMetricsSimulationClient
 from clusterman_metrics import METADATA
@@ -24,12 +25,11 @@ from clusterman.simulator.io import read_object_from_compressed_json
 from clusterman.simulator.io import write_object_to_compressed_json
 from clusterman.simulator.simulator import SimulationMetadata
 from clusterman.simulator.simulator import Simulator
-from clusterman.util import get_clusterman_logger
 from clusterman.util import parse_time_string
 from clusterman.util import splay_event_time
 
-logger = get_clusterman_logger(__name__)
-get_clusterman_logger('clusterman_metrics')
+logger = colorlog.getLogger(__name__)
+colorlog.getLogger('clusterman_metrics')
 
 try:
     # this currently fails for our paasta docker image

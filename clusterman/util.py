@@ -1,3 +1,4 @@
+import logging
 import subprocess
 import time
 from datetime import datetime
@@ -18,15 +19,22 @@ from clusterman.config import LOG_STREAM_NAME
 from clusterman.config import POOL_NAMESPACE
 
 
-def get_clusterman_logger(name):
+logger = colorlog.getLogger(__name__)
+
+
+def setup_logging():
+    EVENT_LOG_LEVEL = 25
+    logging.addLevelName(EVENT_LOG_LEVEL, 'EVENT')
+
+    def event(self, message, *args, **kwargs):
+        if self.isEnabledFor(EVENT_LOG_LEVEL):
+            self._log(EVENT_LOG_LEVEL, message, args, **kwargs)
+    logging.Logger.event = event
+
     handler = colorlog.StreamHandler()
     handler.setFormatter(colorlog.ColoredFormatter('%(log_color)s%(levelname)s:%(name)s:%(message)s'))
-    logger = colorlog.getLogger(name)
+    logger = colorlog.getLogger()
     logger.addHandler(handler)
-    return logger
-
-
-logger = get_clusterman_logger(__name__)
 
 
 def get_autoscaler_scribe_stream(cluster, pool):

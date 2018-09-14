@@ -3,6 +3,7 @@ import time
 from collections import namedtuple
 from traceback import format_exc
 
+import colorlog
 import staticconf
 from clusterman_metrics import ClustermanMetricsBotoClient
 from clusterman_metrics import generate_key_with_dimensions
@@ -28,11 +29,11 @@ from clusterman.mesos.metrics_generators import generate_framework_metadata
 from clusterman.mesos.metrics_generators import generate_simple_metadata
 from clusterman.mesos.metrics_generators import generate_system_metrics
 from clusterman.mesos.util import get_pool_name_list
-from clusterman.util import get_clusterman_logger
 from clusterman.util import sensu_checkin
+from clusterman.util import setup_logging
 from clusterman.util import splay_event_time
 
-logger = get_clusterman_logger(__name__)
+logger = colorlog.getLogger(__name__)
 
 MetricToWrite = namedtuple('MetricToWrite', ['generator', 'type', 'aggregate_meteorite_dims'])
 
@@ -140,4 +141,5 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
 
 
 if __name__ == '__main__':
+    setup_logging()
     ClusterMetricsCollector().start()

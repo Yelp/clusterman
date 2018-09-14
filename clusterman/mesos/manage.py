@@ -2,6 +2,7 @@ from getpass import getuser
 from socket import gethostname
 
 import arrow
+import colorlog
 import staticconf
 
 from clusterman.args import add_cluster_arg
@@ -13,13 +14,12 @@ from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.spotinst.utils import update_ami
 from clusterman.util import ask_for_confirmation
 from clusterman.util import get_autoscaler_scribe_stream
-from clusterman.util import get_clusterman_logger
 from clusterman.util import log_to_scribe
 
 
 LOG_TEMPLATE = f'{arrow.now()} {gethostname()} {__name__}'
 
-logger = get_clusterman_logger(__name__)
+logger = colorlog.getLogger(__name__)
 
 
 def get_target_capacity_value(target_capacity, pool):

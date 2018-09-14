@@ -2,10 +2,11 @@ import argparse
 import logging
 import sys
 
-from clusterman import __version__
-from clusterman.util import get_clusterman_logger
+import colorlog
 
-logger = get_clusterman_logger(__name__)
+from clusterman import __version__
+
+logger = colorlog.getLogger(__name__)
 
 
 def subparser(command, help, entrypoint):  # pragma: no cover

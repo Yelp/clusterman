@@ -10,6 +10,7 @@ from typing import Sequence
 from typing import Tuple
 
 import arrow
+import colorlog
 import staticconf
 from cached_property import timed_cached_property
 
@@ -31,12 +32,11 @@ from clusterman.mesos.util import MesosAgentDict
 from clusterman.mesos.util import MesosAgentState
 from clusterman.mesos.util import RESOURCE_GROUPS
 from clusterman.mesos.util import total_agent_resources
-from clusterman.util import get_clusterman_logger
 
 
 AWS_RUNNING_STATES = ('running',)
 MIN_CAPACITY_PER_GROUP = 1
-logger = get_clusterman_logger(__name__)
+logger = colorlog.getLogger(__name__)
 
 
 class MesosPoolManager:

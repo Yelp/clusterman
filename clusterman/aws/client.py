@@ -3,14 +3,14 @@ from typing import Sequence
 
 import arrow
 import boto3
+import colorlog
 import staticconf
 from mypy_extensions import TypedDict
 
 from clusterman.config import CREDENTIALS_NAMESPACE
-from clusterman.util import get_clusterman_logger
 
 _session = None
-logger = get_clusterman_logger(__name__)
+logger = colorlog.getLogger(__name__)
 
 MAX_PAGE_SIZE = 500
 

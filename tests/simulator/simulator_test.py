@@ -32,7 +32,7 @@ def mock_instance(request):
     return instance
 
 
-@mock.patch('clusterman.simulator.simulator.get_clusterman_logger')
+@mock.patch('clusterman.simulator.simulator.colorlog.getLogger')
 @pytest.mark.parametrize('evt_time', (arrow.get(10000), arrow.get(-1)))
 def test_add_event_outside(mock_logger, simulator, evt_time):
     simulator.add_event(Event(evt_time))

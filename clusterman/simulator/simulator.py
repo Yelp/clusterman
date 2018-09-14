@@ -9,6 +9,7 @@ from typing import Mapping
 from typing import Optional
 from typing import Set
 
+import colorlog
 import staticconf
 import yaml
 from clusterman_metrics import METADATA
@@ -25,10 +26,9 @@ from clusterman.simulator.simulated_aws_cluster import SimulatedAWSCluster
 from clusterman.simulator.simulated_mesos_pool_manager import SimulatedMesosPoolManager
 from clusterman.simulator.util import patch_join_delay
 from clusterman.simulator.util import SimulationMetadata
-from clusterman.util import get_clusterman_logger
 
 
-logger = get_clusterman_logger(__name__)
+logger = colorlog.getLogger(__name__)
 
 
 class Simulator:

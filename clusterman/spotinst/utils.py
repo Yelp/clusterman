@@ -1,11 +1,11 @@
+import colorlog
 import spotinst_sdk
 
 from clusterman.mesos.spotinst_resource_group import load_elastigroups
 from clusterman.spotinst.client import get_spotinst_client
-from clusterman.util import get_clusterman_logger
 
 
-logger = get_clusterman_logger(__name__)
+logger = colorlog.getLogger(__name__)
 
 
 def update_ami(ami_id, cluster, pool):
