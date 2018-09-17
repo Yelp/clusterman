@@ -17,7 +17,6 @@ from clusterman.args import subparser
 from clusterman.aws.markets import get_market_resources
 from clusterman.aws.markets import InstanceMarket
 from clusterman.reports.report_types import REPORT_TYPES
-from clusterman.reports.reports import make_report
 from clusterman.simulator.event import AutoscalingEvent
 from clusterman.simulator.event import InstancePriceChangeEvent
 from clusterman.simulator.event import ModifyClusterSizeEvent
@@ -31,6 +30,17 @@ from clusterman.util import splay_event_time
 
 logger = get_clusterman_logger(__name__)
 get_clusterman_logger('clusterman_metrics')
+
+try:
+    # this currently fails for our paasta docker image
+    # but we don't actually need to generate reports on paasta
+    # so I'm just catching the error for now
+    from clusterman.reports.reports import make_report
+except ImportError as e:
+    logger.warning(f'ImportError: {e}, unable to import code to make reports, some simulator commands will fail')
+
+    def make_report(name, simulator, start_time, end_time, output_prefix='', tz='US/Pacific'):
+        logger.error('Unable to generate report due to missing imports')
 
 
 def _load_metrics(metrics_data_files, pool):
