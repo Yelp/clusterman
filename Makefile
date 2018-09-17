@@ -84,13 +84,16 @@ dist: development
 	ln -sf yelp_package/dist ./dist
 
 itest_%: dist
+	tox -e acceptance
 	make -C yelp_package $@
+	docker-compose -f acceptance/docker-compose.yaml down
 
 .PHONY:
 package: itest_trusty itest_xenial
 
 .PHONY: clean
 clean:
+	-docker-compose -f acceptance/docker-compose.yaml down
 	-rm -rf docs/build
 	-rm -rf virtualenv_run/
 	-rm -rf .tox
