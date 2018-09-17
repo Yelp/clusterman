@@ -8,10 +8,10 @@ SHA ?= $(shell git rev-parse --short HEAD)
 UID:=`id -u`
 GID:=`id -g`
 DOCKER_BUILD_RUN:=docker run -t -v $(CURDIR)/..:/src:ro -v $(CURDIR)/dist:/dist:rw
-DOCKER_ITEST_RUN:=docker run -t -v $(CURDIR)/itest:/itest:ro -v $(CURDIR)/dist:/dist:ro \
-	-v /nail/srv/configs:/nail/srv/configs:ro -v /etc/boto_cfg/clusterman.json:/etc/boto_cfg/clusterman.json:ro \
-	-v /etc/boto_cfg/clusterman_metrics.json:/etc/boto_cfg/clusterman_metrics.json:ro \
-	-v /etc/spotinst/dev.json:/etc/spotinst/dev.json:ro \
+DOCKER_ITEST_RUN:=docker run -it -v $(CURDIR)/itest:/itest:rw -v $(CURDIR)/dist:/dist:ro --net=acceptance_default \
+	-v $(CURDIR)/../acceptance/srv-configs:/nail/srv/configs:ro \
+	-v $(CURDIR)/../acceptance/clusterman.json:/etc/boto_cfg/clusterman.json:ro \
+	-v $(CURDIR)/../acceptance/clusterman.json:/etc/boto_cfg/clusterman_metrics.json:ro \
 	-v /nail/etc/clusterman-git:/root/.ssh/id_rsa
 VERSIONED_FILES:=$(shell cd $(CURDIR)/.. && git ls-files -z --cached --modified | xargs -0 -I@ echo -n "'@' ")
 DOCKER_WORKDIR:=mkdir -p /work && cd /src && cp -v --parents $(VERSIONED_FILES) /work/ && cd /work

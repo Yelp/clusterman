@@ -1,0 +1,53 @@
+---
+module_config:
+    - namespace: clusterman_metrics
+      file: /nail/srv/configs/clusterman_metrics.yaml
+
+# ######
+# Mappings for the clusterman service that are the same for all habitats.
+#
+# NOTE: The clusterman service will map mesos_clusters.{cluster_name}.aws_region
+#   to aws.region, if the --cluster argument is passed to the service.
+mesos_clusters:
+    docker:
+        aws_region: us-west-2
+        fqdn: mesosmaster
+        max_weight_to_add: 10
+        max_weight_to_remove: 10
+
+aws:
+    endpoint_url: http://moto-{svc}:5000
+    access_key_file: /etc/boto_cfg/clusterman.json
+
+batches:
+    spot_prices:
+        run_interval_seconds: 60
+        dedupe_interval_seconds: 60
+    cluster_metrics:
+        run_interval_seconds: 60
+
+autoscaling:
+    default_signal_role: 'clusterman'
+    setpoint: 0.7
+    setpoint_margin: 0.05
+
+autoscale_signal:
+    name: MostRecentResources
+    branch_or_tag: v3.5.4
+    required_metrics:
+        - name: cpus_allocated
+          type: system_metrics
+          minute_range: 10
+        - name: mem_allocated
+          type: system_metrics
+          minute_range: 10
+        - name: disk_allocated
+          type: system_metrics
+          minute_range: 10
+    period_minutes: 10
+
+sensu_config:
+    - team: noop
+      page: false
+
+module_env_config: []

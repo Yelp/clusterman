@@ -26,7 +26,7 @@ from clusterman.mesos.util import RESOURCE_GROUPS
 from clusterman.mesos.util import RESOURCE_GROUPS_REV
 from clusterman.util import get_clusterman_logger
 
-logger = get_clusterman_logger([])
+logger = get_clusterman_logger(__name__)
 
 
 class Host(NamedTuple):

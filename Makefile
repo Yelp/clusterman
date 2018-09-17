@@ -102,3 +102,6 @@ clean:
 clean-cache:
 	find -name '*.pyc' -delete
 	find -name '__pycache__' -delete
+
+upgrade-requirements:
+	upgrade-requirements -i https://pypi.yelpcorp.com/simple --pip-tool pip-custom-platform --install-deps pip-custom-platform
