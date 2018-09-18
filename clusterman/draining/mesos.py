@@ -2,6 +2,7 @@
 # stripped to just drain/down/up and necessary sub methods and slightly refactored so
 # the cluster name can be passed as an argument
 import json
+import os
 from collections import namedtuple
 from socket import gethostbyname
 
@@ -38,12 +39,15 @@ def load_credentials(mesos_secret_path):
     :param mesos_secret_paths: argument specifying the path to the file containing the mesos-slave credentials
     :returns: a tuple of the form (username, password)
     """
-    try:
-        with open(mesos_secret_path) as data_file:
-            data = json.load(data_file)
-    except EnvironmentError:
-        log.error(f'maintenance calls must be run on a Mesos slave containing valid credentials ({mesos_secret_path})')
-        raise
+    if not mesos_secret_path:
+        data = json.loads(os.environ['PAASTA_SECRET_MESOS_SLAVE'])
+    else:
+        try:
+            with open(mesos_secret_path) as data_file:
+                data = json.load(data_file)
+        except EnvironmentError:
+            log.error(f'maintenance calls must have valid credentials ({mesos_secret_path})')
+            raise
     try:
         username = data['principal']
         password = data['secret']
