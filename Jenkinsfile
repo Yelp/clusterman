@@ -10,8 +10,6 @@ SERVICE_NAME = 'clusterman'
 DEPLOY_GROUPS = ['prod.non_canary', 'dev.everything']
 IRC_CHANNELS = ['clusterman']
 EMAILS = ['distsys-compute@yelp.com']
-// TODO need to resupport multiple versions (CLUSTERMAN-211)
-DIST = ['xenial']
 
 commit = ''
 authors = [:]
@@ -71,7 +69,10 @@ utils.handleInputRejection {
 
             // Runs `make itest_${version}` and attempts to upload to apt server if not an automatically timed run
             // This will automatically break all the steps into stages for you
-            debItestUpload("services/${SERVICE_NAME}", DIST)
+            //
+            // We do networking with docker-compose and the networks conflict so we have to do each version separately
+            debItestUpload("services/${SERVICE_NAME}", ['trusty'])
+            debItestUpload("services/${SERVICE_NAME}", ['xenial'])
 
             // Now do the paasta service deploy
             node('trusty') {
