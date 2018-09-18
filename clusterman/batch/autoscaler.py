@@ -9,6 +9,7 @@ from clusterman.args import add_branch_or_tag_arg
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_env_config_path_arg
+from clusterman.args import add_healthcheck_only_arg
 from clusterman.args import add_pool_arg
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.batch.util import BatchLoggingMixin
@@ -67,6 +68,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
         add_cluster_config_directory_arg(arg_group)
         add_env_config_path_arg(arg_group)
         add_branch_or_tag_arg(arg_group)
+        add_healthcheck_only_arg(arg_group)
         arg_group.add_argument(
             '--dry-run',
             default=False,
@@ -79,7 +81,10 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
     def configure_initial(self):
         setup_config(self.options)
         self.autoscaler = None
-        self.config.watchers.append({self.options.pool: get_pool_config_path(self.options.cluster, self.options.pool)})
+        if not self.options.healthcheck_only:
+            self.config.watchers.append(
+                {self.options.pool: get_pool_config_path(self.options.cluster, self.options.pool)},
+            )
         self.logger = logger
 
         self.apps = [self.options.pool]  # TODO (CLUSTERMAN-126) somday these should not be the same thing
@@ -99,6 +104,8 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
             self.autoscaler.run_frequency,
             self.get_name() + self.options.cluster + self.options.pool,
         ))
+        if self.options.healthcheck_only:
+            return
         with suppress_request_limit_exceeded():
             self.autoscaler.run(dry_run=self.options.dry_run)
 
@@ -120,7 +127,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
             source=self.options.cluster,
             ttl=ttl,
             app=self.apps[0],
-            noop=self.options.dry_run,
+            noop=self.options.dry_run or self.options.healthcheck_only,
         )
 
         if signal_failed:
@@ -136,7 +143,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
             check_every=check_every,
             source=self.options.cluster,
             ttl=ttl,
-            noop=self.options.dry_run,
+            noop=self.options.dry_run or self.options.healthcheck_only,
         )
 
         if service_failed:

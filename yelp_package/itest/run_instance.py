@@ -49,6 +49,8 @@ sfr_response = ec2.request_spot_fleet(
     },
 )
 
+# We use the "old way" of locating SFRs by storing JSON in S3 because moto doesn't
+# support tags for SFRs yet (https://github.com/spulec/moto/issues/1644)
 s3.create_bucket(Bucket='clusterman-resource-groups')
 s3.put_object(
     Bucket='clusterman-resource-groups',

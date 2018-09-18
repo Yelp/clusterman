@@ -85,14 +85,18 @@ def mock_config_namespaces():
 @mock.patch('clusterman.config.load_default_config')
 def test_setup_config_cluster(mock_service_load, mock_pool_load, cluster, pool, tag, mock_config_files):
     args = argparse.Namespace(
-        env_config_path='/nail/etc/config.yaml', cluster=cluster, pool=pool, signals_branch_or_tag=tag,
+        env_config_path='/nail/etc/config.yaml',
+        cluster=cluster,
+        pool=pool,
+        signals_branch_or_tag=tag,
+        healthcheck_only=False,
     )
     config.setup_config(args)
 
     assert mock_service_load.call_args == mock.call('/nail/etc/config.yaml', '/nail/etc/config.yaml')
     assert staticconf.read_string('aws.region') == 'us-test-3'
     if pool:
-        assert mock_pool_load.call_args == mock.call(cluster, pool, tag)
+        assert mock_pool_load.call_args == mock.call(cluster, pool, tag, mock_config=False)
     else:
         assert mock_pool_load.call_count == 0
         if tag:
@@ -100,14 +104,23 @@ def test_setup_config_cluster(mock_service_load, mock_pool_load, cluster, pool, 
 
 
 def test_setup_config_region_and_cluster():
-    args = argparse.Namespace(env_config_path='/nail/etc/config.yaml', cluster='foo', aws_region='bar')
+    args = argparse.Namespace(
+        env_config_path='/nail/etc/config.yaml',
+        cluster='foo',
+        aws_region='bar',
+        healthcheck_only=False,
+    )
     with mock.patch('clusterman.config.load_default_config'), pytest.raises(argparse.ArgumentError):
         config.setup_config(args)
 
 
 @mock.patch('clusterman.config.load_default_config')
 def test_setup_config_region(mock_service_load, mock_config_files):
-    args = argparse.Namespace(env_config_path='/nail/etc/config.yaml', aws_region='fake-region-A')
+    args = argparse.Namespace(
+        env_config_path='/nail/etc/config.yaml',
+        aws_region='fake-region-A',
+        healthcheck_only=False,
+    )
     config.setup_config(args)
     assert staticconf.read_string('aws.region') == 'fake-region-A'
     assert mock_service_load.call_args == mock.call('/nail/etc/config.yaml', '/nail/etc/config.yaml')
