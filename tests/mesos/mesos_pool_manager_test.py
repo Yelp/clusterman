@@ -562,12 +562,12 @@ class TestConstrainTargetCapacity:
 
 
 def test_get_market_capacities(mock_pool_manager):
-    assert mock_pool_manager._get_market_capacities() == {
+    assert mock_pool_manager.get_market_capacities() == {
         'market-1': sum(i for i in range(7)),
         'market-2': sum(i * 2 for i in range(7)),
         'market-3': sum(i * 3 for i in range(7)),
     }
-    assert mock_pool_manager._get_market_capacities(market_filter='market-2') == {
+    assert mock_pool_manager.get_market_capacities(market_filter='market-2') == {
         'market-2': sum(i * 2 for i in range(7)),
     }
 
@@ -630,8 +630,8 @@ class TestGetInstances:
 
         mock_agents = mock.PropertyMock(return_value=agents)
         mock_tasks = mock.PropertyMock(return_value=tasks)
-        with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager._agents', mock_agents), \
-                mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager._tasks', mock_tasks):
+        with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.agents', mock_agents), \
+                mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.tasks', mock_tasks):
             yield mock_pool_manager
 
     def build_mock_pool_instance(self, state, task_count, market):
@@ -697,9 +697,9 @@ def test_get_unknown_instance(mock_pool_manager):
     with mock.patch(
         'clusterman.mesos.mesos_pool_manager.ec2_describe_instances',
     ) as mock_describe_instances, mock.patch(
-        'clusterman.mesos.mesos_pool_manager.MesosPoolManager._tasks', mock.PropertyMock(return_value=[]),
+        'clusterman.mesos.mesos_pool_manager.MesosPoolManager.tasks', mock.PropertyMock(return_value=[]),
     ), mock.patch(
-        'clusterman.mesos.mesos_pool_manager.MesosPoolManager._agents', mock.PropertyMock(return_value=[]),
+        'clusterman.mesos.mesos_pool_manager.MesosPoolManager.agents', mock.PropertyMock(return_value=[]),
     ):
         mock_pool_manager.resource_groups = {'rg1': mock.Mock(instance_ids=[1])}
         mock_describe_instances.return_value = [{  # missing the 'PrivateIpAddress' key
@@ -777,8 +777,8 @@ def test_instance_kill_order(mock_pool_manager):
 
     mock_agents = mock.PropertyMock(return_value=agents)
     mock_tasks = mock.PropertyMock(return_value=tasks)
-    with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager._agents', mock_agents), \
-            mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager._tasks', mock_tasks):
+    with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.agents', mock_agents), \
+            mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.tasks', mock_tasks):
 
         killable_instances = mock_pool_manager._get_prioritized_killable_instances()
         killable_instance_ids = [instance.instance_id for instance in killable_instances]
@@ -818,8 +818,8 @@ class TestInstanceKillability:
         mock_agents = mock.PropertyMock(return_value=agents)
         mock_tasks = mock.PropertyMock(return_value=tasks)
 
-        with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager._agents', mock_agents), \
-                mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager._tasks', mock_tasks):
+        with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.agents', mock_agents), \
+                mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.tasks', mock_tasks):
             yield
 
     def test_unknown_agent_state_is_not_killable(self, mock_pool_manager):
@@ -864,7 +864,7 @@ def test_count_tasks_by_agent(mock_pool_manager):
         {'slave_id': 2, 'state': 'TASK_RUNNING'}
     ]
     mock_tasks = mock.PropertyMock(return_value=tasks)
-    with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager._tasks', mock_tasks):
+    with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.tasks', mock_tasks):
         assert mock_pool_manager._count_tasks_per_mesos_agent() == {1: 1, 2: 2}
 
 
@@ -873,16 +873,16 @@ class TestAgentListing:
     def test_agent_list_error(self, mock_post, mock_pool_manager):
         mock_post.side_effect = MesosPoolManagerError('dummy error')
         with pytest.raises(MesosPoolManagerError):
-            mock_pool_manager._agents
+            mock_pool_manager.agents
 
     def test_filter_pools(self, mock_post, mock_agents_response, mock_pool_manager):
         mock_post.return_value = mock_agents_response
-        agents = mock_pool_manager._agents
+        agents = mock_pool_manager.agents
         assert len(agents) == 1
         assert agents[0]['hostname'] == 'im-in-the-pool.yelpcorp.com'
 
         # Multiple calls should have the same result.
-        assert agents == mock_pool_manager._agents
+        assert agents == mock_pool_manager.agents
         assert mock_post.call_count == 2  # cache expires immediately in tests
 
 
@@ -890,7 +890,7 @@ class TestResources:
     @pytest.fixture
     def mock_agents(self, mock_pool_manager):
         with mock.patch(
-            'clusterman.mesos.mesos_pool_manager.MesosPoolManager._agents',
+            'clusterman.mesos.mesos_pool_manager.MesosPoolManager.agents',
             new_callable=mock.PropertyMock
         ) as mock_agents:
             mock_agents.return_value = [

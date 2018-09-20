@@ -1,3 +1,4 @@
+import itertools
 import socket
 import time
 from traceback import format_exc
@@ -23,26 +24,26 @@ from clusterman.config import get_pool_config_path
 from clusterman.config import load_cluster_pool_config
 from clusterman.config import setup_config
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
+from clusterman.mesos.metrics_generators import generate_framework_metadata
+from clusterman.mesos.metrics_generators import generate_simple_metadata
+from clusterman.mesos.metrics_generators import generate_system_metrics
+from clusterman.mesos.metrics_generators import generate_task_metadata
 from clusterman.mesos.util import get_pool_name_list
 from clusterman.util import get_clusterman_logger
 from clusterman.util import sensu_checkin
 from clusterman.util import splay_event_time
 
 logger = get_clusterman_logger(__name__)
+
 METRICS_TO_WRITE = {
     SYSTEM_METRICS: [
-        ('cpus_allocated', lambda manager: manager.get_resource_allocation('cpus')),
-        ('mem_allocated', lambda manager: manager.get_resource_allocation('mem')),
-        ('disk_allocated', lambda manager: manager.get_resource_allocation('disk')),
+        generate_system_metrics,
     ],
     METADATA: [
-        ('cpus_total', lambda manager: manager.get_resource_total('cpus')),
-        ('mem_total', lambda manager: manager.get_resource_total('mem')),
-        ('disk_total', lambda manager: manager.get_resource_total('disk')),
-        ('target_capacity', lambda manager: manager.target_capacity),
-        ('fulfilled_capacity', lambda manager: {str(market): value for market,
-                                                value in manager._get_market_capacities().items()}),
-    ],
+        generate_simple_metadata,
+        generate_framework_metadata,
+        generate_task_metadata,
+    ]
 }
 
 
@@ -82,15 +83,6 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
             logger.info(f'Loading resource groups for {pool} on {self.options.cluster}')
             self.mesos_managers[pool] = MesosPoolManager(self.options.cluster, pool)
 
-    def write_metrics(self, writer, metrics_to_write):
-        for metric, value_method in metrics_to_write:
-            for pool, manager in self.mesos_managers.items():
-                value = value_method(manager)
-                metric_name = generate_key_with_dimensions(metric, {'cluster': self.options.cluster, 'pool': pool})
-                logger.info(f'Writing {metric_name} to metric store')
-                data = (metric_name, int(time.time()), value)
-                writer.send(data)
-
     @suppress_request_limit_exceeded()
     def run(self):
         self.load_mesos_managers()  # Load the pools on the first run; do it here so we get logging
@@ -103,20 +95,10 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
             if self.options.healthcheck_only:
                 continue
 
-            successful = True
-
             for manager in self.mesos_managers.values():
                 manager.reload_state()
 
-            for metric_type, metrics in METRICS_TO_WRITE.items():
-                with self.metrics_client.get_writer(metric_type) as writer:
-                    try:
-                        self.write_metrics(writer, metrics)
-                    except socket.timeout:
-                        # Try to get metrics for the rest of the clusters, but make sure we know this failed
-                        logger.warn(f'Timed out getting cluster metric data:\n\n{format_exc()}')
-                        successful = False
-                        continue
+            successful = self.write_all_metrics()
 
             # Report successful run to Sensu.
             if successful:
@@ -129,6 +111,36 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
                     noop=self.options.disable_sensu,
                 )
                 sensu_checkin(**sensu_args)
+
+    def write_all_metrics(self):
+        successful = True
+
+        for metric_type, metric_generators in METRICS_TO_WRITE.items():
+
+            # need to aggregate dimensions since framework and task ids are unbounded
+            with self.metrics_client.get_writer(metric_type, aggregate_meteorite_dims=True) as writer:
+                try:
+                    self.write_metrics(writer, metric_generators)
+                except socket.timeout:
+                    # Try to get metrics for the rest of the clusters, but make sure we know this failed
+                    logger.warn(f'Timed out getting cluster metric data:\n\n{format_exc()}')
+                    successful = False
+                    continue
+
+        return successful
+
+    def write_metrics(self, writer, metric_generators):
+        for pool, manager in self.mesos_managers.items():
+            base_dimensions = {'cluster': self.options.cluster, 'pool': pool}
+
+            metric_generators_for_pool = [generator(manager) for generator in metric_generators]
+            for cluster_metrics in itertools.chain(*metric_generators_for_pool):
+                dimensions = dict(**base_dimensions, **cluster_metrics.dimensions)
+                metric_name = generate_key_with_dimensions(cluster_metrics.metric_name, dimensions)
+                logger.info(f'Writing {metric_name} to metric store')
+                data = (metric_name, int(time.time()), cluster_metrics.value)
+
+                writer.send(data)
 
 
 if __name__ == '__main__':
