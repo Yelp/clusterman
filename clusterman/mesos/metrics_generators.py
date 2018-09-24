@@ -37,6 +37,9 @@ def _get_framework_metadata_for_frameworks(frameworks, completed):
         value = _prune_resources_dict(framework['used_resources'])
         value['registered_time'] = int(framework['registered_time'])
         value['unregistered_time'] = int(framework['unregistered_time'])
+        value['running_task_count'] = len([
+            task for task in framework['tasks'] if task['state'] == 'TASK_RUNNING'
+        ])
 
         dimensions = {field: framework[field] for field in ('name', 'id', 'active')}
         dimensions['completed'] = completed
@@ -47,14 +50,3 @@ def _get_framework_metadata_for_frameworks(frameworks, completed):
 def generate_framework_metadata(manager):
     yield from _get_framework_metadata_for_frameworks(manager.frameworks['frameworks'], completed=False)
     yield from _get_framework_metadata_for_frameworks(manager.frameworks['completed_frameworks'], completed=True)
-
-
-def generate_task_metadata(manager):
-    for task in manager.tasks:
-        dimensions = {
-            'id': task['id'],
-            'framework_id': task['framework_id'],
-            'state': task['state'],
-        }
-        value = _prune_resources_dict(task['resources'])
-        yield ClusterMetric(metric_name='task', value=value, dimensions=dimensions)

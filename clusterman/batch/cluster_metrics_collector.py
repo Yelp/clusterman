@@ -1,6 +1,6 @@
-import itertools
 import socket
 import time
+from collections import namedtuple
 from traceback import format_exc
 
 import staticconf
@@ -27,7 +27,6 @@ from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.mesos.metrics_generators import generate_framework_metadata
 from clusterman.mesos.metrics_generators import generate_simple_metadata
 from clusterman.mesos.metrics_generators import generate_system_metrics
-from clusterman.mesos.metrics_generators import generate_task_metadata
 from clusterman.mesos.util import get_pool_name_list
 from clusterman.util import get_clusterman_logger
 from clusterman.util import sensu_checkin
@@ -35,16 +34,13 @@ from clusterman.util import splay_event_time
 
 logger = get_clusterman_logger(__name__)
 
-METRICS_TO_WRITE = {
-    SYSTEM_METRICS: [
-        generate_system_metrics,
-    ],
-    METADATA: [
-        generate_simple_metadata,
-        generate_framework_metadata,
-        generate_task_metadata,
-    ]
-}
+MetricToWrite = namedtuple('MetricToWrite', ['generator', 'type', 'aggregate_meteorite_dims'])
+
+METRICS_TO_WRITE = [
+    MetricToWrite(generate_system_metrics, SYSTEM_METRICS, aggregate_meteorite_dims=False),
+    MetricToWrite(generate_simple_metadata, METADATA, aggregate_meteorite_dims=False),
+    MetricToWrite(generate_framework_metadata, METADATA, aggregate_meteorite_dims=True),
+]
 
 
 class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
@@ -115,12 +111,13 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
     def write_all_metrics(self):
         successful = True
 
-        for metric_type, metric_generators in METRICS_TO_WRITE.items():
-
-            # need to aggregate dimensions since framework and task ids are unbounded
-            with self.metrics_client.get_writer(metric_type, aggregate_meteorite_dims=True) as writer:
+        for metric_to_write in METRICS_TO_WRITE:
+            with self.metrics_client.get_writer(
+                metric_to_write.type,
+                metric_to_write.aggregate_meteorite_dims
+            ) as writer:
                 try:
-                    self.write_metrics(writer, metric_generators)
+                    self.write_metrics(writer, metric_to_write.generator)
                 except socket.timeout:
                     # Try to get metrics for the rest of the clusters, but make sure we know this failed
                     logger.warn(f'Timed out getting cluster metric data:\n\n{format_exc()}')
@@ -129,16 +126,15 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
 
         return successful
 
-    def write_metrics(self, writer, metric_generators):
+    def write_metrics(self, writer, metric_generator):
         for pool, manager in self.mesos_managers.items():
             base_dimensions = {'cluster': self.options.cluster, 'pool': pool}
 
-            metric_generators_for_pool = [generator(manager) for generator in metric_generators]
-            for cluster_metrics in itertools.chain(*metric_generators_for_pool):
-                dimensions = dict(**base_dimensions, **cluster_metrics.dimensions)
-                metric_name = generate_key_with_dimensions(cluster_metrics.metric_name, dimensions)
+            for cluster_metric in metric_generator(manager):
+                dimensions = dict(**base_dimensions, **cluster_metric.dimensions)
+                metric_name = generate_key_with_dimensions(cluster_metric.metric_name, dimensions)
                 logger.info(f'Writing {metric_name} to metric store')
-                data = (metric_name, int(time.time()), cluster_metrics.value)
+                data = (metric_name, int(time.time()), cluster_metric.value)
 
                 writer.send(data)
 

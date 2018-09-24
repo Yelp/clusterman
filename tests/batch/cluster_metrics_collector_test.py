@@ -47,35 +47,25 @@ def test_configure_initial(mock_ls, mock_mesos_pool_manager, mock_client_class, 
     assert batch.metrics_client == mock_client_class.return_value
 
 
-def _make_metric_generator(metric_name, metric_func, dimensions):
-    def metric_generator(manager):
-        yield ClusterMetric(metric_name, metric_func(manager), dimensions)
-
-    return metric_generator
-
-
 def test_write_metrics(batch):
     batch.mesos_managers = {
         'pool_A': mock.Mock(spec_set=MesosPoolManager),
         'pool_B': mock.Mock(spec_set=MesosPoolManager),
     }
     writer = mock.Mock()
-    metric_generators = [
-        _make_metric_generator('total', lambda manager: manager.get_resource_total('cpus'), {'color': 'blue'}),
-        _make_metric_generator('allocated', lambda manager: manager.get_resource_allocation('cpus'), {'dim': 'val'}),
-    ]
-    batch.write_metrics(writer, metric_generators)
+
+    def metric_generator(manager):
+        yield ClusterMetric('allocated', manager.get_resource_allocation('cpus'), {'dim': 'val'})
+
+    batch.write_metrics(writer, metric_generator)
 
     for pool, manager in batch.mesos_managers.items():
-        assert manager.get_resource_total.call_args_list == [mock.call('cpus')]
         assert manager.get_resource_allocation.call_args_list == [mock.call('cpus')]
 
-    assert writer.send.call_count == 4
+    assert writer.send.call_count == 2
 
     metric_names = [call[0][0][0] for call in writer.send.call_args_list]
     assert sorted(metric_names) == sorted([
-        'total|cluster=mesos-test,color=blue,pool=pool_A',
-        'total|cluster=mesos-test,color=blue,pool=pool_B',
         'allocated|cluster=mesos-test,dim=val,pool=pool_A',
         'allocated|cluster=mesos-test,dim=val,pool=pool_B',
     ])
@@ -119,14 +109,19 @@ def test_run(mock_sensu, mock_running, mock_time, mock_sleep, batch):
         # Writing should have happened 3 times, for each metric type.
         # Each time, we create a new writer context and call write_metrics.
         assert sorted(batch.metrics_client.get_writer.call_args_list) == sorted(
-            [mock.call(metric_type, aggregate_meteorite_dims=True) for metric_type in METRICS_TO_WRITE] * 4
+            [
+                mock.call(metric_to_write.type, metric_to_write.aggregate_meteorite_dims)
+                for metric_to_write in METRICS_TO_WRITE
+            ] * 4
         )
 
-        expected_write_metrics_calls = [mock.call(writer, metrics) for metrics in METRICS_TO_WRITE.values()] * 4
+        expected_write_metrics_calls = [
+            mock.call(writer, metric_to_write.generator) for metric_to_write in METRICS_TO_WRITE
+        ] * 4
         assert write_metrics.call_args_list == expected_write_metrics_calls
 
         assert writer_context.__exit__.call_count == len(METRICS_TO_WRITE) * 4
         assert mock_sensu.call_count == 3
-        assert mock_logger.warn.call_count == 2
+        assert mock_logger.warn.call_count == 3
 
     assert mock_sleep.call_args_list == [mock.call(9), mock.call(7), mock.call(2), mock.call(2)]

@@ -6,7 +6,6 @@ from clusterman.mesos.metrics_generators import ClusterMetric
 from clusterman.mesos.metrics_generators import generate_framework_metadata
 from clusterman.mesos.metrics_generators import generate_simple_metadata
 from clusterman.mesos.metrics_generators import generate_system_metrics
-from clusterman.mesos.metrics_generators import generate_task_metadata
 
 
 @pytest.fixture
@@ -52,6 +51,7 @@ def test_generate_framework_metadata(mock_pool_manager):
             'used_resources': {'cpus': 1, 'mem': 2, 'gpus': 3, 'disk': 4},
             'registered_time': 1111,
             'unregistered_time': 0,
+            'tasks': [{'state': 'TASK_RUNNING'}, {'state': 'TASK_FINISHED'}],
         }],
         'completed_frameworks': [{
             'id': 'framework_2',
@@ -60,17 +60,24 @@ def test_generate_framework_metadata(mock_pool_manager):
             'used_resources': {'cpus': 0, 'mem': 0, 'gpus': 0, 'disk': 0},
             'registered_time': 123,
             'unregistered_time': 456,
+            'tasks': [{'state': 'TASK_FINISHED'}, {'state': 'TASK_FAILED'}]
         }]
     }
     expected_metrics = [
         ClusterMetric(
             metric_name='framework',
-            value={'cpus': 1, 'mem': 2, 'gpus': 3, 'disk': 4, 'registered_time': 1111, 'unregistered_time': 0},
+            value={
+                'cpus': 1, 'mem': 2, 'gpus': 3, 'disk': 4, 'registered_time': 1111, 'unregistered_time': 0,
+                'running_task_count': 1
+            },
             dimensions={'name': 'active', 'id': 'framework_1', 'active': True, 'completed': False},
         ),
         ClusterMetric(
             metric_name='framework',
-            value={'cpus': 0, 'mem': 0, 'gpus': 0, 'disk': 0, 'registered_time': 123, 'unregistered_time': 456},
+            value={
+                'cpus': 0, 'mem': 0, 'gpus': 0, 'disk': 0, 'registered_time': 123, 'unregistered_time': 456,
+                'running_task_count': 0
+            },
             dimensions={'name': 'completed', 'id': 'framework_2', 'active': False, 'completed': True},
         )
     ]
@@ -78,20 +85,3 @@ def test_generate_framework_metadata(mock_pool_manager):
     actual_metrics = generate_framework_metadata(mock_pool_manager)
     sorted_actual_metrics = sorted(actual_metrics, key=lambda x: x.dimensions['id'])
     assert sorted_actual_metrics == sorted_expected_metrics
-
-
-def test_generate_task_metadata(mock_pool_manager):
-    mock_pool_manager.tasks = [{
-        'id': 'task_1',
-        'framework_id': 'framework_1',
-        'state': 'running',
-        'resources': {'cpus': 1, 'mem': 2, 'gpus': 3, 'disk': 4},
-    }]
-    expected_metrics = [
-        ClusterMetric(
-            metric_name='task',
-            value={'cpus': 1, 'mem': 2, 'gpus': 3, 'disk': 4},
-            dimensions={'framework_id': 'framework_1', 'state': 'running', 'id': 'task_1'},
-        ),
-    ]
-    assert list(generate_task_metadata(mock_pool_manager)) == expected_metrics
