@@ -1,5 +1,6 @@
 from bisect import bisect
 from collections import defaultdict
+from typing import Any
 from typing import Collection
 from typing import List
 from typing import Mapping
@@ -67,6 +68,10 @@ class MesosPoolManager:
         self.min_capacity = self.pool_config.read_int('scaling_limits.min_capacity')
         self.max_capacity = self.pool_config.read_int('scaling_limits.max_capacity')
         self.max_tasks_to_kill = self.pool_config.read_int('scaling_limits.max_tasks_to_kill', default=0)
+        self.non_batch_framework_prefixes = self.pool_config.read_list(
+            'non_batch_framework_prefixes',
+            default=['marathon'],
+        )
 
         self.api_endpoint = f'http://{mesos_master_fqdn}:5050/'
         logger.info(f'Connecting to Mesos masters at {self.api_endpoint}')
@@ -176,6 +181,7 @@ class MesosPoolManager:
         :param aws_state_filter: only return instances matching a particular AWS state ('running', 'cancelled', etc)
         :returns: a list of InstanceMetadata objects
         """
+        instance_id_to_batch_task_count = self._count_batch_tasks_per_mesos_agent()
         instance_id_to_task_count = self._count_tasks_per_mesos_agent()
         ip_to_agent: Mapping[Optional[str], MesosAgentDict] = {
             agent_pid_to_ip(agent['pid']): agent for agent in self.agents
@@ -203,6 +209,7 @@ class MesosPoolManager:
                     market=instance_market,
                     mesos_state=self._get_mesos_agent_state(instance_ip, agent),
                     task_count=instance_id_to_task_count[agent['id']] if agent else 0,
+                    batch_task_count=instance_id_to_batch_task_count[agent['id']] if agent else 0,
                     total_resources=total_agent_resources(agent),
                     uptime=(arrow.now() - arrow.get(instance_dict['LaunchTime'])),
                     weight=group.market_weight(instance_market),
@@ -457,11 +464,12 @@ class MesosPoolManager:
 
     def _prioritize_killable_instances(self, killable_instances: List[InstanceMetadata]) -> List[InstanceMetadata]:
         """Returns killable_instances sorted with most-killable things first."""
-        def sort_key(killable_instance: InstanceMetadata) -> Tuple[int, int, int, int]:
+        def sort_key(killable_instance: InstanceMetadata) -> Tuple[int, int, int, int, int]:
             return (
                 0 if killable_instance.mesos_state == MesosAgentState.ORPHANED else 1,
                 0 if killable_instance.mesos_state == MesosAgentState.IDLE else 1,
                 0 if killable_instance.is_resource_group_stale else 1,
+                killable_instance.batch_task_count,
                 killable_instance.task_count,
             )
         return sorted(
@@ -486,6 +494,29 @@ class MesosPoolManager:
             if task['state'] == 'TASK_RUNNING':
                 instance_id_to_task_count[task['slave_id']] += 1
         return instance_id_to_task_count
+
+    def _count_batch_tasks_per_mesos_agent(self) -> MutableMapping[str, int]:
+        """Given a list of mesos tasks, return a count of tasks per agent
+        filtered by frameworks that we consider to be used for batch tasks
+        which we prefer not to interrupt"""
+        instance_id_to_task_count: MutableMapping[str, int] = defaultdict(int)
+        if not self.tasks:
+            return instance_id_to_task_count
+        framework_id_to_names: Mapping[str, str] = {
+            framework['id']: framework['name'] for framework in self.frameworks['frameworks']
+        }
+        for task in self.tasks:
+            if task['state'] == 'TASK_RUNNING' and self._is_batch_task(task, framework_id_to_names):
+                instance_id_to_task_count[task['slave_id']] += 1
+        return instance_id_to_task_count
+
+    def _is_batch_task(self, task: Mapping[str, Any], framework_id_to_name: Mapping[str, str]) -> bool:
+        """If the framework matches any of the prefixes in self.non_batch_framework_prefixes
+        this will return False, otherwise we assume the task to be a batch task"""
+        framework_name = framework_id_to_name[task['framework_id']]
+        if any([framework_name.startswith(prefix) for prefix in self.non_batch_framework_prefixes]):
+            return False
+        return True
 
     @property
     def target_capacity(self) -> float:
@@ -525,7 +556,7 @@ class MesosPoolManager:
 
     # TODO (CLUSTERMAN-278): fetch this in reload_state
     @timed_cached_property(CACHE_TTL_SECONDS)
-    def frameworks(self) -> Sequence[Mapping]:
+    def frameworks(self) -> Mapping[str, Any]:
         return mesos_post(self.api_endpoint, 'master/frameworks').json()
 
     @property

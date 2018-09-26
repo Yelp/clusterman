@@ -61,6 +61,7 @@ class InstanceMetadata(NamedTuple):
     is_resource_group_stale: bool
     market: InstanceMarket
     mesos_state: MesosAgentState
+    batch_task_count: int
     task_count: int
     total_resources: MesosResources
     uptime: arrow.Arrow

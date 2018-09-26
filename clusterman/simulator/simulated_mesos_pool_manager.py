@@ -81,6 +81,7 @@ class SimulatedMesosPoolManager(MesosPoolManager):
                         else MesosAgentState.RUNNING
                     ),
                     task_count=0,  # CLUSTERMAN-145
+                    batch_task_count=0,
                     total_resources=total_agent_resources(agent),
                     uptime=(self.simulator.current_time - instance.start_time),
                     weight=group.market_weight(instance.market),

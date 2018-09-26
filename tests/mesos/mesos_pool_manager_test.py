@@ -102,6 +102,7 @@ class TestPruneFulfilledCapacity:
             'instance_ip': '1.2.3.4',
             'mesos_state': MesosAgentState.RUNNING,
             'task_count': 0,
+            'batch_task_count': 0,
             'total_resources': (10, 10, 10),
             'market': 'market-1',
             'is_resource_group_stale': False,
@@ -258,6 +259,7 @@ class TestChooseInstancesToPrune:
                     market='market-1',
                     mesos_state=MesosAgentState.ORPHANED if orphaned else MesosAgentState.RUNNING,
                     task_count=0 if orphaned else 5,
+                    batch_task_count=0,
                     total_resources=(10, 10, 10),
                     uptime=1000,
                     weight=1,
@@ -617,7 +619,7 @@ class TestGetInstances:
             'used_resources': {'cpus': 1},
             'hostname': 'host1',
         })
-        tasks.extend([{'slave_id': 'few_tasks', 'state': 'TASK_RUNNING'} for _ in range(3)])
+        tasks.extend([{'slave_id': 'few_tasks', 'state': 'TASK_RUNNING', 'framework_id': '1'} for _ in range(3)])
 
         mock_pool_manager.resource_groups['rg2'].instance_ids[0]  # many tasks
         agents.append({
@@ -626,12 +628,21 @@ class TestGetInstances:
             'used_resources': {'cpus': 1},
             'hostname': 'host1',
         })
-        tasks.extend([{'slave_id': 'many_tasks', 'state': 'TASK_RUNNING'} for _ in range(8)])
+        tasks.extend([{'slave_id': 'many_tasks', 'state': 'TASK_RUNNING', 'framework_id': '1'} for _ in range(8)])
 
         mock_agents = mock.PropertyMock(return_value=agents)
         mock_tasks = mock.PropertyMock(return_value=tasks)
-        with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.agents', mock_agents), \
-                mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.tasks', mock_tasks):
+        mock_frameworks = mock.PropertyMock(return_value={
+            'frameworks': [{'id': '1', 'name': 'chronos'}, {'id': '2', 'name': 'marathon123'}]
+        })
+
+        with mock.patch(
+            'clusterman.mesos.mesos_pool_manager.MesosPoolManager.agents', mock_agents
+        ), mock.patch(
+            'clusterman.mesos.mesos_pool_manager.MesosPoolManager.tasks', mock_tasks
+        ), mock.patch(
+            'clusterman.mesos.mesos_pool_manager.MesosPoolManager.frameworks', mock_frameworks
+        ):
             yield mock_pool_manager
 
     def build_mock_pool_instance(self, state, task_count, market):
@@ -645,6 +656,7 @@ class TestGetInstances:
             is_resource_group_stale=mock.ANY,
             mesos_state=state,
             task_count=task_count,
+            batch_task_count=mock.ANY,
             total_resources=mock.ANY,
             market=market,
             uptime=mock.ANY,
@@ -718,11 +730,12 @@ def test_get_unknown_instance(mock_pool_manager):
 
 @mock_ec2
 def test_instance_kill_order(mock_pool_manager):
-    reservations = ec2.run_instances(ImageId='ami-barfood', MinCount=6, MaxCount=6, InstanceType='t2.nano')
+    reservations = ec2.run_instances(ImageId='ami-barfood', MinCount=8, MaxCount=8, InstanceType='t2.nano')
     instance_ids = [i['InstanceId'] for i in reservations['Instances']]
     mock_pool_manager.resource_groups = {
         'rg1': mock.Mock(name='non_stale', instance_ids=instance_ids[:4], is_stale=False),
-        'rg2': mock.Mock(name='stale', instance_ids=instance_ids[4:], is_stale=True),
+        'rg2': mock.Mock(name='stale', instance_ids=instance_ids[4:6], is_stale=True),
+        'rg3': mock.Mock(name='non_stale', instance_ids=instance_ids[6:], is_stale=False),
     }
     mock_pool_manager.max_tasks_to_kill = 10
 
@@ -746,7 +759,7 @@ def test_instance_kill_order(mock_pool_manager):
         'used_resources': {'cpus': 3},
         'hostname': 'host2'
     })
-    tasks.extend([{'slave_id': 'few_tasks', 'state': 'TASK_RUNNING'} for _ in range(3)])
+    tasks.extend([{'slave_id': 'few_tasks', 'state': 'TASK_RUNNING', 'framework_id': '2'} for _ in range(3)])
 
     many_tasks_instance_id = instance_ids[3]
     agents.append({
@@ -755,7 +768,35 @@ def test_instance_kill_order(mock_pool_manager):
         'used_resources': {'cpus': 8},
         'hostname': 'host3'
     })
-    tasks.extend([{'slave_id': 'many_tasks', 'state': 'TASK_RUNNING'} for _ in range(8)])
+    tasks.extend([{'slave_id': 'many_tasks', 'state': 'TASK_RUNNING', 'framework_id': '2'} for _ in range(8)])
+
+    many_tasks_and_batch_tasks = instance_ids[6]
+    agents.append({
+        'pid': f'slave(6)@{reservations["Instances"][6]["PrivateIpAddress"]}:1',
+        'id': 'many_tasks_and_batch_tasks',
+        'used_resources': {'cpus': 8},
+        'hostname': 'host6'
+    })
+    tasks.extend(
+        [{'slave_id': 'many_tasks_and_batch_tasks', 'state': 'TASK_RUNNING', 'framework_id': '2'} for _ in range(8)]
+    )
+    tasks.extend(
+        [{'slave_id': 'many_tasks_and_batch_tasks', 'state': 'TASK_RUNNING', 'framework_id': '1'} for _ in range(1)]
+    )
+
+    few_tasks_and_batch_tasks = instance_ids[7]
+    agents.append({
+        'pid': f'slave(6)@{reservations["Instances"][7]["PrivateIpAddress"]}:1',
+        'id': 'few_tasks_and_batch_tasks',
+        'used_resources': {'cpus': 8},
+        'hostname': 'host7'
+    })
+    tasks.extend(
+        [{'slave_id': 'few_tasks_and_batch_tasks', 'state': 'TASK_RUNNING', 'framework_id': '2'} for _ in range(3)]
+    )
+    tasks.extend(
+        [{'slave_id': 'few_tasks_and_batch_tasks', 'state': 'TASK_RUNNING', 'framework_id': '1'} for _ in range(1)]
+    )
 
     few_tasks_stale_instance_id = instance_ids[4]
     agents.append({
@@ -764,7 +805,7 @@ def test_instance_kill_order(mock_pool_manager):
         'used_resources': {'cpus': 3},
         'hostname': 'host4'
     })
-    tasks.extend([{'slave_id': 'few_tasks_stale', 'state': 'TASK_RUNNING'} for _ in range(3)])
+    tasks.extend([{'slave_id': 'few_tasks_stale', 'state': 'TASK_RUNNING', 'framework_id': '2'} for _ in range(3)])
 
     many_tasks_stale_instance_id = instance_ids[5]
     agents.append({
@@ -773,13 +814,21 @@ def test_instance_kill_order(mock_pool_manager):
         'used_resources': {'cpus': 8},
         'hostname': 'host5'
     })
-    tasks.extend([{'slave_id': 'many_tasks_stale', 'state': 'TASK_RUNNING'} for _ in range(8)])
+    tasks.extend([{'slave_id': 'many_tasks_stale', 'state': 'TASK_RUNNING', 'framework_id': '2'} for _ in range(8)])
 
     mock_agents = mock.PropertyMock(return_value=agents)
     mock_tasks = mock.PropertyMock(return_value=tasks)
-    with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.agents', mock_agents), \
-            mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.tasks', mock_tasks):
+    mock_frameworks = mock.PropertyMock(return_value={
+        'frameworks': [{'id': '1', 'name': 'chronos'}, {'id': '2', 'name': 'marathon123'}]
+    })
 
+    with mock.patch(
+        'clusterman.mesos.mesos_pool_manager.MesosPoolManager.agents', mock_agents
+    ), mock.patch(
+        'clusterman.mesos.mesos_pool_manager.MesosPoolManager.tasks', mock_tasks
+    ), mock.patch(
+        'clusterman.mesos.mesos_pool_manager.MesosPoolManager.frameworks', mock_frameworks
+    ):
         killable_instances = mock_pool_manager._get_prioritized_killable_instances()
         killable_instance_ids = [instance.instance_id for instance in killable_instances]
         expected_order = [
@@ -789,6 +838,8 @@ def test_instance_kill_order(mock_pool_manager):
             many_tasks_stale_instance_id,
             few_tasks_instance_id,
             many_tasks_instance_id,
+            few_tasks_and_batch_tasks,
+            many_tasks_and_batch_tasks,
         ]
         assert killable_instance_ids == expected_order
 
@@ -797,7 +848,7 @@ def test_instance_kill_order(mock_pool_manager):
 class TestInstanceKillability:
 
     @contextmanager
-    def setup_pool_manager(self, pool_manager, has_agent, num_tasks):
+    def setup_pool_manager(self, pool_manager, has_agent, num_tasks, num_marathon_tasks=0):
         reservations = ec2.run_instances(ImageId='ami-foobar', MinCount=1, MaxCount=1, InstanceType='t2.nano')
         pool_manager.resource_groups = {
             'rg1': mock.Mock(instance_ids=[i['InstanceId'] for i in reservations['Instances']]),
@@ -811,15 +862,25 @@ class TestInstanceKillability:
                 'hostname': 'host123'
             }]
             for _ in range(num_tasks):
-                tasks.append({'slave_id': 'agent_id', 'state': 'TASK_RUNNING'})
+                tasks.append({'slave_id': 'agent_id', 'state': 'TASK_RUNNING', 'framework_id': '1'})
+            for _ in range(num_marathon_tasks):
+                tasks.append({'slave_id': 'agent_id', 'state': 'TASK_RUNNING', 'framework_id': '2'})
         else:
             agents = []
 
         mock_agents = mock.PropertyMock(return_value=agents)
         mock_tasks = mock.PropertyMock(return_value=tasks)
+        mock_frameworks = mock.PropertyMock(return_value={
+            'frameworks': [{'id': '1', 'name': 'chronos'}, {'id': '2', 'name': 'marathon123'}]
+        })
 
-        with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.agents', mock_agents), \
-                mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.tasks', mock_tasks):
+        with mock.patch(
+            'clusterman.mesos.mesos_pool_manager.MesosPoolManager.agents', mock_agents
+        ), mock.patch(
+            'clusterman.mesos.mesos_pool_manager.MesosPoolManager.tasks', mock_tasks
+        ), mock.patch(
+            'clusterman.mesos.mesos_pool_manager.MesosPoolManager.frameworks', mock_frameworks
+        ):
             yield
 
     def test_unknown_agent_state_is_not_killable(self, mock_pool_manager):
@@ -866,6 +927,41 @@ def test_count_tasks_by_agent(mock_pool_manager):
     mock_tasks = mock.PropertyMock(return_value=tasks)
     with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.tasks', mock_tasks):
         assert mock_pool_manager._count_tasks_per_mesos_agent() == {1: 1, 2: 2}
+
+
+def test_count_batch_tasks_by_agent(mock_pool_manager):
+    tasks = [
+        {'slave_id': '1', 'state': 'TASK_RUNNING', 'framework_id': '2'},
+        {'slave_id': '2', 'state': 'TASK_RUNNING', 'framework_id': '2'},
+        {'slave_id': '3', 'state': 'TASK_FINISHED', 'framework_id': '2'},
+        {'slave_id': '1', 'state': 'TASK_FAILED', 'framework_id': '2'},
+        {'slave_id': '2', 'state': 'TASK_RUNNING', 'framework_id': '1'}
+    ]
+    mock_tasks = mock.PropertyMock(return_value=tasks)
+    mock_frameworks = mock.PropertyMock(return_value={
+        'frameworks': [{'id': '1', 'name': 'chronos'}, {'id': '2', 'name': 'marathon123'}]
+    })
+
+    with mock.patch(
+        'clusterman.mesos.mesos_pool_manager.MesosPoolManager.tasks', mock_tasks
+    ), mock.patch(
+        'clusterman.mesos.mesos_pool_manager.MesosPoolManager.frameworks', mock_frameworks
+    ):
+        ret = mock_pool_manager._count_batch_tasks_per_mesos_agent()
+        assert ret == {'2': 1}
+        assert ret['1'] == 0
+
+
+def test_is_batch_task(mock_pool_manager):
+    mock_pool_manager.non_batch_framework_prefixes = ('marathon', 'paasta')
+    framework_id_to_name = {
+        '1': 'marathon123',
+        '2': 'paasta123',
+        '3': 'chronos',
+    }
+    assert mock_pool_manager._is_batch_task({'framework_id': '3'}, framework_id_to_name)
+    assert not mock_pool_manager._is_batch_task({'framework_id': '2'}, framework_id_to_name)
+    assert not mock_pool_manager._is_batch_task({'framework_id': '1'}, framework_id_to_name)
 
 
 @mock.patch('clusterman.mesos.mesos_pool_manager.mesos_post')
