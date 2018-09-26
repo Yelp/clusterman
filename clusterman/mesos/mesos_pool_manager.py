@@ -61,7 +61,7 @@ class MesosPoolManager:
         self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool))
 
         mesos_master_fqdn = staticconf.read_string(f'mesos_clusters.{self.cluster}.fqdn')
-        self.draining_enabled = staticconf.read_bool(f'mesos_clusters.{self.cluster}.draining_enabled', default=False)
+        self.draining_enabled = self.pool_config.read_bool('draining_enabled', default=False)
         if self.draining_enabled:
             self.draining_client = DrainingClient(cluster)
         self.min_capacity = self.pool_config.read_int('scaling_limits.min_capacity')
