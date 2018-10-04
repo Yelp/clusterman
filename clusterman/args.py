@@ -1,5 +1,4 @@
 import argparse
-import logging
 import sys
 
 import colorlog
@@ -135,7 +134,6 @@ def help_formatter(prog):  # pragma: no cover
 
 def _get_validated_args(parser):
     args = parser.parse_args()
-    logging.getLogger().setLevel(getattr(logging, args.log_level.upper()))
 
     if args.subcommand is None:
         logger.error('missing subcommand')

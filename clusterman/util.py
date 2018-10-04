@@ -22,19 +22,25 @@ from clusterman.config import POOL_NAMESPACE
 logger = colorlog.getLogger(__name__)
 
 
-def setup_logging():
+def setup_logging(log_level_str: str = 'info') -> None:
     EVENT_LOG_LEVEL = 25
     logging.addLevelName(EVENT_LOG_LEVEL, 'EVENT')
 
     def event(self, message, *args, **kwargs):
         if self.isEnabledFor(EVENT_LOG_LEVEL):
             self._log(EVENT_LOG_LEVEL, message, args, **kwargs)
-    logging.Logger.event = event
+    # we're adding a new function to Logger so ignore the type here to make mypy happy
+    logging.Logger.event = event  # type: ignore
 
     handler = colorlog.StreamHandler()
     handler.setFormatter(colorlog.ColoredFormatter('%(log_color)s%(levelname)s:%(name)s:%(message)s'))
     logger = colorlog.getLogger()
     logger.addHandler(handler)
+
+    log_level = getattr(logging, log_level_str.upper())
+    logging.getLogger().setLevel(log_level)
+    logging.getLogger('botocore').setLevel(max(logging.INFO, log_level))
+    logging.getLogger('boto3').setLevel(max(logging.INFO, log_level))
 
 
 def get_autoscaler_scribe_stream(cluster, pool):

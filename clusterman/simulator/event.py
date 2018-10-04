@@ -64,6 +64,9 @@ class ModifyClusterSizeEvent(Event):
         for instance in removed_instances:
             simulator.remove_instance(instance)
 
+    def __str__(self):
+        return super().__str__() + ' new size: ' + str(sum(self.instance_types.values()))
+
 
 class InstancePriceChangeEvent(Event):
     def __init__(self, time, prices, msg=None):
