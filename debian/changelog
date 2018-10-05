@@ -1,3 +1,9 @@
+clusterman (2.10.2) trusty; urgency=low
+
+  * improvements to logging
+
+ -- David Morrison <drmorr@yelp.com>  Fri, 05 Oct 2018 10:48:21 -0700
+
 clusterman (2.10.1) trusty; urgency=low
 
   * read signals repo location from srv-configs
