@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 
 import colorlog
@@ -77,7 +78,7 @@ def add_cluster_arg(parser, required=False):  # pragma: no cover
     """ Add --cluster argument to a parser """
     parser.add_argument(
         '--cluster',
-        required=required,
+        default=os.environ.get('CMAN_CLUSTER', None),
         help='Name of Mesos cluster to operate on',
     )
 
@@ -87,7 +88,7 @@ def add_pool_arg(parser):  # pragma: no cover
     parser.add_argument(
         '--pool', '--role',
         dest='pool',
-        default='default',
+        default=os.environ.get('CMAN_POOL', 'default'),
         action=deprecate_argument(depr_arg='--role', alt='--pool'),
         help='Identifier for a pool of machines to operate on',
     )

@@ -8,6 +8,7 @@ FROM    docker-dev.yelpcorp.com/xenial_yelp:latest
 # python and uwsgi deps
 RUN     apt-get update \
         && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            awscli \
             dumb-init \
             git \
             libatlas-base-dev \
@@ -15,13 +16,18 @@ RUN     apt-get update \
             libpython3.6 \
             libxml2 \
             libyaml-0-2 \
+            lsb-release \
             make \
             openssh-client \
             python3.6 \
+            python-pip \
+            python-setuptools \
             tox \
             virtualenv \
             zk-flock \
         && apt-get clean
+
+RUN    /usr/bin/pip install --index-url https://pypi.yelpcorp.com/simple supervisor
 
 # See https://confluence.yelpcorp.com/display/~asottile/GettingPythonOffLucid
 # and https://migration-status.dev.yelp.com/metric/ToxNonLucid
@@ -29,16 +35,10 @@ RUN     apt-get update \
 COPY    tox.ini requirements.txt requirements-bootstrap.txt /code/
 RUN     cd code && tox -e virtualenv_run
 
-# User "nobody" needs to check out the clusterman_signals Git repo so it needs SSH
-# keys and a place to put the repo; the SSH keys get mounted as an extra_volumes
-# parameter in yelpsoa_configs
-RUN     mkdir -p /home/nobody/.ssh /home/nobody/.cache/clusterman && chown -R nobody /home/nobody
-RUN     usermod -d /home/nobody nobody
-RUN     echo 'Host sysgit.yelpcorp.com\n\tStrictHostKeyChecking no\n\tUserKnownHostsFile /dev/null' > /home/nobody/.ssh/config
-
 # Code is COPY'ed here after the pip install above, so that code changes do not
 # break the preceding cache layer.
 COPY    . /code
+RUN     chown -R nobody /code
 
 # Use yelp-compose (y/ycp) for acceptance testing
 RUN     install -d --owner=nobody /code/logs
