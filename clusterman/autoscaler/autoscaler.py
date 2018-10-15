@@ -1,4 +1,6 @@
 import traceback
+from typing import List
+from typing import Optional
 
 import arrow
 import colorlog
@@ -21,7 +23,15 @@ logger = colorlog.getLogger(__name__)
 
 
 class Autoscaler:
-    def __init__(self, cluster, pool, apps, *, pool_manager=None, metrics_client=None):
+    def __init__(
+        self,
+        cluster: str,
+        pool: str,
+        apps: List[str],
+        *,
+        pool_manager: Optional[MesosPoolManager] = None,
+        metrics_client: Optional[ClustermanMetricsBotoClient] = None,
+    ) -> None:
         """ Class containing the core logic for autoscaling a cluster
 
         :param cluster: the name of the cluster to autoscale
@@ -49,7 +59,7 @@ class Autoscaler:
         self.default_signal = Signal(
             self.cluster,
             self.pool,
-            None,  # the default signal is not specific to any app
+            '__default__',
             DEFAULT_NAMESPACE,
             self.metrics_client,
             signal_namespace=staticconf.read_string('autoscaling.default_signal_role'),
@@ -90,7 +100,7 @@ class Autoscaler:
             logger.error(f'The client signal failed with:\n{tb}')
             raise exception
 
-    def _get_signal_for_app(self, app):
+    def _get_signal_for_app(self, app: str) -> Signal:
         """Load the signal object to use for autoscaling for a particular app
 
         :param app: the name of the app to load a Signal for
