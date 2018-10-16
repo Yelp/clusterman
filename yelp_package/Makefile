@@ -9,6 +9,7 @@ UID:=`id -u`
 GID:=`id -g`
 DOCKER_BUILD_RUN:=docker run -t -v $(CURDIR)/..:/src:ro -v $(CURDIR)/dist:/dist:rw
 DOCKER_ITEST_RUN:=docker run -t -v $(CURDIR)/itest:/itest:rw -v $(CURDIR)/dist:/dist:ro --net=acceptance_default \
+	-e PIP_INDEX_URL=https://pypi.yelpcorp.com/simple \
 	-v $(CURDIR)/../acceptance/srv-configs:/nail/srv/configs:ro \
 	-v $(CURDIR)/../acceptance/clusterman.json:/etc/boto_cfg/clusterman.json:ro \
 	-v $(CURDIR)/../acceptance/clusterman.json:/etc/boto_cfg/clusterman_metrics.json:ro \

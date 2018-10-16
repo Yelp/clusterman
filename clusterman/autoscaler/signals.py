@@ -125,7 +125,7 @@ class Signal:
         app: str,
         config_namespace: str,
         metrics_client: ClustermanMetricsBotoClient,
-        signal_namespace: Optional[str] = None
+        signal_namespace: Optional[str] = None,
     ) -> None:
         """ Create an encapsulation of the Unix sockets via which we communicate with signals
 
@@ -223,7 +223,7 @@ class Signal:
 
         # this creates an abstract namespace socket which is auto-cleaned on program exit
         s = socket.socket(socket.AF_UNIX)
-        s.bind(f'\0{self.signal_namespace}-{self.name}-socket')
+        s.bind(f'\0{self.signal_namespace}-{self.name}-{self.app}-socket')
         s.listen(1)  # only allow one connection at a time
         s.settimeout(SOCKET_TIMEOUT_SECONDS)
 
@@ -237,6 +237,7 @@ class Signal:
                 'clusterman_signals.run',
                 self.signal_namespace,
                 self.name,
+                self.app,
             ],
             cwd=signal_dir,
             stdout=subprocess.PIPE,

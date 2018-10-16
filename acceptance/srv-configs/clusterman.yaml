@@ -33,7 +33,7 @@ autoscaling:
 
 autoscale_signal:
     name: MostRecentResources
-    branch_or_tag: v3.5.4
+    branch_or_tag: v3.6.5
     required_metrics:
         - name: cpus_allocated
           type: system_metrics
