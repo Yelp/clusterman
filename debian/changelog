@@ -1,3 +1,9 @@
+clusterman (2.10.3) trusty; urgency=low
+
+  * Send app name to signal
+
+ -- David Morrison <drmorr@yelp.com>  Mon, 15 Oct 2018 21:07:12 -0700
+
 clusterman (2.10.2) trusty; urgency=low
 
   * improvements to logging
