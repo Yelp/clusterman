@@ -131,6 +131,7 @@ class Autoscaler:
                 page=False,
                 ttl=None,
                 app=app,
+                pool=self.pool,
             )
             return self.default_signal
 
