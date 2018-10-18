@@ -1,3 +1,9 @@
+clusterman (2.10.4) trusty; urgency=low
+
+  * can handle 0 capacity in clusters
+
+ -- David Morrison <drmorr@yelp.com>  Thu, 18 Oct 2018 16:01:12 -0700
+
 clusterman (2.10.3) trusty; urgency=low
 
   * Send app name to signal
