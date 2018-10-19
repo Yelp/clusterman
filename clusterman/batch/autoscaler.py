@@ -126,13 +126,15 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
             source=self.options.cluster,
             ttl=ttl,
             noop=self.options.dry_run or self.options.healthcheck_only,
-            pool=self.autoscaler.pool,
+            pool=self.options.pool,
         )
 
         # Check in for the signal
-        signal_sensu_args = dict(sensu_args)  # copy
-        signal_sensu_args['check_name'] = SIGNAL_CHECK_NAME
-        signal_sensu_args['app'] = self.apps[0]
+        signal_sensu_args = dict(
+            **sensu_args,
+            check_name=SIGNAL_CHECK_NAME,
+            app=self.apps[0],
+        )
 
         if signal_failed:
             signal_sensu_args['output'] = f'FAILED: clusterman autoscaler signal failed ({msg})'
@@ -142,8 +144,10 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
         sensu_checkin(**signal_sensu_args)
 
         # Check in for the service
-        service_sensu_args = dict(sensu_args)  # copy
-        service_sensu_args['check_name'] = SERVICE_CHECK_NAME
+        service_sensu_args = dict(
+            **sensu_args,
+            check_name=SERVICE_CHECK_NAME,
+        )
 
         if service_failed:
             service_sensu_args['output'] = f'FAILED: clusterman autoscaler failed ({msg})'

@@ -17,8 +17,11 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../..'))
+
 import sphinx_rtd_theme
+
+from clusterman import __version__
+sys.path.insert(0, os.path.abspath('../..'))
 
 # -- General configuration ------------------------------------------------
 
@@ -58,7 +61,6 @@ author = 'distsys-compute'
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 #
-from clusterman import __version__
 version = __version__
 release = __version__
 

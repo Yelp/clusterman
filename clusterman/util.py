@@ -3,6 +3,7 @@ import pprint
 import subprocess
 import time
 from datetime import datetime
+from typing import Any
 from typing import Callable
 from typing import Optional
 from typing import TypeVar
@@ -165,10 +166,17 @@ def parse_time_interval_seconds(time_str):
 
 
 def sensu_checkin(
-    *, check_name, output, source,
-    status=Status.OK, app=None, pool=None, noop=False, page=True,
-    **kwargs
-):
+    *,
+    check_name: str,
+    output: str,
+    source: str,
+    status: Status = Status.OK,
+    app: Optional[str] = None,
+    pool: Optional[str] = None,
+    noop: bool = False,
+    page: bool = True,
+    **kwargs: Any,
+) -> None:
     # This function feels like a massive hack, let's revisit and see if we can make it better (CLUSTERMAN-304)
     #
     # TODO (CLUSTERMAN-126) right now there's only one app per pool so use the global pool namespace

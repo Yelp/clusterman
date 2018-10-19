@@ -85,6 +85,15 @@ def test_parse_time_interval_seconds_invalid():
 
 @mock.patch('clusterman.util.pysensu_yelp', autospec=True)
 class TestSensu:
+    def _sensu_output(self, output, source, pool=None, app=None):
+        return ''.join([
+            f'{output}\n\n',
+            'This check came from:\n',
+            f'- Cluster/region: {source}\n',
+            f'- Pool: {pool}\n' if pool else '',
+            f'- App: {app}\n' if app else '',
+        ])
+
     @pytest.mark.parametrize('noop', [True, False])
     def test_sensu_checkin(self, mock_sensu, noop):
         sensu_checkin(
@@ -99,7 +108,7 @@ class TestSensu:
         else:
             assert mock_sensu.send_event.call_args == mock.call(
                 name='my_check',
-                output='output',
+                output=self._sensu_output('output', 'my_source'),
                 source='my_source',
                 status=pysensu_yelp.Status.OK,
                 runbook='y/my-runbook',
@@ -108,21 +117,23 @@ class TestSensu:
             )
 
     @pytest.mark.parametrize('app', [None, 'bar'])
-    def test_args_overrides_config(self, mock_sensu, app):
+    @pytest.mark.parametrize('pool', [None, 'foo'])
+    def test_args_overrides_config(self, mock_sensu, app, pool):
         sensu_checkin(
             check_name='my_check',
             output='output',
             source='my_source',
             team='a_different_team',
             app=app,
+            pool=pool,
         )
-        expected_runbook = 'y/my-runbook' if not app else 'y/their-runbook'
+
         assert mock_sensu.send_event.call_args == mock.call(
             name='my_check',
-            output='output',
             source='my_source',
+            output=self._sensu_output('output', 'my_source', pool, app),
             status=pysensu_yelp.Status.OK,
-            runbook=expected_runbook,
+            runbook='y/my-runbook' if not app else 'y/their-runbook',
             team='a_different_team',
             page=True,
         )
@@ -136,7 +147,7 @@ class TestSensu:
         )
         assert mock_sensu.send_event.call_args == mock.call(
             name='my_check',
-            output='output',
+            output=self._sensu_output('output', 'my_source', app='non-existent'),
             source='my_source',
             status=pysensu_yelp.Status.OK,
             runbook='y/my-runbook',

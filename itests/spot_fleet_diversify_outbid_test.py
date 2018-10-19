@@ -116,12 +116,12 @@ def test_spot_fleet_diversifying(target_capacity, spot_fleet, spot_prices):
     spot_fleet.modify_target_capacity(target_capacity)
     for market in MARKETS:
         assert (
-            spot_fleet.market_size(market) * (spot_fleet._instance_types[market].weight)
-            <= target_capacity * (1 + threshold) / len(MARKETS)
+            spot_fleet.market_size(market) * (spot_fleet._instance_types[market].weight) <=
+            target_capacity * (1 + threshold) / len(MARKETS)
         )
         assert (
-            spot_fleet.market_size(market) * (spot_fleet._instance_types[market].weight)
-            >= target_capacity * (1 - threshold) / len(MARKETS)
+            spot_fleet.market_size(market) * (spot_fleet._instance_types[market].weight) >=
+            target_capacity * (1 - threshold) / len(MARKETS)
         )
 
 
