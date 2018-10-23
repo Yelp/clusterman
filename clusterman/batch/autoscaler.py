@@ -89,7 +89,12 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
         self.logger = logger
 
         self.apps = [self.options.pool]  # TODO (CLUSTERMAN-126) somday these should not be the same thing
-        self.autoscaler = Autoscaler(self.options.cluster, self.options.pool, self.apps)
+        self.autoscaler = Autoscaler(
+            self.options.cluster,
+            self.options.pool,
+            self.apps,
+            monitoring_enabled=not (self.options.dry_run or self.options.healthcheck_only),
+        )
 
     def _get_local_log_stream(self, clog_prefix=None):
         # Overrides the yelp_batch default, which is tmp_batch_<filename> (autoscaler in this case)

@@ -33,6 +33,7 @@ class Autoscaler:
         *,
         pool_manager: Optional[MesosPoolManager] = None,
         metrics_client: Optional[ClustermanMetricsBotoClient] = None,
+        monitoring_enabled: bool = True,
     ) -> None:
         """ Class containing the core logic for autoscaling a cluster
 
@@ -45,6 +46,7 @@ class Autoscaler:
         self.cluster = cluster
         self.pool = pool
         self.apps = apps
+        self.monitoring_enabled = monitoring_enabled
 
         # TODO: handle multiple apps in the autoscaler (CLUSTERMAN-126)
         if len(self.apps) > 1:
@@ -121,7 +123,7 @@ class Autoscaler:
             logger.info(f'No signal configured for {app}, falling back to default')
             return self.default_signal
         except Exception:
-            msg = f'WARNING: loading signal for {app} failed, falling back to default'
+            msg = f'WARNING: loading signal for {app} failed, falling back to default {self.monitoring_enabled}'
             logger.exception(msg)
             sensu_checkin(
                 check_name=SIGNAL_LOAD_CHECK_NAME,
@@ -131,6 +133,7 @@ class Autoscaler:
                 page=False,
                 ttl=None,
                 app=app,
+                noop=not self.monitoring_enabled,
             )
             return self.default_signal
 
