@@ -252,6 +252,7 @@ class Simulator:
             [self.metadata.pool],
             pool_manager=pool_manager,
             metrics_client=self.metrics_client,
+            monitoring_enabled=False,  # no sensu alerts during simulations
         )
 
     def __add__(self, other):

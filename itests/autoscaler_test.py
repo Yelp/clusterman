@@ -39,7 +39,13 @@ def autoscaler(resource_groups):
             mock.patch('clusterman.autoscaler.autoscaler.yelp_meteorite'), \
             staticconf.testing.PatchConfiguration({'autoscaling': {'default_signal_role': 'bar'}}):
 
-        a = Autoscaler(cluster='mesos-test', pool='bar', apps=['bar'], metrics_client=mock.Mock())
+        a = Autoscaler(
+            cluster='mesos-test',
+            pool='bar',
+            apps=['bar'],
+            metrics_client=mock.Mock(),
+            monitoring_enabled=False,
+        )
         a.signal._get_metrics = mock.Mock(return_value={})
         with mock.patch(
             'clusterman.autoscaler.autoscaler.MesosPoolManager.non_orphan_fulfilled_capacity',

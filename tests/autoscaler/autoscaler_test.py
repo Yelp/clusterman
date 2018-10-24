@@ -1,5 +1,6 @@
 import arrow
 import mock
+import pysensu_yelp
 import pytest
 import staticconf
 
@@ -49,7 +50,7 @@ def mock_autoscaler():
             mock.patch('clusterman.autoscaler.autoscaler.yelp_meteorite'), \
             mock.patch('clusterman.autoscaler.autoscaler.Signal'), \
             staticconf.testing.PatchConfiguration({'autoscaling': autoscaling_config_dict}):
-        mock_autoscaler = Autoscaler('mesos-test', 'bar', ['bar'])
+        mock_autoscaler = Autoscaler('mesos-test', 'bar', ['bar'], monitoring_enabled=False)
     mock_autoscaler.mesos_pool_manager.target_capacity = 300
     mock_autoscaler.mesos_pool_manager.min_capacity = staticconf.read_int(
         'scaling_limits.min_capacity', namespace=POOL_NAMESPACE.format(pool='bar')
@@ -62,7 +63,22 @@ def mock_autoscaler():
 
 def test_autoscaler_init_too_many_apps():
     with pytest.raises(NotImplementedError):
-        Autoscaler('mesos-test', 'bar', ['app1', 'app2'])
+        Autoscaler('mesos-test', 'bar', ['app1', 'app2'], monitoring_enabled=False)
+
+
+@mock.patch(
+    'clusterman.autoscaler.signals.Signal',
+    mock.Mock(side_effect=Exception),
+    autospec=None
+)
+@pytest.mark.parametrize('monitoring_enabled', [True, False])
+def test_monitoring_enabled(mock_autoscaler, monitoring_enabled):
+    mock_autoscaler.monitoring_enabled = monitoring_enabled
+
+    with mock.patch('pysensu_yelp.send_event'):
+        mock_autoscaler._get_signal_for_app('bar')
+
+        assert pysensu_yelp.send_event.call_count == (1 if monitoring_enabled else 0)
 
 
 @pytest.mark.parametrize('signal_response', [
