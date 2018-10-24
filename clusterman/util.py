@@ -1,7 +1,9 @@
 import logging
+import pprint
 import subprocess
 import time
 from datetime import datetime
+from typing import Any
 from typing import Callable
 from typing import Optional
 from typing import TypeVar
@@ -163,11 +165,20 @@ def parse_time_interval_seconds(time_str):
     return (parse_result[0] - datetime.min).total_seconds()
 
 
-def sensu_checkin(*, check_name, output, source, status=Status.OK, app=None, noop=False, page=True, **kwargs):
+def sensu_checkin(
+    *,
+    check_name: str,
+    output: str,
+    source: str,
+    status: Status = Status.OK,
+    app: Optional[str] = None,
+    pool: Optional[str] = None,
+    noop: bool = False,
+    page: bool = True,
+    **kwargs: Any,
+) -> None:
     # This function feels like a massive hack, let's revisit and see if we can make it better (CLUSTERMAN-304)
-    if noop:
-        return
-
+    #
     # TODO (CLUSTERMAN-126) right now there's only one app per pool so use the global pool namespace
     # We assume the "pool" name and the "app" name are the same
     #
@@ -189,18 +200,33 @@ def sensu_checkin(*, check_name, output, source, status=Status.OK, app=None, noo
     config_page = sensu_config.pop('page', None)
     page = False if config_page is False else page
 
+    # So we know where alerts are coming from precisely
+    output += ''.join([
+        '\n\nThis check came from:\n',
+        f'- Cluster/region: {source}\n',
+        f'- Pool: {pool}\n' if pool else '',
+        f'- App: {app}\n' if app else '',
+    ])
+
+    sensu_config.update({
+        'name': check_name,
+        'output': output,
+        'source': source,
+        'status': status,
+        'page': page,
+    })
     # values passed in to this function override config file values (is this really correct??)
     sensu_config.update(kwargs)
 
+    if noop:
+        logger.info((
+            'Would have sent this event to Sensu:\n'
+            f'{pprint.pformat(sensu_config)}'
+        ))
+        return
+
     # team and runbook are required entries in srv-configs, so we know this will go to the "right" place
-    pysensu_yelp.send_event(
-        name=check_name,
-        output=output,
-        source=source,
-        status=status,
-        page=page,
-        **sensu_config,
-    )
+    pysensu_yelp.send_event(**sensu_config)
 
 
 def splay_event_time(frequency: int, key: str, timestamp: float = None) -> float:

@@ -134,6 +134,7 @@ class Autoscaler:
                 ttl=None,
                 app=app,
                 noop=not self.monitoring_enabled,
+                pool=self.pool,
             )
             return self.default_signal
 
