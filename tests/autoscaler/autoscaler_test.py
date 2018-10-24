@@ -130,6 +130,26 @@ class TestComputeTargetCapacity:
         new_target_capacity = mock_autoscaler._compute_target_capacity({})
         assert new_target_capacity == mock_autoscaler.mesos_pool_manager.target_capacity
 
+    def test_request_zero_resources(self, mock_autoscaler):
+        mock_autoscaler.mesos_pool_manager.get_resource_total.return_value = 10
+        mock_autoscaler.mesos_pool_manager.target_capacity = 125
+        mock_autoscaler.mesos_pool_manager.non_orphan_fulfilled_capacity = 125
+
+        new_target_capacity = mock_autoscaler._compute_target_capacity(
+            {'cpus': 0, 'mem': 0, 'disk': 0}
+        )
+        assert new_target_capacity == 0
+
+    def test_non_orphan_fulfilled_capacity_0(self, mock_autoscaler):
+        mock_autoscaler.mesos_pool_manager.get_resource_total.return_value = 0
+        mock_autoscaler.mesos_pool_manager.target_capacity = 1
+        mock_autoscaler.mesos_pool_manager.non_orphan_fulfilled_capacity = 0
+
+        new_target_capacity = mock_autoscaler._compute_target_capacity(
+            {'cpus': 10, 'mem': 500, 'disk': 1000}
+        )
+        assert new_target_capacity == mock_autoscaler.mesos_pool_manager.target_capacity
+
     def test_scale_most_constrained_resource(self, mock_autoscaler):
         resource_request = {'cpus': 500, 'mem': 30000, 'disk': 19000}
         resource_totals = {'cpus': 1000, 'mem': 50000, 'disk': 20000}
