@@ -56,6 +56,13 @@ def mock_signal():
         return Signal('foo', 'bar', 'app1', 'bar_config', mock.Mock())
 
 
+def test_init(mock_signal):
+    assert 'cluster' in mock_signal.parameters
+    assert mock_signal.parameters['cluster'] == 'foo'
+    assert 'pool' in mock_signal.parameters
+    assert mock_signal.parameters['pool'] == 'bar'
+
+
 @pytest.mark.parametrize('conn_response', [['foo'], [ACK, 'foo']])
 def test_evaluate_signal_connection_errors(mock_signal, conn_response):
     mock_signal._get_metrics = mock.Mock(return_value={})
