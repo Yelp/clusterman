@@ -123,7 +123,7 @@ class Autoscaler:
             logger.info(f'No signal configured for {app}, falling back to default')
             return self.default_signal
         except Exception:
-            msg = f'WARNING: loading signal for {app} failed, falling back to default {self.monitoring_enabled}'
+            msg = f'WARNING: loading signal for {app} failed, falling back to default'
             logger.exception(msg)
             sensu_checkin(
                 check_name=SIGNAL_LOAD_CHECK_NAME,
