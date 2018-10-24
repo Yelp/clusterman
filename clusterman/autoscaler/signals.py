@@ -153,15 +153,17 @@ class Signal:
         if self.period_minutes <= 0:
             raise SignalValidationError(f'Length of signal period must be positive, got {self.period_minutes}')
 
-        self.parameters: Dict = dict(
-            cluster=self.cluster,
-            pool=self.pool,
-        )
-        self.parameters.update({
+        self.parameters: Dict = {
             key: value
             for param_dict in reader.read_list('autoscale_signal.parameters', default=[])
             for (key, value) in param_dict.items()
-        })
+        }
+        # Even if cluster and pool were set in parameters, we override them here
+        # as we want to preserve a single source of truth
+        self.parameters.update(dict(
+            cluster=self.cluster,
+            pool=self.pool,
+        ))
 
         self.required_metrics: list = reader.read_list('autoscale_signal.required_metrics', default=[])
 
