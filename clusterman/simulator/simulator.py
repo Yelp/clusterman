@@ -12,7 +12,9 @@ from typing import Set
 import colorlog
 import staticconf
 import yaml
+from arrow import Arrow
 from clusterman_metrics import METADATA
+from sortedcontainers import SortedDict  # noqa
 
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.aws.client import ec2
@@ -20,6 +22,7 @@ from clusterman.aws.markets import get_instance_market
 from clusterman.aws.markets import InstanceMarket
 from clusterman.math.piecewise import hour_transform
 from clusterman.math.piecewise import piecewise_breakpoint_generator
+from clusterman.math.piecewise import piecewise_max
 from clusterman.math.piecewise import PiecewiseConstantFunction
 from clusterman.simulator.event import Event
 from clusterman.simulator.simulated_aws_cluster import SimulatedAWSCluster
@@ -29,6 +32,7 @@ from clusterman.simulator.util import SimulationMetadata
 
 
 logger = colorlog.getLogger(__name__)
+SimFn = PiecewiseConstantFunction[Arrow]
 
 
 class Simulator:
@@ -53,10 +57,10 @@ class Simulator:
         self.instance_prices: Mapping[InstanceMarket, PiecewiseConstantFunction] = defaultdict(
             lambda: PiecewiseConstantFunction()
         )
-        self.cost_per_hour = PiecewiseConstantFunction()
-        self.aws_cpus = PiecewiseConstantFunction()
-        self.mesos_cpus = PiecewiseConstantFunction()
-        self.mesos_cpus_allocated = PiecewiseConstantFunction()
+        self.cost_per_hour: SimFn = PiecewiseConstantFunction()
+        self.aws_cpus: SimFn = PiecewiseConstantFunction()
+        self.mesos_cpus: SimFn = PiecewiseConstantFunction()
+        self.mesos_cpus_allocated: SimFn = PiecewiseConstantFunction()
         self.markets: Set = set()
 
         self.billing_frequency = billing_frequency
@@ -139,7 +143,13 @@ class Simulator:
     def total_cost(self):
         return self.get_data('cost').values()[0]
 
-    def get_data(self, key, start_time=None, end_time=None, step=None):
+    def get_data(
+        self,
+        key: str,
+        start_time: Optional[Arrow] = None,
+        end_time: Optional[Arrow] = None,
+        step: Optional[timedelta]=None,
+    ) -> 'SortedDict[Arrow, float]':
         """ Compute the capacity for the cluster in the specified time range, grouped into chunks
 
         :param key: the type of data to retreive; must correspond to a key in REPORT_TYPES
@@ -169,6 +179,9 @@ class Simulator:
         elif key == 'cost_per_cpu':
             cost_per_cpu = self.cost_per_hour / self.aws_cpus
             return cost_per_cpu.values(start_time, end_time, step)
+        elif key == 'oversubscribed':
+            max_fn = piecewise_max(self.mesos_cpus_allocated - self.aws_cpus, PiecewiseConstantFunction())
+            return max_fn.values(start_time, end_time, step)
         else:
             raise ValueError(f'Data key {key} is not recognized')
 

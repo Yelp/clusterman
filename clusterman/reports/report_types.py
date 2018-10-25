@@ -71,4 +71,13 @@ REPORT_TYPES = {
         trend_label='cost/vCPU-minute',
         error_threshold='-0',
     ),
+    'oversubscribed': ReportProperties(
+        title='Oversubscribed vCPUs',
+        trend_rollup=DEFAULT_TREND_ROLLUP,
+        plot_title_formatter=lambda data: f'Average oversubscribed capacity: {int(np.mean(data))} vCPUs',
+        trend_axis_formatter=int,
+        legend_formatter=lambda val: f'{int(round(val))} vCPUs',
+        trend_label='Oversubscribed vCPUs/day',
+        error_threshold='-0',
+    )
 }

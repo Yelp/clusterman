@@ -160,6 +160,7 @@ def main(args):
         'join_delay_mean_seconds': args.join_delay_params[0],
         'join_delay_stdev_seconds': args.join_delay_params[1],
         'cpus_per_weight': args.cpus_per_weight,
+        'ebs_volume_size': args.ebs_volume_size,
     })
     # We can provide up to two simulation objects to compare.  If we load two simulator objects to compare,
     # we don't need to run a simulation here.  If the user specifies --compare but only gives one object,
@@ -231,6 +232,13 @@ def add_simulate_parser(subparser, required_named_args, optional_named_args):  #
         type=int,
         default=1,
         help='how many CPUs are present in one unit of weight',
+    )
+    optional_named_args.add_argument(
+        '--ebs-volume-size',
+        type=int,
+        metavar='GB',
+        default=0,
+        help='size of EBS volume for EBS-only instances'
     )
     optional_named_args.add_argument(
         '--discount',
