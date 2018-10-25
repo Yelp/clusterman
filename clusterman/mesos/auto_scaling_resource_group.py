@@ -1,12 +1,14 @@
 import pprint
 import threading
 import time
-from typing import Any
+from collections import defaultdict
 from typing import Mapping
 from typing import Sequence
 
 import colorlog
+import simplejson as json
 from cached_property import timed_cached_property
+from mypy_extensions import TypedDict
 
 from clusterman.aws.client import autoscaling
 from clusterman.aws.client import ec2
@@ -19,6 +21,12 @@ _BATCH_DETACH_SIZE = 20
 _BATCH_TERM_SIZE = 200
 
 logger = colorlog.getLogger(__name__)
+
+
+AutoScalingResourceGroupConfig = TypedDict(
+    'AutoScalingResourceGroupConfig',
+    {}
+)
 
 
 class AutoScalingResourceGroup(MesosPoolResourceGroup):
@@ -62,31 +70,24 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
         return response['LaunchConfigurations'][0]
 
     def market_weight(self, market: InstanceMarket) -> float:
-        """ Return the weighted capacity assigned to a particular EC2 market by
-        this resource group.
+        """ Return the number of instances in the given market
 
-        An ASG may only have instances of a single type. Therefore, for that
-        type, the weighted capacity is the size of the group, and None for all
-        other types.
+        Since ASGs have no concept of weight, we simply return the number of
+        instances in the ASG in the given market.
+
+        :param market: The market for which we want to count instances for
+        :returns: The number of instances in the given market
         """
         # We first check that our ASG has instances of the same type in the
         # same availability zone(s) as the market we are looking at
-        if (market.instance is self._launch_config['InstanceType'] and
-                market.az in set(self._group_config['AvailabilityZones'])):
-            # We count and return the number instances in the market's AZ
-            return sum(
-                market.az is None or market.az is inst['AvailabilityZone']
-                for inst in self._group_config['Instances']
-                if inst is not None
-            )
-        return None
+        return self.market_capacities[market]
 
     def modify_target_capacity(
         self,
         target_capacity: float,
         *,
-        terminate_excess_capacity: bool,
-        dry_run: bool,
+        terminate_excess_capacity: bool = False,
+        dry_run: bool = False,
         honor_cooldown: bool = False,
     ) -> None:
         """ Modify the desired capacity for the ASG.
@@ -145,6 +146,7 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
     def terminate_instances_by_id(
         self,
         instance_ids: Sequence[str],
+        *,
         decrement_desired_capacity: bool = False,
     ) -> Sequence[str]:
         """ Terminate instances in the ASG
@@ -170,11 +172,13 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
         # The autoscaling API specifies that we can only specify up to 20 ids at
         # once to detach:
         for i in range(0, len(instance_ids), _BATCH_DETACH_SIZE):
+            to_detach = instance_ids[i:i + _BATCH_DETACH_SIZE]
             autoscaling.detach_instances(
-                InstanceIds=instance_ids[i:i + _BATCH_DETACH_SIZE],
+                InstanceIds=to_detach,
                 AutoScalingGroupName=self.group_id,
                 ShouldDecrementDesiredCapacity=decrement_desired_capacity,
             )
+            self._marked_for_death.update(to_detach)
 
         # Although these instances have only been detached, we consider them
         # terminated for the purposes of the ASG
@@ -182,22 +186,21 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
         return instance_ids
 
     def _terminate_detached_instances(self):
-        """ Periodically terminate detached instances using the EC2 client. """
+        """ Periodically terminate detached instances using the EC2 client.
+        Intended to be run in a separate thread.
+        """
         while True:
+            detached_ids = []
             if self._marked_for_death:
                 # We first need to get the ids for instances that have finished
-                # detaching
-                instance_ids = set(self.instance_ids)
-                detached_ids = [
-                    inst_id
-                    for inst_id in self._marked_for_death
-                    if inst_id not in instance_ids
-                ]
+                # detachings)
+                detached_ids = list(self._marked_for_death - set(self.instance_ids))
 
+            if detached_ids:  # if theres something that has finished detaching
                 # AWS API recommends terminating not more than 1000 instances
                 # at a time.
                 terminated_ids = []
-                for i in range(0, len(instance_ids), _BATCH_TERM_SIZE):
+                for i in range(0, len(detached_ids), _BATCH_TERM_SIZE):
                     response = ec2.terminate_instances(InstanceIds=detached_ids)
                     terminated_ids.extend([
                         inst['InstanceId']
@@ -206,15 +209,15 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
 
                 # It's possible that not every instance appears terminated,
                 # probably because AWS already terminated them. Log just in case.
-                missing_instances = set(detached_ids) - set(terminated_ids)
-                if missing_instances:
+                missing_ids = set(detached_ids) - set(terminated_ids)
+                if missing_ids:
                     logger.warn(
                         'Some instances could not be terminated; '
                         'they were probably killed previously'
                     )
-                    logger.warn(f'Missing instances: {list(missing_instances)}')
+                    logger.warn(f'Missing instances: {list(missing_ids)}')
 
-                logger.info(f'ASG {self.id}: terminated instances: {terminated_ids}')
+                logger.info(f'ASG {self.id}: terminated: {terminated_ids}')
                 self._marked_for_death -= set(detached_ids)
 
             time.sleep(CACHE_TTL_SECONDS)  # to avoid hitting AWS request limit
@@ -238,6 +241,20 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
         ]
 
     @property
+    def market_capacities(self) -> Mapping[InstanceMarket, float]:
+        """ Returns the total capacity (number of instances) per market that the
+        ASG is in.
+        """
+        instances_by_market = defaultdict(int)
+        for inst in self._group_config['Instances']:
+            inst_market = InstanceMarket(
+                self._launch_config['InstanceType'],  # type uniform in asg
+                inst['AvailabilityZone'],
+            )
+            instances_by_market[inst_market] += 1
+        return instances_by_market
+
+    @property
     def target_capacity(self) -> float:
         return self._group_config['DesiredCapacity']
 
@@ -249,23 +266,52 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
     def status(self) -> str:
         """ The status of the ASG
 
-        ASG configs only include the 'Status' key when it is being terminated,
-        according to the API. Thus, we assume that if there is no status, the
-        ASG is fine.
-
-        [WIP] I'm not sure if this is the best way to an ASG's status as it
-        really applies to the instances. But I can't think of a way to do it
-        that is similar to how we get it for SFRs.
+        An ASG either exists or it doesn't. Thus, if we can query its status,
+        it is active.
         """
-        return self._group_config.get('Status', 'active')
+        return 'active'
 
     @property
     def is_stale(self) -> bool:
-        """ [WIP] Not sure an ASG can become stale? What does staleness for an
-        ASG even mean?
+        """ Whether or not the ASG is stale
+
+        An ASG either exists or it doesn't. Thus, the concept of staleness
+        doesn't exist.
         """
         return False
 
-    def load(cluster: str, pool: str, config: Any) -> Mapping[str, 'MesosPoolResourceGroup']:
-        """ How do I use cluster pool info to select ASGs? Tags like SFRs? """
-        return {}
+    @staticmethod
+    def load(
+        cluster: str,
+        pool: str,
+        config: AutoScalingResourceGroupConfig,
+    ) -> Mapping[str, 'MesosPoolResourceGroup']:
+        """
+        Loads a list of ASGs in the given cluster and pool
+
+        :param cluster: A cluster name
+        :param pool: A pool name
+        :param config: An ASG config
+        :returns: A dictionary of autoscaling resource groups, indexed by the id
+        """
+        asg_tags = _get_asg_tags()
+        asgs = {}
+        for asg_id, tags in asg_tags.items():
+            try:
+                puppet_role_tags = json.loads(tags['puppet:role::paasta'])
+                if (puppet_role_tags['pool'] == pool and
+                        puppet_role_tags['paasta_cluster'] == cluster):
+                    asgs[asg_id] = AutoScalingResourceGroup(asg_id)
+            except KeyError:
+                continue
+        return asgs
+
+
+def _get_asg_tags() -> Mapping[str, Mapping[str, str]]:
+    """ Retrieves the tags for each ASG """
+    asg_id_to_tags = {}
+    for page in autoscaling.get_paginator('describe_auto_scaling_groups').paginate():
+        for asg in page['AutoScalingGroups']:
+            tags_dict = {tag['Key']: tag['Value'] for tag in asg['Tags']}
+            asg_id_to_tags[asg['AutoScalingGroupName']] = tags_dict
+    return asg_id_to_tags
