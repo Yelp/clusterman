@@ -87,6 +87,10 @@ class dynamodb(metaclass=_BotoForwarder):
     client = 'dynamodb'
 
 
+class autoscaling(metaclass=_BotoForwarder):
+    client = 'autoscaling'
+
+
 def get_latest_ami(ami_type):
     filters = [{
         'Name': 'name',
