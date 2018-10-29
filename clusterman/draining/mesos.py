@@ -8,8 +8,10 @@ from socket import gethostbyname
 
 import colorlog
 from requests import Request
+from requests import RequestException
 from requests import Session
 from requests.exceptions import HTTPError
+from retry import retry
 Hostname = namedtuple('Hostname', ['host', 'ip'])
 MESOS_MASTER_PORT = 5050
 Credentials = namedtuple('Credentials', ['file', 'principal', 'secret'])
@@ -94,6 +96,7 @@ def operator_api(mesos_master_fqdn, mesos_secret_path):
     return execute_operator_api_request
 
 
+@retry(exceptions=RequestException, tries=5, delay=5)
 def down(operator_client, hostnames):
     """Marks the specified hostnames as being down for maintenance, and makes them unavailable for use.
     :param hostnames: a list of hostnames
@@ -108,6 +111,7 @@ def down(operator_client, hostnames):
     return down_output
 
 
+@retry(exceptions=RequestException, tries=5, delay=5)
 def up(operator_client, hostnames):
     """Marks the specified hostnames as no longer being down for maintenance, and makes them available for use.
     :param hostnames: a list of hostnames
@@ -122,6 +126,7 @@ def up(operator_client, hostnames):
     return up_output
 
 
+@retry(exceptions=RequestException, tries=5, delay=5)
 def drain(operator_client, hostnames, start, duration):
     """Schedules a maintenance window for the specified hosts and marks them as draining.
     :param hostnames: a list of hostnames
