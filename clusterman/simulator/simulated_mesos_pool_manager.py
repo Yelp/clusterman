@@ -22,8 +22,8 @@ def _make_agent(instance):
     return {
         'resources': {
             'cpus': instance.resources.cpus,
-            'mem': instance.resources.mem,
-            'disk': instance.resources.disk or 0,  # TODO (CLUSTERMAN-298)
+            'mem': instance.resources.mem * 1000,
+            'disk': (instance.resources.disk or staticconf.read_int('ebs_volume_size', 0)) * 1000,
         },
         'used_resources': {
             # TODO CLUSTERMAN-145 - at some point we should track task start and end time, as well as

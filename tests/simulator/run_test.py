@@ -21,6 +21,7 @@ def args():
         output_prefix='',
         join_delay_params=[0, 0],
         cpus_per_weight=10,
+        ebs_volume_size=0,
     )
 
 

@@ -40,6 +40,6 @@ def test_simulated_agents(mock_pool_manager):
     assert get_total_resource_value(mock_pool_manager.agents, 'resources', 'cpus') == \
         10 * get_market_resources(TEST_MARKET).cpus
     assert get_total_resource_value(mock_pool_manager.agents, 'resources', 'mem') == \
-        10 * get_market_resources(TEST_MARKET).mem
+        10 * get_market_resources(TEST_MARKET).mem * 1000
     assert get_total_resource_value(mock_pool_manager.agents, 'resources', 'disk') == \
-        10 * get_market_resources(TEST_MARKET).disk
+        10 * get_market_resources(TEST_MARKET).disk * 1000
