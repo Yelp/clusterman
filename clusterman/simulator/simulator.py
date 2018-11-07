@@ -148,7 +148,7 @@ class Simulator:
         key: str,
         start_time: Optional[Arrow] = None,
         end_time: Optional[Arrow] = None,
-        step: Optional[timedelta]=None,
+        step: Optional[timedelta] = None,
     ) -> 'SortedDict[Arrow, float]':
         """ Compute the capacity for the cluster in the specified time range, grouped into chunks
 

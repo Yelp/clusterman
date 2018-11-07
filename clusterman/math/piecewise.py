@@ -147,7 +147,7 @@ class PiecewiseConstantFunction(Generic[T]):
         start: XValue[T],
         stop: XValue[T],
         step: XValueDiff[T],
-        transform: Callable[[XValueDiff[T]], float]=lambda x: cast(float, x),
+        transform: Callable[[XValueDiff[T]], float] = lambda x: cast(float, x),
     ) -> 'SortedDict[XValue[T], float]':
         """ Compute a sequence of integrals of the function
 
@@ -207,7 +207,7 @@ class PiecewiseConstantFunction(Generic[T]):
         self,
         start: XValue[T],
         stop: XValue[T],
-        transform: Callable[[XValueDiff[T]], float]=lambda x: cast(float, x),
+        transform: Callable[[XValueDiff[T]], float] = lambda x: cast(float, x),
     ) -> float:
         """ Helper function to compute the integral of the whole specified range
 
