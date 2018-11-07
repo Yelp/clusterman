@@ -1,3 +1,9 @@
+clusterman (2.11.0) trusty; urgency=low
+
+  * added new 'overprovisioned' option to the simulator
+
+ -- David Morrison <drmorr@yelp.com>  Wed, 07 Nov 2018 08:54:35 -0800
+
 clusterman (2.10.4) trusty; urgency=low
 
   * can handle 0 capacity in clusters
