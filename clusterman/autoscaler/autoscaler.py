@@ -145,14 +145,28 @@ class Autoscaler:
         :returns: the new target capacity we should scale to
         """
         current_target_capacity = self.mesos_pool_manager.target_capacity
+        non_orphan_fulfilled_capacity = self.mesos_pool_manager.non_orphan_fulfilled_capacity
         logger.info(f'Currently at target_capacity of {current_target_capacity}')
 
-        if not any(resource_request.values()):
+        if all(requested_quantity is None for requested_quantity in resource_request.values()):
             logger.info('No data from signal, not changing capacity')
             return current_target_capacity
+        elif all(requested_quantity == 0 for requested_quantity in resource_request.values()):
+            return 0
         elif current_target_capacity == 0:
-            logger.info('Current capacity is 0, scaling up by 1 to get some data')
+            logger.info(
+                'Current target capacity is 0 and we received a non-zero resource request, scaling up by 1 to get '
+                'some data'
+            )
             return 1
+        elif non_orphan_fulfilled_capacity == 0:
+            # Entering the main body of this method with non_orphan_fulfilled_capacity = 0 guarantees that
+            # new_target_capacity will be 0, which we do not want (since the resource request is non-zero)
+            logger.info(
+                'Non-orphan fulfilled capacity is 0 and current target capacity > 0, not changing target to let the '
+                'new instances join'
+            )
+            return current_target_capacity
 
         most_constrained_resource, usage_pct = self._get_most_constrained_resource_for_request(resource_request)
         logger.info(
