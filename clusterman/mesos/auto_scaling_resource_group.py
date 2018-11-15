@@ -113,7 +113,7 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
         min_size = self._group_config['MinSize']
         if target_capacity > max_size:
             logger.warn(
-                f'New target_capacty={target_capacity} exceeds ASG MaxSize={max_size}, '
+                f'New target_capacity={target_capacity} exceeds ASG MaxSize={max_size}, '
                 'setting to max instead'
             )
             target_capacity = max_size
