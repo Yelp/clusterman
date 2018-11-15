@@ -68,7 +68,7 @@ class AutoscalerBootstrapBatch(BatchDaemon, BatchLoggingMixin):
     def configure_initial(self):
         setup_config(self.options)
         self.logger = logger
-        self.fetch_proc_count, self.run_proc_count = setup_signals_environment(self.options)
+        self.fetch_proc_count, self.run_proc_count = setup_signals_environment(self.options.pool)
         self.config.watchers.append(
             {self.options.pool: get_pool_config_path(self.options.cluster, self.options.pool)},
         )

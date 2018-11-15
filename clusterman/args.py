@@ -141,6 +141,10 @@ def _get_validated_args(parser):
         parser.print_help()
         sys.exit(1)
 
+    if hasattr(args, 'cluster') and not args.cluster:
+        logger.critical('cluster name must be specified')
+        sys.exit(1)
+
     # Every subcommand must specify an entry point, accessed here by args.entrypoint
     # (protip) use the subparser decorator to set this up for you
     if not hasattr(args, 'entrypoint'):

@@ -1,4 +1,3 @@
-import argparse
 import os
 import socket
 import struct
@@ -31,6 +30,7 @@ from clusterman.exceptions import SignalValidationError
 logger = colorlog.getLogger(__name__)
 
 ACK = bytes([1])
+DEFAULT_SIGNALS_BUCKET = 'yelp-clusterman-signals'
 SOCKET_MESG_SIZE = 4096
 SOCKET_TIMEOUT_SECONDS = 300
 SIGNAL_LOGGERS: Mapping[
@@ -195,8 +195,8 @@ class Signal:
         return metrics
 
 
-def setup_signals_environment(args: argparse.Namespace) -> Tuple[int, int]:
-    app_namespace = POOL_NAMESPACE.format(pool=args.pool)
+def setup_signals_environment(pool: str) -> Tuple[int, int]:
+    app_namespace = POOL_NAMESPACE.format(pool=pool)
     default_signal_version = staticconf.read_string('autoscale_signal.branch_or_tag')
     signal_versions = [default_signal_version]
     signal_namespaces = [staticconf.read_string('autoscaling.default_signal_role')]
@@ -213,12 +213,12 @@ def setup_signals_environment(args: argparse.Namespace) -> Tuple[int, int]:
         signal_versions.append(staticconf.read_string(
             'autoscale_signal.branch_or_tag',
             namespace=app_namespace,
-            default=args.pool,
+            default=pool,
         ))
         signal_namespaces.append(
-            staticconf.read_string('autoscale_signal.namespace', namespace=app_namespace, default=args.pool),
+            staticconf.read_string('autoscale_signal.namespace', namespace=app_namespace, default=pool),
         )
-        app_names.append(args.pool)
+        app_names.append(pool)
 
     versions_to_fetch = set(signal_versions)
     os.environ['CMAN_VERSIONS_TO_FETCH'] = ' '.join(versions_to_fetch)
@@ -228,5 +228,6 @@ def setup_signals_environment(args: argparse.Namespace) -> Tuple[int, int]:
     os.environ['CMAN_SIGNAL_APPS'] = ' '.join(app_names)
     os.environ['CMAN_NUM_VERSIONS'] = str(len(versions_to_fetch))
     os.environ['CMAN_NUM_SIGNALS'] = str(len(signal_versions))
+    os.environ['CMAN_SIGNALS_BUCKET'] = staticconf.read_string('aws.signals_bucket', default=DEFAULT_SIGNALS_BUCKET)
 
     return len(versions_to_fetch), len(signal_versions)

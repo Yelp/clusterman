@@ -1,5 +1,7 @@
 import operator
+import os
 import random
+import subprocess
 from collections import defaultdict
 from datetime import timedelta
 from heapq import heappop
@@ -17,6 +19,7 @@ from clusterman_metrics import METADATA
 from sortedcontainers import SortedDict  # noqa
 
 from clusterman.autoscaler.autoscaler import Autoscaler
+from clusterman.autoscaler.signals import setup_signals_environment
 from clusterman.aws.client import ec2
 from clusterman.aws.markets import get_instance_market
 from clusterman.aws.markets import InstanceMarket
@@ -234,7 +237,14 @@ class Simulator:
             curr_timestamp += self.billing_frequency
         self.cost_per_hour.add_delta(curr_timestamp, -last_billed_price)
 
-    def _make_autoscaler(self, autoscaler_config_file):
+    def _make_autoscaler(self, autoscaler_config_file: str) -> None:
+        fetch_count, signal_count = setup_signals_environment(self.metadata.pool)
+        signal_dir = os.path.join(os.path.expanduser('~'), '.cache', 'clusterman')
+        for i in range(fetch_count):
+            subprocess.run(['signals/fetch_signal.sh', str(i), signal_dir], check=True, env=os.environ.copy())
+        for i in range(signal_count):
+            subprocess.Popen(['signals/run_signal.sh', str(i), signal_dir], env=os.environ.copy())
+
         with open(autoscaler_config_file) as f:
             autoscaler_config = yaml.safe_load(f)
         configs = autoscaler_config.get('configs', [])
