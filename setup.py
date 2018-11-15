@@ -8,7 +8,7 @@ setup(
     version=__version__,
     provides=['clusterman'],
     author='Distsys Compute',
-    author_email='distsys-compute@yelp.com',
+    author_email='compute-infra@yelp.com',
     description='Mesos cluster scaling and management tools',
     packages=find_packages(exclude=['tests']),
     setup_requires=['setuptools'],

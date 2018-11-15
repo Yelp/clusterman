@@ -1,5 +1,5 @@
 Source: clusterman
-Maintainer: Distsys Compute <distsys-compute@yelp.com>
+Maintainer: Distsys Compute <compute-infra@yelp.com>
 Build-Depends:
     dh-virtualenv,
 

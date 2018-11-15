@@ -28,7 +28,7 @@ logger = colorlog.getLogger(__name__)
 
 
 class SpotPriceCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
-    notify_emails = ['distsys-compute@yelp.com']
+    notify_emails = ['compute-infra@yelp.com']
 
     @batch_command_line_arguments
     def parse_args(self, parser):

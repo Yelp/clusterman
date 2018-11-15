@@ -9,7 +9,7 @@ eeMetrics = new EEMetrics()
 SERVICE_NAME = 'clusterman'
 DEPLOY_GROUPS = ['prod.non_canary', 'dev.everything']
 IRC_CHANNELS = ['clusterman']
-EMAILS = ['distsys-compute@yelp.com']
+EMAILS = ['compute-infra@yelp.com']
 
 commit = ''
 authors = [:]
