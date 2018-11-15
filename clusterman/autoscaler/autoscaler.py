@@ -195,7 +195,7 @@ class Autoscaler:
         # calculations, this ensures the correct behaviour.  The math here continues to work out as the old resource
         # group scales down, because as the fulfilled_capacity decreases, the scale_factor increases by the same
         # amount.  Tada!
-        new_target_capacity = self.mesos_pool_manager.non_orphan_fulfilled_capacity * scale_factor
+        new_target_capacity = non_orphan_fulfilled_capacity * scale_factor
 
         # If the percentage requested differs by more than the allowable margin from the setpoint,
         # we scale up/down to reach the setpoint.  We want to use target_capacity here instead of
