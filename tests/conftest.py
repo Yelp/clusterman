@@ -40,10 +40,12 @@ def main_clusterman_config():
         'aws': {
             'access_key_file': '/etc/secrets',
             'region': 'us-west-2',
+            'signals_bucket': 'the_bucket',
         },
         'autoscaling': {
             'setpoint': 0.7,
             'setpoint_margin': 0.1,
+            'default_signal_role': 'foo',
         },
         'batches': {
             'spot_prices': {

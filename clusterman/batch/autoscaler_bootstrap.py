@@ -1,3 +1,4 @@
+import os
 import subprocess
 import time
 import xmlrpc.client
@@ -11,6 +12,7 @@ from clusterman.args import add_branch_or_tag_arg
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_env_config_path_arg
+from clusterman.args import add_healthcheck_only_arg
 from clusterman.args import add_pool_arg
 from clusterman.autoscaler.signals import setup_signals_environment
 from clusterman.batch.util import BatchLoggingMixin
@@ -63,18 +65,23 @@ class AutoscalerBootstrapBatch(BatchDaemon, BatchLoggingMixin):
             default='/code/signals',
             help='location of signal artifacts',
         )
+        add_healthcheck_only_arg(arg_group)
 
     @batch_configure
     def configure_initial(self):
         setup_config(self.options)
         self.logger = logger
         self.fetch_proc_count, self.run_proc_count = setup_signals_environment(self.options.pool)
-        self.config.watchers.append(
-            {self.options.pool: get_pool_config_path(self.options.cluster, self.options.pool)},
-        )
+        if not self.options.healthcheck_only:
+            self.config.watchers.append(
+                {self.options.pool: get_pool_config_path(self.options.cluster, self.options.pool)},
+            )
 
     def run(self):
-        subprocess.Popen(['supervisord', '-c', 'signals/supervisord.conf'])
+        env = os.environ.copy()
+        args = env.get('CMAN_ARGS', '')
+        env['CMAN_ARGS'] = args + (' --healthcheck-only' if self.options.healthcheck_only else '')
+        subprocess.Popen(['supervisord', '-c', 'clusterman/supervisord/supervisord.conf'], env=env)
         time.sleep(1)  # Give some time for the process to start
         with xmlrpc.client.ServerProxy(SUPERVISORD_ADDR) as rpc:
             try:

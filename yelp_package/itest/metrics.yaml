@@ -45,3 +45,5 @@ metadata:
 
 system_metrics:
     cpus_allocated|cluster=docker,pool=default: *capacity
+    mem_allocated|cluster=docker,pool=default: *capacity
+    disk_allocated|cluster=docker,pool=default: *capacity

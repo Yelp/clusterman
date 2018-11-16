@@ -16,7 +16,6 @@ RUN     apt-get update \
             libpython3.6 \
             libxml2 \
             libyaml-0-2 \
-            lsb-release \
             make \
             openssh-client \
             python3.6 \
@@ -39,6 +38,8 @@ RUN     cd code && tox -e virtualenv_run
 # break the preceding cache layer.
 COPY    . /code
 RUN     chown -R nobody /code
+RUN     ln -s /code/clusterman/supervisord/fetch_clusterman_signal /usr/bin/fetch_clusterman_signal
+RUN     ln -s /code/clusterman/supervisord/run_clusterman_signal /usr/bin/run_clusterman_signal
 
 # Use yelp-compose (y/ycp) for acceptance testing
 RUN     install -d --owner=nobody /code/logs

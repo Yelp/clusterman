@@ -240,10 +240,16 @@ class Simulator:
     def _make_autoscaler(self, autoscaler_config_file: str) -> None:
         fetch_count, signal_count = setup_signals_environment(self.metadata.pool)
         signal_dir = os.path.join(os.path.expanduser('~'), '.cache', 'clusterman')
+
+        endpoint_url = staticconf.read_string('aws.endpoint_url', '').format(svc='s3')
+        env = os.environ.copy()
+        if endpoint_url:
+            env['AWS_ENDPOINT_URL_ARGS'] = f'--endpoint-url {endpoint_url}'
+
         for i in range(fetch_count):
-            subprocess.run(['signals/fetch_signal.sh', str(i), signal_dir], check=True, env=os.environ.copy())
+            subprocess.run(['fetch_clusterman_signal', str(i), signal_dir], check=True, env=env)
         for i in range(signal_count):
-            subprocess.Popen(['signals/run_signal.sh', str(i), signal_dir], env=os.environ.copy())
+            subprocess.Popen(['run_clusterman_signal', str(i), signal_dir], env=env)
 
         with open(autoscaler_config_file) as f:
             autoscaler_config = yaml.safe_load(f)

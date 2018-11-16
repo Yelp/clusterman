@@ -15,6 +15,10 @@ setup(
     include_package_data=True,
     install_requires=[
     ],
+    scripts=[
+        'clusterman/supervisord/fetch_clusterman_signal',
+        'clusterman/supervisord/run_clusterman_signal',
+    ],
     entry_points={
         'console_scripts': [
             'clusterman=clusterman.run:main',

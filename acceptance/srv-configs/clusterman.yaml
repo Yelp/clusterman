@@ -32,18 +32,8 @@ autoscaling:
     setpoint_margin: 0.05
 
 autoscale_signal:
-    name: MostRecentResources
-    branch_or_tag: v3.6.5
-    required_metrics:
-        - name: cpus_allocated
-          type: system_metrics
-          minute_range: 10
-        - name: mem_allocated
-          type: system_metrics
-          minute_range: 10
-        - name: disk_allocated
-          type: system_metrics
-          minute_range: 10
+    name: ConstantSignal
+    branch_or_tag: acceptance
     period_minutes: 10
 
 sensu_config:
