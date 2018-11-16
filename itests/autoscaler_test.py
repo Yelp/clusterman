@@ -10,9 +10,16 @@ from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
 from tests.conftest import clusterman_pool_config
 from tests.conftest import main_clusterman_config
 from tests.conftest import mock_aws_client_setup
+from tests.mesos.conftest import setup_autoscaling
 from tests.mesos.conftest import setup_ec2
 
-pytest.mark.usefixtures(mock_aws_client_setup, main_clusterman_config, clusterman_pool_config, setup_ec2)
+pytest.mark.usefixtures(
+    mock_aws_client_setup,
+    main_clusterman_config,
+    clusterman_pool_config,
+    setup_ec2,
+    setup_autoscaling,
+)
 
 
 @pytest.fixture

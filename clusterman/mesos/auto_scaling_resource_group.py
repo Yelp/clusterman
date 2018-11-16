@@ -2,8 +2,10 @@ import pprint
 import threading
 import time
 from collections import defaultdict
+from typing import Dict
 from typing import Mapping
 from typing import Sequence
+from typing import Set
 
 import colorlog
 import simplejson as json
@@ -25,7 +27,9 @@ logger = colorlog.getLogger(__name__)
 
 AutoScalingResourceGroupConfig = TypedDict(
     'AutoScalingResourceGroupConfig',
-    {}
+    {
+        'tag': str,
+    }
 )
 
 
@@ -37,7 +41,7 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
     def __init__(self, group_id: str) -> None:
         self.group_id = group_id  # ASG id
 
-        self._marked_for_death = set()
+        self._marked_for_death: Set[str] = set()
         threading.Thread(
             target=self._terminate_detached_instances,
             daemon=True,
@@ -245,7 +249,7 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
         """ Returns the total capacity (number of instances) per market that the
         ASG is in.
         """
-        instances_by_market = defaultdict(int)
+        instances_by_market: Dict[InstanceMarket, float] = defaultdict(float)
         for inst in self._group_config['Instances']:
             inst_market = InstanceMarket(
                 self._launch_config['InstanceType'],  # type uniform in asg
@@ -298,7 +302,7 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
         asgs = {}
         for asg_id, tags in asg_tags.items():
             try:
-                puppet_role_tags = json.loads(tags['puppet:role::paasta'])
+                puppet_role_tags = json.loads(tags[config['tag']])
                 if (puppet_role_tags['pool'] == pool and
                         puppet_role_tags['paasta_cluster'] == cluster):
                     asgs[asg_id] = AutoScalingResourceGroup(asg_id)

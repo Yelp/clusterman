@@ -16,6 +16,7 @@ from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 from clusterman.aws.markets import InstanceMarket
 from clusterman.config import get_cluster_config_directory
 from clusterman.exceptions import MesosPoolManagerError
+from clusterman.mesos.auto_scaling_resource_group import AutoScalingResourceGroup
 from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
 from clusterman.mesos.spotinst_resource_group import SpotInstResourceGroup
@@ -37,6 +38,7 @@ RESOURCE_GROUPS: Mapping[
 ] = {
     'sfr': SpotFleetResourceGroup,
     'spotinst': SpotInstResourceGroup,
+    'asg': AutoScalingResourceGroup,
 }
 RESOURCE_GROUPS_REV: Mapping[
     Type[MesosPoolResourceGroup],

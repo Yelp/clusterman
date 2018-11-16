@@ -8,10 +8,11 @@ from clusterman.aws.markets import InstanceMarket
 from clusterman.mesos.auto_scaling_resource_group import _get_asg_tags
 from clusterman.mesos.auto_scaling_resource_group import AutoScalingResourceGroup
 from tests.mesos.conftest import setup_autoscaling
+from tests.mesos.conftest import setup_ec2
+from tests.mesos.spot_fleet_resource_group_test import mock_subnet
 
 
-# setup_autoscaling mocks out the AWS autoscaling client using moto
-pytest.mark.usefixtures(setup_autoscaling)
+pytest.mark.usefixtures(setup_autoscaling, setup_ec2, mock_subnet)
 
 
 @pytest.fixture
@@ -26,20 +27,42 @@ def mock_launch_config():
 
 
 @pytest.fixture
-def mock_asg_config(mock_launch_config):
+def mock_asg_name():
+    return 'fake_asg'
+
+
+@pytest.fixture
+def mock_cluster():
+    return 'fake_cluster'
+
+
+@pytest.fixture
+def mock_pool():
+    return 'fake_pool'
+
+
+@pytest.fixture
+def mock_asg_config(
+    mock_launch_config,
+    mock_subnet,
+    mock_asg_name,
+    mock_cluster,
+    mock_pool,
+):
     asg = {
-        'AutoScalingGroupName': 'fake_asg',
+        'AutoScalingGroupName': mock_asg_name,
         'LaunchConfigurationName': mock_launch_config['LaunchConfigurationName'],
         'MinSize': 1,
-        'MaxSize': 5,
-        'DesiredCapacity': 3,
+        'MaxSize': 30,
+        'DesiredCapacity': 10,
         'AvailabilityZones': ['us-west-2a'],
+        'VPCZoneIdentifier': mock_subnet['Subnet']['SubnetId'],
         'Tags': [
             {
                 'Key': 'puppet:role::paasta',
                 'Value': json.dumps({
-                    'pool': 'fake_pool',
-                    'paasta_cluster': 'fake_cluster',
+                    'pool': mock_pool,
+                    'paasta_cluster': mock_cluster
                 }),
             }, {
                 'Key': 'fake_tag_key',
@@ -114,21 +137,31 @@ def test_market_capacities(
         mock_asg_config['DesiredCapacity']
 
 
-def test_modify_target_capacity(mock_auto_scaling_resource_group, mock_asg_config):
+@pytest.mark.parametrize('new_desired_capacity', [0, 11, 100])
+def test_modify_target_capacity(
+    mock_auto_scaling_resource_group,
+    mock_asg_config,
+    new_desired_capacity,
+):
     kwargs = dict(
         terminate_excess_capacity=False,
         dry_run=False,
         honor_cooldown=False,
     )
-    new_desired_capacity = mock_asg_config['DesiredCapacity'] + 1
 
     mock_auto_scaling_resource_group.modify_target_capacity(
         new_desired_capacity,
         **kwargs,
     )
 
-    assert mock_auto_scaling_resource_group._group_config['DesiredCapacity'] == \
-        new_desired_capacity
+    desired_capacity = \
+        mock_auto_scaling_resource_group._group_config['DesiredCapacity']
+    if new_desired_capacity < mock_asg_config['MinSize']:
+        assert desired_capacity == mock_asg_config['MinSize']
+    elif new_desired_capacity > mock_asg_config['MaxSize']:
+        assert desired_capacity == mock_asg_config['MaxSize']
+    else:
+        assert desired_capacity == new_desired_capacity
 
 
 @pytest.mark.parametrize('decrement_desired_capacity', [True, False])
@@ -204,7 +237,11 @@ def test_load(mock_asg_config, cluster):
         'clusterman.mesos.auto_scaling_resource_group.AutoScalingResourceGroup',
         autospec=True,
     ):
-        asgs = AutoScalingResourceGroup.load(cluster, 'fake_pool', None)
+        asgs = AutoScalingResourceGroup.load(
+            cluster,
+            'fake_pool',
+            config={'tag': 'puppet:role::paasta'},
+        )
 
     if cluster == 'fake_cluster':
         assert mock_asg_config['AutoScalingGroupName'] in asgs
