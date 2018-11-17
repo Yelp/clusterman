@@ -4,6 +4,7 @@ import mock
 import pytest
 
 from clusterman.aws.client import autoscaling
+from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import InstanceMarket
 from clusterman.mesos.auto_scaling_resource_group import _get_asg_tags
 from clusterman.mesos.auto_scaling_resource_group import AutoScalingResourceGroup
@@ -75,37 +76,51 @@ def mock_asg_config(
     return asg
 
 
+# not meant to be a fixture. simply replaces all of moto's invalid azs with
+# proper ones
+def patched_group_config(asg):
+    asg_config = autoscaling.describe_auto_scaling_groups(
+        AutoScalingGroupNames=[asg.id],
+    )['AutoScalingGroups'][0]
+    for i in range(len(asg_config['Instances'])):
+        inst = asg_config['Instances'][i]
+        # moto hardcodes the nonexistent us-east-1e for all ASG instances. We
+        # fix that here by setting it to one of the ASG's AZs
+        inst['AvailabilityZone'] = asg_config['AvailabilityZones'][0]
+    return asg_config
+
+
 @pytest.fixture
 @mock.patch('threading.Thread', autospec=True)
-def mock_auto_scaling_resource_group(mock_Thread, mock_asg_config):
+def mock_asrg(mock_Thread, mock_asg_config):
     return AutoScalingResourceGroup(mock_asg_config['AutoScalingGroupName'])
 
 
 @mock.patch('threading.Thread', autospec=True)
-def test_init(mock_Thread, mock_auto_scaling_resource_group):
+def test_init(mock_Thread, mock_asrg):
     mock_Thread.call_count == 1
     mock_Thread.call_args == mock.call(
-        target=mock_auto_scaling_resource_group._terminate_detached_instances,
+        target=mock_asrg._terminate_detached_instances,
         daemon=True,
     )
 
 
-def test_group_config(mock_auto_scaling_resource_group, mock_asg_config):
-    group_config = mock_auto_scaling_resource_group._group_config
+def test_group_config(mock_asrg, mock_asg_config):
+    group_config = mock_asrg._group_config
 
     assert group_config['AutoScalingGroupName'] == \
         mock_asg_config['AutoScalingGroupName']
 
 
-def test_launch_config(mock_auto_scaling_resource_group, mock_launch_config):
-    launch_config = mock_auto_scaling_resource_group._launch_config
+def test_launch_config(mock_asrg, mock_launch_config):
+    launch_config = mock_asrg._launch_config
 
     assert launch_config['LaunchConfigurationName'] == \
         mock_launch_config['LaunchConfigurationName']
 
 
 def test_market_capacities(
-    mock_auto_scaling_resource_group,
+    mock_asrg,
     mock_asg_config,
     mock_launch_config,
 ):
@@ -114,87 +129,95 @@ def test_market_capacities(
         mock_asg_config['AvailabilityZones'][0],
     )
 
-    # moto hard codes us-east-1e as the region for all instances, which is not
-    # valid according to InstanceMarket. Until this is changed, we need to
-    # manually set the region ourselves
-    with mock.patch(
-        'clusterman.aws.client.autoscaling.describe_auto_scaling_groups',
-        mock.Mock(return_value=dict(
-            AutoScalingGroups=[dict(
-                **mock_asg_config,
-                Instances=[{
-                    'InstanceId': 'fake_instance_id',
-                    'AvailabilityZone': mock_asg_config['AvailabilityZones'][0],
-                }] * mock_asg_config['DesiredCapacity'],
-            )]
-        )),
-        autospec=None,
+    with mock.patch.object(
+        AutoScalingResourceGroup._group_config,
+        'func',
+        patched_group_config,
     ):
-        market_capacities = mock_auto_scaling_resource_group.market_capacities
+        market_capacities = mock_asrg.market_capacities
 
     assert asg_instance_market in market_capacities
     assert market_capacities[asg_instance_market] == \
         mock_asg_config['DesiredCapacity']
 
 
-@pytest.mark.parametrize('new_desired_capacity', [0, 11, 100])
-def test_modify_target_capacity(
-    mock_auto_scaling_resource_group,
-    mock_asg_config,
-    new_desired_capacity,
-):
-    kwargs = dict(
+def test_modify_target_capacity_up(mock_asrg):
+    new_desired_capacity = mock_asrg.target_capacity + 5
+
+    mock_asrg.modify_target_capacity(
+        new_desired_capacity,
         terminate_excess_capacity=False,
         dry_run=False,
         honor_cooldown=False,
     )
 
-    mock_auto_scaling_resource_group.modify_target_capacity(
+    assert mock_asrg.target_capacity == new_desired_capacity
+    assert mock_asrg.fulfilled_capacity == new_desired_capacity
+
+
+@pytest.mark.parametrize('terminate_excess_capacity', [True, False])
+def test_modify_target_capacity_down(
+    mock_asrg,
+    terminate_excess_capacity,
+):
+    new_desired_capacity = mock_asrg.target_capacity - 5
+
+    mock_asrg.modify_target_capacity(
         new_desired_capacity,
-        **kwargs,
+        terminate_excess_capacity=terminate_excess_capacity,
+        dry_run=False,
+        honor_cooldown=False,
     )
 
-    desired_capacity = \
-        mock_auto_scaling_resource_group._group_config['DesiredCapacity']
+    if terminate_excess_capacity:
+        assert mock_asrg.target_capacity == new_desired_capacity
+        assert mock_asrg._scale_down_to is None
+        assert mock_asrg.fulfilled_capacity == new_desired_capacity
+    else:
+        assert mock_asrg._scale_down_to == new_desired_capacity
+        assert mock_asrg.fulfilled_capacity != new_desired_capacity
+
+
+@pytest.mark.parametrize('new_desired_capacity', [0, 100])
+def test_modify_target_capacity_min_max(
+    mock_asrg,
+    mock_asg_config,
+    new_desired_capacity,
+):
+    mock_asrg.modify_target_capacity(
+        new_desired_capacity,
+        terminate_excess_capacity=False,
+        dry_run=False,
+        honor_cooldown=False,
+    )
+
+    desired_capacity = mock_asrg.target_capacity
     if new_desired_capacity < mock_asg_config['MinSize']:
         assert desired_capacity == mock_asg_config['MinSize']
     elif new_desired_capacity > mock_asg_config['MaxSize']:
         assert desired_capacity == mock_asg_config['MaxSize']
-    else:
-        assert desired_capacity == new_desired_capacity
 
 
-@pytest.mark.parametrize('decrement_desired_capacity', [True, False])
+@pytest.mark.parametrize('_scale_down_to', [10, 5, None])
 def test_terminate_instances_by_id(
-    mock_auto_scaling_resource_group,
+    mock_asrg,
     mock_asg_config,
-    decrement_desired_capacity,
+    _scale_down_to,
 ):
-    instance_ids = mock_auto_scaling_resource_group.instance_ids
+    mock_asrg._scale_down_to = _scale_down_to
+    instance_ids = mock_asrg.instance_ids  # len = 10
 
-    mock_auto_scaling_resource_group.terminate_instances_by_id(
-        instance_ids,
-        decrement_desired_capacity=decrement_desired_capacity,
-    )
+    mock_asrg.terminate_instances_by_id(instance_ids)
 
-    if decrement_desired_capacity:
-        assert len(mock_auto_scaling_resource_group.instance_ids) == 0
+    if _scale_down_to:
+        assert mock_asrg.target_capacity == len(instance_ids) - _scale_down_to
     else:
         # New instances should've been spun up to take the place of the detached
         # instances
-        assert set(instance_ids) != \
-            set(mock_auto_scaling_resource_group.instance_ids)
-    assert mock_auto_scaling_resource_group._marked_for_death == set(instance_ids)
+        assert set(instance_ids) != set(mock_asrg.instance_ids)
+    assert mock_asrg._marked_for_death == set(instance_ids)
 
 
-@mock.patch(
-    'clusterman.aws.client.ec2.terminate_instances',
-    lambda InstanceIds: {
-        'TerminatingInstances':
-            [{'InstanceId': inst_id} for inst_id in InstanceIds],
-    },
-    autospec=None,
-)
 @mock.patch(
     'time.sleep',
     # to break out of infinite loop in test function
@@ -202,11 +225,11 @@ def test_terminate_instances_by_id(
     autospec=None,
 )
 def test_terminate_detached_instances(
-    mock_auto_scaling_resource_group,
+    mock_asrg,
     mock_asg_config,
 ):
-    instance_ids = mock_auto_scaling_resource_group.instance_ids
-    mock_auto_scaling_resource_group._marked_for_death.update(instance_ids)
+    instance_ids = mock_asrg.instance_ids
+    mock_asrg._marked_for_death.update(instance_ids)
     autoscaling.detach_instances(
         InstanceIds=instance_ids,
         AutoScalingGroupName=mock_asg_config['AutoScalingGroupName'],
@@ -214,12 +237,15 @@ def test_terminate_detached_instances(
     )
 
     with pytest.raises(AssertionError):  # from mocked time.sleep
-        mock_auto_scaling_resource_group._terminate_detached_instances()
+        mock_asrg._terminate_detached_instances()
+    insts = ec2_describe_instances(instance_ids)
 
-    assert len(mock_auto_scaling_resource_group._marked_for_death) == 0
+    assert set(instance_ids) == {inst['InstanceId'] for inst in insts}
+    for inst in insts:
+        assert inst['State']['Name'] in {'shutting-down', 'terminated'}
 
 
-def test_get_asg_tags(mock_auto_scaling_resource_group, mock_asg_config):
+def test_get_asg_tags(mock_asrg, mock_asg_config):
     asg_id_to_tags = _get_asg_tags()
 
     assert mock_asg_config['AutoScalingGroupName'] in asg_id_to_tags
