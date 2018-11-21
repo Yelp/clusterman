@@ -7,6 +7,7 @@ from clusterman.mesos.util import agent_pid_to_ip
 from clusterman.mesos.util import allocated_agent_resources
 from clusterman.mesos.util import get_cluster_name_list
 from clusterman.mesos.util import get_pool_name_list
+from clusterman.mesos.util import has_usable_resources
 from clusterman.mesos.util import mesos_post
 
 
@@ -25,6 +26,14 @@ def mock_agent_pid_to_ip():
 def test_agent_pid_to_ip():
     ret = agent_pid_to_ip('slave(1)@10.40.31.172:5051')
     assert ret == '10.40.31.172'
+
+
+@pytest.mark.parametrize('used_mem', [0, 9.7])
+def test_has_usable_resources(used_mem):
+    assert has_usable_resources({
+        'used_resources': {'cpus': 0, 'mem': used_mem, 'disk': 0},
+        'resources': {'cpus': 10, 'mem': 10, 'disk': 10},
+    }, 0.95) == (used_mem == 0)
 
 
 def test_allocated_agent_resources(mock_agents_response):

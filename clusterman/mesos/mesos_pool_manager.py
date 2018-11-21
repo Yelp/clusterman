@@ -13,6 +13,7 @@ import arrow
 import colorlog
 import staticconf
 from cached_property import timed_cached_property
+from cachetools.func import ttl_cache
 
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import get_instance_market
@@ -25,7 +26,7 @@ from clusterman.mesos.constants import CACHE_TTL_SECONDS
 from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 from clusterman.mesos.util import agent_pid_to_ip
 from clusterman.mesos.util import allocated_agent_resources
-from clusterman.mesos.util import get_total_resource_value
+from clusterman.mesos.util import has_usable_resources
 from clusterman.mesos.util import InstanceMetadata
 from clusterman.mesos.util import mesos_post
 from clusterman.mesos.util import MesosAgentDict
@@ -175,6 +176,8 @@ class MesosPoolManager:
                 for group_id, instances in marked_instances.items():
                     self.resource_groups[group_id].terminate_instances_by_id([i.instance_id for i in instances])
 
+    # TODO (CLUSTERMAN-278): fetch this in reload_state (?)
+    @ttl_cache(ttl=CACHE_TTL_SECONDS)
     def get_instance_metadatas(self, aws_state_filter: Optional[Collection[str]] = None) -> Sequence[InstanceMetadata]:
         """ Get a list of metadata about the instances currently in the pool
 
@@ -186,6 +189,7 @@ class MesosPoolManager:
         ip_to_agent: Mapping[Optional[str], MesosAgentDict] = {
             agent_pid_to_ip(agent['pid']): agent for agent in self.agents
         }
+        usable_resource_margin = staticconf.read_float('autoscaling.usable_resource_margin', 1.0)
         instance_metadatas = []
 
         for group in self.resource_groups.values():
@@ -199,13 +203,14 @@ class MesosPoolManager:
                 agent = ip_to_agent.get(instance_ip)
 
                 metadata = InstanceMetadata(
-                    hostname=agent['hostname'] if agent else '',
                     allocated_resources=allocated_agent_resources(agent),
                     aws_state=aws_state,
                     group_id=group.id,
+                    hostname=agent['hostname'] if agent else '',
                     instance_id=instance_dict['InstanceId'],
                     instance_ip=instance_ip,
                     is_resource_group_stale=group.is_stale,
+                    is_usable=has_usable_resources(agent, usable_resource_margin),
                     market=instance_market,
                     mesos_state=self._get_mesos_agent_state(instance_ip, agent),
                     task_count=instance_id_to_task_count[agent['id']] if agent else 0,
@@ -224,15 +229,22 @@ class MesosPoolManager:
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
         :returns: float
         """
-        return get_total_resource_value(self.agents, 'used_resources', resource_name)
+        return sum(
+            getattr(m.allocated_resources, resource_name)
+            for m in self.get_instance_metadatas()
+        )
 
-    def get_resource_total(self, resource_name: str) -> float:
+    def get_resource_total(self, resource_name: str, only_if_usable: bool = False) -> float:
         """Get the total amount of the given resource for this Mesos pool.
 
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
         :returns: float
         """
-        return get_total_resource_value(self.agents, 'resources', resource_name)
+        return sum(
+            getattr(m.total_resources, resource_name)
+            for m in self.get_instance_metadatas()
+            if not only_if_usable or m.is_usable
+        )
 
     def get_percent_resource_allocation(self, resource_name: str) -> float:
         """Get the overall proportion of the given resource that is in use.
@@ -327,7 +339,7 @@ class MesosPoolManager:
         rem_group_capacities = {group_id: rg.fulfilled_capacity for group_id, rg in self.resource_groups.items()}
 
         # How much capacity is actually up and available in Mesos.
-        remaining_non_orphan_capacity = self.non_orphan_fulfilled_capacity
+        remaining_usable_capacity = self.usable_fulfilled_capacity
 
         # Iterate through all of the idle agents and mark one at a time for removal until we reach our target capacity
         # or have reached our limit of tasks to kill.
@@ -355,7 +367,7 @@ class MesosPoolManager:
                 continue
 
             if instance.mesos_state != MesosAgentState.ORPHANED:
-                if (remaining_non_orphan_capacity - instance.weight < new_target_capacity):  # case 3
+                if (remaining_usable_capacity - instance.weight < new_target_capacity):  # case 3
                     logger.info(
                         f'Killing instance {instance.instance_id} with weight {instance.weight} would take us under '
                         f'our target_capacity for non-orphan boxes. Skipping this instance.'
@@ -368,7 +380,7 @@ class MesosPoolManager:
             curr_capacity -= instance.weight
             killed_task_count += instance.task_count
             if instance.mesos_state != MesosAgentState.ORPHANED:
-                remaining_non_orphan_capacity -= instance.weight
+                remaining_usable_capacity -= instance.weight
 
             if curr_capacity <= new_target_capacity:
                 logger.info("Seems like we've picked enough instances to kill; finishing")
@@ -538,10 +550,10 @@ class MesosPoolManager:
         return sum(group.fulfilled_capacity for group in self.resource_groups.values())
 
     @property
-    def non_orphan_fulfilled_capacity(self) -> float:
+    def usable_fulfilled_capacity(self) -> float:
         return sum(
             metadata.weight for metadata in self.get_instance_metadatas(AWS_RUNNING_STATES)
-            if metadata.mesos_state not in (MesosAgentState.ORPHANED, MesosAgentState.UNKNOWN)
+            if metadata.mesos_state not in (MesosAgentState.ORPHANED, MesosAgentState.UNKNOWN) and metadata.is_usable
         )
 
     # TODO (CLUSTERMAN-278): fetch this in reload_state

@@ -52,13 +52,14 @@ class MesosAgentState(enum.Enum):
 
 
 class InstanceMetadata(NamedTuple):
-    hostname: str
     allocated_resources: MesosResources
     aws_state: str
     group_id: str
+    hostname: str
     instance_id: str
     instance_ip: Optional[str]
     is_resource_group_stale: bool
+    is_usable: bool
     market: InstanceMarket
     mesos_state: MesosAgentState
     batch_task_count: int
@@ -78,23 +79,27 @@ def agent_pid_to_ip(slave_pid):
     return regex.match(slave_pid).group(1)
 
 
+def has_usable_resources(
+    agent: Optional[MesosAgentDict],
+    usable_resource_margin: Optional[float]
+) -> bool:
+    if not agent:
+        return False
+
+    if not usable_resource_margin:
+        return True
+
+    allocated_resources = allocated_agent_resources(agent)
+    total_resources = total_agent_resources(agent)
+    return all(
+        1 - getattr(allocated_resources, res) / getattr(total_resources, res) > usable_resource_margin
+        for res in MesosResources._fields
+    )
+
+
 def get_resource_value(resources, resource_name):
     """Helper to get the value of the given resource, from a list of resources returned by Mesos."""
     return resources.get(resource_name, 0)
-
-
-def get_total_resource_value(agents, value_name, resource_name):
-    """
-    Get the total value of a resource type from the list of agents.
-
-    :param agents: list of agents from Mesos
-    :param value_name: desired resource value (e.g. total_resources, allocated_resources)
-    :param resource_name: name of resource recognized by Mesos (e.g. cpus, memory, disk)
-    """
-    return sum(
-        get_resource_value(agent.get(value_name, {}), resource_name)
-        for agent in agents
-    )
 
 
 def allocated_agent_resources(agent: Optional[MesosAgentDict]) -> MesosResources:

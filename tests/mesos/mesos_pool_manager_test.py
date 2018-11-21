@@ -83,7 +83,7 @@ def test_modify_target_capacity(new_target, constrain_return, mock_pool_manager)
 
 @mock.patch('clusterman.mesos.mesos_pool_manager.logger')
 @mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager._get_prioritized_killable_instances')
-@mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.non_orphan_fulfilled_capacity',
+@mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.usable_fulfilled_capacity',
             mock.PropertyMock(return_value=100))
 @mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager.target_capacity', mock.PropertyMock(return_value=50))
 @mock.patch(
@@ -94,12 +94,13 @@ class TestPruneFulfilledCapacity:
 
     def create_pool_instance(self, **kwargs):
         base_attributes = {
-            'hostname': 'host1',
             'allocated_resources': (0, 0, 0),
             'aws_state': 'running',
             'group_id': 'rg1',
+            'hostname': 'host1',
             'instance_id': 'instance-1',
             'instance_ip': '1.2.3.4',
+            'is_usable': True,
             'mesos_state': MesosAgentState.RUNNING,
             'task_count': 0,
             'batch_task_count': 0,
@@ -256,6 +257,7 @@ class TestChooseInstancesToPrune:
                     instance_id=instance_id,
                     instance_ip='1.2.3.4',
                     is_resource_group_stale=resource_group.is_stale,
+                    is_usable=True,
                     market='market-1',
                     mesos_state=MesosAgentState.ORPHANED if orphaned else MesosAgentState.RUNNING,
                     task_count=0 if orphaned else 5,
@@ -609,6 +611,7 @@ class TestGetInstances:
             'pid': f'slave(1)@{reservations["Instances"][1]["PrivateIpAddress"]}:1',
             'id': 'idle',
             'used_resources': {'cpus': 0},
+            'resources': {'cpus': 10},
             'hostname': 'host1',
         })
 
@@ -617,6 +620,7 @@ class TestGetInstances:
             'pid': f'slave(1)@{reservations["Instances"][2]["PrivateIpAddress"]}:1',
             'id': 'few_tasks',
             'used_resources': {'cpus': 1},
+            'resources': {'cpus': 10},
             'hostname': 'host1',
         })
         tasks.extend([{'slave_id': 'few_tasks', 'state': 'TASK_RUNNING', 'framework_id': '1'} for _ in range(3)])
@@ -626,6 +630,7 @@ class TestGetInstances:
             'pid': f'slave(1)@{reservations["Instances"][3]["PrivateIpAddress"]}:1',
             'id': 'many_tasks',
             'used_resources': {'cpus': 1},
+            'resources': {'cpus': 10},
             'hostname': 'host1',
         })
         tasks.extend([{'slave_id': 'many_tasks', 'state': 'TASK_RUNNING', 'framework_id': '1'} for _ in range(8)])
@@ -647,13 +652,14 @@ class TestGetInstances:
 
     def build_mock_pool_instance(self, state, task_count, market):
         return InstanceMetadata(
-            hostname=mock.ANY,
             allocated_resources=mock.ANY,
             aws_state=mock.ANY,
             group_id=mock.ANY,
+            hostname=mock.ANY,
             instance_id=mock.ANY,
             instance_ip=mock.ANY,
             is_resource_group_stale=mock.ANY,
+            is_usable=mock.ANY,
             mesos_state=state,
             task_count=task_count,
             batch_task_count=mock.ANY,
@@ -749,6 +755,7 @@ def test_instance_kill_order(mock_pool_manager):
         'pid': f'slave(1)@{reservations["Instances"][1]["PrivateIpAddress"]}:1',
         'id': 'idle',
         'used_resources': {'cpus': 0},
+        'resources': {'cpus': 10},
         'hostname': 'host1'
     })
 
@@ -757,6 +764,7 @@ def test_instance_kill_order(mock_pool_manager):
         'pid': f'slave(2)@{reservations["Instances"][2]["PrivateIpAddress"]}:1',
         'id': 'few_tasks',
         'used_resources': {'cpus': 3},
+        'resources': {'cpus': 10},
         'hostname': 'host2'
     })
     tasks.extend([{'slave_id': 'few_tasks', 'state': 'TASK_RUNNING', 'framework_id': '2'} for _ in range(3)])
@@ -766,6 +774,7 @@ def test_instance_kill_order(mock_pool_manager):
         'pid': f'slave(3)@{reservations["Instances"][3]["PrivateIpAddress"]}:1',
         'id': 'many_tasks',
         'used_resources': {'cpus': 8},
+        'resources': {'cpus': 10},
         'hostname': 'host3'
     })
     tasks.extend([{'slave_id': 'many_tasks', 'state': 'TASK_RUNNING', 'framework_id': '2'} for _ in range(8)])
@@ -775,6 +784,7 @@ def test_instance_kill_order(mock_pool_manager):
         'pid': f'slave(6)@{reservations["Instances"][6]["PrivateIpAddress"]}:1',
         'id': 'many_tasks_and_batch_tasks',
         'used_resources': {'cpus': 8},
+        'resources': {'cpus': 10},
         'hostname': 'host6'
     })
     tasks.extend(
@@ -789,6 +799,7 @@ def test_instance_kill_order(mock_pool_manager):
         'pid': f'slave(6)@{reservations["Instances"][7]["PrivateIpAddress"]}:1',
         'id': 'few_tasks_and_batch_tasks',
         'used_resources': {'cpus': 8},
+        'resources': {'cpus': 10},
         'hostname': 'host7'
     })
     tasks.extend(
@@ -803,6 +814,7 @@ def test_instance_kill_order(mock_pool_manager):
         'pid': f'slave(4)@{reservations["Instances"][4]["PrivateIpAddress"]}:1',
         'id': 'few_tasks_stale',
         'used_resources': {'cpus': 3},
+        'resources': {'cpus': 10},
         'hostname': 'host4'
     })
     tasks.extend([{'slave_id': 'few_tasks_stale', 'state': 'TASK_RUNNING', 'framework_id': '2'} for _ in range(3)])
@@ -812,6 +824,7 @@ def test_instance_kill_order(mock_pool_manager):
         'pid': f'slave(5)@{reservations["Instances"][5]["PrivateIpAddress"]}:1',
         'id': 'many_tasks_stale',
         'used_resources': {'cpus': 8},
+        'resources': {'cpus': 10},
         'hostname': 'host5'
     })
     tasks.extend([{'slave_id': 'many_tasks_stale', 'state': 'TASK_RUNNING', 'framework_id': '2'} for _ in range(8)])
@@ -859,6 +872,8 @@ class TestInstanceKillability:
             agents = [{
                 'pid': f'slave(1)@{reservations["Instances"][0]["PrivateIpAddress"]}:1',
                 'id': 'agent_id',
+                'used_resources': {'cpus': 0},
+                'resources': {'cpus': 10},
                 'hostname': 'host123'
             }]
             for _ in range(num_tasks):
@@ -980,56 +995,3 @@ class TestAgentListing:
         # Multiple calls should have the same result.
         assert agents == mock_pool_manager.agents
         assert mock_post.call_count == 2  # cache expires immediately in tests
-
-
-class TestResources:
-    @pytest.fixture
-    def mock_agents(self, mock_pool_manager):
-        with mock.patch(
-            'clusterman.mesos.mesos_pool_manager.MesosPoolManager.agents',
-            new_callable=mock.PropertyMock
-        ) as mock_agents:
-            mock_agents.return_value = [
-                {
-                    'id': 'idle',
-                    'resources': {'cpus': 4, 'gpus': 2},
-                },
-                {
-                    'id': 'no-gpus',
-                    'resources': {'cpus': 8},
-                    'used_resources': {'cpus': 1.5},
-                },
-                {
-                    'id': 'gpus-1',
-                    'resources': {'gpus': 2},
-                    'used_resources': {'gpus': 1},
-                },
-                {
-                    'id': 'gpus-2',
-                    'resources': {'gpus': 4},
-                    'used_resources': {'gpus': 0.2},
-                },
-            ]
-            yield mock_pool_manager
-
-    @pytest.mark.parametrize('resource_name,expected', [
-        ('cpus', 1.5),
-        ('gpus', 1.2),
-    ])
-    def test_allocation(self, mock_agents, resource_name, expected):
-        assert mock_agents.get_resource_allocation(resource_name) == expected
-
-    @pytest.mark.parametrize('resource_name,expected', [
-        ('cpus', 12),
-        ('gpus', 8),
-    ])
-    def test_total_cpus(self, mock_agents, resource_name, expected):
-        assert mock_agents.get_resource_total(resource_name) == expected
-
-    @pytest.mark.parametrize('resource_name,expected', [
-        ('mem', 0),
-        ('cpus', 0.125),
-        ('gpus', 0.15),
-    ])
-    def test_average_allocation(self, mock_agents, resource_name, expected):
-        assert mock_agents.get_percent_resource_allocation(resource_name) == expected

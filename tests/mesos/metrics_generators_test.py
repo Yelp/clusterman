@@ -27,7 +27,7 @@ def test_generate_system_metrics(mock_pool_manager):
 
 def test_generate_simple_metadata(mock_pool_manager):
     resource_totals = {'cpus': 20, 'mem': 2000, 'disk': 20000}
-    mock_pool_manager.get_resource_total.side_effect = resource_totals.get
+    mock_pool_manager.get_resource_total.side_effect = lambda n, only_if_usable=False: resource_totals.get(n)
 
     market_capacities = {'market1': 15, 'market2': 25}
     mock_pool_manager.get_market_capacities.return_value = market_capacities
@@ -36,6 +36,9 @@ def test_generate_simple_metadata(mock_pool_manager):
         ClusterMetric(metric_name='cpus_total', value=20, dimensions={}),
         ClusterMetric(metric_name='mem_total', value=2000, dimensions={}),
         ClusterMetric(metric_name='disk_total', value=20000, dimensions={}),
+        ClusterMetric(metric_name='cpus_total_usable', value=20, dimensions={}),
+        ClusterMetric(metric_name='mem_total_usable', value=2000, dimensions={}),
+        ClusterMetric(metric_name='disk_total_usable', value=20000, dimensions={}),
         ClusterMetric(metric_name='target_capacity', value=mock_pool_manager.target_capacity, dimensions={}),
         ClusterMetric(metric_name='fulfilled_capacity', value=market_capacities, dimensions={}),
     ]
