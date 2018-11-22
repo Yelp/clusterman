@@ -1,3 +1,9 @@
+clusterman (2.11.1) trusty; urgency=low
+
+  * version bump, remove SHA from deb filename
+
+ -- Jan Pokrzywinski <janp@yelp.com>  Thu, 22 Nov 2018 09:18:36 -0800
+
 clusterman (2.11.0) trusty; urgency=low
 
   * added new 'overprovisioned' option to the simulator
