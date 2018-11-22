@@ -1,9 +1,12 @@
+import socket
+
 import arrow
 import mock
 import pytest
 
 from clusterman.draining.queue import DrainingClient
 from clusterman.draining.queue import Host
+from clusterman.draining.queue import host_from_instance_id
 from clusterman.draining.queue import main
 from clusterman.draining.queue import process_queues
 from clusterman.draining.queue import setup_config
@@ -24,7 +27,7 @@ def mock_draining_client():
         return DrainingClient('mycluster')
 
 
-def test_submit_host_for_draining(mock_draining_client):
+def test_submit_instance_for_draining(mock_draining_client):
     with mock.patch(
         'clusterman.draining.queue.json', autospec=True,
     ) as mock_json:
@@ -34,7 +37,7 @@ def test_submit_host_for_draining(mock_draining_client):
             hostname='host123',
             group_id='sfr123',
         )
-        assert mock_draining_client.submit_host_for_draining(
+        assert mock_draining_client.submit_instance_for_draining(
             mock_instance,
             sender=SpotFleetResourceGroup,
         ) == mock_draining_client.client.send_message.return_value
@@ -56,6 +59,63 @@ def test_submit_host_for_draining(mock_draining_client):
             },
             MessageBody=mock_json.dumps.return_value,
         )
+
+
+def test_submit_host_for_draining(mock_draining_client):
+    with mock.patch(
+        'clusterman.draining.queue.json', autospec=True,
+    ) as mock_json:
+        mock_host = mock.Mock(
+            instance_id='i123',
+            ip='10.1.1.1',
+            hostname='host123',
+            group_id='sfr123',
+            sender='aws_2_min_warning',
+        )
+        assert mock_draining_client.submit_host_for_draining(
+            mock_host,
+        ) == mock_draining_client.client.send_message.return_value
+        mock_json.dumps.assert_called_with(
+            {
+                'instance_id': 'i123',
+                'ip': '10.1.1.1',
+                'hostname': 'host123',
+                'group_id': 'sfr123',
+            }
+        )
+        mock_draining_client.client.send_message.assert_called_with(
+            QueueUrl=mock_draining_client.warning_queue_url,
+            MessageAttributes={
+                'Sender': {
+                    'DataType': 'String',
+                    'StringValue': 'aws_2_min_warning',
+                },
+            },
+            MessageBody=mock_json.dumps.return_value,
+        )
+
+
+def test_get_warned_host(mock_draining_client):
+    with mock.patch(
+        'clusterman.draining.queue.host_from_instance_id', autospec=True,
+    ) as mock_host_from_instance_id:
+        mock_draining_client.client.receive_message.return_value = {
+            'Messages': [{
+                'ReceiptHandle': 'rcpt',
+                'Body': '{"detail": {"instance-id": "i-123"}}',
+            }]
+        }
+        assert mock_draining_client.get_warned_host() is mock_host_from_instance_id.return_value
+        mock_host_from_instance_id.assert_called_with(
+            sender='spot_notification',
+            receipt_handle='rcpt',
+            instance_id='i-123',
+        )
+        assert not mock_draining_client.client.delete_message.called
+
+        mock_host_from_instance_id.return_value = None
+        assert mock_draining_client.get_warned_host() is None
+        assert mock_draining_client.client.delete_message.called
 
 
 def test_submit_host_for_termination(mock_draining_client):
@@ -206,6 +266,25 @@ def test_delete_drain_message(mock_draining_client):
     ])
 
 
+def test_delete_warning_message(mock_draining_client):
+    mock_hosts = [
+        mock.Mock(receipt_handle=1),
+        mock.Mock(receipt_handle=2),
+    ]
+
+    mock_draining_client.delete_warning_messages(mock_hosts)
+    mock_draining_client.client.delete_message.assert_has_calls([
+        mock.call(
+            QueueUrl=mock_draining_client.warning_queue_url,
+            ReceiptHandle=1,
+        ),
+        mock.call(
+            QueueUrl=mock_draining_client.warning_queue_url,
+            ReceiptHandle=2,
+        ),
+    ])
+
+
 def test_delete_terminate_message(mock_draining_client):
     mock_hosts = [
         mock.Mock(receipt_handle=1),
@@ -347,6 +426,29 @@ def test_clean_processing_hosts_cache(mock_draining_client):
         assert 'i456' in mock_draining_client.draining_host_ttl_cache
 
 
+def test_process_warning_queue(mock_draining_client):
+    with mock.patch(
+        'clusterman.draining.queue.load_spot_fleets_from_ec2', autospec=True,
+    ) as mock_load_spot, mock.patch(
+        'clusterman.draining.queue.DrainingClient.submit_host_for_draining', autospec=True,
+    ) as mock_submit_host_for_draining, mock.patch(
+        'clusterman.draining.queue.DrainingClient.delete_warning_messages', autospec=True,
+    ) as mock_delete_warning_messages:
+        mock_load_spot.return_value = {}
+        mock_host = mock.Mock(group_id='sfr-123')
+        mock_draining_client.get_warned_host = mock.Mock(return_value=mock_host)
+        mock_draining_client.process_warning_queue()
+        assert not mock_submit_host_for_draining.called
+        mock_delete_warning_messages.assert_called_with(mock_draining_client, [mock_host])
+
+        mock_load_spot.return_value = {'sfr-123': {}}
+        mock_host = mock.Mock(group_id='sfr-123')
+        mock_draining_client.get_warned_host = mock.Mock(return_value=mock_host)
+        mock_draining_client.process_warning_queue()
+        mock_submit_host_for_draining.assert_called_with(mock_draining_client, mock_host)
+        mock_delete_warning_messages.assert_called_with(mock_draining_client, [mock_host])
+
+
 def test_process_queues():
     with mock.patch(
         'clusterman.draining.queue.DrainingClient', autospec=True,
@@ -360,6 +462,7 @@ def test_process_queues():
         assert mock_draining_client.return_value.process_termination_queue.called
         assert mock_draining_client.return_value.process_drain_queue.called
         assert mock_draining_client.return_value.clean_processing_hosts_cache.called
+        assert mock_draining_client.return_value.process_warning_queue.called
 
 
 def test_terminate_host():
@@ -371,6 +474,74 @@ def test_terminate_host():
         terminate_host(mock_host)
         mock_sfr.assert_called_with('sfr123')
         mock_sfr.return_value.terminate_instances_by_id.assert_called_with(['i123'])
+
+
+def test_host_from_instance_id():
+    with mock.patch(
+        'clusterman.draining.queue.ec2_describe_instances', autospec=True,
+    ) as mock_ec2_describe, mock.patch(
+        'socket.gethostbyaddr', autospec=True,
+    ) as mock_gethostbyaddr:
+        mock_ec2_describe.return_value = []
+        assert host_from_instance_id(
+            sender='aws',
+            receipt_handle='rcpt',
+            instance_id='i-123',
+        ) is None
+
+        mock_ec2_describe.return_value = [
+            {
+                'Tags': [
+                    {'Key': 'thing', 'Value': 'bar'}
+                ]
+            }
+        ]
+        assert host_from_instance_id(
+            sender='aws',
+            receipt_handle='rcpt',
+            instance_id='i-123',
+        ) is None
+
+        mock_ec2_describe.return_value = [
+            {
+                'Tags': [
+                    {'Key': 'aws:ec2spot:fleet-request-id', 'Value': 'sfr-123'}
+                ]
+            }
+        ]
+        assert host_from_instance_id(
+            sender='aws',
+            receipt_handle='rcpt',
+            instance_id='i-123',
+        ) is None
+
+        mock_ec2_describe.return_value = [
+            {
+                'PrivateIpAddress': '10.1.1.1',
+                'Tags': [
+                    {'Key': 'aws:ec2spot:fleet-request-id', 'Value': 'sfr-123'}
+                ]
+            }
+        ]
+        assert host_from_instance_id(
+            sender='aws',
+            receipt_handle='rcpt',
+            instance_id='i-123',
+        ) == Host(
+            sender='aws',
+            receipt_handle='rcpt',
+            instance_id='i-123',
+            hostname=mock_gethostbyaddr.return_value[0],
+            group_id='sfr-123',
+            ip='10.1.1.1',
+        )
+
+        mock_gethostbyaddr.side_effect = socket.error
+        assert host_from_instance_id(
+            sender='aws',
+            receipt_handle='rcpt',
+            instance_id='i-123',
+        ) is None
 
 
 def test_main():

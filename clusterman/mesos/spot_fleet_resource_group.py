@@ -1,6 +1,7 @@
 from collections import defaultdict
 from typing import List
 from typing import Mapping
+from typing import Optional
 from typing import Sequence
 
 import botocore
@@ -248,7 +249,7 @@ def load_spot_fleets_from_s3(bucket: str, prefix: str, pool: str = None) -> Mapp
     return spot_fleets
 
 
-def load_spot_fleets_from_ec2(cluster: str, pool: str, sfr_tag: str) -> Mapping[str, SpotFleetResourceGroup]:
+def load_spot_fleets_from_ec2(cluster: str, pool: Optional[str], sfr_tag: str) -> Mapping[str, SpotFleetResourceGroup]:
     """ Loads SpotFleetResourceGroups by filtering SFRs in the AWS account by tags
     for pool, cluster and a tag that identifies paasta SFRs
     """
@@ -257,7 +258,7 @@ def load_spot_fleets_from_ec2(cluster: str, pool: str, sfr_tag: str) -> Mapping[
     for sfr_id, tags in spot_fleet_requests_tags.items():
         try:
             puppet_role_tags = json.loads(tags[sfr_tag])
-            if puppet_role_tags['pool'] == pool and puppet_role_tags['paasta_cluster'] == cluster:
+            if puppet_role_tags['paasta_cluster'] == cluster and (pool is None or puppet_role_tags['pool'] == pool):
                 sfrg = SpotFleetResourceGroup(sfr_id)
                 spot_fleets[sfr_id] = sfrg
         except KeyError:
