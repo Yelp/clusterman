@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+import socket
 import time
 from typing import Callable
 from typing import Dict
@@ -16,6 +17,7 @@ from yelp_servlib.config_util import load_default_config
 
 from clusterman.args import add_cluster_arg
 from clusterman.args import subparser
+from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.client import sqs
 from clusterman.config import CREDENTIALS_NAMESPACE
 from clusterman.draining.mesos import down
@@ -23,6 +25,7 @@ from clusterman.draining.mesos import drain
 from clusterman.draining.mesos import operator_api
 from clusterman.draining.mesos import up
 from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
+from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_ec2
 from clusterman.mesos.util import InstanceMetadata
 from clusterman.mesos.util import RESOURCE_GROUPS
 from clusterman.mesos.util import RESOURCE_GROUPS_REV
@@ -48,8 +51,9 @@ class DrainingClient():
         self.drain_queue_url = staticconf.read_string(f'mesos_clusters.{cluster_name}.drain_queue_url')
         self.termination_queue_url = staticconf.read_string(f'mesos_clusters.{cluster_name}.termination_queue_url')
         self.draining_host_ttl_cache: Dict[str, arrow.Arrow] = {}
+        self.warning_queue_url = staticconf.read_string(f'mesos_clusters.{cluster_name}.warning_queue_url')
 
-    def submit_host_for_draining(self, instance: InstanceMetadata, sender: Type[MesosPoolResourceGroup]) -> None:
+    def submit_instance_for_draining(self, instance: InstanceMetadata, sender: Type[MesosPoolResourceGroup]) -> None:
         return self.client.send_message(
             QueueUrl=self.drain_queue_url,
             MessageAttributes={
@@ -64,6 +68,25 @@ class DrainingClient():
                     'ip': instance.instance_ip,
                     'hostname': instance.hostname,
                     'group_id': instance.group_id,
+                }
+            ),
+        )
+
+    def submit_host_for_draining(self, host: Host) -> None:
+        return self.client.send_message(
+            QueueUrl=self.drain_queue_url,
+            MessageAttributes={
+                'Sender': {
+                    'DataType': 'String',
+                    'StringValue': host.sender,
+                },
+            },
+            MessageBody=json.dumps(
+                {
+                    'instance_id': host.instance_id,
+                    'ip': host.ip,
+                    'hostname': host.hostname,
+                    'group_id': host.group_id,
                 }
             ),
         )
@@ -107,6 +130,31 @@ class DrainingClient():
             )
         return None
 
+    def get_warned_host(self) -> Optional[Host]:
+        messages = self.client.receive_message(
+            QueueUrl=self.warning_queue_url,
+            MessageAttributeNames=['Sender'],
+            MaxNumberOfMessages=1
+        ).get('Messages', [])
+        if messages:
+            event_data = json.loads(messages[0]['Body'])
+            host = host_from_instance_id(
+                sender=messages[0]['MessageAttributes']['Sender']['StringValue'],
+                receipt_handle=messages[0]['ReceiptHandle'],
+                instance_id=event_data['detail']['instance-id'],
+            )
+            # if we couldn't derive the host data from the instance id
+            # then we just delete the message so we don't get stuck
+            # worse case AWS will just terminate the box for us...
+            if not host:
+                self.client.delete_message(
+                    QueueUrl=self.warning_queue_url,
+                    ReceiptHandle=messages[0]['ReceiptHandle']
+                )
+            else:
+                return host
+        return None
+
     def get_host_to_terminate(self) -> Optional[Host]:
         messages = self.client.receive_message(
             QueueUrl=self.termination_queue_url,
@@ -133,6 +181,13 @@ class DrainingClient():
         for host in hosts:
             self.client.delete_message(
                 QueueUrl=self.termination_queue_url,
+                ReceiptHandle=host.receipt_handle,
+            )
+
+    def delete_warning_messages(self, hosts: Sequence[Host]) -> None:
+        for host in hosts:
+            self.client.delete_message(
+                QueueUrl=self.warning_queue_url,
                 ReceiptHandle=host.receipt_handle,
             )
 
@@ -198,6 +253,49 @@ class DrainingClient():
         for host in hosts_to_remove:
             del self.draining_host_ttl_cache[host]
 
+    def process_warning_queue(self) -> None:
+        host_to_process = self.get_warned_host()
+        if host_to_process:
+            spot_fleet_resource_groups = load_spot_fleets_from_ec2(
+                cluster=self.cluster,
+                pool=None,
+                sfr_tag='puppet:role::paasta',
+            )
+            # we should definitely ignore termination warnings that aren't from this
+            # cluster or maybe not even paasta instances...
+            if host_to_process.group_id in spot_fleet_resource_groups.keys():
+                self.submit_host_for_draining(host_to_process)
+            self.delete_warning_messages([host_to_process])
+
+
+def host_from_instance_id(
+    sender: str,
+    receipt_handle: str,
+    instance_id: str,
+) -> Optional[Host]:
+    instance_data = ec2_describe_instances(instance_ids=[instance_id])
+    if not instance_data:
+        return None
+    sfr_ids = [tag['Value'] for tag in instance_data[0]['Tags'] if tag['Key'] == 'aws:ec2spot:fleet-request-id']
+    if not sfr_ids:
+        return None
+    try:
+        ip = instance_data[0]['PrivateIpAddress']
+    except KeyError:
+        return None
+    try:
+        hostnames = socket.gethostbyaddr(ip)
+    except socket.error:
+        return None
+    return Host(
+        sender=sender,
+        receipt_handle=receipt_handle,
+        instance_id=instance_id,
+        hostname=hostnames[0],
+        group_id=sfr_ids[0],
+        ip=ip,
+    )
+
 
 def process_queues(cluster_name: str) -> None:
     draining_client = DrainingClient(cluster_name)
@@ -207,6 +305,7 @@ def process_queues(cluster_name: str) -> None:
     logger.info('Polling SQS for messages every 5s')
     while True:
         draining_client.clean_processing_hosts_cache()
+        draining_client.process_warning_queue()
         draining_client.process_drain_queue(
             mesos_operator_client=operator_client,
         )

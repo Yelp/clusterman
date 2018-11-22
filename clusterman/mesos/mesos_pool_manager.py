@@ -147,7 +147,7 @@ class MesosPoolManager:
                 assert self.draining_client  # make mypy happy
                 for group_id, instances in marked_instances.items():
                     for instance in instances:
-                        self.draining_client.submit_host_for_draining(
+                        self.draining_client.submit_instance_for_draining(
                             instance,
                             sender=self.resource_groups[group_id].__class__,
                         )
