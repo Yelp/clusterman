@@ -14,7 +14,6 @@ from tests.conftest import main_clusterman_config
 from tests.conftest import mock_aws_client_setup
 from tests.mesos.auto_scaling_resource_group_test import mock_asg_config
 from tests.mesos.auto_scaling_resource_group_test import mock_launch_config
-from tests.mesos.auto_scaling_resource_group_test import patched_group_config
 from tests.mesos.conftest import setup_autoscaling
 from tests.mesos.conftest import setup_ec2
 from tests.mesos.spot_fleet_resource_group_test import mock_subnet
@@ -31,10 +30,8 @@ pytest.mark.usefixtures(
 )
 
 
-@mock.patch('threading.Thread', autospec=True)
 @pytest.fixture
 def mock_asgs(setup_autoscaling, setup_ec2, mock_launch_config, mock_subnet):
-    # with mock.patch('threading.Thread', autospec=True):
     asgs = []
     for i in range(3):
         asg_config = mock_asg_config(  # creates the asg automatically
@@ -70,19 +67,11 @@ def test_target_capacity(mock_manager):
     assert mock_manager.target_capacity == 30
 
 
-@mock.patch(
-    'time.sleep',
-    # to break out of infinite loop in test function
-    mock.Mock(side_effect=AssertionError),
-    autospec=None,
-)
 def test_detach_and_terminate(mock_asgs):
     asg = mock_asgs[0]
     to_terminate = asg.instance_ids[:3]
 
-    with pytest.raises(AssertionError):
-        asg.terminate_instances_by_id(to_terminate)
-        asg._terminate_detached_instances()  # run in thread normally
+    asg.terminate_instances_by_id(to_terminate)
     insts = ec2_describe_instances(to_terminate)
 
     assert set(to_terminate) == {inst['InstanceId'] for inst in insts}
@@ -130,7 +119,6 @@ def test_scale_up(mock_prune, mock_manager):
     'clusterman.mesos.mesos_pool_manager.get_instance_market',
     mock.Mock(return_value=InstanceMarket('t2.micro', 'us-west-2a'))
 )
-@mock.patch.object(AutoScalingResourceGroup._group_config, 'func', patched_group_config)
 def test_scale_down(mock_manager):
     mock_manager.max_capacity = 90  # combined max of all asgs, each 30
     rgs = list(mock_manager.resource_groups.values())

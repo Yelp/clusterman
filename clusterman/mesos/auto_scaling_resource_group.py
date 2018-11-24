@@ -1,12 +1,10 @@
 import pprint
-import threading
 import time
 from collections import defaultdict
 from typing import Any
 from typing import Dict
 from typing import Mapping
 from typing import Sequence
-from typing import Set
 
 import colorlog
 import simplejson as json
@@ -41,16 +39,11 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
 
     def __init__(self, group_id: str) -> None:
         self.group_id = group_id  # ASG id
-        self._scale_down_to: Any[float] = None
 
-        self._marked_for_death: Set[str] = set()
-        threading.Thread(
-            target=self._terminate_detached_instances,
-            daemon=True,
-        ).start()
+        self._protect_instances(protect=True)
 
     @timed_cached_property(ttl=CACHE_TTL_SECONDS)
-    def _group_config(self):
+    def _group_config(self) -> Dict[str, Any]:
         """ Retrieve our ASG's configuration from AWS.
 
         Note: Response from this API call are cached to prevent hitting any AWS
@@ -62,7 +55,7 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
         return response['AutoScalingGroups'][0]
 
     @timed_cached_property(ttl=CACHE_TTL_SECONDS)
-    def _launch_config(self):
+    def _launch_config(self) -> Dict[str, Any]:
         """ Retrieve our ASG's launch configuration from AWS
 
         Note: Response from this API call are cached to prevent hitting any AWS
@@ -75,16 +68,32 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
         )
         return response['LaunchConfigurations'][0]
 
+    def _protect_instances(self, *, protect: bool = True) -> None:
+        """ Toggle scale-in protection for new and current instances
+
+        Note: Does not prevent instances from being terminated via the EC2
+        client.
+        """
+        autoscaling.update_auto_scaling_group(  # protect new
+            AutoScalingGroupName=self.id,
+            NewInstancesProtectedFromScaleIn=protect,
+        )
+        autoscaling.set_instance_protection(  # protect current
+            InstanceIds=self.instance_ids,
+            AutoScalingGroupName=self.id,
+            ProtectedFromScaleIn=protect,
+        )
+
     def market_weight(self, market: InstanceMarket) -> float:
         """ Returns the weight of a given market
 
         ASGs have no concept of weight, so if ASG is available in the market's
         AZ, we return a weight of 1
 
-        :param market: The market for which we want to count instances for
-        :returns: The number of instances in the given market
+        :param market: The market for which we want the weight for
+        :returns: The weight of a given market
         """
-        return 1 if market in self.market_capacities else 0
+        return 1 if market.az in self._group_config['AvailabilityZones'] else 0
 
     def modify_target_capacity(
         self,
@@ -130,28 +139,30 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
             DesiredCapacity=int(target_capacity),
             HonorCooldown=honor_cooldown,
         )
+        logger.info(
+            'Would have set target capacity for ASG with arguments:\n'
+            f'{pprint.pformat(kwargs)}'
+        )
         if dry_run:
-            logger.info(
-                'Would have set target capacity for ASG with arguments:\n'
-                f'{pprint.pformat(kwargs)}'
+            return
+
+        target_diff = self.target_capacity - target_capacity
+        if target_diff > 0 and terminate_excess_capacity:
+            # By default, we protect instances from scale down, so we need to
+            # remove that protection on some if we want to terminate
+            autoscaling.set_instance_protection(
+                InstanceIds=self.instance_ids[:int(target_diff)],
+                AutoScalingGroupName=self.id,
+                ProtectedFromScaleIn=False,
             )
-            return  # for safety, in case anyone adds code after branch
-        # In the event of scale down, we may not want to terminate excess
-        # capacity because MesosPoolManager will do it instead in a special way.
-        elif ((target_capacity < self.target_capacity and terminate_excess_capacity) or
-                target_capacity > self.target_capacity):
-            logger.info(
-                'Setting target capacity for ASG with arguments:\n'
-                f'{pprint.pformat(kwargs)}'
-            )
-            autoscaling.set_desired_capacity(**kwargs)
-        else:
-            self._scale_down_to = target_capacity
+        autoscaling.set_desired_capacity(**kwargs)
 
     @protect_unowned_instances
     def terminate_instances_by_id(
         self,
         instance_ids: Sequence[str],
+        *,
+        decrement_desired_capacity: bool = False,
     ) -> Sequence[str]:
         """ Terminate instances in the ASG
 
@@ -164,81 +175,48 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
         have finished detaching.
 
         :param instance_ids: A list of instance IDs to terminate
+        :param decrement_desired_capacity: Boolean for whether or not to
+            decrement desired capacity in the event of a scale down
         :returns: A list of terminated instance IDs
         """
         if not instance_ids:
             logger.warn(f'No instances to terminate in {self.group_id}')
             return []
 
-        def detach(ids, decrement_desired_capacity):
-            # The autoscaling API specifies that we can only specify up to 20
-            # ids at once to detach:
-            for i in range(0, len(ids), _BATCH_DETACH_SIZE):
-                to_detach = ids[i:i + _BATCH_DETACH_SIZE]
-                autoscaling.detach_instances(
-                    InstanceIds=to_detach,
-                    AutoScalingGroupName=self.group_id,
-                    ShouldDecrementDesiredCapacity=decrement_desired_capacity,
-                )
-                self._marked_for_death.update(to_detach)
+        # The autoscaling API specifies that we can only specify up to 20
+        # ids at once to detach:
+        for i in range(0, len(instance_ids), _BATCH_DETACH_SIZE):
+            autoscaling.detach_instances(
+                InstanceIds=instance_ids[i:i + _BATCH_DETACH_SIZE],
+                AutoScalingGroupName=self.group_id,
+                ShouldDecrementDesiredCapacity=decrement_desired_capacity,
+            )
 
-        if self._scale_down_to:
-            # if we have a pending scale down from modify_target_capacity,
-            # we detach while lowering the ASGs desired capacity as much as
-            # we can until we hit the new target capacity (self._scale_down_to).
-            detach(instance_ids[:int(self._scale_down_to)], True)
-            # After that, if we still have ids to detach, we detach WITHOUT
-            # reducing the desired capacity.
-            detach(instance_ids[int(self._scale_down_to):], False)
+        # Wait for instances to finish detaching
+        while set(self.instance_ids) & set(instance_ids):
+            time.sleep(1)  # poll instead of bust wait
 
-            if len(instance_ids) >= self._scale_down_to:
-                self._scale_down_to = None
-            else:
-                self._scale_down_to -= len(instance_ids)
-        else:
-            detach(instance_ids, False)
+        # terminate instances
+        terminated_ids = []
+        for i in range(0, len(instance_ids), _BATCH_TERM_SIZE):
+            response = ec2.terminate_instances(InstanceIds=instance_ids)
+            terminated_ids.extend([
+                inst['InstanceId']
+                for inst in response['TerminatingInstances']
+            ])
 
-        # Although these instances have only been detached, we consider them
-        # terminated for the purposes of the ASG
-        logger.info(f'ASG {self.id}: detached instances: {instance_ids}')
-        return instance_ids
+        # It's possible that not every instance appears terminated, probably
+        # because AWS already terminated them. Log just in case.
+        missing_ids = set(instance_ids) - set(terminated_ids)
+        if missing_ids:
+            logger.warn(
+                'Some instances could not be terminated; '
+                'they were probably killed previously'
+            )
+            logger.warn(f'Missing instances: {list(missing_ids)}')
 
-    def _terminate_detached_instances(self):
-        """ Periodically terminate detached instances using the EC2 client.
-        Intended to be run in a separate thread.
-        """
-        while True:
-            detached_ids = []
-            if self._marked_for_death:
-                # We first need to get the ids for instances that have finished
-                # detachings)
-                detached_ids = list(self._marked_for_death - set(self.instance_ids))
-
-            if detached_ids:  # if theres something that has finished detaching
-                # AWS API recommends terminating not more than 1000 instances
-                # at a time.
-                terminated_ids = []
-                for i in range(0, len(detached_ids), _BATCH_TERM_SIZE):
-                    response = ec2.terminate_instances(InstanceIds=detached_ids)
-                    terminated_ids.extend([
-                        inst['InstanceId']
-                        for inst in response['TerminatingInstances']
-                    ])
-
-                # It's possible that not every instance appears terminated,
-                # probably because AWS already terminated them. Log just in case.
-                missing_ids = set(detached_ids) - set(terminated_ids)
-                if missing_ids:
-                    logger.warn(
-                        'Some instances could not be terminated; '
-                        'they were probably killed previously'
-                    )
-                    logger.warn(f'Missing instances: {list(missing_ids)}')
-
-                logger.info(f'ASG {self.id}: terminated: {terminated_ids}')
-                self._marked_for_death -= set(detached_ids)
-
-            time.sleep(CACHE_TTL_SECONDS)  # to avoid hitting AWS request limit
+        logger.info(f'ASG {self.id}: terminated: {terminated_ids}')
+        return terminated_ids
 
     @property
     def id(self) -> str:
@@ -274,10 +252,7 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
 
     @property
     def target_capacity(self) -> float:
-        if self._scale_down_to:
-            return self._scale_down_to
-        else:
-            return self._group_config['DesiredCapacity']
+        return self._group_config['DesiredCapacity']
 
     @property
     def fulfilled_capacity(self) -> float:
