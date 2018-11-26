@@ -1,3 +1,9 @@
+clusterman (2.11.2) trusty; urgency=low
+
+  * Remove SHA from generated .deb
+
+ -- David Morrison <drmorr@yelp.com>  Mon, 26 Nov 2018 13:44:51 -0800
+
 clusterman (2.11.1) trusty; urgency=low
 
   * added new instance types
