@@ -3,7 +3,6 @@
 SYSTEM_PKG_NAME ?= clusterman
 PYTHON_PKG_NAME ?= $(shell cd $(CURDIR)/.. && python setup.py --name)
 PACKAGE_VERSION ?= $(shell cd $(CURDIR)/.. && python setup.py --version)
-SHA ?= $(shell git rev-parse --short HEAD)
 
 UID:=`id -u`
 GID:=`id -g`
@@ -18,7 +17,7 @@ VERSIONED_FILES:=$(shell cd $(CURDIR)/.. && git ls-files -z --cached --modified 
 DOCKER_WORKDIR:=mkdir -p /work && cd /src && cp -v --parents $(VERSIONED_FILES) /work/ && cd /work
 
 itest_%: package_% dist/%/Packages.gz
-	$(DOCKER_ITEST_RUN) docker-dev.yelpcorp.com/$*_yelp /itest/ubuntu.sh $(SYSTEM_PKG_NAME) $(PACKAGE_VERSION) $(SHA)
+	$(DOCKER_ITEST_RUN) docker-dev.yelpcorp.com/$*_yelp /itest/ubuntu.sh $(SYSTEM_PKG_NAME) $(PACKAGE_VERSION)
 
 dist/%/Packages.gz:
 	$(DOCKER_BUILD_RUN) $(SYSTEM_PKG_NAME)_$*_container /bin/bash -c "\
@@ -27,11 +26,10 @@ dist/%/Packages.gz:
 
 package_%: build_%_docker
 	mkdir -p $(CURDIR)/dist/$*
-	test -s dist/$*/$(SYSTEM_PKG_NAME)_$(PACKAGE_VERSION)-$(SHA)_amd64.deb || \
-	  $(DOCKER_BUILD_RUN) $(SYSTEM_PKG_NAME)_$*_container /bin/bash -c "\
+	$(DOCKER_BUILD_RUN) $(SYSTEM_PKG_NAME)_$*_container /bin/bash -c "\
 	    $(DOCKER_WORKDIR) \
 	    && dpkg-buildpackage -d \
-	    && mv ../*.deb /dist/$*/$(SYSTEM_PKG_NAME)_$(PACKAGE_VERSION)-$(SHA)_amd64.deb \
+	    && mv ../*.deb /dist/$*/$(SYSTEM_PKG_NAME)_$(PACKAGE_VERSION)_amd64.deb \
 	    && chown $(UID):$(GID) /dist/$*/*.deb"
 
 build_%_docker:

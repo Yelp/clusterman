@@ -18,7 +18,6 @@ highlight_exec() {
 
 PACKAGE_NAME="$1"
 PACKAGE_VERSION="$2"
-SHA="$3"
 
 # This will get DISTRIB_CODENAME
 source /etc/lsb-release
@@ -27,12 +26,13 @@ source /etc/lsb-release
 export TZ=US/Pacific
 ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# Install the package from our pre-built deb; this will fail because of dependencies, but ignore
-# the error and then run apt-get to fix up the dependencies
+# This will set us up to install our package through apt-get
+highlight "Creating new apt source"
+echo "deb file:/dist/${DISTRIB_CODENAME} ./" | tee "/etc/apt/sources.list.d/itest-${PACKAGE_NAME}.list"
+
 apt-get update
 apt-get install -y --force-yes git make tox python3-pip python3-yaml
-dpkg -i "/dist/${DISTRIB_CODENAME}/${PACKAGE_NAME}_${PACKAGE_VERSION}-${SHA}_amd64.deb" || true
-apt-get install -y --force-yes  -f
+apt-get install -y --force-yes  -f "${PACKAGE_NAME}=${PACKAGE_VERSION}"
 
 pip3 install boto3 simplejson
 python3 /itest/run_instance.py
