@@ -3,12 +3,19 @@ import staticconf.testing
 from clusterman_metrics import APP_METRICS
 from clusterman_metrics import SYSTEM_METRICS
 
+from clusterman.config import CREDENTIALS_NAMESPACE
+
 behave.use_step_matcher('re')
 BEHAVE_DEBUG_ON_ERROR = False
 
 
 @behave.fixture
 def setup_configurations(context):
+    boto_config = {
+        'accessKeyId': 'foo',
+        'secretAccessKey': 'bar',
+    }
+
     main_clusterman_config = {
         'aws': {
             'access_key_file': '/etc/secrets',
@@ -63,7 +70,7 @@ def setup_configurations(context):
         ],
         'scaling_limits': {
             'min_capacity': 3,
-            'max_capacity': 345,
+            'max_capacity': 100,
         },
         'sensu_config': [
             {
@@ -81,7 +88,8 @@ def setup_configurations(context):
             ],
         }
     }
-    with staticconf.testing.MockConfiguration(main_clusterman_config), \
+    with staticconf.testing.MockConfiguration(boto_config, namespace=CREDENTIALS_NAMESPACE), \
+            staticconf.testing.MockConfiguration(main_clusterman_config), \
             staticconf.testing.MockConfiguration(pool_config, namespace='bar_config'):
         yield
 
