@@ -18,7 +18,6 @@ from clusterman.config import get_cluster_config_directory
 from clusterman.exceptions import MesosPoolManagerError
 from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
-from clusterman.mesos.spotinst_resource_group import SpotInstResourceGroup
 
 logger = colorlog.getLogger(__name__)
 MesosResources = NamedTuple('MesosResources', [('cpus', float), ('mem', float), ('disk', float)])
@@ -36,7 +35,6 @@ RESOURCE_GROUPS: Mapping[
     Type[MesosPoolResourceGroup]
 ] = {
     'sfr': SpotFleetResourceGroup,
-    'spotinst': SpotInstResourceGroup,
 }
 RESOURCE_GROUPS_REV: Mapping[
     Type[MesosPoolResourceGroup],

@@ -17,7 +17,6 @@ PyYAML
 requests
 signalfx
 simplejson
-spotinst-sdk
 sortedcontainers
 yelp-batch
 yelp-meteorite
