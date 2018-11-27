@@ -17,6 +17,7 @@ from clusterman_metrics import ClustermanMetricsBotoClient
 from clusterman_metrics import MetricsValuesDict
 from clusterman_metrics import SYSTEM_METRICS
 from mypy_extensions import TypedDict
+from retry import retry
 from simplejson.errors import JSONDecodeError
 from staticconf.errors import ConfigurationError
 
@@ -79,7 +80,7 @@ class Signal:
 
         self.cluster: str = cluster
         self.pool: str = pool
-        self.app: Optional[str] = app
+        self.app: str = app
 
         self.period_minutes: int = reader.read_int('autoscale_signal.period_minutes')
         if self.period_minutes <= 0:
@@ -149,6 +150,7 @@ class Signal:
             else:
                 raise ClustermanSignalError('Signal evaluation failed') from e
 
+    @retry(exceptions=ConnectionRefusedError, tries=3, delay=5)  # retry signal connection in case it's slow to start
     def _connect_to_signal_process(self) -> socket.socket:
         """ Create a connection to the specified signal over a unix socket
 

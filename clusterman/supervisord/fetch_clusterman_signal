@@ -1,9 +1,9 @@
 #!/bin/bash
 set -ex
 
-. /etc/boto_cfg/clusterman.sh
-
+source /etc/boto_cfg/clusterman.sh
 source /etc/lsb-release  # gives us DISTRIB_CODENAME
+
 SIGNAL_DIR=${2:-.}
 VERSIONS=(${CMAN_VERSIONS_TO_FETCH})
 version="clusterman_signals_${VERSIONS[$1]}"

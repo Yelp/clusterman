@@ -35,7 +35,7 @@ numpy==1.15.1
 parsedatetime==2.4
 ply==3.10
 protobuf==3.6.1
-py==1.5.3
+py==1.6.0
 py-zipkin==0.12.0
 pycrypto==2.6.1
 pyformance==0.3.2
