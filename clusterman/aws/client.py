@@ -1,7 +1,6 @@
 from typing import List
 from typing import Sequence
 
-import arrow
 import boto3
 import colorlog
 import staticconf
@@ -85,38 +84,6 @@ class sqs(metaclass=_BotoForwarder):
 
 class dynamodb(metaclass=_BotoForwarder):
     client = 'dynamodb'
-
-
-def get_latest_ami(ami_type):
-    filters = [{
-        'Name': 'name',
-        'Values': [f'{ami_type}*']
-    }, {
-        'Name': 'state',
-        'Values': ['available']
-    }
-    ]
-
-    try:
-        response = ec2.describe_images(Filters=filters)
-    except Exception as e:
-        logger.warning(f'Describe images call failed with {str(e)}')
-        raise e
-
-    if len(response['Images']) == 0:
-        logger.warning(f'Could not find any images matching the constraints.')
-        return
-
-    latest = None
-    for image in response['Images']:
-        if not latest:
-            latest = image
-            continue
-
-        if arrow.get(image['CreationDate']) > arrow.get(latest['CreationDate']):
-            latest = image
-
-    return latest['ImageId']
 
 
 def ec2_describe_instances(instance_ids: Sequence[str]) -> List[InstanceDict]:

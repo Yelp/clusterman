@@ -79,10 +79,6 @@ def get_pool_config_path(cluster, pool):
     return os.path.join(get_cluster_config_directory(cluster), f'{pool}.yaml')
 
 
-def get_spotinst_config_path():
-    return staticconf.read_string('spotinst_config.auth_file')
-
-
 def _load_mock_cluster_pool_config(cluster, pool, signals_branch_or_tag):
     pool_namespace = POOL_NAMESPACE.format(pool=pool)
     staticconf.DictConfiguration(
