@@ -1,5 +1,4 @@
 import pprint
-import time
 from collections import defaultdict
 from typing import Any
 from typing import Dict
@@ -13,6 +12,7 @@ from mypy_extensions import TypedDict
 
 from clusterman.aws.client import autoscaling
 from clusterman.aws.client import ec2
+from clusterman.aws.markets import EC2_INSTANCE_TYPES
 from clusterman.aws.markets import InstanceMarket
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
 from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
@@ -88,12 +88,17 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
         """ Returns the weight of a given market
 
         ASGs have no concept of weight, so if ASG is available in the market's
-        AZ, we return a weight of 1
+        AZ and matches the ASG's instance type, we return the nubmer of CPUs
+        for that market.
 
         :param market: The market for which we want the weight for
         :returns: The weight of a given market
         """
-        return 1 if market.az in self._group_config['AvailabilityZones'] else 0
+        if (market.az in self._group_config['AvailabilityZones'] and
+                market.instance == self._launch_config['InstanceType']):
+            return EC2_INSTANCE_TYPES[market.instance].cpus
+        else:
+            return 0
 
     def modify_target_capacity(
         self,
@@ -140,7 +145,7 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
             HonorCooldown=honor_cooldown,
         )
         logger.info(
-            'Would have set target capacity for ASG with arguments:\n'
+            'Setting target capacity for ASG with arguments:\n'
             f'{pprint.pformat(kwargs)}'
         )
         if dry_run:
@@ -161,18 +166,12 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
     def terminate_instances_by_id(
         self,
         instance_ids: Sequence[str],
-        *,
-        decrement_desired_capacity: bool = False,
     ) -> Sequence[str]:
         """ Terminate instances in the ASG
 
         The autoscaling client does not support batch termination, only
         instance-by-instance termination. To avoid hitting AWS request limits,
-        we simply tag the instances we want to terminate and detach them all
-        from the ASG at once.
-
-        We have a running thread that periodically terminates instances if they
-        have finished detaching.
+        we use the EC2 client to batch terminate instances.
 
         :param instance_ids: A list of instance IDs to terminate
         :param decrement_desired_capacity: Boolean for whether or not to
@@ -183,22 +182,13 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
             logger.warn(f'No instances to terminate in {self.group_id}')
             return []
 
-        # The autoscaling API specifies that we can only specify up to 20
-        # ids at once to detach:
-        for i in range(0, len(instance_ids), _BATCH_DETACH_SIZE):
-            autoscaling.detach_instances(
-                InstanceIds=instance_ids[i:i + _BATCH_DETACH_SIZE],
-                AutoScalingGroupName=self.group_id,
-                ShouldDecrementDesiredCapacity=decrement_desired_capacity,
-            )
-
-        # Wait for instances to finish detaching
-        while set(self.instance_ids) & set(instance_ids):
-            time.sleep(1)  # poll instead of bust wait
-
         # terminate instances
         terminated_ids = []
         for i in range(0, len(instance_ids), _BATCH_TERM_SIZE):
+            # Technically, we should only be using the autoscaling client to
+            # terminate instances, since ASG instances typically have
+            # termination hooks to complete. Additionally, we assume that
+            # MesosPoolManager will manage things for us.
             response = ec2.terminate_instances(InstanceIds=instance_ids)
             terminated_ids.extend([
                 inst['InstanceId']

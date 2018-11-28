@@ -111,6 +111,13 @@ def test_launch_config(mock_asrg, mock_launch_config):
         mock_launch_config['LaunchConfigurationName']
 
 
+@pytest.mark.parametrize('instance_type', ['t2.micro', 'm5.large'])
+def test_market_weight(mock_asrg, instance_type):
+    market_weight = mock_asrg.market_weight(InstanceMarket(instance_type, 'us-west-2a'))
+
+    assert market_weight == (1.0 if instance_type == 't2.micro' else 0)
+
+
 def test_market_capacities(
     mock_asrg,
     mock_asg_config,
@@ -183,23 +190,16 @@ def test_modify_target_capacity_min_max(
         assert mock_asrg.target_capacity == mock_asg_config['MaxSize']
 
 
-@pytest.mark.parametrize('decrement_desired_capacity', [True, False])
 def test_terminate_instances_by_id(
     mock_asrg,
     mock_asg_config,
-    decrement_desired_capacity,
 ):
     mock_asrg.modify_target_capacity(30)
     instance_ids = mock_asrg.instance_ids[:25]
 
-    mock_asrg.terminate_instances_by_id(
-        instance_ids,
-        decrement_desired_capacity=decrement_desired_capacity,
-    )
+    mock_asrg.terminate_instances_by_id(instance_ids)
     terminated_instances = ec2_describe_instances(instance_ids)
 
-    assert mock_asrg.target_capacity == (5 if decrement_desired_capacity else 30)
-    assert len(set(instance_ids) & set(mock_asrg.instance_ids)) == 0
     for inst in terminated_instances:
         assert inst['State']['Name'] in {'shutting-down', 'terminated'}
 
