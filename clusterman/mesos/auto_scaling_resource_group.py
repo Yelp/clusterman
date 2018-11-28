@@ -18,7 +18,6 @@ from clusterman.mesos.constants import CACHE_TTL_SECONDS
 from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 from clusterman.mesos.mesos_pool_resource_group import protect_unowned_instances
 
-_BATCH_DETACH_SIZE = 20
 _BATCH_TERM_SIZE = 200
 
 logger = colorlog.getLogger(__name__)

@@ -1,6 +1,5 @@
 import json
 
-import mock
 import pytest
 
 from clusterman.aws.client import autoscaling
@@ -215,18 +214,11 @@ def test_get_asg_tags(mock_asrg, mock_asg_config):
 
 @pytest.mark.parametrize('cluster', ['fake_cluster', 'nonexistent_cluster'])
 def test_load(mock_asg_config, cluster):
-    # We need to mock out AutoScalingResourceGroup because initializing one
-    # spawns a thread. We can't mock that out because boto/moto uses them for
-    # AWS requests.
-    with mock.patch(
-        'clusterman.mesos.auto_scaling_resource_group.AutoScalingResourceGroup',
-        autospec=True,
-    ):
-        asgs = AutoScalingResourceGroup.load(
-            cluster,
-            'fake_pool',
-            config={'tag': 'puppet:role::paasta'},
-        )
+    asgs = AutoScalingResourceGroup.load(
+        cluster,
+        'fake_pool',
+        config={'tag': 'puppet:role::paasta'},
+    )
 
     if cluster == 'fake_cluster':
         assert mock_asg_config['AutoScalingGroupName'] in asgs
