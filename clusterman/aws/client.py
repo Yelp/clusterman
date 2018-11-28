@@ -86,6 +86,10 @@ class dynamodb(metaclass=_BotoForwarder):
     client = 'dynamodb'
 
 
+class autoscaling(metaclass=_BotoForwarder):
+    client = 'autoscaling'
+
+
 def ec2_describe_instances(instance_ids: Sequence[str]) -> List[InstanceDict]:
     if instance_ids is None or len(instance_ids) == 0:
         return []

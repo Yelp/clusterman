@@ -1,5 +1,6 @@
 import mock
 import pytest
+from moto import mock_autoscaling
 from moto import mock_ec2
 
 
@@ -9,6 +10,14 @@ def setup_ec2():
     mock_ec2_obj.start()
     yield
     mock_ec2_obj.stop()
+
+
+@pytest.fixture(autouse=True)
+def setup_autoscaling():
+    mock_autoscaling_obj = mock_autoscaling()
+    mock_autoscaling_obj.start()
+    yield
+    mock_autoscaling_obj.stop()
 
 
 @pytest.fixture

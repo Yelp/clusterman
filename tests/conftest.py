@@ -90,6 +90,10 @@ def clusterman_pool_config():
                         'prefix': 'none',
                     }
                 },
+            }, {
+                'asg': {
+                    'tag': 'puppet:role::paasta',
+                },
             },
         ],
         'scaling_limits': {

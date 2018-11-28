@@ -37,7 +37,7 @@ def mock_manager(main_clusterman_config, mock_aws_client_setup, mock_sfrs):
         def load(cluster, pool, config):
             return mock_sfrs
 
-    with mock.patch.dict(
+    with mock.patch(
         'clusterman.mesos.mesos_pool_manager.RESOURCE_GROUPS',
         {'sfr': FakeResourceGroupClass},
     ):
