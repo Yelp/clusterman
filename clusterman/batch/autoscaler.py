@@ -6,7 +6,6 @@ from yelp_batch.batch import batch_command_line_arguments
 from yelp_batch.batch import batch_configure
 from yelp_batch.batch_daemon import BatchDaemon
 
-from clusterman.args import add_branch_or_tag_arg
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_env_config_path_arg
@@ -16,7 +15,6 @@ from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import BatchRunningSentinelMixin
 from clusterman.batch.util import suppress_request_limit_exceeded
-from clusterman.config import get_pool_config_path
 from clusterman.config import setup_config
 from clusterman.exceptions import AutoscalerError
 from clusterman.exceptions import ClustermanSignalError
@@ -68,7 +66,6 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
         add_pool_arg(arg_group)
         add_cluster_config_directory_arg(arg_group)
         add_env_config_path_arg(arg_group)
-        add_branch_or_tag_arg(arg_group)
         add_healthcheck_only_arg(arg_group)
         arg_group.add_argument(
             '--dry-run',
@@ -82,10 +79,6 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
     def configure_initial(self):
         setup_config(self.options)
         self.autoscaler = None
-        if not self.options.healthcheck_only:
-            self.config.watchers.append(
-                {self.options.pool: get_pool_config_path(self.options.cluster, self.options.pool)},
-            )
         self.logger = logger
 
         self.apps = [self.options.pool]  # TODO (CLUSTERMAN-126) somday these should not be the same thing

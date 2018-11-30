@@ -1,5 +1,7 @@
 import operator
+import os
 import random
+import subprocess
 from collections import defaultdict
 from datetime import timedelta
 from heapq import heappop
@@ -17,6 +19,7 @@ from clusterman_metrics import METADATA
 from sortedcontainers import SortedDict  # noqa
 
 from clusterman.autoscaler.autoscaler import Autoscaler
+from clusterman.autoscaler.signals import setup_signals_environment
 from clusterman.aws.client import ec2
 from clusterman.aws.markets import get_instance_market
 from clusterman.aws.markets import InstanceMarket
@@ -234,7 +237,20 @@ class Simulator:
             curr_timestamp += self.billing_frequency
         self.cost_per_hour.add_delta(curr_timestamp, -last_billed_price)
 
-    def _make_autoscaler(self, autoscaler_config_file):
+    def _make_autoscaler(self, autoscaler_config_file: str) -> None:
+        fetch_count, signal_count = setup_signals_environment(self.metadata.pool)
+        signal_dir = os.path.join(os.path.expanduser('~'), '.cache', 'clusterman')
+
+        endpoint_url = staticconf.read_string('aws.endpoint_url', '').format(svc='s3')
+        env = os.environ.copy()
+        if endpoint_url:
+            env['AWS_ENDPOINT_URL_ARGS'] = f'--endpoint-url {endpoint_url}'
+
+        for i in range(fetch_count):
+            subprocess.run(['fetch_clusterman_signal', str(i), signal_dir], check=True, env=env)
+        for i in range(signal_count):
+            subprocess.Popen(['run_clusterman_signal', str(i), signal_dir], env=env)
+
         with open(autoscaler_config_file) as f:
             autoscaler_config = yaml.safe_load(f)
         configs = autoscaler_config.get('configs', [])

@@ -16,6 +16,7 @@ py-zipkin<=0.12  # TODO delete this once ZIPKIN-680 is resolved
 PyYAML
 retry
 requests
+retry
 signalfx
 simplejson
 sortedcontainers

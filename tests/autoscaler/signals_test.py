@@ -9,8 +9,8 @@ from clusterman_metrics import APP_METRICS
 from clusterman_metrics import METADATA
 from clusterman_metrics import SYSTEM_METRICS
 
-from clusterman.autoscaler.signals import _get_local_signal_directory
 from clusterman.autoscaler.signals import ACK
+from clusterman.autoscaler.signals import setup_signals_environment
 from clusterman.autoscaler.signals import Signal
 from clusterman.exceptions import ClustermanSignalError
 from clusterman.exceptions import MetricsError
@@ -18,42 +18,9 @@ from clusterman.exceptions import SignalConnectionError
 
 
 @pytest.fixture
-def local_signal_dir_patches():
-    with mock.patch('clusterman.autoscaler.signals.os.path.exists') as mock_exists, \
-            mock.patch('clusterman.autoscaler.signals.logger') as mock_logger, \
-            mock.patch('clusterman.autoscaler.signals.subprocess.run') as mock_run, \
-            mock.patch('clusterman.autoscaler.signals.sha_from_branch_or_tag') as mock_sha, \
-            mock.patch('clusterman.autoscaler.signals._get_cache_location') as mock_cache:
-        mock_sha.return_value = 'abcdefabcdefabcdefabcdefabcdefabcdefabcd'
-        mock_cache.return_value = '/foo'
-        yield mock_exists, mock_logger, mock_run
-
-
-def test_signal_already_built(local_signal_dir_patches):
-    mock_exists, mock_logger, mock_run = local_signal_dir_patches
-    mock_exists.return_value = True
-    _get_local_signal_directory('repo', 'a_branch')
-    assert mock_exists.call_args == \
-        mock.call(os.path.join('/', 'foo', 'clusterman_signals_abcdefabcdefabcdefabcdefabcdefabcdefabcd'))
-    assert mock_run.call_count == 2  # make clean; make prod
-    assert mock_logger.debug.call_count == 1  # already cloned repo
-
-
-def test_signal_not_present(local_signal_dir_patches):
-    mock_exists, mock_logger, mock_run = local_signal_dir_patches
-    mock_exists.return_value = False
-    with mock.patch('clusterman.autoscaler.signals.os.makedirs'):
-        _get_local_signal_directory('repo', 'a_branch')
-    assert mock_exists.call_args == \
-        mock.call(os.path.join('/', 'foo', 'clusterman_signals_abcdefabcdefabcdefabcdefabcdefabcdefabcd'))
-    assert mock_run.call_count == 3  # git clone; make clean; make prod
-    assert mock_logger.debug.call_count == 0
-
-
-@pytest.fixture
 def mock_signal():
-    with mock.patch('clusterman.autoscaler.signals.Signal._start_signal_process'):
-        return Signal('foo', 'bar', 'app1', 'bar_config', mock.Mock())
+    with mock.patch('clusterman.autoscaler.signals.Signal._connect_to_signal_process'):
+        return Signal('foo', 'bar', 'app1', 'bar_config', mock.Mock(), 'the_signal')
 
 
 def test_init(mock_signal):
@@ -83,21 +50,21 @@ def test_evaluate_broken_signal(mock_signal):
 def test_evaluate_restart_dead_signal(mock_signal):
     mock_signal._get_metrics = mock.Mock(return_value={})
     mock_signal._signal_conn.recv.side_effect = [BrokenPipeError, ACK, ACK, '{"Resources": {"cpus": 1}}']
-    with mock.patch('clusterman.autoscaler.signals.Signal._start_signal_process') as mock_load:
-        mock_load.return_value = mock_signal._signal_conn
+    with mock.patch('clusterman.autoscaler.signals.Signal._connect_to_signal_process') as mock_connect:
+        mock_connect.return_value = mock_signal._signal_conn
         assert mock_signal.evaluate(arrow.get(12345678)) == {'cpus': 1}
-        assert mock_load.call_count == 1
+        assert mock_connect.call_count == 1
 
 
 @pytest.mark.parametrize('error', [BrokenPipeError, 'error'])
 def test_evaluate_restart_dead_signal_fails(mock_signal, error):
     mock_signal._get_metrics = mock.Mock(return_value={})
     mock_signal._signal_conn.recv.side_effect = [BrokenPipeError, ACK, ACK, error]
-    with mock.patch('clusterman.autoscaler.signals.Signal._start_signal_process') as mock_load, \
+    with mock.patch('clusterman.autoscaler.signals.Signal._connect_to_signal_process') as mock_connect, \
             pytest.raises(ClustermanSignalError):
-        mock_load.return_value = mock_signal._signal_conn
+        mock_connect.return_value = mock_signal._signal_conn
         mock_signal.evaluate(arrow.get(12345678))
-        assert mock_load.call_count == 1
+        assert mock_connect.call_count == 1
 
 
 @mock.patch('clusterman.autoscaler.signals.SOCKET_MESG_SIZE', 2)
@@ -152,3 +119,16 @@ def test_get_metadata_metrics(mock_signal):
     with pytest.raises(MetricsError):
         mock_signal.required_metrics = [{'name': 'total_cpus', 'type': METADATA, 'minute_range': 10}]
         mock_signal._get_metrics(arrow.get(0))
+
+
+def test_setup_signals_namespace():
+    fetch_num, signal_num = setup_signals_environment('bar')
+    assert sorted(os.environ['CMAN_VERSIONS_TO_FETCH'].split(' ')) == ['master', 'v42']
+    assert sorted(os.environ['CMAN_SIGNAL_VERSIONS'].split(' ')) == ['master', 'v42']
+    assert sorted(os.environ['CMAN_SIGNAL_NAMESPACES'].split(' ')) == ['bar', 'foo']
+    assert sorted(os.environ['CMAN_SIGNAL_NAMES'].split(' ')) == ['BarSignal3', 'DefaultSignal']
+    assert sorted(os.environ['CMAN_SIGNAL_APPS'].split(' ')) == ['__default__', 'bar']
+    assert os.environ['CMAN_NUM_VERSIONS'] == '2'
+    assert os.environ['CMAN_NUM_SIGNALS'] == '2'
+    assert os.environ['CMAN_SIGNALS_BUCKET'] == 'the_bucket'
+    assert (fetch_num, signal_num) == (2, 2)

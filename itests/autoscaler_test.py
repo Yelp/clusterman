@@ -42,7 +42,7 @@ def resource_groups():
 
 @pytest.fixture
 def autoscaler(resource_groups):
-    with mock.patch('clusterman.autoscaler.signals.Signal._start_signal_process'), \
+    with mock.patch('clusterman.autoscaler.signals.Signal._connect_to_signal_process'), \
             mock.patch('clusterman.autoscaler.autoscaler.yelp_meteorite'), \
             staticconf.testing.PatchConfiguration({'autoscaling': {'default_signal_role': 'bar'}}):
 

@@ -12,6 +12,16 @@ scaling_limits:
 
 autoscale_signal:
   namespace: clusterman
-  name: ConstantSignal
-  branch_or_tag: v3.6.5
+  name: MostRecentResources
+  branch_or_tag: acceptance
   period_minutes: 10
+  required_metrics:
+    - name: cpus_allocated
+      type: system_metrics
+      minute_range: 10
+    - name: mem_allocated
+      type: system_metrics
+      minute_range: 10
+    - name: disk_allocated
+      type: system_metrics
+      minute_range: 10

@@ -8,16 +8,18 @@ UID:=`id -u`
 GID:=`id -g`
 DOCKER_BUILD_RUN:=docker run -t -v $(CURDIR)/..:/src:ro -v $(CURDIR)/dist:/dist:rw
 DOCKER_ITEST_RUN:=docker run -t -v $(CURDIR)/itest:/itest:rw -v $(CURDIR)/dist:/dist:ro --net=acceptance_default \
-	-e PIP_INDEX_URL=https://pypi.yelpcorp.com/simple \
 	-v $(CURDIR)/../acceptance/srv-configs:/nail/srv/configs:ro \
+	-v $(CURDIR)/../acceptance/clusterman.sh:/etc/boto_cfg/clusterman.sh:ro \
 	-v $(CURDIR)/../acceptance/clusterman.json:/etc/boto_cfg/clusterman.json:ro \
-	-v $(CURDIR)/../acceptance/clusterman.json:/etc/boto_cfg/clusterman_metrics.json:ro \
-	-v /nail/etc/clusterman-git:/root/.ssh/id_rsa
+	-v $(CURDIR)/../acceptance/clusterman.json:/etc/boto_cfg/clusterman_metrics.json:ro
 VERSIONED_FILES:=$(shell cd $(CURDIR)/.. && git ls-files -z --cached --modified | xargs -0 -I@ echo -n "'@' ")
 DOCKER_WORKDIR:=mkdir -p /work && cd /src && cp -v --parents $(VERSIONED_FILES) /work/ && cd /work
 
 itest_%: package_% dist/%/Packages.gz
-	$(DOCKER_ITEST_RUN) docker-dev.yelpcorp.com/$*_yelp /itest/ubuntu.sh $(SYSTEM_PKG_NAME) $(PACKAGE_VERSION)
+	$(DOCKER_ITEST_RUN) \
+		-v $(CURDIR)/../acceptance/$*/clusterman_signals_acceptance.tar.gz:/itest/clusterman_signals_acceptance.tar.gz \
+		docker-dev.yelpcorp.com/$*_yelp \
+		/itest/ubuntu.sh $(SYSTEM_PKG_NAME) $(PACKAGE_VERSION)
 
 dist/%/Packages.gz:
 	$(DOCKER_BUILD_RUN) $(SYSTEM_PKG_NAME)_$*_container /bin/bash -c "\

@@ -1,6 +1,5 @@
 import logging
 import pprint
-import subprocess
 import time
 from datetime import datetime
 from typing import Any
@@ -117,12 +116,6 @@ def color_conditions(
             color_str = getattr(Fore, color.upper())
             break
     return color_str + prefix + str(input_obj) + postfix + Style.RESET_ALL
-
-
-def run_subprocess_and_log(logger, *args, **kwargs):
-    result = subprocess.run(*args, **kwargs)
-    logger.info(result.stdout.decode().strip())
-    result.check_returncode()
 
 
 def parse_time_string(time_str, tz='US/Pacific'):
@@ -242,15 +235,3 @@ def splay_event_time(frequency: int, key: str, timestamp: float = None) -> float
     timestamp = timestamp or time.time()
     random_wait_time = hash(key) % frequency
     return frequency - (timestamp % frequency) + random_wait_time
-
-
-def sha_from_branch_or_tag(repo, branch_or_tag):
-    """ Convert a branch or tag for a repo into a git SHA """
-    result = subprocess.run(
-        ['git', 'ls-remote', '--exit-code', repo, branch_or_tag],
-        stdout=subprocess.PIPE,
-        check=True,
-    )
-    output = result.stdout.decode()
-    sha = output.split('\t')[0]
-    return sha

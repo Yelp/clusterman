@@ -20,7 +20,7 @@ repos:
         language_version: python3.6
     -   id: check-added-large-files
         language_version: python3.6
-        exclude: ^\.activate\.sh$
+        exclude: ^(\.activate\.sh|.*clusterman_signals_acceptance\.tar\.gz)$
     -   id: check-byte-order-marker
         language_version: python3.6
     -   id: fix-encoding-pragma
