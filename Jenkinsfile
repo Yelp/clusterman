@@ -7,7 +7,7 @@ utils = new Utils()
 eeMetrics = new EEMetrics()
 
 SERVICE_NAME = 'clusterman'
-DEPLOY_GROUPS = ['prod.non_canary', 'dev.everything']
+DEPLOY_GROUPS = ['other-batches', 'dev-stage-testopia.default', 'testopia.jolt', 'prod.everything']
 IRC_CHANNELS = ['clusterman']
 EMAILS = ['compute-infra@yelp.com']
 
@@ -15,7 +15,7 @@ commit = ''
 authors = [:]
 
 node {
-    eeMetrics.emitEvent("${env.job_name}", 'jenkins', "${env.job_name}-${env.build_id}", 'start', '{"event_category": "deploy"}')
+    eeMetrics.emitEvent("${env.job_name}", 'jenkins', "${env.job_name}-${env.build_id}", 'start')
 }
 
 utils.handleInputRejection {
@@ -26,12 +26,11 @@ utils.handleInputRejection {
                     commit = clone("services/${SERVICE_NAME}")['GIT_COMMIT']
                     eeMetrics.emitLink('sha', "${commit}", 'jenkins', "${env.JOB_NAME}-${env.BUILD_ID}")
 
-                    // Dont look, grossness
                     for (deploy_group in DEPLOY_GROUPS) {
                         current = sh(script: "paasta get-latest-deployment --service ${SERVICE_NAME} --deploy-group ${deploy_group} || git hash-object -t tree /dev/null", returnStdout: true).trim()
                         author = sh(script: "git log --format=%ae ${current}..${commit} | sort -u | cut -d@ -f1 | xargs --no-run-if-empty", returnStdout: true).trim()
 
-                        authors[deploy_group] = author
+                        authors[deploy_group] = author.tokenize()
                     }
                 }
 
@@ -57,44 +56,43 @@ utils.handleInputRejection {
 
                 ystage('performance-check') {
                     sh(script: $/paasta performance-check --service ${SERVICE_NAME}/$)
+                }
 
-                    if (!wasTimerTriggered() && authors['prod.non_canary']) {
-                        pingList = authors['prod.non_canary'].split(' ').collect{author -> "<@${author}>"}.join(', ')
+                ystage('debian-upload') {
+                    // Runs `make itest_${version}` and attempts to upload to apt server if not an automatically timed run
+                    // This will automatically break all the steps into stages for you
+                    //
+                    // We do networking with docker-compose and the networks conflict so we have to do each version separately
+                    debItestUpload("services/${SERVICE_NAME}", ['trusty'])
+                    debItestUpload("services/${SERVICE_NAME}", ['xenial'])
+
+                    if (!wasTimerTriggered() && authors['prod.everything']) {
+                        pingList = authors['prod.everything'].split(' ').collect{author -> "<@${author}>"}.join(', ')
                         utils.nodebot(IRC_CHANNELS, "Hey ${pingList}, go click the button! :easy_button: y/clusterman-jenkins")
                     }
-
                     timeout(time: 1, unit: 'HOURS') { input "Click to advance to next step" }
                 }
             }
 
-            // Runs `make itest_${version}` and attempts to upload to apt server if not an automatically timed run
-            // This will automatically break all the steps into stages for you
-            //
-            // We do networking with docker-compose and the networks conflict so we have to do each version separately
-            debItestUpload("services/${SERVICE_NAME}", ['trusty'])
-            debItestUpload("services/${SERVICE_NAME}", ['xenial'])
+            ystage('other-batches') {
+                paastaDeploy(SERVICE_NAME, commit, 'other-batches', waitForDeployment: true, confirmation: false, deployTimeout: false, autoRollback: false, productionDeploy: false)
+            }
 
-            // Now do the paasta service deploy
-            node('trusty') {
+            ystage('dev-stage-testopia.default') {
+                paastaDeploy(SERVICE_NAME, commit, 'dev-stage-testopia.default', waitForDeployment: true, confirmation: false, deployTimeout: true, autoRollback: false, productionDeploy: false)
+            }
 
-                ystage(eeMetricsWorkflow: 'deploy-prod', 'prod.non_canary') {
-                    paastaDeploy(SERVICE_NAME, commit, 'prod.non_canary', waitForDeployment: true, confirmation: false, deployTimeout: false, autoRollback: false)
+            ystage('testopia.jolt') {
+                paastaDeploy(SERVICE_NAME, commit, 'testopia.jolt', waitForDeployment: true, confirmation: true, deployTimeout: false, autoRollback: false, productionDeploy: false)
+            }
 
-                    ircMsgPaastaDeploy(SERVICE_NAME, IRC_CHANNELS, 'prod.non_canary', authors['prod.non_canary'])
-                }
-
-                ystage('dev.everything') {
-                    paastaDeploy(SERVICE_NAME, commit, 'dev.everything', waitForDeployment: true, confirmation: false, deployTimeout: false, autoRollback: false)
-                }
+            ystage('prod.everything') {
+                paastaDeploy(SERVICE_NAME, commit, 'prod.everything', waitForDeployment: true, confirmation: true, deployTimeout: false, autoRollback: false, productionDeploy: true)
             }
         }
     }
-}
 
-node {
-    eeMetrics.emitEvent("${env.job_name}", 'jenkins', "${env.job_name}-${env.build_id}", 'end')
-}
-
-private boolean wasTimerTriggered() {
-    (currentBuild.rawBuild.getCause(hudson.triggers.TimerTrigger$TimerTriggerCause)) ? true : false
+    node {
+        eeMetrics.emitEvent("${env.job_name}", 'jenkins', "${env.job_name}-${env.build_id}", 'end')
+    }
 }
