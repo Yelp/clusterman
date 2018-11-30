@@ -1,3 +1,9 @@
+clusterman (3.0.0) trusty; urgency=low
+
+  * Use supervisord to manage signal processes
+
+ -- David Morrison <drmorr@yelp.com>  Fri, 30 Nov 2018 15:04:35 -0800
+
 clusterman (2.11.2) trusty; urgency=low
 
   * Remove SHA from generated .deb
