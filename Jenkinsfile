@@ -67,7 +67,7 @@ utils.handleInputRejection {
                     debItestUpload("services/${SERVICE_NAME}", ['xenial'])
 
                     if (!wasTimerTriggered() && authors['prod.everything']) {
-                        pingList = authors['prod.everything'].split(' ').collect{author -> "<@${author}>"}.join(', ')
+                        pingList = authors['prod.everything'].collect{author -> "<@${author}>"}.join(', ')
                         utils.nodebot(IRC_CHANNELS, "Hey ${pingList}, go click the button! :easy_button: y/clusterman-jenkins")
                     }
                     timeout(time: 1, unit: 'HOURS') { input "Click to advance to next step" }
