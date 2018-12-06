@@ -132,6 +132,8 @@ def test_scale_down(mock_manager):
                 'pid': f'slave(1)@{inst["PrivateIpAddress"]}:1',
                 'id': f'agent-{inst["InstanceId"]}',
                 'hostname': 'host1',
+                'used_resources': {'cpus': 0},
+                'resources': {'cpus': 10},
             })
 
     with mock.patch(

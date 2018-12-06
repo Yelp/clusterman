@@ -2,16 +2,19 @@ from collections import namedtuple
 
 ClusterMetric = namedtuple('ClusterMetric', ['metric_name', 'value', 'dimensions'])
 
-SYSTEM_METRICS = {
+SYSTEM_METRIC_TYPES = {
     'cpus_allocated': lambda manager: manager.get_resource_allocation('cpus'),
     'mem_allocated': lambda manager: manager.get_resource_allocation('mem'),
     'disk_allocated': lambda manager: manager.get_resource_allocation('disk'),
 }
 
-SIMPLE_METADATA = {
+SIMPLE_METADATA_TYPES = {
     'cpus_total': lambda manager: manager.get_resource_total('cpus'),
     'mem_total': lambda manager: manager.get_resource_total('mem'),
     'disk_total': lambda manager: manager.get_resource_total('disk'),
+    'cpus_total_usable': lambda manager: manager.get_resource_total('cpus', only_if_usable=True),
+    'mem_total_usable': lambda manager: manager.get_resource_total('mem', only_if_usable=True),
+    'disk_total_usable': lambda manager: manager.get_resource_total('disk', only_if_usable=True),
     'target_capacity': lambda manager: manager.target_capacity,
     'fulfilled_capacity': lambda manager: {str(market): value for market,
                                            value in manager.get_market_capacities().items()},
@@ -19,12 +22,12 @@ SIMPLE_METADATA = {
 
 
 def generate_system_metrics(manager):
-    for metric_name, value_method in SYSTEM_METRICS.items():
+    for metric_name, value_method in SYSTEM_METRIC_TYPES.items():
         yield ClusterMetric(metric_name, value_method(manager), dimensions={})
 
 
 def generate_simple_metadata(manager):
-    for metric_name, value_method in SIMPLE_METADATA.items():
+    for metric_name, value_method in SIMPLE_METADATA_TYPES.items():
         yield ClusterMetric(metric_name, value_method(manager), dimensions={})
 
 
