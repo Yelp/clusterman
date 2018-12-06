@@ -66,12 +66,15 @@ utils.handleInputRejection {
                     debItestUpload("services/${SERVICE_NAME}", ['trusty'])
                     debItestUpload("services/${SERVICE_NAME}", ['xenial'])
 
-                    if (!wasTimerTriggered() && authors['prod.everything']) {
-                        pingList = authors['prod.everything'].collect{author -> "<@${author}>"}.join(', ')
-                        utils.nodebot(IRC_CHANNELS, "Hey ${pingList}, go click the button! :easy_button: y/clusterman-jenkins")
-                    }
-                    timeout(time: 1, unit: 'HOURS') { input "Click to advance to next step" }
                 }
+            }
+
+            ystage('advance1') {
+                if (!wasTimerTriggered() && authors['prod.everything']) {
+                    pingList = authors['prod.everything'].collect{author -> "<@${author}>"}.join(', ')
+                    utils.nodebot(IRC_CHANNELS, "Hey ${pingList}, go click the button! :easy_button: y/clusterman-jenkins")
+                }
+                timeout(time: 1, unit: 'HOURS') { input "Click to advance to next step" }
             }
 
             ystage('other-batches') {
@@ -82,12 +85,28 @@ utils.handleInputRejection {
                 paastaDeploy(SERVICE_NAME, commit, 'dev-stage-testopia.default', waitForDeployment: true, confirmation: false, deployTimeout: true, autoRollback: false, productionDeploy: false)
             }
 
+            ystage('advance2') {
+                if (!wasTimerTriggered() && authors['prod.everything']) {
+                    pingList = authors['prod.everything'].collect{author -> "<@${author}>"}.join(', ')
+                    utils.nodebot(IRC_CHANNELS, "Hey ${pingList}, go click the button! :easy_button: y/clusterman-jenkins")
+                }
+                timeout(time: 1, unit: 'HOURS') { input "Click to advance to next step" }
+            }
+
             ystage('testopia.jolt') {
-                paastaDeploy(SERVICE_NAME, commit, 'testopia.jolt', waitForDeployment: true, confirmation: true, deployTimeout: false, autoRollback: false, productionDeploy: false)
+                paastaDeploy(SERVICE_NAME, commit, 'testopia.jolt', waitForDeployment: true, confirmation: false, deployTimeout: false, autoRollback: false, productionDeploy: false)
+            }
+
+            ystage('advance3') {
+                if (!wasTimerTriggered() && authors['prod.everything']) {
+                    pingList = authors['prod.everything'].collect{author -> "<@${author}>"}.join(', ')
+                    utils.nodebot(IRC_CHANNELS, "Hey ${pingList}, go click the button! :easy_button: y/clusterman-jenkins")
+                }
+                timeout(time: 1, unit: 'HOURS') { input "Click to advance to next step" }
             }
 
             ystage('prod.everything') {
-                paastaDeploy(SERVICE_NAME, commit, 'prod.everything', waitForDeployment: true, confirmation: true, deployTimeout: false, autoRollback: false, productionDeploy: true)
+                paastaDeploy(SERVICE_NAME, commit, 'prod.everything', waitForDeployment: true, confirmation: false, deployTimeout: false, autoRollback: false, productionDeploy: true)
             }
         }
     }
