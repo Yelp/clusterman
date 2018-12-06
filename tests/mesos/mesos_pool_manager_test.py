@@ -610,8 +610,8 @@ class TestGetInstances:
         agents.append({
             'pid': f'slave(1)@{reservations["Instances"][1]["PrivateIpAddress"]}:1',
             'id': 'idle',
-            'used_resources': {'cpus': 0},
-            'resources': {'cpus': 10},
+            'used_resources': {'cpus': 0, 'mem': 0, 'disk': 0},
+            'resources': {'cpus': 10, 'mem': 10, 'disk': 10},
             'hostname': 'host1',
         })
 
@@ -619,8 +619,8 @@ class TestGetInstances:
         agents.append({
             'pid': f'slave(1)@{reservations["Instances"][2]["PrivateIpAddress"]}:1',
             'id': 'few_tasks',
-            'used_resources': {'cpus': 1},
-            'resources': {'cpus': 10},
+            'used_resources': {'cpus': 1, 'mem': 5, 'disk': 2},
+            'resources': {'cpus': 10, 'mem': 10, 'disk': 10},
             'hostname': 'host1',
         })
         tasks.extend([{'slave_id': 'few_tasks', 'state': 'TASK_RUNNING', 'framework_id': '1'} for _ in range(3)])
@@ -629,8 +629,8 @@ class TestGetInstances:
         agents.append({
             'pid': f'slave(1)@{reservations["Instances"][3]["PrivateIpAddress"]}:1',
             'id': 'many_tasks',
-            'used_resources': {'cpus': 1},
-            'resources': {'cpus': 10},
+            'used_resources': {'cpus': 1, 'mem': 5, 'disk': 2},
+            'resources': {'cpus': 10, 'mem': 10, 'disk': 10},
             'hostname': 'host1',
         })
         tasks.extend([{'slave_id': 'many_tasks', 'state': 'TASK_RUNNING', 'framework_id': '1'} for _ in range(8)])
@@ -754,8 +754,8 @@ def test_instance_kill_order(mock_pool_manager):
     agents.append({
         'pid': f'slave(1)@{reservations["Instances"][1]["PrivateIpAddress"]}:1',
         'id': 'idle',
-        'used_resources': {'cpus': 0},
-        'resources': {'cpus': 10},
+        'used_resources': {'cpus': 0, 'mem': 0, 'disk': 0},
+        'resources': {'cpus': 10, 'mem': 10, 'disk': 10},
         'hostname': 'host1'
     })
 
@@ -763,8 +763,8 @@ def test_instance_kill_order(mock_pool_manager):
     agents.append({
         'pid': f'slave(2)@{reservations["Instances"][2]["PrivateIpAddress"]}:1',
         'id': 'few_tasks',
-        'used_resources': {'cpus': 3},
-        'resources': {'cpus': 10},
+        'used_resources': {'cpus': 3, 'mem': 5, 'disk': 2},
+        'resources': {'cpus': 10, 'mem': 10, 'disk': 10},
         'hostname': 'host2'
     })
     tasks.extend([{'slave_id': 'few_tasks', 'state': 'TASK_RUNNING', 'framework_id': '2'} for _ in range(3)])
@@ -773,8 +773,8 @@ def test_instance_kill_order(mock_pool_manager):
     agents.append({
         'pid': f'slave(3)@{reservations["Instances"][3]["PrivateIpAddress"]}:1',
         'id': 'many_tasks',
-        'used_resources': {'cpus': 8},
-        'resources': {'cpus': 10},
+        'used_resources': {'cpus': 8, 'mem': 5, 'disk': 2},
+        'resources': {'cpus': 10, 'mem': 10, 'disk': 10},
         'hostname': 'host3'
     })
     tasks.extend([{'slave_id': 'many_tasks', 'state': 'TASK_RUNNING', 'framework_id': '2'} for _ in range(8)])
@@ -783,8 +783,8 @@ def test_instance_kill_order(mock_pool_manager):
     agents.append({
         'pid': f'slave(6)@{reservations["Instances"][6]["PrivateIpAddress"]}:1',
         'id': 'many_tasks_and_batch_tasks',
-        'used_resources': {'cpus': 8},
-        'resources': {'cpus': 10},
+        'used_resources': {'cpus': 8, 'mem': 5, 'disk': 2},
+        'resources': {'cpus': 10, 'mem': 10, 'disk': 10},
         'hostname': 'host6'
     })
     tasks.extend(
@@ -798,8 +798,8 @@ def test_instance_kill_order(mock_pool_manager):
     agents.append({
         'pid': f'slave(6)@{reservations["Instances"][7]["PrivateIpAddress"]}:1',
         'id': 'few_tasks_and_batch_tasks',
-        'used_resources': {'cpus': 8},
-        'resources': {'cpus': 10},
+        'used_resources': {'cpus': 8, 'mem': 5, 'disk': 2},
+        'resources': {'cpus': 10, 'mem': 10, 'disk': 10},
         'hostname': 'host7'
     })
     tasks.extend(
@@ -813,8 +813,8 @@ def test_instance_kill_order(mock_pool_manager):
     agents.append({
         'pid': f'slave(4)@{reservations["Instances"][4]["PrivateIpAddress"]}:1',
         'id': 'few_tasks_stale',
-        'used_resources': {'cpus': 3},
-        'resources': {'cpus': 10},
+        'used_resources': {'cpus': 3, 'mem': 5, 'disk': 2},
+        'resources': {'cpus': 10, 'mem': 10, 'disk': 10},
         'hostname': 'host4'
     })
     tasks.extend([{'slave_id': 'few_tasks_stale', 'state': 'TASK_RUNNING', 'framework_id': '2'} for _ in range(3)])
@@ -823,8 +823,8 @@ def test_instance_kill_order(mock_pool_manager):
     agents.append({
         'pid': f'slave(5)@{reservations["Instances"][5]["PrivateIpAddress"]}:1',
         'id': 'many_tasks_stale',
-        'used_resources': {'cpus': 8},
-        'resources': {'cpus': 10},
+        'used_resources': {'cpus': 8, 'mem': 5, 'disk': 2},
+        'resources': {'cpus': 10, 'mem': 10, 'disk': 10},
         'hostname': 'host5'
     })
     tasks.extend([{'slave_id': 'many_tasks_stale', 'state': 'TASK_RUNNING', 'framework_id': '2'} for _ in range(8)])
@@ -872,8 +872,8 @@ class TestInstanceKillability:
             agents = [{
                 'pid': f'slave(1)@{reservations["Instances"][0]["PrivateIpAddress"]}:1',
                 'id': 'agent_id',
-                'used_resources': {'cpus': 0},
-                'resources': {'cpus': 10},
+                'used_resources': {'cpus': 0, 'mem': 0, 'disk': 0},
+                'resources': {'cpus': 10, 'mem': 10, 'disk': 10},
                 'hostname': 'host123'
             }]
             for _ in range(num_tasks):

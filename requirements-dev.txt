@@ -53,6 +53,7 @@ pycparser==2.18
 pycryptodome==3.4.6
 pyflakes==1.6.0
 Pygments==2.2.0
+PyHamcrest==1.9.0
 pytest==3.5.1
 python-jose==2.0.2
 requirements-tools==1.2.1
