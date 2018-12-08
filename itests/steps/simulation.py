@@ -1,9 +1,12 @@
-import math
 from datetime import timedelta
 
 import arrow
 import behave
 import staticconf.testing
+from hamcrest import assert_that
+from hamcrest import close_to
+from hamcrest import equal_to
+from hamcrest import contains
 
 from clusterman.aws.markets import InstanceMarket
 from clusterman.run import setup_logging
@@ -80,24 +83,27 @@ def run_simulator(context, hours, per_second_billing):
 
 @behave.then('the simulated cluster costs \$(?P<cost>\d+(?:\.\d+)?) total')
 def check_cost(context, cost):
-    assert math.isclose(context.simulator.total_cost, float(cost), abs_tol=0.01)
+    assert_that(context.simulator.total_cost, close_to(float(cost), 0.01))
 
 
 @behave.then('the instance (?P<time_param>start|join) time should be (?P<time>\d+)')
 def check_instance_times(context, time_param, time):
     instance = list(context.simulator.aws_clusters[0].instances.values())[0]
-    assert getattr(instance, f'{time_param}_time').timestamp == int(time)
+    assert_that(getattr(instance, f'{time_param}_time').timestamp, equal_to(int(time)))
 
 
 @behave.then('no instances should join the Mesos cluster')
 def check_cluster_cpus_empty(context):
     for y in context.simulator.mesos_cpus.breakpoints.values():
-        assert y == 0
+        assert_that(y, equal_to(0))
 
 
 @behave.then('instances should join the Mesos cluster')
 def check_cluster_cpus(context):
-    assert list(context.simulator.mesos_cpus.breakpoints.items()) == [
-        (arrow.get(300), 32),
-        (arrow.get(1800), 0),
-    ]
+    assert_that(
+        list(context.simulator.mesos_cpus.breakpoints.items()),
+        contains(
+            (arrow.get(300), 32),
+            (arrow.get(1800), 0),
+        ),
+    )

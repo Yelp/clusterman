@@ -4,6 +4,10 @@ import behave
 import mock
 import staticconf.testing
 from botocore.exceptions import ClientError
+from hamcrest import assert_that
+from hamcrest import equal_to
+from hamcrest import has_length
+from hamcrest import has_string
 from pysensu_yelp import Status
 
 from clusterman.batch.autoscaler import AutoscalerBatch
@@ -20,8 +24,8 @@ def _check_sensu_args(call_args, *, name=None, app_name=None, status=Status.OK):
     else:
         team = service_sensu_config['team']
 
-    assert args['status'] == status
-    assert args['team'] == team
+    assert_that(args['status'], equal_to(status))
+    assert_that(args['team'], equal_to(team))
 
 
 @behave.fixture
@@ -66,7 +70,7 @@ def signal_init_fails(context, signal_type):
         context.batch.configure_initial()
     except AutoscalerError as e:
         # An error only gets raised if the default signal failed, and it's converted to an AutoscalerError
-        assert str(e.__cause__) == expected_error
+        assert_that(e.__cause__, has_string(expected_error))
 
 
 @behave.when('the autoscaler fails')
@@ -78,7 +82,7 @@ def autoscaler_fails(context):
         context.batch.run()
     except ValueError as e:
         # Make sure that we're not masking an error somewhere
-        assert str(e) == expected_error
+        assert_that(e, has_string(expected_error))
 
 
 @behave.when('the (?P<signal_type>application|default) signal fails')
@@ -101,7 +105,7 @@ def signal_fails(context, signal_type):
         context.batch.run()
     except ClustermanSignalError as e:
         # Make sure that we're not masking an error somewhere
-        assert str(e) == expected_error
+        assert_that(e, has_string(expected_error))
 
 
 @behave.when('signal evaluation succeeds')
@@ -127,7 +131,7 @@ def check_initialization_ok(context):
 def check_warn_app_owner(context, not_):
     if not_:
         # If there's no warning then we just expect two checkins
-        assert len(context.sensu.call_args_list) == 2
+        assert_that(context.sensu.call_args_list, has_length(2))
     else:
         _check_sensu_args(context.sensu.call_args_list[0], app_name='bar', status=Status.WARNING)
 

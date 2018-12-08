@@ -2,6 +2,8 @@ import behave
 import mock
 import staticconf.testing
 from moto import mock_ec2
+from hamcrest import assert_that
+from hamcrest import contains
 
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.autoscaler.signals import ACK
@@ -80,5 +82,10 @@ def signal_resource_request(context, value):
 @behave.then('the autoscaler should scale rg(?P<rg>[12]) to (?P<target>\d+) capacity')
 def rg_capacity_change(context, rg, target):
     groups = list(context.autoscaler.mesos_pool_manager.resource_groups.values())
-    assert groups[int(rg) - 1].modify_target_capacity.call_args_list == \
-        [mock.call(int(target), terminate_excess_capacity=False, dry_run=False)] * 2
+    assert_that(
+        groups[int(rg) - 1].modify_target_capacity.call_args_list,
+        contains(
+            mock.call(int(target), terminate_excess_capacity=False, dry_run=False),
+            mock.call(int(target), terminate_excess_capacity=False, dry_run=False),
+        ),
+    )

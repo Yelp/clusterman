@@ -6,6 +6,7 @@ ipdb
 livereload
 paasta-acceptance
 pre-commit
+pyhamcrest
 pytest==3.5.1  # pinned because of https://github.com/spulec/moto/issues/1596
 requirements-tools
 mock
