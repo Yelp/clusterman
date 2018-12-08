@@ -77,11 +77,12 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
             AutoScalingGroupName=self.id,
             NewInstancesProtectedFromScaleIn=protect,
         )
-        autoscaling.set_instance_protection(  # protect current
-            InstanceIds=self.instance_ids,
-            AutoScalingGroupName=self.id,
-            ProtectedFromScaleIn=protect,
-        )
+        if self.instance_ids:
+            autoscaling.set_instance_protection(  # protect current
+                InstanceIds=self.instance_ids,
+                AutoScalingGroupName=self.id,
+                ProtectedFromScaleIn=protect,
+            )
 
     def market_weight(self, market: InstanceMarket) -> float:
         """ Returns the weight of a given market
