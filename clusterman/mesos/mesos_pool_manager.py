@@ -189,7 +189,7 @@ class MesosPoolManager:
         ip_to_agent: Mapping[Optional[str], MesosAgentDict] = {
             agent_pid_to_ip(agent['pid']): agent for agent in self.agents
         }
-        usable_resource_threshold = staticconf.read_float('autoscaling.usable_resource_threshold', 1.0)
+        usable_resource_margin = staticconf.read_float('autoscaling.usable_resource_margin', 1.0)
         instance_metadatas = []
 
         for group in self.resource_groups.values():
@@ -210,7 +210,7 @@ class MesosPoolManager:
                     instance_id=instance_dict['InstanceId'],
                     instance_ip=instance_ip,
                     is_resource_group_stale=group.is_stale,
-                    is_usable=has_usable_resources(agent, usable_resource_threshold),
+                    is_usable=has_usable_resources(agent, usable_resource_margin),
                     market=instance_market,
                     mesos_state=self._get_mesos_agent_state(instance_ip, agent),
                     task_count=instance_id_to_task_count[agent['id']] if agent else 0,
