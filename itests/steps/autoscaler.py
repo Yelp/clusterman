@@ -32,7 +32,7 @@ def autoscaler_patches(context):
                 'clusterman.autoscaler.autoscaler.MesosPoolManager.get_resource_total',
                 side_effect=resource_totals.__getitem__,
     ), mock.patch(
-                'clusterman.autoscaler.autoscaler.MesosPoolManager.usable_fulfilled_capacity',
+                'clusterman.autoscaler.autoscaler.MesosPoolManager.non_orphan_fulfilled_capacity',
                 mock.PropertyMock(return_value=20),
     ), mock.patch('clusterman.autoscaler.signals.Signal._connect_to_signal_process'), \
             mock.patch('clusterman.autoscaler.autoscaler.Signal._get_metrics'):
@@ -62,7 +62,7 @@ def empty_pool(context):
     groups[1].fulfilled_capacity = 0
     manager.min_capacity = 0
     manager.get_resource_total = mock.Mock(return_value=0)
-    manager.usable_fulfilled_capacity = 0
+    manager.non_orphan_fulfilled_capacity = 0
 
 
 @behave.when('the signal resource request is (?P<value>\d+ cpus|empty)')

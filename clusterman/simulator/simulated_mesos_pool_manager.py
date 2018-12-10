@@ -65,16 +65,15 @@ class SimulatedMesosPoolManager(MesosPoolManager):
                 if aws_state_filter and 'running' not in aws_state_filter:
                     continue
 
-                agent = ip_to_agent.get(str(instance.ip_address))
+                agent = ip_to_agent.get(instance.ip_address)
                 metadata = InstanceMetadata(
+                    hostname='host123',
                     allocated_resources=allocated_agent_resources(agent),
                     aws_state='running',
                     group_id=group.id,
-                    hostname='host123',
                     instance_id=instance.id,
                     instance_ip=instance.ip_address,
                     is_resource_group_stale=group.is_stale,
-                    is_usable=True,  # CLUSTERMAN-145
                     market=instance.market,
                     mesos_state=(
                         MesosAgentState.ORPHANED

@@ -145,7 +145,7 @@ class Autoscaler:
         :returns: the new target capacity we should scale to
         """
         current_target_capacity = self.mesos_pool_manager.target_capacity
-        usable_fulfilled_capacity = self.mesos_pool_manager.usable_fulfilled_capacity
+        non_orphan_fulfilled_capacity = self.mesos_pool_manager.non_orphan_fulfilled_capacity
         logger.info(f'Currently at target_capacity of {current_target_capacity}')
 
         if all(requested_quantity is None for requested_quantity in resource_request.values()):
@@ -159,8 +159,8 @@ class Autoscaler:
                 'some data'
             )
             return 1
-        elif usable_fulfilled_capacity == 0:
-            # Entering the main body of this method with usable_fulfilled_capacity = 0 guarantees that
+        elif non_orphan_fulfilled_capacity == 0:
+            # Entering the main body of this method with non_orphan_fulfilled_capacity = 0 guarantees that
             # new_target_capacity will be 0, which we do not want (since the resource request is non-zero)
             logger.info(
                 'Non-orphan fulfilled capacity is 0 and current target capacity > 0, not changing target to let the '
@@ -183,19 +183,19 @@ class Autoscaler:
         #
         #   * Suppose we have target_capacity = 50, fulfilled_capacity = 10, and setpoint = 0.5
         #   * The signal requests 100 CPUs, and Mesos says there are 200 CPUs in the cluster (this is the
-        #       usable_fulfilled_capacity)
+        #       non_orphan_fulfilled_capacity)
         #   * The new target capacity in this case should be 10, not 100 (as it would be if we scaled off the
         #       current target_capacity)
         #
         # This also ensures that the right behavior happens when rolling a resource group.  To see this, let
         # X be the target_capacity of the original resource group; if we create the new resource group with target
-        # capacity X, then our usable_fulfilled_capacity will (eventually) be 2X and our scale_factor will be
+        # capacity X, then our non_orphan_fulfilled_capacity will (eventually) be 2X and our scale_factor will be
         # (setpoint / 2) / setpoint (assuming the utilization doesn't change), so our new target_capacity will be X.
         # Since stale resource groups have a target_capacity of 0 and aren't included in modify_target_capacity
         # calculations, this ensures the correct behaviour.  The math here continues to work out as the old resource
         # group scales down, because as the fulfilled_capacity decreases, the scale_factor increases by the same
         # amount.  Tada!
-        new_target_capacity = usable_fulfilled_capacity * scale_factor
+        new_target_capacity = non_orphan_fulfilled_capacity * scale_factor
 
         # If the percentage requested differs by more than the allowable margin from the setpoint,
         # we scale up/down to reach the setpoint.  We want to use target_capacity here instead of
