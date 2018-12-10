@@ -81,18 +81,21 @@ def agent_pid_to_ip(slave_pid):
 
 def has_usable_resources(
     agent: Optional[MesosAgentDict],
-    usable_resource_margin: Optional[float]
+    usable_resource_threshold: float
 ) -> bool:
+    """Determine if the agent is usable, e.g. if all of its resources have some spare capacity
+
+    :param agent: the Mesos agent under question
+    :param usable_resource_threshold: threshold under which a particular resource is considered 'usable'
+    :returns: True if all percent utilized resources on the agent are under the threshold, False otherwise
+    """
     if not agent:
         return False
-
-    if not usable_resource_margin:
-        return True
 
     allocated_resources = allocated_agent_resources(agent)
     total_resources = total_agent_resources(agent)
     return all(
-        1 - getattr(allocated_resources, res) / getattr(total_resources, res) > usable_resource_margin
+        getattr(allocated_resources, res) / getattr(total_resources, res) < usable_resource_threshold
         for res in MesosResources._fields
     )
 

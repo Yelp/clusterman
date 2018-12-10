@@ -152,6 +152,7 @@ class Autoscaler:
             logger.info('No data from signal, not changing capacity')
             return current_target_capacity
         elif all(requested_quantity == 0 for requested_quantity in resource_request.values()):
+            logger.info('requested zero resources, scaling to zero')
             return 0
         elif current_target_capacity == 0:
             logger.info(
@@ -163,7 +164,7 @@ class Autoscaler:
             # Entering the main body of this method with usable_fulfilled_capacity = 0 guarantees that
             # new_target_capacity will be 0, which we do not want (since the resource request is non-zero)
             logger.info(
-                'Non-orphan fulfilled capacity is 0 and current target capacity > 0, not changing target to let the '
+                'Usable fulfilled capacity is 0 and current target capacity > 0, not changing target to let the '
                 'new instances join'
             )
             return current_target_capacity

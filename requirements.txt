@@ -72,7 +72,7 @@ urllib3==1.23
 webcolors==1.7
 ws4py==0.5.1
 yelp-batch==5.2.5
-yelp-clog==2.27.0
+yelp-clog==2.27.1
 yelp-ips==0.1.3
 yelp-lib==13.1.5
 yelp-meteorite==1.5.1

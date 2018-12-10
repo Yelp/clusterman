@@ -23,8 +23,9 @@ Feature: make sure the autoscaler scales to the proper amount
          And the signal resource request is <value>
         Then the autoscaler should scale rg1 to <rg1_target> capacity
          And the autoscaler should scale rg2 to <rg2_target> capacity
+         And the log should contain <message>
 
       Examples:
-        | value     | rg1_target | rg2_target |
-        | 0 cpus    | 0          | 0          |
-        | 20 cpus   | 1          | 0          |
+        | value     | rg1_target | rg2_target | message                  |
+        | 0 cpus    | 0          | 0          | requested zero resources |
+        | 20 cpus   | 1          | 0          | scaling up by 1          |
