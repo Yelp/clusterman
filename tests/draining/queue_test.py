@@ -243,7 +243,8 @@ def test_process_termination_queue(mock_draining_client):
         assert not mock_terminate.called
         assert not mock_delete_terminate_messages.called
 
-        mock_host = mock.Mock(hostname='')
+        mock_host = mock.Mock(hostname='', instance_id='i123')
+        mock_draining_client.processing_hosts.add(mock_host.instance_id)
         mock_get_host_to_terminate.return_value = mock_host
         mock_draining_client.process_termination_queue(mock_mesos_client)
         assert mock_draining_client.get_host_to_terminate.called
@@ -251,8 +252,10 @@ def test_process_termination_queue(mock_draining_client):
         assert not mock_down.called
         assert not mock_up.called
         mock_delete_terminate_messages.assert_called_with(mock_draining_client, [mock_host])
+        assert len(mock_draining_client.processing_hosts) == 0
 
-        mock_host = mock.Mock(hostname='host1', ip='10.1.1.1')
+        mock_host = mock.Mock(hostname='host1', ip='10.1.1.1', instance_id='i123')
+        mock_draining_client.processing_hosts.add(mock_host.instance_id)
         mock_get_host_to_terminate.return_value = mock_host
         mock_draining_client.process_termination_queue(mock_mesos_client)
         assert mock_draining_client.get_host_to_terminate.called
@@ -260,6 +263,7 @@ def test_process_termination_queue(mock_draining_client):
         mock_down.assert_called_with(mock_mesos_client, ['host1|10.1.1.1'])
         mock_up.assert_called_with(mock_mesos_client, ['host1|10.1.1.1'])
         mock_delete_terminate_messages.assert_called_with(mock_draining_client, [mock_host])
+        assert len(mock_draining_client.processing_hosts) == 0
 
 
 def test_process_drain_queue(mock_draining_client):
@@ -292,7 +296,14 @@ def test_process_drain_queue(mock_draining_client):
         mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
         assert not mock_drain.called
 
-        mock_host = mock.Mock(hostname='host1', ip='10.1.1.1')
+        mock_host = Host(
+            hostname='host1',
+            ip='10.1.1.1',
+            group_id='sfr1',
+            instance_id='i123',
+            sender='mmb',
+            receipt_handle='aaaaa',
+        )
         mock_get_host_to_drain.return_value = mock_host
         mock_draining_client.process_drain_queue(mock_mesos_client)
         assert mock_draining_client.get_host_to_drain.called
@@ -303,6 +314,24 @@ def test_process_drain_queue(mock_draining_client):
             1000000000,
         )
         mock_submit_host_for_termination.assert_called_with(mock_draining_client, mock_host)
+        mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
+
+        # test we can't submit same host twice
+        mock_host = Host(
+            hostname='host1',
+            ip='10.1.1.1',
+            group_id='sfr1',
+            instance_id='i123',
+            sender='mmb',
+            receipt_handle='bbb',
+        )
+        mock_drain.reset_mock()
+        mock_submit_host_for_termination.reset_mock()
+        mock_get_host_to_drain.return_value = mock_host
+        mock_draining_client.process_drain_queue(mock_mesos_client)
+        assert mock_draining_client.get_host_to_drain.called
+        assert not mock_drain.called
+        assert not mock_submit_host_for_termination.called
         mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
 
 
