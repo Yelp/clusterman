@@ -2,9 +2,11 @@ from typing import List
 from typing import Sequence
 
 import boto3
+import botocore.exceptions
 import colorlog
 import staticconf
 from mypy_extensions import TypedDict
+from retry import retry
 
 from clusterman.config import CREDENTIALS_NAMESPACE
 
@@ -90,6 +92,8 @@ class autoscaling(metaclass=_BotoForwarder):
     client = 'autoscaling'
 
 
+# sometimes an instance has started but doesn't show up in DescribeInstances right away
+@retry(exceptions=botocore.exceptions.ClientError, tries=3, delay=5)
 def ec2_describe_instances(instance_ids: Sequence[str]) -> List[InstanceDict]:
     if instance_ids is None or len(instance_ids) == 0:
         return []
