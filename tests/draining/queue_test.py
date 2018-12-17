@@ -1,3 +1,4 @@
+import arrow
 import mock
 import pytest
 
@@ -244,7 +245,7 @@ def test_process_termination_queue(mock_draining_client):
         assert not mock_delete_terminate_messages.called
 
         mock_host = mock.Mock(hostname='', instance_id='i123')
-        mock_draining_client.processing_hosts.add(mock_host.instance_id)
+        mock_draining_client.draining_host_ttl_cache[mock_host.instance_id] = arrow.now()
         mock_get_host_to_terminate.return_value = mock_host
         mock_draining_client.process_termination_queue(mock_mesos_client)
         assert mock_draining_client.get_host_to_terminate.called
@@ -252,10 +253,9 @@ def test_process_termination_queue(mock_draining_client):
         assert not mock_down.called
         assert not mock_up.called
         mock_delete_terminate_messages.assert_called_with(mock_draining_client, [mock_host])
-        assert len(mock_draining_client.processing_hosts) == 0
 
         mock_host = mock.Mock(hostname='host1', ip='10.1.1.1', instance_id='i123')
-        mock_draining_client.processing_hosts.add(mock_host.instance_id)
+        mock_draining_client.draining_host_ttl_cache[mock_host.instance_id] = arrow.now()
         mock_get_host_to_terminate.return_value = mock_host
         mock_draining_client.process_termination_queue(mock_mesos_client)
         assert mock_draining_client.get_host_to_terminate.called
@@ -263,7 +263,6 @@ def test_process_termination_queue(mock_draining_client):
         mock_down.assert_called_with(mock_mesos_client, ['host1|10.1.1.1'])
         mock_up.assert_called_with(mock_mesos_client, ['host1|10.1.1.1'])
         mock_delete_terminate_messages.assert_called_with(mock_draining_client, [mock_host])
-        assert len(mock_draining_client.processing_hosts) == 0
 
 
 def test_process_drain_queue(mock_draining_client):
@@ -276,12 +275,11 @@ def test_process_drain_queue(mock_draining_client):
     ) as mock_delete_drain_messages, mock.patch(
         'clusterman.draining.queue.DrainingClient.submit_host_for_termination', autospec=True,
     ) as mock_submit_host_for_termination, mock.patch(
-        'clusterman.draining.queue.datetime.datetime', autospec=True,
-    ) as mock_date, mock.patch(
+        'clusterman.draining.queue.arrow', autospec=False,
+    ) as mock_arrow, mock.patch(
         'clusterman.draining.queue.staticconf.read_int', autospec=True, return_value=1,
     ):
-        mock_now = mock.Mock(return_value=mock.Mock(strftime=mock.Mock(return_value=1)))
-        mock_date.now = mock_now
+        mock_arrow.now = mock.Mock(return_value=mock.Mock(timestamp=1))
         mock_mesos_client = mock.Mock()
         mock_get_host_to_drain.return_value = None
         mock_draining_client.process_drain_queue(mock_mesos_client)
@@ -335,6 +333,20 @@ def test_process_drain_queue(mock_draining_client):
         mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
 
 
+def test_clean_processing_hosts_cache(mock_draining_client):
+    mock_draining_client.draining_host_ttl_cache['i123'] = arrow.get('2018-12-17T16:01:59')
+    mock_draining_client.draining_host_ttl_cache['i456'] = arrow.get('2018-12-17T16:02:00')
+    with mock.patch(
+        'clusterman.draining.queue.arrow', autospec=False
+    ) as mock_arrow, mock.patch(
+        'clusterman.draining.queue.DRAIN_CACHE_SECONDS', 60
+    ):
+        mock_arrow.now = mock.Mock(return_value=arrow.get('2018-12-17T16:02:00'))
+        mock_draining_client.clean_processing_hosts_cache()
+        assert 'i123' not in mock_draining_client.draining_host_ttl_cache
+        assert 'i456' in mock_draining_client.draining_host_ttl_cache
+
+
 def test_process_queues():
     with mock.patch(
         'clusterman.draining.queue.DrainingClient', autospec=True,
@@ -347,6 +359,7 @@ def test_process_queues():
             process_queues('westeros-prod')
         assert mock_draining_client.return_value.process_termination_queue.called
         assert mock_draining_client.return_value.process_drain_queue.called
+        assert mock_draining_client.return_value.clean_processing_hosts_cache.called
 
 
 def test_terminate_host():

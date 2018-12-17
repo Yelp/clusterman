@@ -1,15 +1,15 @@
 import argparse
-import datetime
 import json
 import logging
 import time
 from typing import Callable
-from typing import MutableSet
+from typing import Dict
 from typing import NamedTuple
 from typing import Optional
 from typing import Sequence
 from typing import Type
 
+import arrow
 import colorlog
 import staticconf
 from yelp_servlib.config_util import load_default_config
@@ -27,7 +27,9 @@ from clusterman.mesos.util import InstanceMetadata
 from clusterman.mesos.util import RESOURCE_GROUPS
 from clusterman.mesos.util import RESOURCE_GROUPS_REV
 
+
 logger = colorlog.getLogger(__name__)
+DRAIN_CACHE_SECONDS = 1800
 
 
 class Host(NamedTuple):
@@ -45,7 +47,7 @@ class DrainingClient():
         self.cluster = cluster_name
         self.drain_queue_url = staticconf.read_string(f'mesos_clusters.{cluster_name}.drain_queue_url')
         self.termination_queue_url = staticconf.read_string(f'mesos_clusters.{cluster_name}.termination_queue_url')
-        self.processing_hosts: MutableSet[str] = set()
+        self.draining_host_ttl_cache: Dict[str, arrow.Arrow] = {}
 
     def submit_host_for_draining(self, instance: InstanceMetadata, sender: Type[MesosPoolResourceGroup]) -> None:
         return self.client.send_message(
@@ -157,15 +159,14 @@ class DrainingClient():
                 logger.info(f'Host to terminate: {host_to_terminate}')
                 terminate_host(host_to_terminate)
             self.delete_terminate_messages([host_to_terminate])
-            self.processing_hosts.remove(host_to_terminate.instance_id)
 
     def process_drain_queue(
         self,
         mesos_operator_client: Callable[..., Callable[[str], Callable[..., None]]],
     ) -> None:
         host_to_process = self.get_host_to_drain()
-        if host_to_process and host_to_process.instance_id not in self.processing_hosts:
-            self.processing_hosts.add(host_to_process.instance_id)
+        if host_to_process and host_to_process.instance_id not in self.draining_host_ttl_cache:
+            self.draining_host_ttl_cache[host_to_process.instance_id] = arrow.now().shift(seconds=DRAIN_CACHE_SECONDS)
             # if hosts do not have hostname it means they are likely not in mesos and don't need draining
             # so instead we send them to terminate straight away
             if not host_to_process.hostname:
@@ -177,7 +178,7 @@ class DrainingClient():
                     drain(
                         mesos_operator_client,
                         [f'{host_to_process.hostname}|{host_to_process.ip}'],
-                        int(datetime.datetime.now().strftime('%s')) * 1000000000,
+                        arrow.now().timestamp * 1000000000,
                         staticconf.read_int('mesos_maintenance_timeout_seconds', default=600) * 1000000000
                     )
                 except Exception as e:
@@ -189,6 +190,14 @@ class DrainingClient():
             logger.warn(f'Host: {host_to_process.hostname} already being processed, skipping...')
             self.delete_drain_messages([host_to_process])
 
+    def clean_processing_hosts_cache(self) -> None:
+        hosts_to_remove = []
+        for instance_id, expiration_time in self.draining_host_ttl_cache.items():
+            if arrow.now() > expiration_time:
+                hosts_to_remove.append(instance_id)
+        for host in hosts_to_remove:
+            del self.draining_host_ttl_cache[host]
+
 
 def process_queues(cluster_name: str) -> None:
     draining_client = DrainingClient(cluster_name)
@@ -197,6 +206,7 @@ def process_queues(cluster_name: str) -> None:
     operator_client = operator_api(mesos_master_fqdn, mesos_secret_path)
     logger.info('Polling SQS for messages every 5s')
     while True:
+        draining_client.clean_processing_hosts_cache()
         draining_client.process_drain_queue(
             mesos_operator_client=operator_client,
         )
