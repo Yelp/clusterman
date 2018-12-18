@@ -91,7 +91,7 @@ itest_%: dist
 .PHONY:
 package: itest_trusty itest_xenial
 
-.PHONY: clean
+.PHONY:
 clean:
 	-docker-compose -f acceptance/docker-compose.yaml down
 	-rm -rf docs/build
@@ -106,5 +106,18 @@ clean-cache:
 	find -name '*.pyc' -delete
 	find -name '__pycache__' -delete
 
+.PHONY:
 upgrade-requirements:
 	upgrade-requirements -i https://pypi.yelpcorp.com/simple --pip-tool pip-custom-platform --install-deps pip-custom-platform
+
+.PHONY:
+debug:
+	docker build . -t clusterman_debug_container
+	paasta_docker_wrapper run -it \
+		-v $(shell pwd)/clusterman:/code/clusterman:rw \
+		-v /nail/srv/configs:/nail/srv/configs:ro \
+		-v /nail/etc/services:/nail/etc/services:ro \
+		-v /etc/boto_cfg:/etc/boto_cfg:ro \
+		-e "CMAN_CLUSTER=mesosstage" \
+		-e "CMAN_POOL=default" \
+		clusterman_debug_container /bin/bash
