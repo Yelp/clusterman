@@ -18,6 +18,7 @@ from clusterman.autoscaler.signals import setup_signals_environment
 from clusterman.batch.util import BatchLoggingMixin
 from clusterman.config import get_pool_config_path
 from clusterman.config import setup_config
+from clusterman.util import get_autoscaler_scribe_stream
 from clusterman.util import setup_logging
 
 
@@ -76,6 +77,10 @@ class AutoscalerBootstrapBatch(BatchDaemon, BatchLoggingMixin):
             self.config.watchers.append(
                 {self.options.pool: get_pool_config_path(self.options.cluster, self.options.pool)},
             )
+
+    def _get_local_log_stream(self, clog_prefix=None):
+        # Ensure that the bootstrap logs go to the same scribe stream as the autoscaler
+        return get_autoscaler_scribe_stream(self.options.cluster, self.options.pool)
 
     def run(self):
         env = os.environ.copy()
