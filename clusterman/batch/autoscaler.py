@@ -89,6 +89,9 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
             monitoring_enabled=not (self.options.dry_run or self.options.healthcheck_only),
         )
 
+        # We don't want to watch anything here because the autoscaler bootstrap script takes care of that for us
+        self.config.watchers.clear()
+
     def _get_local_log_stream(self, clog_prefix=None):
         # Overrides the yelp_batch default, which is tmp_batch_<filename> (autoscaler in this case)
 
