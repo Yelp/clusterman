@@ -21,6 +21,7 @@ RUN     apt-get update \
             python3.6 \
             python-pip \
             python-setuptools \
+            stdin2scribe \
             tox \
             virtualenv \
             zk-flock \
@@ -37,7 +38,7 @@ RUN     cd code && tox -e virtualenv_run
 # Code is COPY'ed here after the pip install above, so that code changes do not
 # break the preceding cache layer.
 COPY    . /code
-RUN     chown -R nobody /code
+RUN     chown nobody /code
 RUN     ln -s /code/clusterman/supervisord/fetch_clusterman_signal /usr/bin/fetch_clusterman_signal
 RUN     ln -s /code/clusterman/supervisord/run_clusterman_signal /usr/bin/run_clusterman_signal
 
