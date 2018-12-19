@@ -20,7 +20,7 @@ def mock_launch_config():
     launch_config = {
         'LaunchConfigurationName': 'fake_launch_config',
         'ImageId': 'fake_ami',
-        'InstanceType': 't2.micro',
+        'InstanceType': 't2.2xlarge',
     }
     autoscaling.create_launch_configuration(**launch_config)
     return launch_config
@@ -110,11 +110,11 @@ def test_launch_config(mock_asrg, mock_launch_config):
         mock_launch_config['LaunchConfigurationName']
 
 
-@pytest.mark.parametrize('instance_type', ['t2.micro', 'm5.large'])
+@pytest.mark.parametrize('instance_type', ['t2.2xlarge', 'm5.large'])
 def test_market_weight(mock_asrg, instance_type):
     market_weight = mock_asrg.market_weight(InstanceMarket(instance_type, 'us-west-2a'))
 
-    assert market_weight == (1.0 if instance_type == 't2.micro' else 0)
+    assert market_weight == (1.0 if instance_type == 't2.2xlarge' else 0)
 
 
 def test_market_capacities(

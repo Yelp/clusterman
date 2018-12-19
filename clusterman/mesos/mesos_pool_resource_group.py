@@ -48,6 +48,9 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
         The weighted capacity is a SpotFleet concept but for consistency we assume other resource group types will also
         have weights assigned to them; this will allow the MesosPool to operate on a variety of different resource types
 
+        Note that market_weight is compared to fulfilled_capacity when scaling down a pool, so it must return the same
+        units.
+
         :param market: the InstanceMarket to get the weighted capacity for
         :returns: the weighted capacity of the market (defaults to 1 unless overridden)
         """
