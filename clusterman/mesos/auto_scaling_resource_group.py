@@ -12,7 +12,6 @@ from mypy_extensions import TypedDict
 
 from clusterman.aws.client import autoscaling
 from clusterman.aws.client import ec2
-from clusterman.aws.markets import EC2_INSTANCE_TYPES
 from clusterman.aws.markets import InstanceMarket
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
 from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
@@ -34,6 +33,10 @@ AutoScalingResourceGroupConfig = TypedDict(
 class AutoScalingResourceGroup(MesosPoolResourceGroup):
     """
     Auto Scaling Groups (ASGs)
+
+    NB: ASGs track their size in terms of number of instances, meaning that two
+    ASGs with different instance types can have the same capacity but very
+    different quantities of resources.
     """
 
     def __init__(self, group_id: str) -> None:
@@ -88,15 +91,14 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
         """ Returns the weight of a given market
 
         ASGs have no concept of weight, so if ASG is available in the market's
-        AZ and matches the ASG's instance type, we return the nubmer of CPUs
-        for that market.
+        AZ and matches the ASG's instance type, we return 1 for that market.
 
         :param market: The market for which we want the weight for
         :returns: The weight of a given market
         """
         if (market.az in self._group_config['AvailabilityZones'] and
                 market.instance == self._launch_config['InstanceType']):
-            return EC2_INSTANCE_TYPES[market.instance].cpus
+            return 1
         else:
             return 0
 
