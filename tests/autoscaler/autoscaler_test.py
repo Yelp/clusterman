@@ -3,6 +3,7 @@ import mock
 import pysensu_yelp
 import pytest
 import staticconf
+from yelp_meteorite.metrics import Gauge
 
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.config import POOL_NAMESPACE
@@ -58,6 +59,10 @@ def mock_autoscaler():
     mock_autoscaler.mesos_pool_manager.max_capacity = staticconf.read_int(
         'scaling_limits.max_capacity', namespace=POOL_NAMESPACE.format(pool='bar')
     )
+    mock_autoscaler.capacity_gauge = mock.Mock(spec=Gauge)
+    mock_autoscaler.resource_request_gauges = {
+        'mem': mock.Mock(spec=Gauge), 'cpus': mock.Mock(spec=Gauge), 'disk': mock.Mock(spec=Gauge),
+    }
     return mock_autoscaler
 
 
@@ -102,6 +107,10 @@ def test_autoscaler_run(dry_run, mock_autoscaler, run_timestamp):
     assert mock_autoscaler.capacity_gauge.set.call_args == mock.call(100, {'dry_run': dry_run})
     assert mock_autoscaler._compute_target_capacity.call_args == mock.call({'cpus': 100000})
     assert mock_autoscaler.mesos_pool_manager.modify_target_capacity.call_count == 1
+
+    assert mock_autoscaler.resource_request_gauges['cpus'].set.call_args == mock.call(100000, {'dry_run': dry_run})
+    assert mock_autoscaler.resource_request_gauges['mem'].set.call_count == 0
+    assert mock_autoscaler.resource_request_gauges['disk'].set.call_count == 0
 
 
 class TestComputeTargetCapacity:

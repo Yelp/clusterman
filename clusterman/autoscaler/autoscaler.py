@@ -1,4 +1,5 @@
 import traceback
+from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
@@ -21,6 +22,7 @@ from clusterman.util import sensu_checkin
 
 SIGNAL_LOAD_CHECK_NAME = 'signal_configuration_failed'
 CAPACITY_GAUGE_NAME = 'clusterman.autoscaler.target_capacity'
+RESOURCE_GAUGE_BASE_NAME = 'clusterman.autoscaler.requested_{resource}'
 logger = colorlog.getLogger(__name__)
 
 
@@ -55,6 +57,12 @@ class Autoscaler:
 
         logger.info(f'Initializing autoscaler engine for {self.pool} in {self.cluster}...')
         self.capacity_gauge = yelp_meteorite.create_gauge(CAPACITY_GAUGE_NAME, {'cluster': cluster, 'pool': pool})
+        self.resource_request_gauges: Dict[str, yelp_meteorite.metrics.Gauge] = {}
+        for resource in ('cpus', 'mem', 'disk'):
+            self.resource_request_gauges[resource] = yelp_meteorite.create_gauge(
+                RESOURCE_GAUGE_BASE_NAME.format(resource=resource),
+                {'cluster': cluster, 'pool': pool}
+            )
 
         self.autoscaling_config = get_autoscaling_config(POOL_NAMESPACE.format(pool=self.pool))
         self.mesos_pool_manager = pool_manager or MesosPoolManager(self.cluster, self.pool)
@@ -99,11 +107,17 @@ class Autoscaler:
         self.mesos_pool_manager.reload_state()
         new_target_capacity = self._compute_target_capacity(resource_request)
         self.capacity_gauge.set(new_target_capacity, {'dry_run': dry_run})
+        self._emit_requested_resource_metrics(resource_request, dry_run=dry_run)
         self.mesos_pool_manager.modify_target_capacity(new_target_capacity, dry_run=dry_run)
 
         if exception:
             logger.error(f'The client signal failed with:\n{tb}')
             raise exception
+
+    def _emit_requested_resource_metrics(self, resource_request: SignalResponseDict, dry_run: bool) -> None:
+        for resource_type, resource_gauge in self.resource_request_gauges.items():
+            if resource_type in resource_request and resource_request[resource_type] is not None:
+                resource_gauge.set(resource_request[resource_type], {'dry_run': dry_run})
 
     def _get_signal_for_app(self, app: str) -> Signal:
         """Load the signal object to use for autoscaling for a particular app
