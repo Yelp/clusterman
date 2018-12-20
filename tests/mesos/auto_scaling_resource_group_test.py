@@ -90,7 +90,7 @@ def test_protect_instances(mock_asg_config):
     mock_asrg = AutoScalingResourceGroup.__new__(AutoScalingResourceGroup)  # skip init
     mock_asrg.group_id = mock_asg_config['AutoScalingGroupName']
 
-    mock_asrg._protect_instances(protect=True)
+    mock_asrg._protect_instances(mock_asrg.instance_ids, protect=True)
     group_config = mock_asrg._group_config
 
     assert group_config['NewInstancesProtectedFromScaleIn']
