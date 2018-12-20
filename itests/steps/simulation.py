@@ -37,6 +37,16 @@ def setup_cost(context, market_id, cost, time):
     context.markets.setdefault(market_id.lower(), []).append((int(time), float(cost)))
 
 
+@behave.when('the instance takes (?P<time>\d+) seconds to join')
+def setup_join_delay(context, time):
+    context.join_delay_seconds = int(time)
+
+
+@behave.when('the join-delay override flag is set')
+def setup_join_delay_override(context):
+    context.use_join_delay = False
+
+
 @behave.when('the simulator runs for (?P<hours>\d+) hours(?P<per_second_billing> and billing is per-second)?')
 def run_simulator(context, hours, per_second_billing):
     billing_frequency = timedelta(seconds=1) if per_second_billing else timedelta(hours=1)
@@ -52,12 +62,16 @@ def run_simulator(context, hours, per_second_billing):
         refund_outbid=refund_outbid,
     )
     with staticconf.testing.PatchConfiguration({
-        'join_delay_mean_seconds': 0,
+        'join_delay_mean_seconds': getattr(context, 'join_delay_seconds', 0),
         'join_delay_stdev_seconds': 0,
     }):
         for join_time, market_counts in context.market_counts:
-            context.simulator.add_event(ModifyClusterSizeEvent(arrow.get(join_time), market_counts))
-        for market_id, prices in context.markets.items():
+            context.simulator.add_event(ModifyClusterSizeEvent(
+                arrow.get(join_time),
+                market_counts,
+                use_join_delay=getattr(context, 'use_join_delay', True),
+            ))
+        for market_id, prices in getattr(context, 'markets', {}).items():
             for time, cost in sorted(prices):
                 market = _MARKETS[market_id.lower()]
                 context.simulator.add_event(InstancePriceChangeEvent(arrow.get(time), {market: cost}))
@@ -66,5 +80,24 @@ def run_simulator(context, hours, per_second_billing):
 
 @behave.then('the simulated cluster costs \$(?P<cost>\d+(?:\.\d+)?) total')
 def check_cost(context, cost):
-    print(context.simulator.total_cost)
     assert math.isclose(context.simulator.total_cost, float(cost), abs_tol=0.01)
+
+
+@behave.then('the instance (?P<time_param>start|join) time should be (?P<time>\d+)')
+def check_instance_times(context, time_param, time):
+    instance = list(context.simulator.aws_clusters[0].instances.values())[0]
+    assert getattr(instance, f'{time_param}_time').timestamp == int(time)
+
+
+@behave.then('no instances should join the Mesos cluster')
+def check_cluster_cpus_empty(context):
+    for y in context.simulator.mesos_cpus.breakpoints.values():
+        assert y == 0
+
+
+@behave.then('instances should join the Mesos cluster')
+def check_cluster_cpus(context):
+    assert list(context.simulator.mesos_cpus.breakpoints.items()) == [
+        (arrow.get(300), 32),
+        (arrow.get(1800), 0),
+    ]
