@@ -145,8 +145,11 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, MesosPoolResourceGrou
 
         for i, (market, residual) in enumerate(residuals):
             remaining_markets = len(residuals) - (i + 1)
-            # The residual might be negative or less than correction. When this happens, we just update the correction
-            # here.  Sorting residual in ascending order ensures correction has been updated by negative residuals
+
+            # If the residual correction is larger than the residual, this means we shouldn't add any more instances
+            # in this market because its residual has been "eaten up" by overflow in previous markets.  When this
+            # happens, we just update the correction with any overflow that might have been introduced in *this* market.
+            # Sorting the residuals in ascending order ensures correction has been updated by negative residuals
             # first.
             if residual < residual_correction:
                 if remaining_markets > 0:
