@@ -1,10 +1,18 @@
 import behave
+import mock
+import simplejson as json
 import staticconf.testing
 from clusterman_metrics import APP_METRICS
 from clusterman_metrics import SYSTEM_METRICS
+from moto import mock_autoscaling
+from moto import mock_ec2
 
+from clusterman.aws.client import autoscaling
+from clusterman.aws.client import ec2
 from clusterman.config import CREDENTIALS_NAMESPACE
 
+_ttl_patch = mock.patch('clusterman.mesos.constants.CACHE_TTL_SECONDS', -1)
+_ttl_patch.__enter__()
 behave.use_step_matcher('re')
 BEHAVE_DEBUG_ON_ERROR = False
 
@@ -67,6 +75,7 @@ def setup_configurations(context):
                     }
                 },
             },
+            {'asg': {'tag': 'puppet:role::paasta'}},
         ],
         'scaling_limits': {
             'min_capacity': 3,
@@ -92,6 +101,97 @@ def setup_configurations(context):
             staticconf.testing.MockConfiguration(main_clusterman_config), \
             staticconf.testing.MockConfiguration(pool_config, namespace='bar_config'):
         yield
+
+
+def make_sfr(subnet_id):
+    return ec2.request_spot_fleet(
+        SpotFleetRequestConfig={
+            'AllocationStrategy': 'diversified',
+            'SpotPrice': '2.0',
+            'TargetCapacity': 1,
+            'LaunchSpecifications': [
+                {
+                    'ImageId': 'ami-foo',
+                    'SubnetId': subnet_id,
+                    'WeightedCapacity': 2,
+                    'InstanceType': 'c3.8xlarge',
+                    'EbsOptimized': False,
+                    # note that this is not useful until we solve
+                    # https://github.com/spulec/moto/issues/1644
+                    'TagSpecifications': [{
+                        'ResourceType': 'instance',
+                        'Tags': [{
+                            'Key': 'foo',
+                            'Value': 'bar',
+                        }],
+                    }],
+                },
+                {
+                    'ImageId': 'ami-foo',
+                    'SubnetId': subnet_id,
+                    'WeightedCapacity': 1,
+                    'InstanceType': 'i2.4xlarge',
+                    'EbsOptimized': False,
+                    'TagSpecifications': [{
+                        'ResourceType': 'instance',
+                        'Tags': [{
+                            'Key': 'foo',
+                            'Value': 'bar',
+                        }],
+                    }],
+                },
+            ],
+            'IamFleetRole': 'foo',
+        },
+    )
+
+
+def make_asg(asg_name, subnet_id):
+    autoscaling.create_launch_configuration(
+        LaunchConfigurationName='mock_launch_configuration',
+        ImageId='ami-foo',
+        InstanceType='t2.micro',
+    )
+    return autoscaling.create_auto_scaling_group(
+        AutoScalingGroupName=asg_name,
+        LaunchConfigurationName='mock_launch_configuration',
+        MinSize=1,
+        MaxSize=30,
+        DesiredCapacity=1,
+        AvailabilityZones=['us-west-2a'],
+        VPCZoneIdentifier=subnet_id,
+        NewInstancesProtectedFromScaleIn=False,
+        Tags=[
+            {
+                'Key': 'puppet:role::paasta',
+                'Value': json.dumps({
+                    'paasta_cluster': 'mesos-test',
+                    'pool': 'bar',
+                }),
+            }, {
+                'Key': 'fake_tag_key',
+                'Value': 'fake_tag_value',
+            },
+        ],
+    )
+
+
+@behave.fixture
+def boto_patches(context):
+    mock_ec2_obj = mock_ec2()
+    mock_ec2_obj.start()
+    mock_autoscaling_obj = mock_autoscaling()
+    mock_autoscaling_obj.start()
+    vpc_response = ec2.create_vpc(CidrBlock='10.0.0.0/24')
+    subnet_response = ec2.create_subnet(
+        CidrBlock='10.0.0.0/24',
+        VpcId=vpc_response['Vpc']['VpcId'],
+        AvailabilityZone='us-west-2a'
+    )
+    context.subnet_id = subnet_response['Subnet']['SubnetId']
+    yield
+    mock_ec2_obj.stop()
+    mock_autoscaling_obj.stop()
 
 
 def before_all(context):

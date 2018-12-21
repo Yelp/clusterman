@@ -5,8 +5,8 @@ import behave
 import staticconf.testing
 from hamcrest import assert_that
 from hamcrest import close_to
-from hamcrest import equal_to
 from hamcrest import contains
+from hamcrest import equal_to
 
 from clusterman.aws.markets import InstanceMarket
 from clusterman.run import setup_logging

@@ -1,45 +1,47 @@
 import behave
 import mock
 import staticconf.testing
-from moto import mock_ec2
 from hamcrest import assert_that
 from hamcrest import contains
 
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.autoscaler.signals import ACK
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
-from clusterman.mesos.spot_fleet_resource_group import MesosPoolResourceGroup
 from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
+from itests.environment import boto_patches
 
 
 @behave.fixture
 def autoscaler_patches(context):
+    behave.use_fixture(boto_patches, context)
     rg1 = mock.Mock(spec=SpotFleetResourceGroup, target_capacity=10, fulfilled_capacity=10, is_stale=False)
     rg2 = mock.Mock(spec=SpotFleetResourceGroup, target_capacity=10, fulfilled_capacity=10, is_stale=False)
 
-    class FakeResourceGroupClass(MesosPoolResourceGroup):
-        @staticmethod
-        def load(cluster, pool, config):
-            return {rg1.id: rg1, rg2.id: rg2}
-
-    mock_ec2_obj = mock_ec2()
-    mock_ec2_obj.start()
     resource_totals = {'cpus': 80}
-    with staticconf.testing.PatchConfiguration({'autoscaling': {'default_signal_role': 'bar'}}), \
-            mock.patch('clusterman.autoscaler.autoscaler.yelp_meteorite'), \
-            mock.patch.dict('clusterman.mesos.mesos_pool_manager.RESOURCE_GROUPS', {'sfr': FakeResourceGroupClass}), \
-            mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager', wraps=MesosPoolManager), \
-            mock.patch('clusterman.autoscaler.autoscaler.MesosPoolManager.prune_excess_fulfilled_capacity'), \
-            mock.patch(
-                'clusterman.autoscaler.autoscaler.MesosPoolManager.get_resource_total',
-                side_effect=resource_totals.__getitem__,
+    with staticconf.testing.PatchConfiguration(
+        {'autoscaling': {'default_signal_role': 'bar'}},
     ), mock.patch(
-                'clusterman.autoscaler.autoscaler.MesosPoolManager.non_orphan_fulfilled_capacity',
-                mock.PropertyMock(return_value=20),
-    ), mock.patch('clusterman.autoscaler.signals.Signal._connect_to_signal_process'), \
-            mock.patch('clusterman.autoscaler.autoscaler.Signal._get_metrics'):
+        'clusterman.autoscaler.autoscaler.yelp_meteorite',
+    ), mock.patch(
+        'clusterman.mesos.util.SpotFleetResourceGroup.load',
+        return_value={rg1.id: rg1, rg2.id: rg2},
+    ), mock.patch(
+        'clusterman.mesos.mesos_pool_manager.MesosPoolManager',
+        wraps=MesosPoolManager,
+    ), mock.patch(
+        'clusterman.autoscaler.autoscaler.MesosPoolManager.prune_excess_fulfilled_capacity',
+    ), mock.patch(
+        'clusterman.autoscaler.autoscaler.MesosPoolManager.get_resource_total',
+        side_effect=resource_totals.__getitem__,
+    ), mock.patch(
+        'clusterman.autoscaler.autoscaler.MesosPoolManager.non_orphan_fulfilled_capacity',
+        mock.PropertyMock(return_value=20),
+    ), mock.patch(
+        'clusterman.autoscaler.signals.Signal._connect_to_signal_process',
+    ), mock.patch(
+        'clusterman.autoscaler.autoscaler.Signal._get_metrics',
+    ):
         yield
-    mock_ec2_obj.stop()
 
 
 @behave.given('an autoscaler object')
