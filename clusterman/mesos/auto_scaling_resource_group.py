@@ -42,7 +42,7 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
     def __init__(self, group_id: str) -> None:
         self.group_id = group_id  # ASG id
 
-        self._protect_instances(protect=True)
+        self._protect_instances(self.instance_ids, protect=True)
 
     @timed_cached_property(ttl=CACHE_TTL_SECONDS)
     def _group_config(self) -> Dict[str, Any]:
@@ -70,8 +70,16 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
         )
         return response['LaunchConfigurations'][0]
 
-    def _protect_instances(self, *, protect: bool = True) -> None:
-        """ Toggle scale-in protection for new and current instances
+    @protect_unowned_instances
+    def _protect_instances(
+        self,
+        instance_ids: Sequence[str],
+        *,
+        protect: bool = True
+    ) -> None:
+        """ Toggle scale-in protection for new and given instances. Instances
+        that are not part of this ASG will not be protected if their ids are
+        supplied.
 
         Note: Does not prevent instances from being terminated via the EC2
         client.
@@ -80,9 +88,9 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
             AutoScalingGroupName=self.id,
             NewInstancesProtectedFromScaleIn=protect,
         )
-        if self.instance_ids:
+        if instance_ids:
             autoscaling.set_instance_protection(  # protect current
-                InstanceIds=self.instance_ids,
+                InstanceIds=instance_ids,
                 AutoScalingGroupName=self.id,
                 ProtectedFromScaleIn=protect,
             )
