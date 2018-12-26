@@ -35,6 +35,9 @@ RUN    /usr/bin/pip install --index-url https://pypi.yelpcorp.com/simple supervi
 COPY    tox.ini requirements.txt requirements-bootstrap.txt /code/
 RUN     cd code && tox -e virtualenv_run
 
+RUN     mkdir /home/nobody
+ENV     HOME /home/nobody
+
 # Code is COPY'ed here after the pip install above, so that code changes do not
 # break the preceding cache layer.
 COPY    . /code
