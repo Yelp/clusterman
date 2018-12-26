@@ -113,25 +113,11 @@ def make_sfr(subnet_id):
                 {
                     'ImageId': 'ami-foo',
                     'SubnetId': subnet_id,
-                    'WeightedCapacity': 2,
+                    'WeightedCapacity': 1,
                     'InstanceType': 'c3.8xlarge',
                     'EbsOptimized': False,
                     # note that this is not useful until we solve
                     # https://github.com/spulec/moto/issues/1644
-                    'TagSpecifications': [{
-                        'ResourceType': 'instance',
-                        'Tags': [{
-                            'Key': 'foo',
-                            'Value': 'bar',
-                        }],
-                    }],
-                },
-                {
-                    'ImageId': 'ami-foo',
-                    'SubnetId': subnet_id,
-                    'WeightedCapacity': 1,
-                    'InstanceType': 'i2.4xlarge',
-                    'EbsOptimized': False,
                     'TagSpecifications': [{
                         'ResourceType': 'instance',
                         'Tags': [{

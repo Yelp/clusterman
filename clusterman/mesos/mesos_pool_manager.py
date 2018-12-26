@@ -63,8 +63,7 @@ class MesosPoolManager:
 
         mesos_master_fqdn = staticconf.read_string(f'mesos_clusters.{self.cluster}.fqdn')
         self.draining_enabled = self.pool_config.read_bool('draining_enabled', default=False)
-        if self.draining_enabled:
-            self.draining_client = DrainingClient(cluster)
+        self.draining_client: Optional[DrainingClient] = DrainingClient(cluster) if self.draining_enabled else None
         self.min_capacity = self.pool_config.read_int('scaling_limits.min_capacity')
         self.max_capacity = self.pool_config.read_int('scaling_limits.max_capacity')
         self.max_tasks_to_kill = self.pool_config.read_int('scaling_limits.max_tasks_to_kill', default=0)
@@ -76,33 +75,13 @@ class MesosPoolManager:
         self.api_endpoint = f'http://{mesos_master_fqdn}:5050/'
         logger.info(f'Connecting to Mesos masters at {self.api_endpoint}')
         self.resource_groups: MutableMapping[str, MesosPoolResourceGroup] = dict()
-        self.reload_resource_groups()
+        self.reload_state()
 
     def reload_state(self) -> None:
         """ Fetch any state that may have changed behind our back, but which we do not want to change during an
         Autoscaler.run().
         """
-        self.reload_resource_groups()
-
-    def reload_resource_groups(self) -> None:
-        resource_groups: MutableMapping[str, MesosPoolResourceGroup] = {}
-        for resource_group_conf in self.pool_config.read_list('resource_groups'):
-            if not isinstance(resource_group_conf, dict) or len(resource_group_conf) != 1:
-                logger.error(f'Malformed config: {resource_group_conf}')
-                continue
-            resource_group_type = list(resource_group_conf.keys())[0]
-            resource_group_cls = RESOURCE_GROUPS.get(resource_group_type)
-            if resource_group_cls is None:
-                logger.warn(f'Unknown resource group {resource_group_type}')
-                continue
-
-            resource_groups.update(resource_group_cls.load(
-                cluster=self.cluster,
-                pool=self.pool,
-                config=list(resource_group_conf.values())[0],
-            ))
-        self.resource_groups = resource_groups
-        logger.info(f'Loaded resource groups: {list(resource_groups)}')
+        self._reload_resource_groups()
 
     def modify_target_capacity(
         self,
@@ -165,6 +144,7 @@ class MesosPoolManager:
 
         if not dry_run:
             if self.draining_enabled:
+                assert self.draining_client  # make mypy happy
                 for group_id, instances in marked_instances.items():
                     for instance in instances:
                         self.draining_client.submit_host_for_draining(
@@ -243,6 +223,26 @@ class MesosPoolManager:
         total = self.get_resource_total(resource_name)
         used = self.get_resource_allocation(resource_name)
         return used / total if total else 0
+
+    def _reload_resource_groups(self) -> None:
+        resource_groups: MutableMapping[str, MesosPoolResourceGroup] = {}
+        for resource_group_conf in self.pool_config.read_list('resource_groups'):
+            if not isinstance(resource_group_conf, dict) or len(resource_group_conf) != 1:
+                logger.error(f'Malformed config: {resource_group_conf}')
+                continue
+            resource_group_type = list(resource_group_conf.keys())[0]
+            resource_group_cls = RESOURCE_GROUPS.get(resource_group_type)
+            if resource_group_cls is None:
+                logger.error(f'Unknown resource group {resource_group_type}')
+                continue
+
+            resource_groups.update(resource_group_cls.load(
+                cluster=self.cluster,
+                pool=self.pool,
+                config=list(resource_group_conf.values())[0],
+            ))
+        self.resource_groups = resource_groups
+        logger.info(f'Loaded resource groups: {list(resource_groups)}')
 
     def _constrain_target_capacity(
         self,
@@ -397,29 +397,26 @@ class MesosPoolManager:
         targets_to_change = [coeff * g.target_capacity for g in groups_to_change]
         num_groups_to_change = len(groups_to_change)
 
-        if targets_to_change:
-            while True:
-                # If any resource groups are currently above the new target "uniform" capacity, we need to recompute
-                # the target while taking into account the over-supplied resource groups.  We never decrease the
-                # capacity of a resource group here, so we just find the first index is above the desired target
-                # and remove those from consideration.  We have to repeat this multiple times, as new resource
-                # groups could be over the new "uniform" capacity after we've subtracted the overage value
-                #
-                # (For scaling down, apply the same logic for resource groups below the target "uniform" capacity
-                # instead; i.e., instances will below the target capacity will not be increased)
-                capacity_per_group, remainder = divmod(new_target_capacity, num_groups_to_change)
-                pos = bisect(targets_to_change, coeff * capacity_per_group)
-                residual = sum(targets_to_change[pos:num_groups_to_change])
+        while True:
+            # If any resource groups are currently above the new target "uniform" capacity, we need to recompute
+            # the target while taking into account the over-supplied resource groups.  We never decrease the
+            # capacity of a resource group here, so we just find the first index is above the desired target
+            # and remove those from consideration.  We have to repeat this multiple times, as new resource
+            # groups could be over the new "uniform" capacity after we've subtracted the overage value
+            #
+            # (For scaling down, apply the same logic for resource groups below the target "uniform" capacity
+            # instead; i.e., instances will below the target capacity will not be increased)
+            capacity_per_group, remainder = divmod(new_target_capacity, num_groups_to_change)
+            pos = bisect(targets_to_change, coeff * capacity_per_group)
+            residual = sum(targets_to_change[pos:num_groups_to_change])
 
-                if residual == 0:
-                    for i in range(num_groups_to_change):
-                        targets_to_change[i] = coeff * (capacity_per_group + (1 if i < remainder else 0))
-                    break
+            if residual == 0:
+                for i in range(num_groups_to_change):
+                    targets_to_change[i] = coeff * (capacity_per_group + (1 if i < remainder else 0))
+                break
 
-                new_target_capacity -= coeff * residual
-                num_groups_to_change = pos
-        else:
-            logger.info('Cannot set target capacity as all of our known resource groups are stale.')
+            new_target_capacity -= coeff * residual
+            num_groups_to_change = pos
 
         targets: MutableMapping[str, float] = {}
 
@@ -457,7 +454,7 @@ class MesosPoolManager:
     def _is_instance_killable(self, metadata: InstanceMetadata) -> bool:
         if metadata.mesos_state == MesosAgentState.UNKNOWN:
             return False
-        elif self.max_tasks_to_kill > 0:
+        elif self.max_tasks_to_kill > metadata.task_count:
             return True
         else:
             return metadata.task_count == 0

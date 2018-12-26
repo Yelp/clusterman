@@ -16,21 +16,19 @@ from itests.environment import boto_patches
 from itests.environment import make_asg
 from itests.environment import make_sfr
 
-_NUM_RESOURCE_GROUPS = 5
 
-
-def mock_asgs(subnet_id):
+def mock_asgs(num, subnet_id):
     asgs = {}
-    for i in range(_NUM_RESOURCE_GROUPS):
+    for i in range(num):
         asg_id = f'fake-asg-{i}'
         make_asg(asg_id, subnet_id)
         asgs[asg_id] = AutoScalingResourceGroup(asg_id)
     return asgs
 
 
-def mock_sfrs(subnet_id):
+def mock_sfrs(num, subnet_id):
     sfrgs = {}
-    for _ in range(_NUM_RESOURCE_GROUPS):
+    for _ in range(num):
         sfr = make_sfr(subnet_id)
         sfrid = sfr['SpotFleetRequestId']
         sfrgs[sfrid] = SpotFleetResourceGroup(sfrid)
@@ -39,17 +37,20 @@ def mock_sfrs(subnet_id):
 
 @behave.fixture
 def mock_agents_and_tasks(context):
-    agents = []
-    for rg in context.mesos_pool_manager.resource_groups.values():
-        for instance in ec2_describe_instances(instance_ids=rg.instance_ids):
-            context.agents.append({
-                'pid': f'slave(1)@{instance["PrivateIpAddress"]}:1',
-                'id': f'agent-{instance["InstanceId"]}',
-                'hostname': 'host1'
-            })
+    def get_agents():
+        agents = []
+        for rg in context.mesos_pool_manager.resource_groups.values():
+            for instance in ec2_describe_instances(instance_ids=rg.instance_ids):
+                agents.append({
+                    'pid': f'slave(1)@{instance["PrivateIpAddress"]}:1',
+                    'id': f'{instance["InstanceId"]}',
+                    'hostname': 'host1'
+                })
+        return agents
+
     with mock.patch(
         'clusterman.mesos.mesos_pool_manager.MesosPoolManager.agents',
-        mock.PropertyMock(return_value=agents),
+        mock.PropertyMock(side_effect=get_agents),
     ), mock.patch(
         'clusterman.mesos.mesos_pool_manager.MesosPoolManager.tasks',
         mock.PropertyMock(return_value=[]),
@@ -59,41 +60,48 @@ def mock_agents_and_tasks(context):
         yield
 
 
-@behave.given('a mesos pool manager with (?P<rg_type>asgs|sfrs)')
-def make_mesos_pool_manager(context, rg_type):
+@behave.given('a mesos pool manager with (?P<num>\d+) (?P<rg_type>asg|sfr) resource groups?')
+def make_mesos_pool_manager(context, num, rg_type):
     behave.use_fixture(boto_patches, context)
+    behave.use_fixture(mock_agents_and_tasks, context)
     context.rg_type = rg_type
     with mock.patch(
         'clusterman.mesos.util.AutoScalingResourceGroup.load',
-        return_value=(mock_asgs(context.subnet_id) if rg_type == 'asgs' else {})
-    ), mock.patch(
+        return_value={},
+    ) as mock_asg_load, mock.patch(
         'clusterman.mesos.util.SpotFleetResourceGroup.load',
-        return_value=(mock_sfrs(context.subnet_id) if rg_type == 'sfrs' else {})
-    ):
+        return_value={},
+    ) as mock_sfr_load:
+        if context.rg_type == 'asg':
+            mock_asg_load.return_value = mock_asgs(int(num), context.subnet_id)
+        elif context.rg_type == 'sfr':
+            mock_sfr_load.return_value = mock_sfrs(int(num), context.subnet_id)
         context.mesos_pool_manager = MesosPoolManager('mesos-test', 'bar')
-        context.mesos_pool_manager.max_capacity = 101
-        context.mesos_pool_manager.prune_excess_fulfilled_capacity = mock.Mock()
+    context.rg_ids = [i for i in context.mesos_pool_manager.resource_groups]
+    context.mesos_pool_manager.max_capacity = 101
 
 
-@behave.given('the target capacity of the first resource group is (?P<target>\d+)')
-@behave.when('the target capacity of the first resource group is (?P<target>\d+)')
-def external_target_capacity(context, target):
-    if context.rg_type == 'asgs':
+@behave.given('the fulfilled capacity of resource group (?P<rg_index>\d+) is (?P<capacity>\d+)')
+def external_target_capacity(context, rg_index, capacity):
+    rg_index = int(rg_index) - 1
+    if context.rg_type == 'asg':
         autoscaling.set_desired_capacity(
-            AutoScalingGroupName='fake-asg-0',
-            DesiredCapacity=int(target),
+            AutoScalingGroupName=f'fake-asg-{rg_index}',
+            DesiredCapacity=int(capacity),
             HonorCooldown=True,
         )
-    elif context.rg_type == 'sfrs':
+    elif context.rg_type == 'sfr':
         ec2.modify_spot_fleet_request(
-            SpotFleetRequestId=list(context.mesos_pool_manager.resource_groups.keys())[0],
-            TargetCapacity=int(target),
+            SpotFleetRequestId=context.rg_ids[rg_index],
+            TargetCapacity=int(capacity),
         )
 
 
+@behave.given('we request (?P<capacity>\d+) capacity')
 @behave.when('we request (?P<capacity>\d+) capacity(?P<dry_run> and dry-run is active)?')
-def modify_capacity(context, capacity, dry_run):
+def modify_capacity(context, capacity, dry_run=False):
     dry_run = True if dry_run else False
+    context.mesos_pool_manager.prune_excess_fulfilled_capacity = mock.Mock()
     context.original_capacities = [rg.target_capacity for rg in context.mesos_pool_manager.resource_groups.values()]
     context.mesos_pool_manager.modify_target_capacity(int(capacity), dry_run=dry_run)
 
@@ -115,7 +123,7 @@ def check_unchanged_capacity(context):
 @behave.then("the first resource group's capacity should not change")
 def check_first_rg_capacity_unchanged(context):
     assert_that(
-        list(context.mesos_pool_manager.resource_groups.values())[0].target_capacity,
+        context.mesos_pool_manager.resource_groups[context.rg_ids[0]].target_capacity,
         equal_to(context.original_capacities[0]),
     )
 
@@ -125,10 +133,10 @@ def check_target_capacity(context, remaining):
     target_capacity = 0
     if remaining:
         desired_capacity = (
-            (context.mesos_pool_manager.target_capacity - context.original_capacities[0]) / (_NUM_RESOURCE_GROUPS - 1)
+            (context.mesos_pool_manager.target_capacity - context.original_capacities[0]) / (len(context.rg_ids) - 1)
         )
     else:
-        desired_capacity = context.mesos_pool_manager.target_capacity / _NUM_RESOURCE_GROUPS
+        desired_capacity = context.mesos_pool_manager.target_capacity / len(context.rg_ids)
 
     for i, rg in enumerate(context.mesos_pool_manager.resource_groups.values()):
         target_capacity += rg.target_capacity
