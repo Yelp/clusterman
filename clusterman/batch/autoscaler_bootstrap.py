@@ -94,6 +94,7 @@ class AutoscalerBootstrapBatch(BatchDaemon, BatchLoggingMixin):
         )
         time.sleep(1)  # Give some time for the process to start
         with xmlrpc.client.ServerProxy(SUPERVISORD_ADDR) as rpc:
+            skip_supervisord_cleanup = False
             try:
                 wait_for_process(rpc, 'fetch_signals', num_procs=self.fetch_proc_count, terminal_state='EXITED')
                 rpc.supervisor.startProcessGroup('run_signals')
@@ -106,10 +107,12 @@ class AutoscalerBootstrapBatch(BatchDaemon, BatchLoggingMixin):
                 ):
                     time.sleep(5)
             except KeyboardInterrupt:
-                pass  # ctrl-c is propogated to the subprocess so don't do the shutdown call here
-            except Exception:
-                rpc.supervisor.shutdown()
-                raise
+                # ctrl-c is propogated to the subprocess so don't do the shutdown call here
+                skip_supervisord_cleanup = True
+            finally:
+                # supervisord won't clean up its child processes if we restart or an exception is thrown
+                if not skip_supervisord_cleanup:
+                    rpc.supervisor.shutdown()
 
 
 if __name__ == '__main__':
