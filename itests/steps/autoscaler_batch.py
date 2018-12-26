@@ -11,7 +11,6 @@ from hamcrest import has_string
 from pysensu_yelp import Status
 
 from clusterman.batch.autoscaler import AutoscalerBatch
-from clusterman.exceptions import AutoscalerError
 from clusterman.exceptions import ClustermanSignalError
 
 
@@ -54,23 +53,7 @@ def autoscaler_batch(context):
     context.batch.parse_args(parser)
     context.batch.options = parser.parse_args(args)
     context.batch.options.instance_name = 'foo'
-
-
-@behave.when('initialization succeeds')
-def autoscaler_initialization(context):
     context.batch.configure_initial()
-
-
-@behave.when('initialization of the (?P<signal_type>application|default) signal fails')
-def signal_init_fails(context, signal_type):
-    expected_error = 'signal initialization failed'
-    init_error = ValueError(expected_error)
-    context.signal_class.side_effect = [mock.MagicMock(), init_error] if signal_type == 'application' else [init_error]
-    try:
-        context.batch.configure_initial()
-    except AutoscalerError as e:
-        # An error only gets raised if the default signal failed, and it's converted to an AutoscalerError
-        assert_that(e.__cause__, has_string(expected_error))
 
 
 @behave.when('the autoscaler fails')
@@ -119,12 +102,6 @@ def rle(context):
         side_effect=ClientError({'Error': {'Code': 'RequestLimitExceeded'}}, 'foo'),
     )
     context.batch.run()
-
-
-@behave.then('initialization should not page')
-def check_initialization_ok(context):
-    _check_sensu_args(context.sensu.call_args_list[0], app_name='bar')
-    _check_sensu_args(context.sensu.call_args_list[1])
 
 
 @behave.then('the application owner should (?P<not_>not )?get warned for initialization')
