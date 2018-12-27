@@ -28,6 +28,7 @@ class AutoscalerBootstrapException(Exception):
 
 logger = colorlog.getLogger(__name__)
 SUPERVISORD_ADDR = 'http://localhost:9001/RPC2'
+SUPERVISORD_RUNNING_STATES = ('STARTING', 'RUNNING')
 
 
 def wait_for_process(
@@ -103,7 +104,7 @@ class AutoscalerBootstrapBatch(BatchDaemon, BatchLoggingMixin):
 
                 while (
                     self.running and
-                    rpc.supervisor.getProcessInfo('autoscaler')['statename'] not in ('FATAL', 'EXITED', 'STOPPING')
+                    rpc.supervisor.getProcessInfo('autoscaler')['statename'] in SUPERVISORD_RUNNING_STATES
                 ):
                     time.sleep(5)
             except KeyboardInterrupt:
