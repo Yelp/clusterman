@@ -28,6 +28,7 @@ class AutoscalerBootstrapException(Exception):
 
 logger = colorlog.getLogger(__name__)
 SUPERVISORD_ADDR = 'http://localhost:9001/RPC2'
+SUPERVISORD_RUNNING_STATES = ('STARTING', 'RUNNING')
 
 
 def wait_for_process(
@@ -94,6 +95,7 @@ class AutoscalerBootstrapBatch(BatchDaemon, BatchLoggingMixin):
         )
         time.sleep(1)  # Give some time for the process to start
         with xmlrpc.client.ServerProxy(SUPERVISORD_ADDR) as rpc:
+            skip_supervisord_cleanup = False
             try:
                 wait_for_process(rpc, 'fetch_signals', num_procs=self.fetch_proc_count, terminal_state='EXITED')
                 rpc.supervisor.startProcessGroup('run_signals')
@@ -102,14 +104,16 @@ class AutoscalerBootstrapBatch(BatchDaemon, BatchLoggingMixin):
 
                 while (
                     self.running and
-                    rpc.supervisor.getProcessInfo('autoscaler')['statename'] not in ('FATAL', 'EXITED', 'STOPPING')
+                    rpc.supervisor.getProcessInfo('autoscaler')['statename'] in SUPERVISORD_RUNNING_STATES
                 ):
                     time.sleep(5)
             except KeyboardInterrupt:
-                pass  # ctrl-c is propogated to the subprocess so don't do the shutdown call here
-            except Exception:
-                rpc.supervisor.shutdown()
-                raise
+                # ctrl-c is propogated to the subprocess so don't do the shutdown call here
+                skip_supervisord_cleanup = True
+            finally:
+                # supervisord won't clean up its child processes if we restart or an exception is thrown
+                if not skip_supervisord_cleanup:
+                    rpc.supervisor.shutdown()
 
 
 if __name__ == '__main__':

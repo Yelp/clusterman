@@ -75,7 +75,6 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
         )
 
     @batch_configure
-    @sensu_alert_triage(fail=True)
     def configure_initial(self):
         setup_config(self.options)
         self.autoscaler = None
@@ -124,7 +123,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
 
         sensu_args = dict(
             check_every=check_every,
-            source=self.options.cluster,
+            source=f'{self.options.cluster}_{self.options.pool}',
             ttl=ttl,
             noop=self.options.dry_run or self.options.healthcheck_only,
             pool=self.options.pool,

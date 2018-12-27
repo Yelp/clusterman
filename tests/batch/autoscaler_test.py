@@ -53,4 +53,4 @@ def test_run(mock_sensu, mock_running, mock_time, mock_sleep, dry_run):
         batch_obj.run()
     assert batch_obj.autoscaler.run.call_args_list == [mock.call(dry_run=dry_run) for i in range(3)]
     assert mock_sleep.call_args_list == [mock.call(499), mock.call(287), mock.call(400)]
-    assert mock_sensu.call_count == 8
+    assert mock_sensu.call_count == 6
