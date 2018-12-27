@@ -1,8 +1,8 @@
 arrow
-botocore>=1.8.13
-boto3
+boto3==1.7.82  # TODO higher versions are broken with moto
+botocore==1.10.84
 cached-property
-clusterman-metrics>=2.0.0
+clusterman-metrics>=2.0.1
 colorlog
 colorama
 humanize
@@ -12,7 +12,7 @@ mypy-extensions
 numpy
 parsedatetime
 pysensu-yelp
-py-zipkin<=0.12  # TODO delete this once ZIPKIN-680 is resolved
+py-zipkin
 PyYAML
 retry
 requests
