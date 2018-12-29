@@ -7,12 +7,6 @@ from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import InstanceMarket
 from clusterman.mesos.auto_scaling_resource_group import _get_asg_tags
 from clusterman.mesos.auto_scaling_resource_group import AutoScalingResourceGroup
-from tests.mesos.conftest import setup_autoscaling
-from tests.mesos.conftest import setup_ec2
-from tests.mesos.spot_fleet_resource_group_test import mock_subnet
-
-
-pytest.mark.usefixtures(setup_autoscaling, setup_ec2, mock_subnet)
 
 
 @pytest.fixture

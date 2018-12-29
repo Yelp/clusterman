@@ -66,18 +66,14 @@ def test_autoscaler_init_too_many_apps():
         Autoscaler('mesos-test', 'bar', ['app1', 'app2'], monitoring_enabled=False)
 
 
-@mock.patch(
-    'clusterman.autoscaler.signals.Signal',
-    mock.Mock(side_effect=Exception),
-    autospec=None
-)
+@mock.patch('clusterman.autoscaler.autoscaler.Signal')
 @pytest.mark.parametrize('monitoring_enabled', [True, False])
-def test_monitoring_enabled(mock_autoscaler, monitoring_enabled):
+def test_monitoring_enabled(mock_signal, mock_autoscaler, monitoring_enabled):
     mock_autoscaler.monitoring_enabled = monitoring_enabled
+    mock_signal.side_effect = Exception('foo')
 
     with mock.patch('pysensu_yelp.send_event'):
         mock_autoscaler._get_signal_for_app('bar')
-
         assert pysensu_yelp.send_event.call_count == (1 if monitoring_enabled else 0)
 
 
@@ -139,6 +135,16 @@ class TestComputeTargetCapacity:
             {'cpus': 0, 'mem': 0, 'disk': 0}
         )
         assert new_target_capacity == 0
+
+    def test_current_target_capacity_0(self, mock_autoscaler):
+        mock_autoscaler.mesos_pool_manager.get_resource_total.return_value = 0
+        mock_autoscaler.mesos_pool_manager.target_capacity = 0
+        mock_autoscaler.mesos_pool_manager.non_orphan_fulfilled_capacity = 0
+
+        new_target_capacity = mock_autoscaler._compute_target_capacity(
+            {'cpus': 10, 'mem': 500, 'disk': 1000}
+        )
+        assert new_target_capacity == 1
 
     def test_non_orphan_fulfilled_capacity_0(self, mock_autoscaler):
         mock_autoscaler.mesos_pool_manager.get_resource_total.return_value = 0

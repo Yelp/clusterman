@@ -3,6 +3,8 @@ import pytest
 from moto import mock_autoscaling
 from moto import mock_ec2
 
+from clusterman.aws.client import ec2
+
 
 @pytest.fixture(autouse=True)
 def setup_ec2():
@@ -18,6 +20,16 @@ def setup_autoscaling():
     mock_autoscaling_obj.start()
     yield
     mock_autoscaling_obj.stop()
+
+
+@pytest.fixture
+def mock_subnet():
+    vpc_response = ec2.create_vpc(CidrBlock='10.0.0.0/24')
+    return ec2.create_subnet(
+        CidrBlock='10.0.0.0/24',
+        VpcId=vpc_response['Vpc']['VpcId'],
+        AvailabilityZone='us-west-2a'
+    )
 
 
 @pytest.fixture

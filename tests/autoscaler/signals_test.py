@@ -5,6 +5,7 @@ import arrow
 import mock
 import pytest
 import simplejson as json
+import staticconf.testing
 from clusterman_metrics import APP_METRICS
 from clusterman_metrics import METADATA
 from clusterman_metrics import SYSTEM_METRICS
@@ -14,6 +15,7 @@ from clusterman.autoscaler.signals import setup_signals_environment
 from clusterman.autoscaler.signals import Signal
 from clusterman.exceptions import ClustermanSignalError
 from clusterman.exceptions import MetricsError
+from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.exceptions import SignalConnectionError
 
 
@@ -28,6 +30,16 @@ def test_init(mock_signal):
     assert mock_signal.parameters['cluster'] == 'foo'
     assert 'pool' in mock_signal.parameters
     assert mock_signal.parameters['pool'] == 'bar'
+
+
+def test_no_signal_configured():
+    with staticconf.testing.MockConfiguration(
+        {},
+        namespace='bar_config',
+    ), mock.patch(
+        'clusterman.autoscaler.signals.Signal._connect_to_signal_process',
+    ), pytest.raises(NoSignalConfiguredException):
+        return Signal('foo', 'bar', 'app1', 'bar_config', mock.Mock(), 'the_signal')
 
 
 @pytest.mark.parametrize('conn_response', [['foo'], [ACK, 'foo']])

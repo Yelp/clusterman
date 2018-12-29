@@ -7,6 +7,7 @@ import mock
 import pytest
 
 from clusterman.math.piecewise import hour_transform
+from clusterman.math.piecewise import piecewise_max
 from clusterman.math.piecewise import PiecewiseConstantFunction
 
 
@@ -199,3 +200,21 @@ def test_combine_with_breakpoints_in_both_fns(op):
         assert fn3.breakpoints[8] == op(fn1.breakpoints[7], fn2.breakpoints[8])
     except ZeroDivisionError:
         assert fn3.breakpoints[8] == 0
+
+
+def test_piecewise_max():
+    fn1 = PiecewiseConstantFunction(1)
+    fn1.add_breakpoint(2, 7)
+    fn1.add_breakpoint(4, 4)
+    fn1.add_breakpoint(7, 1)
+    fn2 = PiecewiseConstantFunction(2)
+    fn2.add_breakpoint(-1, 3)
+    fn2.add_breakpoint(7, 1)
+    fn2.add_breakpoint(8, 0)
+    fn3 = piecewise_max(fn1, fn2)
+
+    assert fn3._initial_value == 2
+    assert fn3.breakpoints[-1] == 3
+    assert fn3.breakpoints[2] == 7
+    assert fn3.breakpoints[4] == 4
+    assert fn3.breakpoints[7] == 1

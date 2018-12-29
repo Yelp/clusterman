@@ -42,6 +42,7 @@ class Autoscaler:
         :param apps: a list of apps running on the pool
         :param pool_manager: a MesosPoolManager object (used for simulations)
         :param metrics_client: a ClustermanMetricsBotoClient object (used for simulations)
+        :param monitoring_enabled: set to False to disable sensu alerts during scaling
         """
         self.cluster = cluster
         self.pool = pool
