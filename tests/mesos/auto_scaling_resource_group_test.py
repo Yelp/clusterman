@@ -51,7 +51,6 @@ def mock_asg_config(
         'DesiredCapacity': 10,
         'AvailabilityZones': ['us-west-2a'],
         'VPCZoneIdentifier': mock_subnet['Subnet']['SubnetId'],
-        'NewInstancesProtectedFromScaleIn': False,
         'Tags': [
             {
                 'Key': 'puppet:role::paasta',
@@ -64,6 +63,7 @@ def mock_asg_config(
                 'Value': 'fake_tag_value',
             },
         ],
+        'NewInstancesProtectedFromScaleIn': True,
     }
     autoscaling.create_auto_scaling_group(**asg)
 
@@ -78,18 +78,6 @@ def test_group_config(mock_asg_config):
 
     assert group_config['AutoScalingGroupName'] == \
         mock_asg_config['AutoScalingGroupName']
-
-
-def test_protect_instances(mock_asg_config):
-    mock_asrg = AutoScalingResourceGroup.__new__(AutoScalingResourceGroup)  # skip init
-    mock_asrg.group_id = mock_asg_config['AutoScalingGroupName']
-
-    mock_asrg._protect_instances(mock_asrg.instance_ids, protect=True)
-    group_config = mock_asrg._group_config
-
-    assert group_config['NewInstancesProtectedFromScaleIn']
-    for inst in group_config['Instances']:
-        assert inst['ProtectedFromScaleIn']
 
 
 @pytest.fixture
