@@ -37,12 +37,14 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
     NB: ASGs track their size in terms of number of instances, meaning that two
     ASGs with different instance types can have the same capacity but very
     different quantities of resources.
+
+    NB: Clusterman controls which instances to terminate in the event of scale
+    in. As a result, ASGs must be set to protect instances from scale in, and
+    AutoScalingResourceGroup will assume that instances are indeed protected.
     """
 
     def __init__(self, group_id: str) -> None:
         self.group_id = group_id  # ASG id
-
-        self._protect_instances(self.instance_ids, protect=True)
 
     @timed_cached_property(ttl=CACHE_TTL_SECONDS)
     def _group_config(self) -> Dict[str, Any]:
@@ -69,31 +71,6 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
             ],
         )
         return response['LaunchConfigurations'][0]
-
-    @protect_unowned_instances
-    def _protect_instances(
-        self,
-        instance_ids: Sequence[str],
-        *,
-        protect: bool = True
-    ) -> None:
-        """ Toggle scale-in protection for new and given instances. Instances
-        that are not part of this ASG will not be protected if their ids are
-        supplied.
-
-        Note: Does not prevent instances from being terminated via the EC2
-        client.
-        """
-        autoscaling.update_auto_scaling_group(  # protect new
-            AutoScalingGroupName=self.id,
-            NewInstancesProtectedFromScaleIn=protect,
-        )
-        if instance_ids:
-            autoscaling.set_instance_protection(  # protect current
-                InstanceIds=instance_ids,
-                AutoScalingGroupName=self.id,
-                ProtectedFromScaleIn=protect,
-            )
 
     def market_weight(self, market: InstanceMarket) -> float:
         """ Returns the weight of a given market
@@ -163,7 +140,7 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
 
         target_diff = self.target_capacity - target_capacity
         if target_diff > 0 and terminate_excess_capacity:
-            # By default, we protect instances from scale down, so we need to
+            # clusterman-managed ASGS are assumed to be protected, so we need to
             # remove that protection on some if we want to terminate
             autoscaling.set_instance_protection(
                 InstanceIds=self.instance_ids[:int(target_diff)],
