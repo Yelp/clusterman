@@ -118,13 +118,17 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
         check_every = ('{minutes}m'.format(minutes=int(self.autoscaler.run_frequency // 60))
                        if self.autoscaler else DEFAULT_CHECK_EVERY)
         # magic-y numbers here; an alert will time out after two autoscaler run periods plus a five minute buffer
-        ttl = ('{minutes}m'.format(minutes=int(self.autoscaler.run_frequency // 60) * 2 + 5)
-               if self.autoscaler else DEFAULT_TTL)
+        alert_delay = (
+            '{minutes}m'.format(minutes=int(self.autoscaler.run_frequency // 60) * 2 + 5)
+            if self.autoscaler
+            else DEFAULT_TTL
+        )
 
         sensu_args = dict(
             check_every=check_every,
             source=f'{self.options.cluster}_{self.options.pool}',
-            ttl=ttl,
+            ttl=alert_delay,
+            alert_after=alert_delay,
             noop=self.options.dry_run or self.options.healthcheck_only,
             pool=self.options.pool,
         )
