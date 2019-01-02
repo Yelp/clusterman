@@ -1,3 +1,9 @@
+clusterman (3.0.3) trusty; urgency=low
+
+  * Remove instance protection from auto scaling groups
+
+ -- Ka Wai Wan <kawaiwan@yelp.com>  Wed, 02 Jan 2019 15:02:45 -0800
+
 clusterman (3.0.2) trusty; urgency=low
 
   * Prevent auto scaling resource groups from protecting unowned instances
