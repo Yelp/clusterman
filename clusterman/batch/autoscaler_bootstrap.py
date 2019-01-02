@@ -87,11 +87,11 @@ class AutoscalerBootstrapBatch(BatchDaemon, BatchLoggingMixin):
         env = os.environ.copy()
         args = env.get('CMAN_ARGS', '')
         env['CMAN_ARGS'] = args + (' --healthcheck-only' if self.options.healthcheck_only else '')
-        subprocess.Popen(
+        supervisord_proc = subprocess.Popen(
             '/bin/bash -c "supervisord -c clusterman/supervisord/supervisord.conf | '
             f'tee >(stdin2scribe {self._get_local_log_stream()})"',
             env=env,
-            shell=True
+            shell=True,
         )
         time.sleep(1)  # Give some time for the process to start
         with xmlrpc.client.ServerProxy(SUPERVISORD_ADDR) as rpc:
@@ -114,6 +114,9 @@ class AutoscalerBootstrapBatch(BatchDaemon, BatchLoggingMixin):
                 # supervisord won't clean up its child processes if we restart or an exception is thrown
                 if not skip_supervisord_cleanup:
                     rpc.supervisor.shutdown()
+
+        logger.info('Shutting down...')
+        supervisord_proc.wait()
 
 
 if __name__ == '__main__':
