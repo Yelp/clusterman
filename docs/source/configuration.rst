@@ -1,9 +1,9 @@
 Configuration
 =============
 
-There are two levels of configuration for Clusterman.
-The first configures the Clusterman application or service itself, for operators of the service.
-The second provides per-role configuration, for client applications to customize scaling behavior.
+There are two levels of configuration for Clusterman.  The first configures the Clusterman application or service
+itself, for operators of the service.  The second provides per-pool configuration, for client applications to customize
+scaling behavior.
 
 .. _service_configuration:
 
@@ -18,7 +18,7 @@ The following is an example configuration file for the core Clusterman service a
         access_key_file: /etc/boto_cfg/clusterman.json
         region: us-west-1
 
-    autoscale_signal:
+    autoscale_signal:  # configures the default signal for Clusterman
         name: MostRecentCPU
 
         # What version of the signal to use (a branch or tag in the clusterman_signals Git repo)
@@ -35,17 +35,18 @@ The following is an example configuration file for the core Clusterman service a
               minute_range: 10
 
     autoscaling:
-        # Conversion from CPUs to capacity units.
-        cpus_per_weight: 8
-
-        # Module where the default signal is defined in clusterman_signals.
-        default_signal_role: clusterman
+        # signal namespace for the default signal
+        default_signal_pool: clusterman
 
         # Percentage utilization that Clusterman will try to maintain.
         setpoint: 0.7
 
         # Clusterman will only scale if utilization is beyond this margin from the setpoint.
         setpoint_margin: 0.1
+
+    # How long to wait for an agent to "drain" before terminating it
+    drain_termination_timeout_seconds:
+      sfr: 100
 
     batches:
         cluster_metrics:
@@ -64,7 +65,7 @@ The following is an example configuration file for the core Clusterman service a
             aws_region: us-west-2
             fqdn: <Mesos cluster FQDN>
 
-    cluster_config_directory: /nail/srv/configs/clusterman-roles/
+    cluster_config_directory: /nail/srv/configs/clusterman-pools/
 
     module_config:
       - namespace: clog
@@ -86,8 +87,8 @@ The following is an example configuration file for the core Clusterman service a
 The ``aws`` section provides the location of access credentials for the AWS API, as well as the region in which
 Clusterman should operate.
 
-The ``autoscale_signal`` section defines the default signal for autoscaling. This signal will be used for a role, if
-that role does not define its own ``autoscale_signal`` section in its role configuration. See :ref:`default_signal`.
+The ``autoscale_signal`` section defines the default signal for autoscaling. This signal will be used for a pool, if
+that pool does not define its own ``autoscale_signal`` section in its pool configuration.
 
 The ``autoscaling`` section defines settings for the autoscaling behavior of Clusterman.
 
@@ -98,34 +99,34 @@ The ``mesos_clusters`` section provides the location of the Mesos clusters which
 The ``module_config`` section loads additional configuration values for Clusterman modules, such as
 ``clusterman_metrics``.
 
-.. _role_configuration:
+.. _pool_configuration:
 
-Role Configuration
+Pool Configuration
 ------------------
 
-To configure a role, a directory with the cluster's name should be created in the ``cluster_config_directory``
-defined in the service configuration. Within that directory, there should be a file named ``<role>.yaml``.
-The following is an example configuration file for a particular Clusterman role:
+To configure a pool, a directory with the cluster's name should be created in the ``cluster_config_directory``
+defined in the service configuration. Within that directory, there should be a file named ``<pool>.yaml``.
+The following is an example configuration file for a particular Clusterman pool:
 
 .. code-block:: yaml
 
     resource_groups:
-        s3:
-            bucket: clusterman-s3-bucket
-            prefix: cluster-name
+      - sfr:
+          tag: 'my-custom-resource-group-tag'
 
     scaling_limits:
         min_capacity: 1
         max_capacity: 800
         max_weight_to_add: 100
         max_weight_to_remove: 100
+        max_tasks_to_kill: 100
 
 
     autoscale_signal:
-        # Must exist in the clusterman_signals.<role_name> module.
         name: CustomSignal
+        namespace: my_application_signal
 
-        # What version of the signal to use (a branch or tag in the clusterman_signals Git repo)
+        # What version of the signal to use (a tag in the clusterman_signals Git repo)
         branch_or_tag: v3.7
 
         # How frequently the signal will be evaluated.
@@ -138,22 +139,30 @@ The following is an example configuration file for a particular Clusterman role:
               # The metric will be queried for the most recent data in this range.
               minute_range: 10
 
+        # custom parameters to be passed into the signal (optional)
+        parameters:
+            - paramA: 'typeA'
+            - paramB: 10
 
-The ``resource-groups`` section provides information for loading the
-:py:class:`MesosRoleManager <clusterman.mesos.mesos_role_manager.MesosRoleManager>` resource groups.
-Currently, the only supported way to load resource groups is to read the groups from Amazon S3, given the specified
-``bucket`` and ``prefix``.
 
-The ``scaling_limits`` section provides global role-level limits on scaling that the autoscaler and
+The ``resource-groups`` section provides information for loading resource groups in the pool manager.
+
+The ``scaling_limits`` section provides global pool-level limits on scaling that the autoscaler and
 other Clusterman commands should respect.
 
-The ``autoscale_signal`` section defines the autoscaling signal used by this role.
-This section is optional. If it is not present, then the ``autoscale_signal`` from the service configuration
-will be used.
+The ``autoscale_signal`` section defines the autoscaling signal used by this pool.  This section is optional. If it is
+not present, then the ``autoscale_signal`` from the service configuration will be used.
+
+For required metrics, there can be any number of sections, each defining one desired metric.  The metric type must be
+one of :ref:`metric_types`.
 
 Reloading
 ---------
 The Clusterman batches will automatically reload on changes to the clusterman service config file and the AWS
 credentials file.  This is specified in the ``namespace: yelp_batch`` section of the main configuration file.  The
-autoscaler batch and the metrics collector batch also will automatically reload for changes to any roles that are
+autoscaler batch and the metrics collector batch also will automatically reload for changes to any pools that are
 configured to run on the specified cluster.
+
+.. warning:: Any changes to these configuration files will cause the signal to be reloaded by the autoscaling batch.
+   Test your config values before pushing.  If the config values break the custom signal, then the pool will start using
+   the default signal.
