@@ -1,6 +1,12 @@
 Simulation
 ==========
 
+Running the Simulator
+---------------------
+
+.. program-output:: python -m clusterman.run simulate --help
+   :cwd: ../../
+
 .. _input_data_fmt:
 
 Experimental Input Data

@@ -185,6 +185,13 @@ class SpotFleetResourceGroup(MesosPoolResourceGroup):
         pool: str,
         config: SpotFleetResourceGroupConfig,
     ) -> Mapping[str, MesosPoolResourceGroup]:
+        """ Loads a list of spot fleets in the given cluster and pool
+
+        :param cluster: A cluster name
+        :param pool: A pool name
+        :param config: An spot fleet config
+        :returns: A dictionary of spot fleet resource groups, indexed by the id
+        """
         return load(cluster, pool, config)
 
 

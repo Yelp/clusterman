@@ -32,15 +32,15 @@ AutoScalingResourceGroupConfig = TypedDict(
 
 class AutoScalingResourceGroup(MesosPoolResourceGroup):
     """
-    Auto Scaling Groups (ASGs)
+    Wrapper for AWS Auto Scaling Groups (ASGs)
 
-    NB: ASGs track their size in terms of number of instances, meaning that two
-    ASGs with different instance types can have the same capacity but very
-    different quantities of resources.
+    .. note:: ASGs track their size in terms of number of instances, meaning that two
+       ASGs with different instance types can have the same capacity but very
+       different quantities of resources.
 
-    NB: Clusterman controls which instances to terminate in the event of scale
-    in. As a result, ASGs must be set to protect instances from scale in, and
-    AutoScalingResourceGroup will assume that instances are indeed protected.
+    .. note:: Clusterman controls which instances to terminate in the event of scale
+       in. As a result, ASGs must be set to protect instances from scale in, and
+       AutoScalingResourceGroup will assume that instances are indeed protected.
     """
 
     def __init__(self, group_id: str) -> None:
@@ -50,7 +50,7 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
     def _group_config(self) -> Dict[str, Any]:
         """ Retrieve our ASG's configuration from AWS.
 
-        Note: Response from this API call are cached to prevent hitting any AWS
+        .. note:: Response from this API call are cached to prevent hitting any AWS
         request limits.
         """
         response = autoscaling.describe_auto_scaling_groups(
@@ -62,7 +62,7 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
     def _launch_config(self) -> Dict[str, Any]:
         """ Retrieve our ASG's launch configuration from AWS
 
-        Note: Response from this API call are cached to prevent hitting any AWS
+        .. note:: Response from this API call are cached to prevent hitting any AWS
         request limits.
         """
         response = autoscaling.describe_launch_configurations(
@@ -259,8 +259,7 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
         pool: str,
         config: AutoScalingResourceGroupConfig,
     ) -> Mapping[str, 'MesosPoolResourceGroup']:
-        """
-        Loads a list of ASGs in the given cluster and pool
+        """ Loads a list of ASGs in the given cluster and pool
 
         :param cluster: A cluster name
         :param pool: A pool name

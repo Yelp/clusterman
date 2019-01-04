@@ -40,19 +40,18 @@ logger = colorlog.getLogger(__name__)
 
 
 class MesosPoolManager:
-    """ The MesosPoolManager object provides a consistent interface to the infrastructure that underpins a particular
+    """ The ``MesosPoolManager`` object provides a consistent interface to the infrastructure that underpins a particular
     Mesos pool.  Specifically, it allows users to interact with the Mesos master (querying the number of agents in the
     cluster, and what resources are available/allocated, for example) as well as to modify the capacity available to the
     Mesos pool.  Since many different types of hosts may be present in a Mesos cluster, this object refers to a list of
-    abstract :class:`MesosPoolResourceGroup <clusterman.mesos.mesos_pool_resource_group.MesosPoolResourceGroup>` objects
-    to modify the underlying infrastructure.
+    abstract :py:class:`.MesosPoolResourceGroup` objects to modify the underlying infrastructure.
 
-    One major assumption the MesosPoolManager makes currently is that the underlying infrastructure for a particular
+    One major assumption the ``MesosPoolManager`` makes currently is that the underlying infrastructure for a particular
     pool belongs completely to that pool; in other words, at present no pools are co-located on the same physical
     hardware.  This assumption is subject to change in the future.
 
-    .. note:: Values returned from MesosPoolManager functions may be cached to limit requests made to the Mesos masters
-       or AWS API endpoints.
+    .. note:: Values returned from ``MesosPoolManager`` functions may be cached to limit requests made to the Mesos
+       masters or AWS API endpoints.
     """
 
     def __init__(self, cluster: str, pool: str) -> None:
@@ -79,7 +78,7 @@ class MesosPoolManager:
 
     def reload_state(self) -> None:
         """ Fetch any state that may have changed behind our back, but which we do not want to change during an
-        Autoscaler.run().
+        ``Autoscaler.run()``.
         """
         self._reload_resource_groups()
 
@@ -97,6 +96,7 @@ class MesosPoolManager:
         :param new_target_capacity: the desired target capacity for the cluster and pool
         :param dry_run: boolean indicating whether the cluster should actually be modified
         :param force: boolean indicating whether to override the scaling limits
+        :returns: the (set) new target capacity
 
         .. note:: It may take some time (up to a few minutes) for changes in the target capacity to be reflected in
            :attr:`fulfilled_capacity`.  Once the capacity has equilibrated, the fulfilled capacity and the target
@@ -132,8 +132,8 @@ class MesosPoolManager:
     ) -> None:
         """ Decrease the capacity in the cluster
 
-        The number of tasks killed is limited by self.max_tasks_to_kill, and the instances are terminated in an order
-        which (hopefully) reduces the impact on jobs running on the cluster.
+        The number of tasks killed is limited by ``self.max_tasks_to_kill``, and the instances are terminated in an
+        order which (hopefully) reduces the impact on jobs running on the cluster.
 
         :param group_targets: a list of new resource group target_capacities; if None, use the existing
             target_capacities (this parameter is necessary in order for dry runs to work correctly)
@@ -202,7 +202,7 @@ class MesosPoolManager:
         """Get the total amount of the given resource currently allocated for this Mesos pool.
 
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
-        :returns: float
+        :returns: the allocated resources in the Mesos cluster for the specified resource
         """
         return get_total_resource_value(self.agents, 'used_resources', resource_name)
 
@@ -210,7 +210,7 @@ class MesosPoolManager:
         """Get the total amount of the given resource for this Mesos pool.
 
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
-        :returns: float
+        :returns: the total resources in the Mesos cluster for the specified resource
         """
         return get_total_resource_value(self.agents, 'resources', resource_name)
 
@@ -218,7 +218,7 @@ class MesosPoolManager:
         """Get the overall proportion of the given resource that is in use.
 
         :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
-        :returns: float
+        :returns: the percentage allocated for the specified resource
         """
         total = self.get_resource_total(resource_name)
         used = self.get_resource_allocation(resource_name)
@@ -433,7 +433,11 @@ class MesosPoolManager:
         self,
         market_filter: Optional[Collection[InstanceMarket]] = None
     ) -> Mapping[InstanceMarket, float]:
-        """ Return the total (fulfilled) capacities in the cluster across all resource groups """
+        """ Return the total (fulfilled) capacities in the cluster across all resource groups
+
+        :param market_filter: a set of :py:class:`.InstanceMarket` to filter by
+        :returns: the total capacity in each of the specified markets
+        """
         total_market_capacities: MutableMapping[InstanceMarket, float] = defaultdict(float)
         for group in self.resource_groups.values():
             for market, capacity in group.market_capacities.items():

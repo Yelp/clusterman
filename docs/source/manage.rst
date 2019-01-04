@@ -3,9 +3,20 @@ Cluster Management
 
 Clusterman comes with a number of command-line tools to help with cluster management.
 
+Discovery
+---------
 
-Manage
-------
+The ``clusterman list-clusters`` and ``clusterman list-pools`` commands can aid in determining what clusters and pools
+Clusterman knows about:
+
+.. program-output:: python -m clusterman.run list-clusters --help
+   :cwd: ../../
+
+.. program-output:: python -m clusterman.run list-pools --help
+   :cwd: ../../
+
+Management
+----------
 
 The ``clusterman manage`` command can be used to directly change the state of the cluster:
 
@@ -13,9 +24,7 @@ The ``clusterman manage`` command can be used to directly change the state of th
    :cwd: ../../
 
 The ``--target-capacity`` option allows users to directly change the size of the Mesos cluster specified by the
-``--cluster`` and ``--role`` arguments.
-
-.. py:currentmodule:: clusterman.mesos.mesos_role_manager
+``--cluster`` and ``--pool`` arguments.
 
 Note that there can be up to a few minutes of "lag time" between when the manage command is issued and when
 changes are reflected in the cluster.  This is due to potential delays introduced into the pipeline while AWS finds and
@@ -25,11 +34,8 @@ short succession, or immediately after the autoscaler batch has run.
 .. note:: Future versions of Clusterman may include a rate-limiter for the manage command
 
 .. note:: By providing the existing target capacity value as the argument to ``--target-capacity``, you can force
-   Clusterman to attempt to prune any :attr:`fulfilled capacity <MesosRoleManager.fulfilled_capacity>` that is above the
-   desired :attr:`target capacity <MesosRoleManager.target_capacity>`.  Future versions of Clusterman may have a batch
-   job to do this automatically.
-
-.. todo:: The ``--recycle`` command-line argument is not currently implemented
+   Clusterman to attempt to prune any :attr:`fulfilled capacity <MesosPoolManager.fulfilled_capacity>` that is above the
+   desired :attr:`target capacity <MesosPoolManager.target_capacity>`.
 
 Status
 ------

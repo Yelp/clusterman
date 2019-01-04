@@ -14,7 +14,7 @@ and simulate how changes to autoscaling logic will impact the cost and performan
 .. toctree::
    :titlesonly:
 
-   scaling_overview
+   overview
 
 .. toctree::
    :maxdepth: 2
@@ -22,25 +22,32 @@ and simulate how changes to autoscaling logic will impact the cost and performan
 
    metrics
    signals
-   roles
+   autoscaler
+   configuration
+   resource_groups
 
 
 .. toctree::
    :maxdepth: 2
    :caption: Tools
 
-   configuration
    manage
    simulator
    tools
 
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Batches
+   :maxdepth: 1
+   :caption: API Reference
 
-   autoscaler
-   metrics_batches
+   api/AutoScalingResourceGroup
+   api/Autoscaler
+   api/aws_markets
+   api/clusterman_metrics
+   api/MesosPoolManager
+   api/MesosPoolResourceGroup
+   api/Signal
+   api/SpotFleetResourceGroup
 
 
 Indices and tables

@@ -51,7 +51,7 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
         Note that market_weight is compared to fulfilled_capacity when scaling down a pool, so it must return the same
         units.
 
-        :param market: the InstanceMarket to get the weighted capacity for
+        :param market: the :py:class:`.InstanceMarket` to get the weighted capacity for
         :returns: the weighted capacity of the market (defaults to 1 unless overridden)
         """
         return 1
@@ -97,7 +97,7 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
 
     @abstractproperty
     def market_capacities(self) -> Mapping[InstanceMarket, float]:  # pragma: no cover
-        """ A dictionary of InstanceMarket -> total (fulfilled) capacity values """
+        """ A dictionary of :py:class:`.InstanceMarket` -> total (fulfilled) capacity values """
         pass
 
     @abstractproperty

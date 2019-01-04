@@ -20,8 +20,8 @@ import sys
 
 import sphinx_rtd_theme
 
-from clusterman import __version__
 sys.path.insert(0, os.path.abspath('../..'))
+from clusterman import __version__  # noqa
 
 # -- General configuration ------------------------------------------------
 
@@ -34,6 +34,7 @@ needs_sphinx = '1.0'
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx_autodoc_annotation',
     'sphinx.ext.autosectionlabel',
     'sphinx.ext.mathjax',
     'sphinx.ext.todo',
@@ -54,7 +55,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'clusterman'
-copyright = '2017, compute-infra'
+copyright = '2019, compute-infra'
 author = 'compute-infra'
 
 # The version info for the project you're documenting, acts as replacement for

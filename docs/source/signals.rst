@@ -1,97 +1,86 @@
 Signals
 ========
 
-For each :py:class:`MesosRoleManager <clusterman.mesos.mesos_role_manager.MesosRoleManager>`, which manages the capacity
-for a role in a Mesos cluster, Clusterman determines the target capacity by evaluating signals.  Signals are a function
-of metrics and represent the estimated resources (e.g. CPUs, memory) required by that role.  Clusterman compares this
-estimate to the current number of resources available and changes the target capacity for the role accordingly (see
-:ref:`scaling_logic`).
+Each Clusterman autoscaler instance manages the capacity for a single pool in a Mesos cluster.  Clusterman determines
+the target capacity by evaluating signals.  Signals are a function of metrics and represent the estimated resources
+(e.g. CPUs, memory) required by an application running on that pool.  Clusterman compares this estimate to the current
+number of resources available and changes the target capacity for the pool accordingly (see :ref:`scaling_logic`).
 
-Application owners may write and use their own signals.  If there is no custom signal defined for a role, Clusterman
-will use its :ref:`default_signal`.
+Signal Evaluation
+-----------------
 
-.. _adding_signal:
+During each autoscaling run, Clusterman evaluates each signal defined for the pool; any metrics requested by the signal
+are automatically read from the metrics datastore by the autoscaler, and passed in to the signal, along with any
+additional parameters that the signal needs in order to run.  The signal then returns a resource request, indicating how
+many resources the application wants for the current period.  Clusterman combines the resource requests from all the
+signals to determine how many resources to add or remove from the pool; these resource requests are subject to final
+capacity limits on the cluster to ensure that the pool does not ever contain too many or too few resources (which might
+cost extra money or impact availability).
 
-Custom signals
---------------------
+A signal's resource request is defined as follows:
+
+ .. code-block:: json
+
+    {
+      "Resources": {
+        "cpus": requested_cpus,
+        "mem": requested_memory_in_MB,
+        "disk": requested_disk_in_MB
+      }
+    }
+
+
+If an application does not define its own signal, or if Clusterman is unable to load or evaluate the application's
+signal for any reason, Clusterman will fall back to using a default signal, defined in Clusterman's own service
+configuration file.  See the configuration file and the ``clusterman`` namespace within ``clusterman_signals`` package
+for the latest definitions.  In general, the default signal uses recent values of allocated CPUs, memory, and disk to
+estimate the resources required in the future.
+
+.. _adding_signals:
+
+How to Write a Custom Signal
+----------------------------
 Code for custom signals should be defined in the ``clusterman_signals`` package. Once a signal is defined there, the
-:ref:`signal_configuration` section below describes how Clusterman can be configured to use it for a role.
+:ref:`pool_configuration` section below describes how Clusterman can be configured to use it for a pool.
 
 Signal code
 ~~~~~~~~~~~
-In ``clusterman_signals``, there is a separate subpackage for each role. If there is not a subpackage for your role
-already, create a directory within ``clusterman_signals`` and create an ``__init__.py`` file within that directory. Make
-sure the name of the directory matches your role.
+In ``clusterman_signals``, there is a separate directory for each application (called the **signal namespace**).  If
+there is not already a namespace for your signal already, create a directory within ``clusterman_signals`` and create an
+``__init__.py`` file within that directory.
 
 Within that directory, application owners may choose how to organize signal classes within files.  The only requirement
-is that the signal class must be able to be imported directly from that subpackage, i.e. ``from clusterman_signals.roleA
+is that the signal class must be able to be imported directly from that subpackage, i.e. ``from clusterman_signals.poolA
 import MyCustomSignal``. Typically, in the ``__init__.py``, you would import the class and then add it to ``__all__``::
 
-    from clusterman_signals.roleA.custom_signal import MyCustomSignal
+    from clusterman_signals.poolA.custom_signal import MyCustomSignal
     ...
 
     __all__ = [MyCustomSignal, ...]
 
-Define a new class that implements :py:class:`clusterman_signals.base_signal.BaseSignal`.  (The class name should be
-unique within this role.) In this class, you only need to overwrite the ``value`` method.  ``value`` should use metric
-values to return a :py:class:`SignalResources <clusterman_signals.base_signal.SignalResources>` tuple, where the units
-of the ``SignalResources`` tuple should match the Mesos units: shares for CPUs, MB for memory and disk.
+Define a new class that implements :py:class:`clusterman_signals.base_signal.BaseSignal` (the class name should be
+unique).  In this class, you only need to overwrite the :py:meth:`value` method.  :py:meth:`value` should use metric
+values to return a :py:class:`clusterman_signals.base_signal.SignalResources` tuple, where the units
+of the tuple should match the Mesos units: shares for CPUs, MB for memory and disk.
 
-When you :ref:`configure your custom signal <signal_configuration>`, you specify the metric names that your signal
+When you :ref:`configure your custom signal <pool_configuration>`, you specify the metric names that your signal
 requires and how far back the data for each metric should be queried. The autoscaler handles the querying of metrics for
-you, and passes these into the ``value`` method as its only argument.  The format of this argument is a dictionary of
-metric timeseries data, keyed by the timeseries name and where where each metric timeseries is a list of
-``(unix_timestamp_seconds, value)`` pairs, sorted from oldest to most recent.
+you, and passes these into the :py:meth:`value` method, along with the current UNIX timestamp.  The format of metrics
+argument is a dictionary of metric timeseries data, keyed by the timeseries name and where where each metric timeseries
+is a list of ``(unix_timestamp_seconds, value)`` pairs, sorted from oldest to most recent.
 
-.. note:: The autoscaler only responds to the ``cpus`` resource, but that may change in the future.
+The signal also has available any configuration parameters that you specified in the :py:attr:`parameters` dict, and the
+cluster and pool that the signal is operating on are available in the :py:attr:`cluster` and :py:attr:`pool` attributes
+on the signal.
 
-.. automodule:: clusterman_signals.base_signal
-.. autoclass:: clusterman_signals.base_signal.SignalResources
-.. autoclass:: clusterman_signals.base_signal.BaseSignal
-   :members: value
+.. note:: For application metrics, the clusterman metrics client will automatically prepend the application name to the
+   metric key to avoid conflicts between metrics for different applications.  However, Clusterman strips this prefix
+   from the metric name before sending it to the signal, so you do not need to handle this in your signal code.
 
-.. _signal_configuration:
-
-Configuration
-~~~~~~~~~~~~~
-Application-defined signals are configured via the ``autoscaling_signal`` section of the :ref:`role_configuration`.
-Within this section, the following keys are available:
-
-.. code-block:: yaml
-
-    autoscaling_signal:
-        name: name of signal class, e.g. CustomSignalClass
-        branch_or_tag: a Git branch or tag referring to the version of the signal you want to run
-        period_minutes: how often the signal should be evaluated by the autoscaler, e.g. 15
-        required_metrics:
-            - name: metric key
-              type: metric type, e.g. system_metrics
-              minute_range: minutes of data for the metric to query
-            - ...
-        parameters: (optional)
-            - paramA: 'typeA'
-            - paramB: 10
-              ...
-
-.. warning:: The ``branch_or_tag`` key allows you to pin a version of the signal to be used for scaling your
-   application.  While this *can* be ``HEAD`` or ``master``, this is not a recommended value, as this may cause
-   unintended behavior if the service restarts.
-
-For required metrics, there can be any number of sections, each defining one desired metric.  The metric type must be
-one of :ref:`metric_types`.
-
-Custom parameters are optional. If defined, they are passed as a dictionary to the signal, in ``self.parameters``. For
-example, if you wanted to use the value of ``paramA`` in ``value``::
-
-    def value(self):
-        my_param = self.parameters['paramA']
-        ...
-
-Use the regular srv-configs workflow to deploy changes to these values.
-
-.. warning:: Any changes to this section will cause the signal to be reloaded by the autoscaling batch.  Test your
-   config values before pushing.  If the config values break the custom signal, then the role will start using the
-   default signal.
+.. note:: For system metrics, the metrics client will add the cluster and pool as dimensions to the metric name to
+   prevent conflicts between different clusters and pools.  These dimensions are also stripped from the metric name
+   before being sent to the client, since they are accessible via the :py:attr:`cluster` and :py:attr:`pool` attributes
+   in the signal.
 
 Example
 ~~~~~~~
@@ -107,7 +96,7 @@ A custom signal class that averages ``cpus_allocated`` values::
            average = sum(cpu_values) / len(cpu_values)
            return SignalResources(cpus=average)
 
-And configuration for a role, so that the autoscaler will evaluate that signal every 10 minutes, over data from the last
+And configuration for a pool, so that the autoscaler will evaluate that signal every 10 minutes, over data from the last
 20 minutes:
 
 .. code-block:: yaml
@@ -121,103 +110,57 @@ And configuration for a role, so that the autoscaler will evaluate that signal e
               type: system_metrics
               minute_range: 20
 
-Deploying changes
-~~~~~~~~~~~~~~~~~
-
-Testing
-"""""""
-These are the steps to test signal changes against the service autoscaler.
-
-#. Push your ``clusterman_signals`` branch to origin:
-
-   .. code-block:: text
-
-       git push origin <my-dev-branch>
-
-#. Run a simulation, and reference your newly-pushed branch:
-
-   .. code-block:: text
-
-       clusterman simulate --start-time <start> --end-time <end> --cluster <cluster> \
-                --role <role> -S <my-dev-branch>  --reports cost
-       mv cost.png test-cost.png
-
-   .. note:: If the input parameters or metrics for your signal have changed, you will instead need to make a copy of the
-      signal's configuration file, make the necessary changes, and pass that in to the simulator:
-
-      .. code-block:: text
-
-            cp -r /nail/srv/configs/clusterman-roles/ .
-            <editor> ./clusterman-roles/<role>/config.yaml
-            clusterman simulate --role-config-dir ./clusterman-roles <remaining arguments> ...
-
-#. Then run a simulation with the same arguments against your existing signal version:
-
-   .. code-block:: text
-
-       clusterman simulate --start-time <start> --end-time <end> --cluster <cluster> \
-                --role <role> --reports cost
-
-   Compare the new signal configuration results in ``test-cost.png`` to the existing results in ``cost.png``.
-
-
-Pushing
-"""""""
-Once you've tested your changes to ``clusterman_signals`` and you're satisfied with the results, follow these steps
-to have the changes take effect in the production autoscaler.
-
-#. Merge your changes with master:
-
-   .. code-block:: text
-
-       git checkout master
-       git pull origin master
-       git merge --no-ff <my-dev-branch>
-
-#. Update the version and push to master:
-
-   .. code-block:: text
-
-       make version-bump
-       git push origin HEAD --tags
-
-   .. note:: The ``version-bump`` make target will automatically prompt you to update the version of the
-      ``clusterman_signals`` repo, and will tag your commit with that version (e.g., 'v1.0.3').  However, you may find
-      it useful to also tag specific versions of your signal with a more meaningful/human-readable tag to use in the
-      ``branch_or_tag`` field.
-
-   .. warning:: It is *possible* for you to reference a branch of ``clusterman_signals`` that hasn't yet been merged to
-      master for the production version of your signal.  However, this is not a recommended method of deployment, as
-      this may introduce significant divergence from the master branch, including new features that are added to the
-      ``BaseSignal`` class.
-
-#. Update srv-configs to use the new version by updating the ``branch_or_tag`` key for your signal to the new version.
-   Push your srv-configs changes; this will automatically restart the clusterman service with your new signal.
-
-.. _default_signal:
-
-Default signal
---------------
-If a role does not define its own ``autoscale_signal``, or if Clusterman is unable to load the role-defined signal for
-any reason, Clusterman will fall back to using a default signal, defined in Clusterman's own service configuration file.
-
-See the configuration file and the ``clusterman`` package within ``clusterman_signals`` package for the latest
-definitions.  In general, the default signal uses recent values of ``cpus_allocated`` to estimate the amount of
-resources required, and does not consider any other metrics.  ``cpus_allocated`` is the number of CPUs that Mesos has
-allocated to tasks, from agents in the cluster with the specified role.
-
-Under the hood
---------------
+Under the hood (supervisord)
+----------------------------
 
 In order to ensure that the autoscaler can work with multiple clients that specify different versions of the
-``clusterman_signals`` repo, we do not import ``clusterman_signals`` into the autoscaler.  Instead, the autoscaler (and
-the simulator) will clone the commit referenced by ``branch_or_tag`` into a local directory, build the virtualenv for
-the signal, and then open a Unix abstract namespace socket to communicate with the signal.  All communication between
-the autoscaler and the signal is done in JSON.
+``clusterman_signals`` repo, we do not import ``clusterman_signals`` into the autoscaler.  Instead, Clusterman launches
+each signal in a separate process and communicates with them over `abstract Unix domain sockets
+<http://man7.org/linux/man-pages/man7/unix.7.html>`_.  The orchestration of the signal subprocesses and the autoscaler
+is performed by `supervisord <http://supervisord.org>`_, a client/server system that controls the operation of all the
+independent subprocesses.  In turn, supervisord is controlled by an autoscaler bootstrap batch daemon.  The way this
+works is outlined in detail below:
 
+0. When a new signal version is written, tagged, and pushed to master, Jenkins builds a virtual environment for that
+   signal, creates a tarball of the virtualenv, and uploads it to S3.
+1. When the autoscaler bootstrap batch starts, it reads the ``CMAN_CLUSTER`` and ``CMAN_POOL`` environment variables
+   to determine what cluster and pool it should be operating on.
+2. The autoscaler bootstrap script reads the version of the signal that should be used for this specific cluster and
+   pool from the configuration.  It sets all of the :ref:`environment variables <supervisord_env_vars>` needed for
+   ``supervisord`` to run.  Once the bootstrap initialization is complete, it starts ``supervisord``.
+3. Since there may be multiple applications running on the pool, and each application can pin a different version of the
+   signal code, we may need to download multiple different versions of the signal code.  The first thing ``supervisord``
+   does when it starts, therefore, is to download all needed versions of the signal from S3 as specified
+   in the ``CMAN_VERSIONS_TO_FETCH`` environment variable.
+
+   ``supervisord`` uses a so-called `homogeneous process group <http://supervisord.org/configuration.html#program-x-section-settings>`_
+   to fetch the signals.  That is, it runs one copy of the signal-fetcher script for each version of the signal code
+   that needs to be downloaded; it reports completion only when all of the processes in the group have completed
+   successfully.  The ``CMAN_NUM_VERSIONS`` environment variable controls the size of this process group, and each
+   fetcher script takes ``%(process_num)`` as an argument to determine its task.
+4. The autoscaler bootstrap waits for that step to complete, and then triggers supervisord to start the signal
+   process(es) running via the ``CMAN_SIGNAL_NAMESPACES``, ``CMAN_SIGNAL_NAMES``, and ``CMAN_SIGNAL_APPS`` environment
+   variables.  As above, ``supervisord`` runs the signals in homogeneous process groups.
+
+   Each signal listens for incoming connections on an abstract Unix domain socket named
+   ``\0{signal_namespace}-{signal_name}-{app}-socket``, where ``signal_namespace`` is the subdirectory of
+   ``clusterman_signals`` containing the signal specified by ``signal_name``, and ``app`` is the application running
+   the signal.
+
+   .. note:: the name of the default signal is ``__default__``
+
+   If the signal process dies for any reason, ``supervisord`` will automatically restart it, and the autoscaler will
+   attempt to reconnect on the next iteration.
+5. The autoscaler bootstrap waits for that step to complete and then starts the autoscaler batch daemon, which connects
+   to all running signals and then proceeds to autoscale the pool.
+6. The autoscaler bootstrap periodically polls files in srv-configs and AWS keys, and will restart the entire process if
+   any of these files change.
+
+Running the Signal Process
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 To initialize the signal, ``run.py`` is called in the ``clusterman_signals`` repo; this script takes two command-line
-arguments: the role of the signal to load, and the name of the signal to load.  The socket name is constructed from
-these two parameters, which (should) guarantee that different roles communicate over different processes.  The script
+arguments: the pool of the signal to load, and the name of the signal to load.  The socket name is constructed from
+these two parameters, which (should) guarantee that different pools communicate over different processes.  The script
 then connects to the specified Unix socket and waits for the autoscaler to initialize the signal.  The JSON object for
 signal initialization looks like the following:
 
@@ -225,8 +168,8 @@ signal initialization looks like the following:
 
     {
         "cluster": what cluster this signal is operating on,
-        "role": what role this signal is operating on for the specified cluster,
-        "parameters": the values for any parameters from srv-configs that the signal should reference
+        "pool": what pool this signal is operating on for the specified cluster,
+        "parameters": the values for any parameters from configuration that the signal should reference
     }
 
 Once the signal is properly initialized, the ``run.py`` script waits for input from the autoscaler indefinitely.  Since
@@ -258,6 +201,29 @@ the autoscaler:
 
  .. code-block:: json
 
-    { "Resources": { "cpus": num_requested_cpus, ... } }
+    {
+      "Resources": {
+        "cpus": requested_cpus,
+        "mem": requested_memory_in_MB,
+        "disk": requested_disk_in_MB
+      }
+    }
 
 The value in this response is the result from running the signal with the specified data.
+
+.. _supervisord_env_vars:
+
+supervisord Environment Variables
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* ``CMAN_CLUSTER``: the name of the cluster to autoscale
+* ``CMAN_POOL``: the name of the pool to autoscale
+* ``CMAN_ARGS``: any additional arguments to pass to the autoscaler batch job
+* ``CMAN_VERSIONS_TO_FETCH``: a space-separated list of signal versions to fetch from S3
+* ``CMAN_SIGNAL_VERSIONS``: a space-separated list of versions to use for each signal
+* ``CMAN_SIGNAL_NAMESPACES``: a space-separated list of namespaces to use for each signal
+* ``CMAN_SIGNAL_NAMES``: a space-separated list of signal names
+* ``CMAN_SIGNAL_APPS``: a space-separated list of applications scaled
+* ``CMAN_NUM_VERSIONS``: the number of signal versions to fetch from S3
+* ``CMAN_NUM_SIGNALS``: the number of signals to run
+* ``CMAN_SIGNALS_BUCKET``: the location of the signal artifact bucket in S3
