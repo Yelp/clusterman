@@ -35,12 +35,12 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
     Wrapper for AWS Auto Scaling Groups (ASGs)
 
     .. note:: ASGs track their size in terms of number of instances, meaning that two
-       ASGs with different instance types can have the same capacity but very
-       different quantities of resources.
+    ASGs with different instance types can have the same capacity but very
+    different quantities of resources.
 
     .. note:: Clusterman controls which instances to terminate in the event of scale
-       in. As a result, ASGs must be set to protect instances from scale in, and
-       AutoScalingResourceGroup will assume that instances are indeed protected.
+    in. As a result, ASGs must be set to protect instances from scale in, and
+    AutoScalingResourceGroup will assume that instances are indeed protected.
     """
 
     def __init__(self, group_id: str) -> None:
@@ -65,12 +65,21 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
         .. note:: Response from this API call are cached to prevent hitting any AWS
         request limits.
         """
+        group_config = self._group_config
         response = autoscaling.describe_launch_configurations(
-            LaunchConfigurationNames=[
-                self._group_config['LaunchConfigurationName'],
-            ],
+            LaunchConfigurationNames=[group_config['LaunchConfigurationName']],
         )
-        return response['LaunchConfigurations'][0]
+        # TODO: CLUSTERMAN-372: very rarely, the return statement can raise an
+        # IndexError because it thinks the LaunchConfiguration does not exist
+        # when always should. We need more information to debug the issue so
+        # some temporary loggign is in place for now.
+        try:
+            return response['LaunchConfigurations'][0]
+        except IndexError as e:
+            logger.error('Could not get LaunchConfigurations. Here is more context:')
+            logger.error(f'DescribeLaunchConfigurations response:\n{pprint.pformat(response)}')
+            logger.error(f'ASG group configuration:\n{pprint.pformat(group_config)}')
+            raise e
 
     def market_weight(self, market: InstanceMarket) -> float:
         """ Returns the weight of a given market
