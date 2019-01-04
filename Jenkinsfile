@@ -67,10 +67,10 @@ utils.handleInputRejection {
                     debItestUpload("services/${SERVICE_NAME}", ['xenial'])
 
                 }
-            }
 
-            ystage('upload-docs') {
-                sh 'make upload_docs'
+                ystage('upload-docs') {
+                    sh 'make upload_docs'
+                }
             }
 
             ystage('other-batches') {
