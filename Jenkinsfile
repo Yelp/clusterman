@@ -69,12 +69,8 @@ utils.handleInputRejection {
                 }
             }
 
-            ystage('advance1') {
-                if (!wasTimerTriggered() && authors['prod.everything']) {
-                    pingList = authors['prod.everything'].collect{author -> "<@${author}>"}.join(', ')
-                    utils.nodebot(IRC_CHANNELS, "Hey ${pingList}, go click the button! :easy_button: y/clusterman-jenkins")
-                }
-                timeout(time: 1, unit: 'HOURS') { input "Click to advance to next step" }
+            ystage('upload-docs') {
+                sh 'make upload_docs'
             }
 
             ystage('other-batches') {
@@ -85,7 +81,7 @@ utils.handleInputRejection {
                 paastaDeploy(SERVICE_NAME, commit, 'dev-stage-testopia.default', waitForDeployment: true, confirmation: false, deployTimeout: true, autoRollback: false, productionDeploy: false)
             }
 
-            ystage('advance2') {
+            ystage('advance1') {
                 if (!wasTimerTriggered() && authors['prod.everything']) {
                     pingList = authors['prod.everything'].collect{author -> "<@${author}>"}.join(', ')
                     utils.nodebot(IRC_CHANNELS, "Hey ${pingList}, go click the button! :easy_button: y/clusterman-jenkins")
@@ -97,7 +93,7 @@ utils.handleInputRejection {
                 paastaDeploy(SERVICE_NAME, commit, 'testopia.jolt', waitForDeployment: true, confirmation: false, deployTimeout: false, autoRollback: false, productionDeploy: false)
             }
 
-            ystage('advance3') {
+            ystage('advance2') {
                 if (!wasTimerTriggered() && authors['prod.everything']) {
                     pingList = authors['prod.everything'].collect{author -> "<@${author}>"}.join(', ')
                     utils.nodebot(IRC_CHANNELS, "Hey ${pingList}, go click the button! :easy_button: y/clusterman-jenkins")

@@ -24,9 +24,13 @@ docs:
 	-rm -rf docs/build
 	tox -e docs
 
-.PHONY: docs-server
-docs-server: docs
-	python docs/doc_server.py
+.PHONY: upload_docs
+upload_docs: docs
+	tox -e upload_docs
+
+.PHONY: dev_docs
+dev_docs: docs
+	PATH=$(PWD)/virtualenv_run/bin:$(PATH) serve-dev-servicedocs
 
 .PHONY: mypy
 mypy:

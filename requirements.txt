@@ -46,7 +46,7 @@ pysubnettree==0.26
 python-dateutil==2.7.3
 pytz==2018.4
 PyYAML==3.13
-repl-delay-clientlib-ng==60.20181213194227.1
+repl-delay-clientlib-ng==61.20181213194227.1
 replication-delay-client==1.6.1
 requests==2.19.1
 retry==0.9.2
