@@ -6,7 +6,6 @@ import pytest
 from clusterman.aws.client import autoscaling
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import InstanceMarket
-from clusterman.mesos.auto_scaling_resource_group import _get_asg_tags
 from clusterman.mesos.auto_scaling_resource_group import AutoScalingResourceGroup
 
 
@@ -204,7 +203,7 @@ def test_terminate_instances_by_id(
 
 
 def test_get_asg_tags(mock_asrg, mock_asg_config):
-    asg_id_to_tags = _get_asg_tags()
+    asg_id_to_tags = mock_asrg._get_resource_group_tags()
 
     assert mock_asg_config['AutoScalingGroupName'] in asg_id_to_tags
     tags = asg_id_to_tags[mock_asg_config['AutoScalingGroupName']]

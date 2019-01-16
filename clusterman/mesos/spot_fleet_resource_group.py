@@ -1,7 +1,6 @@
 from collections import defaultdict
 from typing import List
 from typing import Mapping
-from typing import Optional
 from typing import Sequence
 
 import botocore
@@ -180,8 +179,9 @@ class SpotFleetResourceGroup(MesosPoolResourceGroup):
                 return True
             raise e
 
-    @staticmethod
+    @classmethod
     def load(
+        cls,
         cluster: str,
         pool: str,
         config: SpotFleetResourceGroupConfig,
@@ -193,42 +193,43 @@ class SpotFleetResourceGroup(MesosPoolResourceGroup):
         :param config: An spot fleet config
         :returns: A dictionary of spot fleet resource groups, indexed by the id
         """
-        return load(cluster, pool, config)
+        tagged_resource_groups = super().load(cluster, pool, config)
+        if 's3' in config:
+            s3_resource_groups = load_spot_fleets_from_s3(
+                config['s3']['bucket'],
+                config['s3']['prefix'],
+                pool=pool,
+            )
+            logger.info(f'SFRs loaded from s3: {list(s3_resource_groups)}')
+        else:
+            s3_resource_groups = {}
 
+        resource_groups = {
+            sfr_id: sfrg for sfr_id, sfrg in {**tagged_resource_groups, **s3_resource_groups}.items()
+            if sfrg.status not in CANCELLED_STATES
+        }
+        logger.info(f'Merged ec2 & s3 SFRs: {list(resource_groups)}')
+        return resource_groups
 
-def load(
-    cluster: str,
-    pool: str,
-    config: SpotFleetResourceGroupConfig,
-) -> Mapping[str, MesosPoolResourceGroup]:
-    if 'tag' in config:
-        ec2_resource_groups = load_spot_fleets_from_ec2(
-            cluster=cluster,
-            pool=pool,
-            sfr_tag=config['tag'],
-        )
-        logger.info(f'SFRs loaded from ec2: {list(ec2_resource_groups)}')
-    else:
-        ec2_resource_groups = {}
-
-    if 's3' in config:
-        s3_resource_groups = load_spot_fleets_from_s3(
-            config['s3']['bucket'],
-            config['s3']['prefix'],
-            pool=pool,
-        )
-        logger.info(f'SFRs loaded from s3: {list(s3_resource_groups)}')
-    else:
-        s3_resource_groups = {}
-
-    # Nifty new syntax to merge dicts
-    resource_groups = {
-        sfr_id: sfrg for sfr_id, sfrg in {**ec2_resource_groups, **s3_resource_groups}.items()
-        if sfrg.status not in CANCELLED_STATES
-    }
-    logger.info(f'Merged ec2 & s3 SFRs: {list(resource_groups)}')
-
-    return resource_groups
+    @classmethod
+    def _get_resource_group_tags(cls) -> Mapping[str, Mapping[str, str]]:
+        """ Gets a dictionary of SFR id -> a dictionary of tags. The tags are taken
+        from the TagSpecifications for the first LaunchSpecification
+        """
+        spot_fleet_requests = ec2.describe_spot_fleet_requests()
+        sfr_id_to_tags = {}
+        for sfr_config in spot_fleet_requests['SpotFleetRequestConfigs']:
+            launch_specs = sfr_config['SpotFleetRequestConfig']['LaunchSpecifications']
+            try:
+                # we take the tags from the 0th launch spec for now
+                # they should always be identical in every launch spec
+                tags = launch_specs[0]['TagSpecifications'][0]['Tags']
+            except (IndexError, KeyError):
+                # if this SFR is misssing the TagSpecifications
+                tags = []
+            tags_dict = {tag['Key']: tag['Value'] for tag in tags}
+            sfr_id_to_tags[sfr_config['SpotFleetRequestId']] = tags_dict
+        return sfr_id_to_tags
 
 
 def load_spot_fleets_from_s3(bucket: str, prefix: str, pool: str = None) -> Mapping[str, SpotFleetResourceGroup]:
@@ -247,48 +248,3 @@ def load_spot_fleets_from_s3(bucket: str, prefix: str, pool: str = None) -> Mapp
             spot_fleets[resource['id']] = SpotFleetResourceGroup(resource['id'])
 
     return spot_fleets
-
-
-def load_spot_fleets_from_ec2(cluster: str, pool: Optional[str], sfr_tag: str) -> Mapping[str, SpotFleetResourceGroup]:
-    """ Loads SpotFleetResourceGroups by filtering SFRs in the AWS account by tags
-    for pool, cluster and a tag that identifies paasta SFRs
-    """
-    spot_fleet_requests_tags = get_spot_fleet_request_tags()
-    spot_fleets = {}
-    for sfr_id, tags in spot_fleet_requests_tags.items():
-        try:
-            puppet_role_tags = json.loads(tags[sfr_tag])
-            if puppet_role_tags['paasta_cluster'] == cluster and (pool is None or puppet_role_tags['pool'] == pool):
-                try:
-                    sfrg = SpotFleetResourceGroup(sfr_id)
-                except ValueError as e:
-                    if pool:
-                        raise
-                    else:
-                        logger.warning(f'Failed to load {sfr_id}: {e}')
-                        logger.warning(f'Continuing to load other SFRs in {cluster}')
-                        continue
-                spot_fleets[sfr_id] = sfrg
-        except KeyError:
-            continue
-    return spot_fleets
-
-
-def get_spot_fleet_request_tags() -> Mapping[str, Mapping[str, str]]:
-    """ Gets a dictionary of SFR id -> a dictionary of tags. The tags are taken
-    from the TagSpecifications for the first LaunchSpecification
-    """
-    spot_fleet_requests = ec2.describe_spot_fleet_requests()
-    sfr_id_to_tags = {}
-    for sfr_config in spot_fleet_requests['SpotFleetRequestConfigs']:
-        launch_specs = sfr_config['SpotFleetRequestConfig']['LaunchSpecifications']
-        try:
-            # we take the tags from the 0th launch spec for now
-            # they should always be identical in every launch spec
-            tags = launch_specs[0]['TagSpecifications'][0]['Tags']
-        except (IndexError, KeyError):
-            # if this SFR is misssing the TagSpecifications
-            tags = []
-        tags_dict = {tag['Key']: tag['Value'] for tag in tags}
-        sfr_id_to_tags[sfr_config['SpotFleetRequestId']] = tags_dict
-    return sfr_id_to_tags

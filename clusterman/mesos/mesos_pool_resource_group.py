@@ -1,12 +1,12 @@
 from abc import ABCMeta
 from abc import abstractmethod
 from abc import abstractproperty
-from abc import abstractstaticmethod
 from typing import Any
 from typing import Mapping
 from typing import Sequence
 
 import colorlog
+import simplejson as json
 
 from clusterman.aws.markets import InstanceMarket
 
@@ -125,9 +125,8 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
         """Whether this ResourceGroup is stale."""
         pass
 
-    @staticmethod
-    @abstractstaticmethod
-    def load(cluster: str, pool: str, config: Any) -> Mapping[str, 'MesosPoolResourceGroup']:
+    @classmethod
+    def load(cls, cluster: str, pool: str, config: Any) -> Mapping[str, 'MesosPoolResourceGroup']:
         """ Load a list of corresponding resource groups
 
         :param cluster: a cluster name
@@ -135,4 +134,24 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
         :param config: a config specific to a resource group type
         :returns: a dictionary of resource groups, indexed by id
         """
-        pass
+        resource_group_tags = cls._get_resource_group_tags()
+        matching_resource_groups = {}
+
+        try:
+            identifier_tag_label = config['tag']
+        except KeyError:
+            return {}
+
+        for rg_id, tags in resource_group_tags.items():
+            try:
+                identifier_tags = json.loads(tags[identifier_tag_label])
+                if identifier_tags['pool'] == pool and identifier_tags['paasta_cluster'] == cluster:
+                    rg = cls(rg_id)
+                    matching_resource_groups[rg_id] = rg
+            except KeyError:
+                continue
+        return matching_resource_groups
+
+    @classmethod
+    def _get_resource_group_tags(cls) -> Mapping[str, Mapping[str, str]]:
+        return {}

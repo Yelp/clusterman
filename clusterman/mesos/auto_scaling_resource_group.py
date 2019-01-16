@@ -6,7 +6,6 @@ from typing import Mapping
 from typing import Sequence
 
 import colorlog
-import simplejson as json
 from cached_property import timed_cached_property
 from mypy_extensions import TypedDict
 from retry import retry
@@ -260,37 +259,12 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
         """
         return False
 
-    @staticmethod
-    def load(
-        cluster: str,
-        pool: str,
-        config: AutoScalingResourceGroupConfig,
-    ) -> Mapping[str, 'MesosPoolResourceGroup']:
-        """ Loads a list of ASGs in the given cluster and pool
-
-        :param cluster: A cluster name
-        :param pool: A pool name
-        :param config: An ASG config
-        :returns: A dictionary of autoscaling resource groups, indexed by the id
-        """
-        asg_tags = _get_asg_tags()
-        asgs = {}
-        for asg_id, tags in asg_tags.items():
-            try:
-                puppet_role_tags = json.loads(tags[config['tag']])
-                if (puppet_role_tags['pool'] == pool and
-                        puppet_role_tags['paasta_cluster'] == cluster):
-                    asgs[asg_id] = AutoScalingResourceGroup(asg_id)
-            except KeyError:
-                continue
-        return asgs
-
-
-def _get_asg_tags() -> Mapping[str, Mapping[str, str]]:
-    """ Retrieves the tags for each ASG """
-    asg_id_to_tags = {}
-    for page in autoscaling.get_paginator('describe_auto_scaling_groups').paginate():
-        for asg in page['AutoScalingGroups']:
-            tags_dict = {tag['Key']: tag['Value'] for tag in asg['Tags']}
-            asg_id_to_tags[asg['AutoScalingGroupName']] = tags_dict
-    return asg_id_to_tags
+    @classmethod
+    def _get_resource_group_tags(cls) -> Mapping[str, Mapping[str, str]]:
+        """ Retrieves the tags for each ASG """
+        asg_id_to_tags = {}
+        for page in autoscaling.get_paginator('describe_auto_scaling_groups').paginate():
+            for asg in page['AutoScalingGroups']:
+                tags_dict = {tag['Key']: tag['Value'] for tag in asg['Tags']}
+                asg_id_to_tags[asg['AutoScalingGroupName']] = tags_dict
+        return asg_id_to_tags
