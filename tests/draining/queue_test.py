@@ -101,18 +101,13 @@ def test_get_warned_host(mock_draining_client):
     ) as mock_host_from_instance_id:
         mock_draining_client.client.receive_message.return_value = {
             'Messages': [{
-                'MessageAttributes': {
-                    'Sender': {
-                        'StringValue': 'aws',
-                    }
-                },
                 'ReceiptHandle': 'rcpt',
                 'Body': '{"detail": {"instance-id": "i-123"}}',
             }]
         }
         assert mock_draining_client.get_warned_host() is mock_host_from_instance_id.return_value
         mock_host_from_instance_id.assert_called_with(
-            sender='aws',
+            sender='spot_notification',
             receipt_handle='rcpt',
             instance_id='i-123',
         )
