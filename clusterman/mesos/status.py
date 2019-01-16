@@ -83,7 +83,10 @@ def _write_summary(manager: MesosPoolManager) -> None:
 def print_status(manager: MesosPoolManager, args) -> None:
     sys.stdout.write('\n')
     print(f'Current status for the {manager.pool} pool in the {manager.cluster} cluster:\n')
-    print(f'Resource groups ({manager.fulfilled_capacity} units out of {manager.target_capacity}):')
+    print(
+        f'Resource groups (target capacity: {manager.target_capacity}, fulfilled: {manager.fulfilled_capacity}, '
+        f'non-orphan: {manager.non_orphan_fulfilled_capacity}):'
+    )
 
     instance_metadatas = manager.get_instance_metadatas() if args.verbose else {}
 

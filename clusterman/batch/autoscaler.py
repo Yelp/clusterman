@@ -18,6 +18,7 @@ from clusterman.batch.util import suppress_request_limit_exceeded
 from clusterman.config import setup_config
 from clusterman.exceptions import AutoscalerError
 from clusterman.exceptions import ClustermanSignalError
+from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.util import get_autoscaler_scribe_stream
 from clusterman.util import sensu_checkin
 from clusterman.util import setup_logging
@@ -80,12 +81,19 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
         self.autoscaler = None
         self.logger = logger
 
-        self.apps = [self.options.pool]  # TODO (CLUSTERMAN-126) somday these should not be the same thing
+        self.apps = [self.options.pool]  # TODO (CLUSTERMAN-126) someday these should not be the same thing
+
+        pool_manager = MesosPoolManager(
+            self.options.cluster,
+            self.options.pool,
+            fetch_state=not self.options.healthcheck_only,
+        )
         self.autoscaler = Autoscaler(
             self.options.cluster,
             self.options.pool,
             self.apps,
             monitoring_enabled=not (self.options.dry_run or self.options.healthcheck_only),
+            pool_manager=pool_manager,
         )
 
         # We don't want to watch anything here because the autoscaler bootstrap script takes care of that for us

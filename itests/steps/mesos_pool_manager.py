@@ -37,9 +37,9 @@ def mock_sfrs(num, subnet_id):
 
 @behave.fixture
 def mock_agents_and_tasks(context):
-    def get_agents():
+    def get_agents(mesos_pool_manager):
         agents = []
-        for rg in context.mesos_pool_manager.resource_groups.values():
+        for rg in mesos_pool_manager.resource_groups.values():
             for instance in ec2_describe_instances(instance_ids=rg.instance_ids):
                 agents.append({
                     'pid': f'slave(1)@{instance["PrivateIpAddress"]}:1',
@@ -50,7 +50,7 @@ def mock_agents_and_tasks(context):
 
     with mock.patch(
         'clusterman.mesos.mesos_pool_manager.MesosPoolManager.agents',
-        mock.PropertyMock(side_effect=get_agents),
+        property(get_agents),
     ), mock.patch(
         'clusterman.mesos.mesos_pool_manager.MesosPoolManager.tasks',
         mock.PropertyMock(return_value=[]),
@@ -95,6 +95,10 @@ def external_target_capacity(context, rg_index, capacity):
             SpotFleetRequestId=context.rg_ids[rg_index],
             TargetCapacity=int(capacity),
         )
+
+    # make sure our non orphan fulfilled capacity is up-to-date
+    with mock.patch('clusterman.mesos.mesos_pool_manager.MesosPoolManager._reload_resource_groups'):
+        context.mesos_pool_manager.reload_state()
 
 
 @behave.given('we request (?P<capacity>\d+) capacity')

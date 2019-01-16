@@ -9,15 +9,6 @@ from clusterman.aws.client import ec2_describe_instances
 
 
 @behave.fixture
-def mock_non_orphan_fulfilled_capacity(context):
-    with mock.patch(
-        'clusterman.mesos.mesos_pool_manager.MesosPoolManager.non_orphan_fulfilled_capacity',
-        mock.PropertyMock(return_value=context.nofc),
-    ):
-        yield
-
-
-@behave.fixture
 def mock_rg_is_stale(context):
     response = ec2.describe_spot_fleet_requests(SpotFleetRequestIds=context.rg_ids)
     for config in response['SpotFleetRequestConfigs']:
@@ -84,7 +75,7 @@ def killable_instance_with_tasks(context, tasks):
 @behave.given('the non-orphaned fulfilled capacity is (?P<nofc>\d+)')
 def set_non_orphaned_fulfilled_capacity(context, nofc):
     context.nofc = int(nofc)
-    behave.use_fixture(mock_non_orphan_fulfilled_capacity, context)
+    context.mesos_pool_manager.non_orphan_fulfilled_capacity = context.nofc
 
 
 @behave.when('we prune excess fulfilled capacity to (?P<target>\d+)')

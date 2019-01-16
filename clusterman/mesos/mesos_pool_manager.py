@@ -55,7 +55,7 @@ class MesosPoolManager:
        masters or AWS API endpoints.
     """
 
-    def __init__(self, cluster: str, pool: str) -> None:
+    def __init__(self, cluster: str, pool: str, *, fetch_state: bool = True) -> None:
         self.cluster = cluster
         self.pool = pool
 
@@ -74,14 +74,17 @@ class MesosPoolManager:
 
         self.api_endpoint = f'http://{mesos_master_fqdn}:5050/'
         logger.info(f'Connecting to Mesos masters at {self.api_endpoint}')
+
         self.resource_groups: MutableMapping[str, MesosPoolResourceGroup] = dict()
-        self.reload_state()
+        if fetch_state:
+            self.reload_state()
 
     def reload_state(self) -> None:
         """ Fetch any state that may have changed behind our back, but which we do not want to change during an
         ``Autoscaler.run()``.
         """
         self._reload_resource_groups()
+        self.non_orphan_fulfilled_capacity = self._calculate_non_orphan_fulfilled_capacity()
 
     def modify_target_capacity(
         self,
@@ -539,8 +542,7 @@ class MesosPoolManager:
         """
         return sum(group.fulfilled_capacity for group in self.resource_groups.values())
 
-    @property
-    def non_orphan_fulfilled_capacity(self) -> float:
+    def _calculate_non_orphan_fulfilled_capacity(self) -> float:
         return sum(
             metadata.weight for metadata in self.get_instance_metadatas(AWS_RUNNING_STATES)
             if metadata.mesos_state not in (MesosAgentState.ORPHANED, MesosAgentState.UNKNOWN)

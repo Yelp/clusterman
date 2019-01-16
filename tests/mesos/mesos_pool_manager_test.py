@@ -294,14 +294,11 @@ class TestConstrainTargetCapacity:
 
 @mock.patch('clusterman.mesos.mesos_pool_manager.logger', autospec=True)
 class TestChooseInstancesToPrune:
-    # fulfilled capacity of 126
-    @pytest.fixture(autouse=True)
-    def mock_nofc(self):
-        with mock.patch(
-            'clusterman.mesos.mesos_pool_manager.MesosPoolManager.non_orphan_fulfilled_capacity',
-            mock.PropertyMock(return_value=126),
-        ):
-            yield
+
+    @pytest.fixture
+    def mock_pool_manager(self, mock_pool_manager):
+        mock_pool_manager.non_orphan_fulfilled_capacity = 126
+        return mock_pool_manager
 
     def test_fulfilled_capacity_under_target(self, mock_logger, mock_pool_manager):
         assert mock_pool_manager._choose_instances_to_prune(300, None) == {}
