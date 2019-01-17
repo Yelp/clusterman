@@ -16,6 +16,7 @@ from clusterman.mesos.util import MesosAgentState
 from clusterman.mesos.util import total_agent_resources
 from clusterman.simulator.simulated_aws_cluster import SimulatedAWSCluster
 from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSpotFleetResourceGroup
+from clusterman.util import read_int_or_inf
 
 
 def _make_agent(instance):
@@ -50,7 +51,7 @@ class SimulatedMesosPoolManager(MesosPoolManager):
         self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool))
         self.min_capacity = self.pool_config.read_int('scaling_limits.min_capacity')
         self.max_capacity = self.pool_config.read_int('scaling_limits.max_capacity')
-        self.max_tasks_to_kill = self.pool_config.read_int('scaling_limits.max_tasks_to_kill', default=0)
+        read_int_or_inf(self.pool_config, 'scaling_limits.max_tasks_to_kill')
 
     def reload_state(self) -> None:
         pass

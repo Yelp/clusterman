@@ -235,3 +235,7 @@ def splay_event_time(frequency: int, key: str, timestamp: float = None) -> float
     timestamp = timestamp or time.time()
     random_wait_time = hash(key) % frequency
     return frequency - (timestamp % frequency) + random_wait_time
+
+
+def read_int_or_inf(reader, param):
+    return float('inf') if reader.read_string(param, default=0) == 'inf' else reader.read_int(param, default=0)

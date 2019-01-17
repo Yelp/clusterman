@@ -71,9 +71,30 @@ def mock_pool_manager(mock_resource_groups):
         return manager
 
 
-def test_mesos_pool_manager_init(mock_pool_manager):
+def test_mesos_pool_manager_init(mock_pool_manager, mock_resource_groups):
     assert mock_pool_manager.pool == 'bar'
     assert mock_pool_manager.api_endpoint == 'http://the.mesos.leader:5050/'
+
+    with staticconf.testing.MockConfiguration(
+                {'scaling_limits':
+                    {'max_tasks_to_kill': 'inf',
+                     'min_capacity': 3,
+                     'max_capacity': 3,
+                     },
+                 },
+                namespace='bar_config',
+            ):
+        with mock.patch(
+                    'clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup.load',
+                    return_value={},
+                ), mock.patch(
+                    'clusterman.mesos.mesos_pool_manager.DrainingClient', autospec=True
+                ), mock.patch(
+                    'clusterman.mesos.mesos_pool_manager.MesosPoolManager.reload_state'
+                ):
+            mock_manager = MesosPoolManager('mesos-test', 'bar')
+            mock_manager.resource_groups = mock_resource_groups
+            assert mock_manager.max_tasks_to_kill == float('inf')
 
 
 def test_modify_target_capacity_no_resource_groups(mock_pool_manager):

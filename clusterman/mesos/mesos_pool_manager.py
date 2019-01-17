@@ -32,6 +32,7 @@ from clusterman.mesos.util import MesosAgentDict
 from clusterman.mesos.util import MesosAgentState
 from clusterman.mesos.util import RESOURCE_GROUPS
 from clusterman.mesos.util import total_agent_resources
+from clusterman.util import read_int_or_inf
 
 
 AWS_RUNNING_STATES = ('running',)
@@ -65,7 +66,7 @@ class MesosPoolManager:
         self.draining_client: Optional[DrainingClient] = DrainingClient(cluster) if self.draining_enabled else None
         self.min_capacity = self.pool_config.read_int('scaling_limits.min_capacity')
         self.max_capacity = self.pool_config.read_int('scaling_limits.max_capacity')
-        self.max_tasks_to_kill = self.pool_config.read_int('scaling_limits.max_tasks_to_kill', default=0)
+        self.max_tasks_to_kill = read_int_or_inf(self.pool_config, 'scaling_limits.max_tasks_to_kill')
         self.non_batch_framework_prefixes = self.pool_config.read_list(
             'non_batch_framework_prefixes',
             default=['marathon'],
