@@ -1,5 +1,4 @@
 from typing import List
-from typing import Mapping
 from typing import Sequence
 
 import boto3
@@ -33,7 +32,6 @@ InstanceDict = TypedDict(
         'PrivateIpAddress': str,
         'State': InstanceStateDict,
         'LaunchTime': str,
-        'Tags': Sequence[Mapping[str, str]],
     },
 )
 

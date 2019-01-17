@@ -114,13 +114,13 @@ class TestPruneExcessFulfilledCapacity:
 
     def test_dry_run(self, mock_pool_manager):
         mock_pool_manager.prune_excess_fulfilled_capacity(100, dry_run=True)
-        assert mock_pool_manager.draining_client.submit_instance_for_draining.call_count == 0
+        assert mock_pool_manager.draining_client.submit_host_for_draining.call_count == 0
         assert mock_pool_manager.terminate_instances_by_id.call_count == 0
 
     def test_drain_queue(self, mock_pool_manager, mock_instances_to_prune):
         mock_pool_manager.draining_enabled = True
         mock_pool_manager.prune_excess_fulfilled_capacity(100)
-        assert mock_pool_manager.draining_client.submit_instance_for_draining.call_args_list == [
+        assert mock_pool_manager.draining_client.submit_host_for_draining.call_args_list == [
             mock.call(mock_instances_to_prune['sfr-1'][0], sender=MesosPoolResourceGroup),
             mock.call(mock_instances_to_prune['sfr-3'][0], sender=MesosPoolResourceGroup),
             mock.call(mock_instances_to_prune['sfr-3'][1], sender=MesosPoolResourceGroup),

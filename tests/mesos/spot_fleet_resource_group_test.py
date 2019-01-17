@@ -158,14 +158,7 @@ def test_load_spot_fleets_from_ec2():
                     'pool': 'default',
                     'paasta_cluster': 'westeros-prod',
                 }),
-            },
-            'sfr-def': {
-                'some': 'tag',
-                'paasta': 'true',
-                'puppet:role::paasta': json.dumps({
-                    'paasta_cluster': 'middleearth-prod',
-                }),
-            },
+            }
         }
         spot_fleets = load_spot_fleets_from_ec2(
             cluster='westeros-prod',
@@ -174,14 +167,6 @@ def test_load_spot_fleets_from_ec2():
         )
         assert len(spot_fleets) == 1
         assert list(spot_fleets) == ['sfr-123']
-
-        spot_fleets = load_spot_fleets_from_ec2(
-            cluster='westeros-prod',
-            pool=None,
-            sfr_tag='puppet:role::paasta',
-        )
-        assert list(spot_fleets) == ['sfr-123', 'sfr-456', 'sfr-789']
-        assert len(spot_fleets) == 3
 
 
 def test_load_spot_fleets(mock_sfr_bucket):
