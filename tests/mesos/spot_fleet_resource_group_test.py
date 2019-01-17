@@ -14,16 +14,6 @@ from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
 
 
 @pytest.fixture
-def mock_subnet():
-    vpc_response = ec2.create_vpc(CidrBlock='10.0.0.0/24')
-    return ec2.create_subnet(
-        CidrBlock='10.0.0.0/24',
-        VpcId=vpc_response['Vpc']['VpcId'],
-        AvailabilityZone='us-west-2a'
-    )
-
-
-@pytest.fixture
 def mock_sfr_response(mock_subnet):
     sfr_response = ec2.request_spot_fleet(
         SpotFleetRequestConfig={
@@ -251,66 +241,6 @@ def test_modify_target_capacity_error(mock_spot_fleet_resource_group):
         mock_spot_fleet_resource_group.modify_target_capacity(5)
     assert mock_spot_fleet_resource_group.target_capacity == 10
     assert mock_spot_fleet_resource_group.fulfilled_capacity == 11
-
-
-def test_terminate_all_instances_by_id(mock_spot_fleet_resource_group):
-    mock_spot_fleet_resource_group.terminate_instances_by_id(mock_spot_fleet_resource_group.instance_ids)
-    assert mock_spot_fleet_resource_group.instance_ids == []
-
-
-def mock_describe_instances_with_missing_subnet(orig):
-    def describe_instances_with_missing_subnet(InstanceIds):
-        ret = orig(InstanceIds=InstanceIds)
-        ret['Reservations'][0]['Instances'][0].pop('SubnetId')
-        return ret
-    return describe_instances_with_missing_subnet
-
-
-def test_terminate_instance_missing_subnet(mock_spot_fleet_resource_group):
-    ec2_describe = ec2.describe_instances
-    with mock.patch(
-        'clusterman.mesos.spot_fleet_resource_group.ec2.describe_instances',
-        wraps=mock_describe_instances_with_missing_subnet(ec2_describe)
-    ):
-        mock_spot_fleet_resource_group.terminate_instances_by_id(mock_spot_fleet_resource_group.instance_ids)
-
-
-def test_terminate_all_instances_by_id_small_batch(mock_spot_fleet_resource_group):
-    with mock.patch(
-        'clusterman.mesos.spot_fleet_resource_group.ec2.terminate_instances',
-        wraps=ec2.terminate_instances,
-    ) as mock_terminate:
-        mock_spot_fleet_resource_group.terminate_instances_by_id(
-            mock_spot_fleet_resource_group.instance_ids,
-            batch_size=1,
-        )
-        assert mock_terminate.call_count == 7
-        assert mock_spot_fleet_resource_group.instance_ids == []
-
-
-@mock.patch('clusterman.mesos.spot_fleet_resource_group.logger')
-def test_terminate_some_instances_missing(mock_logger, mock_spot_fleet_resource_group):
-    with mock.patch('clusterman.mesos.spot_fleet_resource_group.ec2.terminate_instances') as mock_terminate:
-        mock_terminate.return_value = {
-            'TerminatingInstances': [
-                {'InstanceId': i} for i in mock_spot_fleet_resource_group.instance_ids[:3]
-            ]
-        }
-        instances = mock_spot_fleet_resource_group.terminate_instances_by_id(
-            mock_spot_fleet_resource_group.instance_ids,
-        )
-
-        assert len(instances) == 3
-        assert mock_logger.warn.call_count == 2
-
-
-@mock.patch('clusterman.mesos.spot_fleet_resource_group.logger')
-def test_terminate_no_instances_by_id(mock_logger, mock_spot_fleet_resource_group):
-    mock_spot_fleet_resource_group.terminate_instances_by_id([])
-    assert len(mock_spot_fleet_resource_group.instance_ids) == 7
-    assert mock_spot_fleet_resource_group.target_capacity == 10
-    assert mock_spot_fleet_resource_group.fulfilled_capacity == 11
-    assert mock_logger.warn.call_count == 1
 
 
 def test_instances(mock_spot_fleet_resource_group):

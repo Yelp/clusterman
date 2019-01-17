@@ -4,7 +4,6 @@ import mock
 import pytest
 
 from clusterman.aws.client import autoscaling
-from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import InstanceMarket
 from clusterman.mesos.auto_scaling_resource_group import AutoScalingResourceGroup
 
@@ -116,23 +115,6 @@ def test_market_weight(mock_asrg, instance_type):
     assert market_weight == (1.0 if instance_type == 't2.2xlarge' else 0)
 
 
-def test_market_capacities(
-    mock_asrg,
-    mock_asg_config,
-    mock_launch_config,
-):
-    asg_instance_market = InstanceMarket(
-        mock_launch_config['InstanceType'],
-        mock_asg_config['AvailabilityZones'][0],
-    )
-
-    market_capacities = mock_asrg.market_capacities
-
-    assert asg_instance_market in market_capacities
-    assert market_capacities[asg_instance_market] == \
-        mock_asg_config['DesiredCapacity']
-
-
 def test_modify_target_capacity_up(mock_asrg):
     new_desired_capacity = mock_asrg.target_capacity + 5
 
@@ -186,20 +168,6 @@ def test_modify_target_capacity_min_max(
         assert mock_asrg.target_capacity == mock_asg_config['MinSize']
     elif new_desired_capacity > mock_asg_config['MaxSize']:
         assert mock_asrg.target_capacity == mock_asg_config['MaxSize']
-
-
-def test_terminate_instances_by_id(
-    mock_asrg,
-    mock_asg_config,
-):
-    mock_asrg.modify_target_capacity(30)
-    instance_ids = mock_asrg.instance_ids[:25]
-
-    mock_asrg.terminate_instances_by_id(instance_ids)
-    terminated_instances = ec2_describe_instances(instance_ids)
-
-    for inst in terminated_instances:
-        assert inst['State']['Name'] in {'shutting-down', 'terminated'}
 
 
 def test_get_asg_tags(mock_asrg, mock_asg_config):

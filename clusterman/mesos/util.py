@@ -17,6 +17,7 @@ from clusterman.aws.markets import InstanceMarket
 from clusterman.config import get_cluster_config_directory
 from clusterman.exceptions import MesosPoolManagerError
 from clusterman.mesos.auto_scaling_resource_group import AutoScalingResourceGroup
+from clusterman.mesos.ec2_fleet_resource_group import EC2FleetResourceGroup
 from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
 
@@ -35,8 +36,9 @@ RESOURCE_GROUPS: Mapping[
     str,
     Type[MesosPoolResourceGroup]
 ] = {
-    'sfr': SpotFleetResourceGroup,
     'asg': AutoScalingResourceGroup,
+    'fleet': EC2FleetResourceGroup,
+    'sfr': SpotFleetResourceGroup,
 }
 RESOURCE_GROUPS_REV: Mapping[
     Type[MesosPoolResourceGroup],

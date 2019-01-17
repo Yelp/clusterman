@@ -1,14 +1,21 @@
 from abc import ABCMeta
 from abc import abstractmethod
 from abc import abstractproperty
+from collections import defaultdict
 from typing import Any
+from typing import List
 from typing import Mapping
 from typing import Sequence
 
 import colorlog
 import simplejson as json
+from cached_property import timed_cached_property
 
+from clusterman.aws.client import ec2
+from clusterman.aws.client import ec2_describe_instances
+from clusterman.aws.markets import get_instance_market
 from clusterman.aws.markets import InstanceMarket
+from clusterman.mesos.constants import CACHE_TTL_SECONDS
 
 
 logger = colorlog.getLogger(__name__)
@@ -40,7 +47,7 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
     """
 
     def __init__(self, group_id: str) -> None:
-        pass
+        self.group_id = group_id
 
     def market_weight(self, market: InstanceMarket) -> float:  # pragma: no cover
         """ Return the weighted capacity assigned to a particular EC2 market by this resource group
@@ -73,42 +80,77 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
         """
         pass
 
-    @abstractmethod
-    def terminate_instances_by_id(self, instance_ids: Sequence[str]) -> Sequence[str]:  # pragma: no cover
+    @protect_unowned_instances
+    def terminate_instances_by_id(self, instance_ids: List[str], batch_size: int = 500) -> Sequence[str]:
         """ Terminate instances in this resource group
 
-        Subclasses should _always_ decorate this method with the @protect_unowned_instances decorator to prevent
-        termination of instances that do not belong to this ResourceGroup
-
         :param instance_ids: a list of instance IDs to terminate
+        :param batch_size: number of instances to terminate at one time
         :returns: a list of terminated instance IDs
         """
-        pass
+        if not instance_ids:
+            logger.warn(f'No instances to terminate in {self.group_id}')
+            return []
 
-    @abstractproperty
-    def id(self) -> str:  # pragma: no cover
+        instance_weights = {}
+        for instance in ec2_describe_instances(instance_ids):
+            instance_market = get_instance_market(instance)
+            if not instance_market.az:
+                logger.warn(f"Instance {instance['InstanceId']} missing AZ info, likely already terminated so skipping")
+                instance_ids.remove(instance['InstanceId'])
+                continue
+            instance_weights[instance['InstanceId']] = self.market_weight(get_instance_market(instance))
+
+        # AWS API recommends not terminating more than 1000 instances at a time, and to
+        # terminate larger numbers in batches
+        terminated_instance_ids = []
+        for batch in range(0, len(instance_ids), batch_size):
+            response = ec2.terminate_instances(InstanceIds=instance_ids[batch:batch + batch_size])
+            terminated_instance_ids.extend([instance['InstanceId'] for instance in response['TerminatingInstances']])
+
+        # It's possible that not every instance is terminated.  The most likely cause for this
+        # is that AWS terminated the instance in between getting its status and the terminate_instances
+        # request.  This is probably fine but let's log a warning just in case.
+        missing_instances = set(instance_ids) - set(terminated_instance_ids)
+        if missing_instances:
+            logger.warn('Some instances could not be terminated; they were probably killed previously')
+            logger.warn(f'Missing instances: {list(missing_instances)}')
+        terminated_capacity = sum(instance_weights[i] for i in instance_ids)
+
+        logger.info(f'{self.id} terminated weight: {terminated_capacity}; instances: {terminated_instance_ids}')
+        return terminated_instance_ids
+
+    @property
+    def id(self) -> str:
         """ A unique identifier for this ResourceGroup """
-        pass
+        return self.group_id
 
     @abstractproperty
     def instance_ids(self) -> Sequence[str]:  # pragma: no cover
         """ The list of instance IDs belonging to this ResourceGroup """
         pass
 
-    @abstractproperty
-    def market_capacities(self) -> Mapping[InstanceMarket, float]:  # pragma: no cover
-        """ A dictionary of :py:class:`.InstanceMarket` -> total (fulfilled) capacity values """
-        pass
+    @property
+    def market_capacities(self) -> Mapping[InstanceMarket, float]:
+        return {
+            market: len(instances) * self.market_weight(market)
+            for market, instances in self._instances_by_market.items()
+            if market.az
+        }
 
-    @abstractproperty
-    def target_capacity(self) -> float:  # pragma: no cover
+    @property
+    def target_capacity(self) -> float:
         """ The target (or desired) weighted capacity for this ResourceGroup
 
         Note that the actual weighted capacity in the ResourceGroup may be smaller or larger than the
         target capacity, depending on the state of the ResourceGroup, available instance types, and
         previous operations; use self.fulfilled_capacity to get the actual capacity
         """
-        pass
+        if self.is_stale:
+            # If we're in cancelled, cancelled_running, or cancelled_terminated, then no more instances will be
+            # launched. This is effectively a target_capacity of 0, so let's just pretend like it is.
+            return 0
+        return self._target_capacity
 
     @abstractproperty
     def fulfilled_capacity(self) -> float:  # pragma: no cover
@@ -123,6 +165,18 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
     @abstractproperty
     def is_stale(self) -> bool:  # pragma: no cover
         """Whether this ResourceGroup is stale."""
+        pass
+
+    @timed_cached_property(ttl=CACHE_TTL_SECONDS)
+    def _instances_by_market(self):
+        """ Responses from this API call are cached to prevent hitting any AWS request limits """
+        instance_dict: Mapping[InstanceMarket, List[Mapping]] = defaultdict(list)
+        for instance in ec2_describe_instances(self.instance_ids):
+            instance_dict[get_instance_market(instance)].append(instance)
+        return instance_dict
+
+    @abstractproperty
+    def _target_capacity(self):  # pragma: no cover
         pass
 
     @classmethod
@@ -153,5 +207,5 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
         return matching_resource_groups
 
     @classmethod
-    def _get_resource_group_tags(cls) -> Mapping[str, Mapping[str, str]]:
+    def _get_resource_group_tags(cls) -> Mapping[str, Mapping[str, str]]:  # pragma: no cover
         return {}
