@@ -139,7 +139,7 @@ class DrainingClient():
         if messages:
             event_data = json.loads(messages[0]['Body'])
             host = host_from_instance_id(
-                sender='spot_notification',
+                sender=messages[0]['MessageAttributes']['Sender']['StringValue'],
                 receipt_handle=messages[0]['ReceiptHandle'],
                 instance_id=event_data['detail']['instance-id'],
             )
@@ -147,9 +147,6 @@ class DrainingClient():
             # then we just delete the message so we don't get stuck
             # worse case AWS will just terminate the box for us...
             if not host:
-                logger.warning(
-                    "Couldn't derive host data from instance id {} skipping".format(event_data['detail']['instance-id'])
-                )
                 self.client.delete_message(
                     QueueUrl=self.warning_queue_url,
                     ReceiptHandle=messages[0]['ReceiptHandle']
@@ -259,7 +256,6 @@ class DrainingClient():
     def process_warning_queue(self) -> None:
         host_to_process = self.get_warned_host()
         if host_to_process:
-            logger.info(f'Processing spot warning for {host_to_process.hostname}')
             spot_fleet_resource_groups = load_spot_fleets_from_ec2(
                 cluster=self.cluster,
                 pool=None,
@@ -268,10 +264,7 @@ class DrainingClient():
             # we should definitely ignore termination warnings that aren't from this
             # cluster or maybe not even paasta instances...
             if host_to_process.group_id in spot_fleet_resource_groups.keys():
-                logger.info(f'Sending spot warned host to drain: {host_to_process.hostname}')
                 self.submit_host_for_draining(host_to_process)
-            else:
-                logger.info(f'Ignoring spot warned host because not in our SFRs: {host_to_process.hostname}')
             self.delete_warning_messages([host_to_process])
 
 
@@ -282,21 +275,17 @@ def host_from_instance_id(
 ) -> Optional[Host]:
     instance_data = ec2_describe_instances(instance_ids=[instance_id])
     if not instance_data:
-        logger.warning(f'No instance data found for {instance_id}')
         return None
     sfr_ids = [tag['Value'] for tag in instance_data[0]['Tags'] if tag['Key'] == 'aws:ec2spot:fleet-request-id']
     if not sfr_ids:
-        logger.warning(f'No SFR ID found for {instance_id}')
         return None
     try:
         ip = instance_data[0]['PrivateIpAddress']
     except KeyError:
-        logger.warning(f'No primary IP found for {instance_id}')
         return None
     try:
         hostnames = socket.gethostbyaddr(ip)
     except socket.error:
-        logger.warning(f"Couldn't derive hostname from IP via DNS for {ip}")
         return None
     return Host(
         sender=sender,
