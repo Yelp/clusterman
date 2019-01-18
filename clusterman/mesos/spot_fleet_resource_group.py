@@ -259,7 +259,15 @@ def load_spot_fleets_from_ec2(cluster: str, pool: Optional[str], sfr_tag: str) -
         try:
             puppet_role_tags = json.loads(tags[sfr_tag])
             if puppet_role_tags['paasta_cluster'] == cluster and (pool is None or puppet_role_tags['pool'] == pool):
-                sfrg = SpotFleetResourceGroup(sfr_id)
+                try:
+                    sfrg = SpotFleetResourceGroup(sfr_id)
+                except ValueError as e:
+                    if pool:
+                        raise
+                    else:
+                        logger.warning('Failed to load {sfr_id}: {e}')
+                        logger.warning('Continuing to load other SFRs in {cluster}')
+                        continue
                 spot_fleets[sfr_id] = sfrg
         except KeyError:
             continue
