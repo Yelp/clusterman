@@ -26,6 +26,7 @@ from clusterman.draining.mesos import operator_api
 from clusterman.draining.mesos import up
 from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_ec2
+from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
 from clusterman.mesos.util import InstanceMetadata
 from clusterman.mesos.util import RESOURCE_GROUPS
 from clusterman.mesos.util import RESOURCE_GROUPS_REV
@@ -139,7 +140,7 @@ class DrainingClient():
         if messages:
             event_data = json.loads(messages[0]['Body'])
             host = host_from_instance_id(
-                sender='spot_notification',
+                sender=RESOURCE_GROUPS_REV[SpotFleetResourceGroup],
                 receipt_handle=messages[0]['ReceiptHandle'],
                 instance_id=event_data['detail']['instance-id'],
             )
