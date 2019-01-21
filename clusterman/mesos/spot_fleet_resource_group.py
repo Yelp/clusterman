@@ -265,8 +265,8 @@ def load_spot_fleets_from_ec2(cluster: str, pool: Optional[str], sfr_tag: str) -
                     if pool:
                         raise
                     else:
-                        logger.warning('Failed to load {sfr_id}: {e}')
-                        logger.warning('Continuing to load other SFRs in {cluster}')
+                        logger.warning(f'Failed to load {sfr_id}: {e}')
+                        logger.warning(f'Continuing to load other SFRs in {cluster}')
                         continue
                 spot_fleets[sfr_id] = sfrg
         except KeyError:
