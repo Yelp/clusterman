@@ -107,7 +107,7 @@ def test_get_warned_host(mock_draining_client):
         }
         assert mock_draining_client.get_warned_host() is mock_host_from_instance_id.return_value
         mock_host_from_instance_id.assert_called_with(
-            sender='spot_notification',
+            sender='sfr',
             receipt_handle='rcpt',
             instance_id='i-123',
         )
