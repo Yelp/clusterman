@@ -14,8 +14,8 @@ ENV PYTHONUNBUFFERED 1
 WORKDIR /moto/
 RUN  python3 -m ensurepip && \
      rm -r /usr/lib/python*/ensurepip && \
-     pip3 --no-cache-dir install --upgrade pip setuptools && \
-     pip3 --no-cache-dir install "moto[server]"
+     pip3 install --upgrade pip setuptools && \
+     pip3 install "moto[server]"
 
 ENTRYPOINT ["/usr/bin/moto_server", "-H", "0.0.0.0"]
 
