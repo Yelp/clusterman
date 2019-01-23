@@ -51,7 +51,7 @@ class SimulatedMesosPoolManager(MesosPoolManager):
         self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool))
         self.min_capacity = self.pool_config.read_int('scaling_limits.min_capacity')
         self.max_capacity = self.pool_config.read_int('scaling_limits.max_capacity')
-        read_int_or_inf(self.pool_config, 'scaling_limits.max_tasks_to_kill')
+        self.max_tasks_to_kill = read_int_or_inf(self.pool_config, 'scaling_limits.max_tasks_to_kill')
 
     def reload_state(self) -> None:
         pass
