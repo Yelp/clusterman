@@ -1,3 +1,9 @@
+clusterman (3.0.5) trusty; urgency=low
+
+  * allow max_tasks_to_kill to be infinite
+
+ -- David Morrison <drmorr@yelp.com>  Wed, 23 Jan 2019 11:28:28 -0800
+
 clusterman (3.0.4) trusty; urgency=low
 
   * Log more context for ASG LaunchConfiguration error
