@@ -35,6 +35,12 @@ def mock_watcher():
         yield
 
 
+@pytest.fixture(autouse=True)
+def mock_pool_manager():
+    with mock.patch('clusterman.batch.autoscaler.MesosPoolManager', autospec=True):
+        yield
+
+
 @mock.patch('time.sleep')
 @mock.patch('time.time')
 @mock.patch('clusterman.batch.autoscaler.AutoscalerBatch.running', new_callable=mock.PropertyMock)

@@ -34,8 +34,8 @@ def autoscaler_patches(context):
         'clusterman.autoscaler.autoscaler.MesosPoolManager.get_resource_total',
         side_effect=resource_totals.__getitem__,
     ), mock.patch(
-        'clusterman.autoscaler.autoscaler.MesosPoolManager.non_orphan_fulfilled_capacity',
-        mock.PropertyMock(return_value=20),
+        'clusterman.autoscaler.autoscaler.MesosPoolManager._calculate_non_orphan_fulfilled_capacity',
+        return_value=20,
     ), mock.patch(
         'clusterman.autoscaler.signals.Signal._connect_to_signal_process',
     ), mock.patch(

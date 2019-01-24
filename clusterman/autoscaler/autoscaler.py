@@ -21,7 +21,8 @@ from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.util import sensu_checkin
 
 SIGNAL_LOAD_CHECK_NAME = 'signal_configuration_failed'
-CAPACITY_GAUGE_NAME = 'clusterman.autoscaler.target_capacity'
+TARGET_CAPACITY_GAUGE_NAME = 'clusterman.autoscaler.target_capacity'
+NON_ORPHAN_CAPACITY_GAUGE_NAME = 'clusterman.autoscaler.non_orphan_fulfilled_capacity'
 RESOURCE_GAUGE_BASE_NAME = 'clusterman.autoscaler.requested_{resource}'
 logger = colorlog.getLogger(__name__)
 
@@ -56,12 +57,15 @@ class Autoscaler:
             raise NotImplementedError('Scaling multiple apps in a cluster is not yet supported')
 
         logger.info(f'Initializing autoscaler engine for {self.pool} in {self.cluster}...')
-        self.capacity_gauge = yelp_meteorite.create_gauge(CAPACITY_GAUGE_NAME, {'cluster': cluster, 'pool': pool})
+
+        gauge_dimensions = {'cluster': cluster, 'pool': pool}
+        self.target_capacity_gauge = yelp_meteorite.create_gauge(TARGET_CAPACITY_GAUGE_NAME, gauge_dimensions)
+        self.non_orphan_capacity_gauge = yelp_meteorite.create_gauge(NON_ORPHAN_CAPACITY_GAUGE_NAME, gauge_dimensions)
         self.resource_request_gauges: Dict[str, yelp_meteorite.metrics.Gauge] = {}
         for resource in ('cpus', 'mem', 'disk'):
             self.resource_request_gauges[resource] = yelp_meteorite.create_gauge(
                 RESOURCE_GAUGE_BASE_NAME.format(resource=resource),
-                {'cluster': cluster, 'pool': pool}
+                gauge_dimensions,
             )
 
         self.autoscaling_config = get_autoscaling_config(POOL_NAMESPACE.format(pool=self.pool))
@@ -106,8 +110,11 @@ class Autoscaler:
         logger.info(f'Signal {signal_name} requested {resource_request}')
         self.mesos_pool_manager.reload_state()
         new_target_capacity = self._compute_target_capacity(resource_request)
-        self.capacity_gauge.set(new_target_capacity, {'dry_run': dry_run})
+
+        self.target_capacity_gauge.set(new_target_capacity, {'dry_run': dry_run})
+        self.non_orphan_capacity_gauge.set(self.mesos_pool_manager.non_orphan_fulfilled_capacity, {'dry_run': dry_run})
         self._emit_requested_resource_metrics(resource_request, dry_run=dry_run)
+
         self.mesos_pool_manager.modify_target_capacity(new_target_capacity, dry_run=dry_run)
 
         if exception:

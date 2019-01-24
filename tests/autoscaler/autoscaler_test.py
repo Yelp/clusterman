@@ -52,6 +52,7 @@ def mock_autoscaler():
             mock.patch('clusterman.autoscaler.autoscaler.Signal'), \
             staticconf.testing.PatchConfiguration({'autoscaling': autoscaling_config_dict}):
         mock_autoscaler = Autoscaler('mesos-test', 'bar', ['bar'], monitoring_enabled=False)
+
     mock_autoscaler.mesos_pool_manager.target_capacity = 300
     mock_autoscaler.mesos_pool_manager.min_capacity = staticconf.read_int(
         'scaling_limits.min_capacity', namespace=POOL_NAMESPACE.format(pool='bar')
@@ -59,7 +60,10 @@ def mock_autoscaler():
     mock_autoscaler.mesos_pool_manager.max_capacity = staticconf.read_int(
         'scaling_limits.max_capacity', namespace=POOL_NAMESPACE.format(pool='bar')
     )
-    mock_autoscaler.capacity_gauge = mock.Mock(spec=Gauge)
+    mock_autoscaler.mesos_pool_manager.non_orphan_fulfilled_capacity = 0
+
+    mock_autoscaler.target_capacity_gauge = mock.Mock(spec=Gauge)
+    mock_autoscaler.non_orphan_capacity_gauge = mock.Mock(spec=Gauge)
     mock_autoscaler.resource_request_gauges = {
         'mem': mock.Mock(spec=Gauge), 'cpus': mock.Mock(spec=Gauge), 'disk': mock.Mock(spec=Gauge),
     }
@@ -102,9 +106,12 @@ def test_autoscaler_run(dry_run, mock_autoscaler, run_timestamp):
     mock_autoscaler._compute_target_capacity = mock.Mock(return_value=100)
     mock_autoscaler.signal.evaluate.side_effect = ValueError
     mock_autoscaler.default_signal.evaluate.return_value = {'cpus': 100000}
+    mock_autoscaler.mesos_pool_manager.non_orphan_fulfilled_capacity = 95
     with pytest.raises(ValueError):
         mock_autoscaler.run(dry_run=dry_run, timestamp=run_timestamp)
-    assert mock_autoscaler.capacity_gauge.set.call_args == mock.call(100, {'dry_run': dry_run})
+
+    assert mock_autoscaler.target_capacity_gauge.set.call_args == mock.call(100, {'dry_run': dry_run})
+    assert mock_autoscaler.non_orphan_capacity_gauge.set.call_args == mock.call(95, {'dry_run': dry_run})
     assert mock_autoscaler._compute_target_capacity.call_args == mock.call({'cpus': 100000})
     assert mock_autoscaler.mesos_pool_manager.modify_target_capacity.call_count == 1
 
