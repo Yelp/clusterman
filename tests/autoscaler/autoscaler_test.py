@@ -106,12 +106,10 @@ def test_autoscaler_run(dry_run, mock_autoscaler, run_timestamp):
     mock_autoscaler._compute_target_capacity = mock.Mock(return_value=100)
     mock_autoscaler.signal.evaluate.side_effect = ValueError
     mock_autoscaler.default_signal.evaluate.return_value = {'cpus': 100000}
-    mock_autoscaler.mesos_pool_manager.non_orphan_fulfilled_capacity = 95
     with pytest.raises(ValueError):
         mock_autoscaler.run(dry_run=dry_run, timestamp=run_timestamp)
 
     assert mock_autoscaler.target_capacity_gauge.set.call_args == mock.call(100, {'dry_run': dry_run})
-    assert mock_autoscaler.non_orphan_capacity_gauge.set.call_args == mock.call(95, {'dry_run': dry_run})
     assert mock_autoscaler._compute_target_capacity.call_args == mock.call({'cpus': 100000})
     assert mock_autoscaler.mesos_pool_manager.modify_target_capacity.call_count == 1
 

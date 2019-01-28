@@ -15,6 +15,7 @@ SIMPLE_METADATA = {
     'target_capacity': lambda manager: manager.target_capacity,
     'fulfilled_capacity': lambda manager: {str(market): value for market,
                                            value in manager.get_market_capacities().items()},
+    'non_orphan_fulfilled_capacity': lambda manager: manager.non_orphan_fulfilled_capacity,
 }
 
 
