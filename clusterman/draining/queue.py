@@ -285,7 +285,11 @@ def host_from_instance_id(
     if not instance_data:
         logger.warning(f'No instance data found for {instance_id}')
         return None
-    sfr_ids = [tag['Value'] for tag in instance_data[0]['Tags'] if tag['Key'] == 'aws:ec2spot:fleet-request-id']
+    try:
+        sfr_ids = [tag['Value'] for tag in instance_data[0]['Tags'] if tag['Key'] == 'aws:ec2spot:fleet-request-id']
+    except KeyError as e:
+        logger.warning(f'SFR tag key not found: {e}')
+        sfr_ids = []
     if not sfr_ids:
         logger.warning(f'No SFR ID found for {instance_id}')
         return None
