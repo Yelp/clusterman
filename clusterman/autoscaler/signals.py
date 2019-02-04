@@ -1,6 +1,7 @@
 import os
 import socket
 import struct
+import time
 from collections import defaultdict
 from typing import Callable
 from typing import Dict
@@ -145,6 +146,7 @@ class Signal:
         except BrokenPipeError as e:
             if retry_on_broken_pipe:
                 logger.error('Signal connection failed; reloading the signal and trying again')
+                time.sleep(5)  # give supervisord some time to restart the signal
                 self._signal_conn = self._connect_to_signal_process()
                 return self.evaluate(timestamp, retry_on_broken_pipe=False)
             else:
