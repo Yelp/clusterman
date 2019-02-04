@@ -543,6 +543,15 @@ def test_host_from_instance_id():
             instance_id='i-123',
         ) is None
 
+        # instance has no tags, probably because it is new and tags have not
+        # yet propagated
+        mock_ec2_describe.return_value = [{'InstanceId': 'i-123'}]
+        assert host_from_instance_id(
+            sender='aws',
+            receipt_handle='rcpt',
+            instance_id='i-123',
+        ) is None
+
 
 def test_main():
     with mock.patch(
