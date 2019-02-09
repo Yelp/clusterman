@@ -9,6 +9,7 @@ import colorlog
 import simplejson as json
 from cached_property import timed_cached_property
 from mypy_extensions import TypedDict
+from retry import retry
 
 from clusterman.aws.client import autoscaling
 from clusterman.aws.client import ec2
@@ -59,6 +60,7 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
         return response['AutoScalingGroups'][0]
 
     @timed_cached_property(ttl=CACHE_TTL_SECONDS)
+    @retry(exceptions=IndexError, tries=3, delay=1)
     def _launch_config(self) -> Dict[str, Any]:
         """ Retrieve our ASG's launch configuration from AWS
 
@@ -66,19 +68,15 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
         request limits.
         """
         group_config = self._group_config
+        launch_config_name = group_config['LaunchConfigurationName']
         response = autoscaling.describe_launch_configurations(
-            LaunchConfigurationNames=[group_config['LaunchConfigurationName']],
+            LaunchConfigurationNames=[launch_config_name],
         )
-        # TODO: CLUSTERMAN-372: very rarely, the return statement can raise an
-        # IndexError because it thinks the LaunchConfiguration does not exist
-        # when always should. We need more information to debug the issue so
-        # some temporary loggign is in place for now.
         try:
             return response['LaunchConfigurations'][0]
         except IndexError as e:
-            logger.error('Could not get LaunchConfigurations. Here is more context:')
-            logger.error(f'DescribeLaunchConfigurations response:\n{pprint.pformat(response)}')
-            logger.error(f'ASG group configuration:\n{pprint.pformat(group_config)}')
+            logger.warn(f'Could not get launch config for ASG {self.group_id}: {launch_config_name}')
+            del self.__dict__['_group_config']  # invalidate cache
             raise e
 
     def market_weight(self, market: InstanceMarket) -> float:
