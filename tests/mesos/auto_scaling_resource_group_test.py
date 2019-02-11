@@ -1,5 +1,6 @@
 import json
 
+import mock
 import pytest
 
 from clusterman.aws.client import autoscaling
@@ -90,6 +91,23 @@ def test_launch_config(mock_asrg, mock_launch_config):
 
     assert launch_config['LaunchConfigurationName'] == \
         mock_launch_config['LaunchConfigurationName']
+
+
+def test_launch_config_retry(mock_asrg, mock_launch_config):
+    no_configs = dict(LaunchConfigurations=[])
+    good_configs = dict(LaunchConfigurations=[mock_launch_config])
+    mock_describe_launch_configs = mock.Mock(side_effect=[
+        no_configs, good_configs,
+    ])
+
+    with mock.patch(
+        'clusterman.aws.client.autoscaling.describe_launch_configurations',
+        mock_describe_launch_configs,
+    ):
+        launch_config = mock_asrg._launch_config
+
+    assert launch_config == mock_launch_config
+    assert mock_describe_launch_configs.call_count == 2
 
 
 @pytest.mark.parametrize('instance_type', ['t2.2xlarge', 'm5.large'])
