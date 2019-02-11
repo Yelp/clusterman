@@ -6,6 +6,7 @@ import colorlog
 import staticconf
 
 from clusterman.args import add_cluster_arg
+from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_pool_arg
 from clusterman.args import subparser
 from clusterman.config import POOL_NAMESPACE
@@ -64,3 +65,4 @@ def add_mesos_manager_parser(subparser, required_named_args, optional_named_args
         action='store_true',
         help='Just print what would happen, don\'t actually add or remove instances'
     )
+    add_cluster_config_directory_arg(optional_named_args)

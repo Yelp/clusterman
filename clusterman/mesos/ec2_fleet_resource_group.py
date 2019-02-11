@@ -17,7 +17,7 @@ from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 
 
 logger = colorlog.getLogger(__name__)
-_CANCELLED_STATES = ('deleted', 'deleted-terminating')
+_CANCELLED_STATES = ('deleted', 'deleted-terminating', 'failed')
 
 
 class EC2FleetResourceGroup(MesosPoolResourceGroup):
@@ -34,8 +34,8 @@ class EC2FleetResourceGroup(MesosPoolResourceGroup):
         self,
         target_capacity: float,
         *,
-        terminate_excess_capacity: bool,
-        dry_run: bool,
+        terminate_excess_capacity: bool = False,
+        dry_run: bool = False,
     ) -> None:
         if self.is_stale:
             logger.info(f'Not modifying EC2 fleet since it is in state {self.status}')
@@ -46,7 +46,7 @@ class EC2FleetResourceGroup(MesosPoolResourceGroup):
             'TargetCapacitySpecification': {
                 'TotalTargetCapacity': int(target_capacity),
             },
-            'ExcessCapacityTerminationPolicy': 'termination' if terminate_excess_capacity else 'no-termination'
+            'ExcessCapacityTerminationPolicy': 'termination' if terminate_excess_capacity else 'no-termination',
         }
         logger.info(f'Modifying spot fleet request with arguments: {kwargs}')
         if dry_run:
@@ -118,7 +118,8 @@ class EC2FleetResourceGroup(MesosPoolResourceGroup):
         fleet_id_to_tags = {}
         for page in ec2.get_paginator('describe_fleets').paginate():
             for fleet in page['Fleets']:
-                print(fleet)
+                if fleet['FleetState'] in _CANCELLED_STATES:
+                    continue
                 if 'Tags' in fleet:
                     tags_dict = {tag['Key']: tag['Value'] for tag in fleet['Tags']}
                     fleet_id_to_tags[fleet['FleetId']] = tags_dict

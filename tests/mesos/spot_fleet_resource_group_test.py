@@ -175,7 +175,7 @@ def test_get_spot_fleet_request_tags(mock_spot_fleet_resource_group):
                 },
             }],
         }
-        sfrs = mock_spot_fleet_resource_group._get_resource_group_tags()
+        sfrs = SpotFleetResourceGroup._get_resource_group_tags()
         expected = {
             'sfr-12': {
                 'foo': 'bar'

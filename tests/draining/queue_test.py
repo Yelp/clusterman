@@ -1,10 +1,9 @@
-from tests.conftest import mock_open
-import simplejson as json
 import socket
 
 import arrow
 import mock
 import pytest
+import simplejson as json
 import staticconf.testing
 
 from clusterman.draining.queue import DrainingClient
@@ -15,6 +14,7 @@ from clusterman.draining.queue import process_queues
 from clusterman.draining.queue import setup_config
 from clusterman.draining.queue import terminate_host
 from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
+from tests.conftest import mock_open
 
 
 @pytest.fixture
