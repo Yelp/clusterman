@@ -94,7 +94,7 @@ class SpotPriceCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMix
                 output='OK: clusterman spot_prices was successful',
                 check_every='1m',
                 source=self.options.aws_region,
-                ttl='5m',
+                ttl='10m',
                 noop=self.options.disable_sensu,
             )
             sensu_checkin(**sensu_args)
