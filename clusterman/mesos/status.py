@@ -3,6 +3,7 @@ import sys
 import humanize
 
 from clusterman.args import add_cluster_arg
+from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_pool_arg
 from clusterman.args import subparser
 from clusterman.mesos.mesos_pool_manager import InstanceMetadata
@@ -130,3 +131,4 @@ def add_mesos_status_parser(subparser, required_named_args, optional_named_args)
         action='store_true',
         help='Show more detailed status information',
     )
+    add_cluster_config_directory_arg(optional_named_args)

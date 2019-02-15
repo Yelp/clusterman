@@ -52,15 +52,15 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, MesosPoolResourceGrou
                 ]
             }
         """
-        super().__init__(simulator)
+        SimulatedAWSCluster.__init__(self, simulator)
+        MesosPoolResourceGroup.__init__(self, f'ssfr-{uuid4()}')
         self._instance_types = {}
-        self._id = 'ssfr-{uuid}'.format(uuid=uuid4())
         for spec in config['LaunchSpecifications']:
             bid_price = float(spec['SpotPrice']) * spec['WeightedCapacity']
             market = get_instance_market(spec)
             self._instance_types[market] = SpotMarketConfig(bid_price, spec['WeightedCapacity'])
 
-        self._target_capacity = 0
+        self.__target_capacity = 0
         self.allocation_strategy = config['AllocationStrategy']
         if self.allocation_strategy != 'diversified':
             raise NotImplementedError(f'{self.allocation_strategy} not supported')
@@ -78,7 +78,7 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, MesosPoolResourceGrou
             return
 
         curr_capacity = self.fulfilled_capacity
-        self._target_capacity = target_capacity
+        self.__target_capacity = target_capacity
         if curr_capacity > target_capacity and terminate_excess_capacity is True:
             # Since AWS doesn't allow the user to specify which instances are shut down,
             # we terminate instances one by one (in order of launch time) until the target capacity is reached
@@ -211,10 +211,6 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, MesosPoolResourceGrou
         ]
 
     @property
-    def id(self):
-        return self._id
-
-    @property
     def instance_ids(self):
         return list(self.instances.keys())
 
@@ -227,8 +223,8 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, MesosPoolResourceGrou
         }
 
     @property
-    def target_capacity(self):
-        return self._target_capacity
+    def _target_capacity(self):
+        return self.__target_capacity
 
     @property
     def fulfilled_capacity(self):

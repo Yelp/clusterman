@@ -1,6 +1,6 @@
 arrow
-boto3==1.7.82  # TODO higher versions are broken with moto
-botocore==1.10.84
+boto3
+botocore
 cached-property
 clusterman-metrics>=2.0.1
 colorlog

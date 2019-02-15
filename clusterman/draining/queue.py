@@ -20,13 +20,14 @@ from clusterman.args import subparser
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.client import sqs
 from clusterman.config import CREDENTIALS_NAMESPACE
+from clusterman.config import POOL_NAMESPACE
 from clusterman.draining.mesos import down
 from clusterman.draining.mesos import drain
 from clusterman.draining.mesos import operator_api
 from clusterman.draining.mesos import up
 from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
-from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_ec2
 from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
+from clusterman.mesos.util import get_pool_name_list
 from clusterman.mesos.util import InstanceMetadata
 from clusterman.mesos.util import RESOURCE_GROUPS
 from clusterman.mesos.util import RESOURCE_GROUPS_REV
@@ -261,14 +262,18 @@ class DrainingClient():
         host_to_process = self.get_warned_host()
         if host_to_process:
             logger.info(f'Processing spot warning for {host_to_process.hostname}')
-            spot_fleet_resource_groups = load_spot_fleets_from_ec2(
-                cluster=self.cluster,
-                pool=None,
-                sfr_tag='puppet:role::paasta',
-            )
+            spot_fleet_resource_groups = []
+            for pool in get_pool_name_list(self.cluster):
+                pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=pool))
+                spot_fleet_resource_groups.extend(list(SpotFleetResourceGroup.load(
+                    cluster=self.cluster,
+                    pool=pool,
+                    config=pool_config,
+                ).keys()))
+
             # we should definitely ignore termination warnings that aren't from this
             # cluster or maybe not even paasta instances...
-            if host_to_process.group_id in spot_fleet_resource_groups.keys():
+            if host_to_process.group_id in spot_fleet_resource_groups:
                 logger.info(f'Sending spot warned host to drain: {host_to_process.hostname}')
                 self.submit_host_for_draining(host_to_process)
             else:

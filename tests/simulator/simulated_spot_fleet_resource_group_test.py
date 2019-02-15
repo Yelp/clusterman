@@ -172,7 +172,7 @@ def test_downsize_capacity_by_small_weight(spot_fleet):
     spot_fleet.modify_size(market_composition)
     for instance in spot_fleet.instances.values():
         instance.join_time = instance.start_time
-    spot_fleet._target_capacity = 12
+    spot_fleet.__target_capacity = 12
     # This should remove the last instance to meet capacity requirements
     spot_fleet.modify_target_capacity(11, terminate_excess_capacity=True)
     assert spot_fleet.target_capacity == 11

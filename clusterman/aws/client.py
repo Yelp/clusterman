@@ -11,11 +11,19 @@ from retry import retry
 
 from clusterman.config import CREDENTIALS_NAMESPACE
 
-_session = None
 logger = colorlog.getLogger(__name__)
-
+_session = None
 MAX_PAGE_SIZE = 500
 
+FleetInstanceDict = TypedDict(
+    'FleetInstanceDict',
+    {
+        'InstanceId': str,
+        'InstanceType': str,
+        'SpotInstanceRequestId': str,
+        'InstanceHealth': str,
+    },
+)
 
 InstanceStateDict = TypedDict(
     'InstanceStateDict',
@@ -29,7 +37,6 @@ InstanceDict = TypedDict(
     {
         'InstanceId': str,
         'InstanceType': str,
-        'SubnetId': str,
         'PrivateIpAddress': str,
         'State': InstanceStateDict,
         'LaunchTime': str,
@@ -111,3 +118,15 @@ def ec2_describe_instances(instance_ids: Sequence[str]) -> List[InstanceDict]:
         for reservation in ec2.describe_instances(InstanceIds=page)['Reservations']
         for instance in reservation['Instances']
     ]
+
+
+def ec2_describe_fleet_instances(fleet_id: str) -> List[FleetInstanceDict]:
+    next_token = ''
+    instances: List[FleetInstanceDict] = []
+    while True:
+        page = ec2.describe_fleet_instances(FleetId=fleet_id, NextToken=next_token, MaxResults=MAX_PAGE_SIZE)
+        instances.extend(page['ActiveInstances'])
+        next_token = page['NextToken']
+        if not next_token:
+            break
+    return instances

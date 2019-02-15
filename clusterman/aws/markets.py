@@ -4,8 +4,9 @@ from typing import Mapping
 from typing import NamedTuple
 from typing import Optional
 
+from mypy_extensions import TypedDict
+
 from clusterman.aws.client import ec2
-from clusterman.aws.client import InstanceDict
 
 InstanceResources = NamedTuple('InstanceResources', [
     ('cpus', float),
@@ -17,6 +18,14 @@ _InstanceMarket = NamedTuple('_InstanceMarket', [
     ('instance', str),
     ('az', Optional[str]),
 ])
+
+MarketDict = TypedDict(
+    'MarketDict',
+    {
+        'InstanceType': str,
+        'SubnetId': str,
+    },
+)
 
 
 class InstanceMarket(_InstanceMarket):
@@ -176,7 +185,7 @@ def get_market(instance_type: str, subnet_id: Optional[str]) -> InstanceMarket:
     return InstanceMarket(instance_type, az)
 
 
-def get_instance_market(aws_instance_object: InstanceDict) -> InstanceMarket:
+def get_instance_market(aws_instance_object: MarketDict) -> InstanceMarket:
     return get_market(
         aws_instance_object['InstanceType'],
         aws_instance_object.get('SubnetId'),

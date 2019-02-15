@@ -1,22 +1,18 @@
 import pprint
-from collections import defaultdict
 from typing import Any
 from typing import Dict
 from typing import Mapping
 from typing import Sequence
 
 import colorlog
-import simplejson as json
 from cached_property import timed_cached_property
 from mypy_extensions import TypedDict
 from retry import retry
 
 from clusterman.aws.client import autoscaling
-from clusterman.aws.client import ec2
 from clusterman.aws.markets import InstanceMarket
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
 from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
-from clusterman.mesos.mesos_pool_resource_group import protect_unowned_instances
 
 _BATCH_TERM_SIZE = 200
 
@@ -43,9 +39,6 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
     in. As a result, ASGs must be set to protect instances from scale in, and
     AutoScalingResourceGroup will assume that instances are indeed protected.
     """
-
-    def __init__(self, group_id: str) -> None:
-        self.group_id = group_id  # ASG id
 
     @timed_cached_property(ttl=CACHE_TTL_SECONDS)
     def _group_config(self) -> Dict[str, Any]:
@@ -156,57 +149,6 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
             )
         autoscaling.set_desired_capacity(**kwargs)
 
-    @protect_unowned_instances
-    def terminate_instances_by_id(
-        self,
-        instance_ids: Sequence[str],
-    ) -> Sequence[str]:
-        """ Terminate instances in the ASG
-
-        The autoscaling client does not support batch termination, only
-        instance-by-instance termination. To avoid hitting AWS request limits,
-        we use the EC2 client to batch terminate instances.
-
-        :param instance_ids: A list of instance IDs to terminate
-        :param decrement_desired_capacity: Boolean for whether or not to
-            decrement desired capacity in the event of a scale down
-        :returns: A list of terminated instance IDs
-        """
-        if not instance_ids:
-            logger.warn(f'No instances to terminate in {self.group_id}')
-            return []
-
-        # terminate instances
-        terminated_ids = []
-        for i in range(0, len(instance_ids), _BATCH_TERM_SIZE):
-            # Technically, we should only be using the autoscaling client to
-            # terminate instances, since ASG instances typically have
-            # termination hooks to complete. Additionally, we assume that
-            # MesosPoolManager will manage things for us.
-            response = ec2.terminate_instances(InstanceIds=instance_ids)
-            terminated_ids.extend([
-                inst['InstanceId']
-                for inst in response['TerminatingInstances']
-            ])
-
-        # It's possible that not every instance appears terminated, probably
-        # because AWS already terminated them. Log just in case.
-        missing_ids = set(instance_ids) - set(terminated_ids)
-        if missing_ids:
-            logger.warn(
-                'Some instances could not be terminated; '
-                'they were probably killed previously'
-            )
-            logger.warn(f'Missing instances: {list(missing_ids)}')
-
-        logger.info(f'ASG {self.id}: terminated: {terminated_ids}')
-        return terminated_ids
-
-    @property
-    def id(self) -> str:
-        """ Returns the ASG's id """
-        return self.group_id
-
     @timed_cached_property(ttl=CACHE_TTL_SECONDS)
     def instance_ids(self) -> Sequence[str]:
         """ Returns a list of instance IDs belonging to this ASG.
@@ -219,24 +161,6 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
             for inst in self._group_config['Instances']
             if inst is not None
         ]
-
-    @property
-    def market_capacities(self) -> Mapping[InstanceMarket, float]:
-        """ Returns the total capacity (number of instances) per market that the
-        ASG is in.
-        """
-        instances_by_market: Dict[InstanceMarket, float] = defaultdict(float)
-        for inst in self._group_config['Instances']:
-            inst_market = InstanceMarket(
-                self._launch_config['InstanceType'],  # type uniform in asg
-                inst['AvailabilityZone'],
-            )
-            instances_by_market[inst_market] += 1
-        return instances_by_market
-
-    @property
-    def target_capacity(self) -> float:
-        return self._group_config['DesiredCapacity']
 
     @property
     def fulfilled_capacity(self) -> float:
@@ -260,37 +184,16 @@ class AutoScalingResourceGroup(MesosPoolResourceGroup):
         """
         return False
 
-    @staticmethod
-    def load(
-        cluster: str,
-        pool: str,
-        config: AutoScalingResourceGroupConfig,
-    ) -> Mapping[str, 'MesosPoolResourceGroup']:
-        """ Loads a list of ASGs in the given cluster and pool
+    @property
+    def _target_capacity(self) -> float:
+        return self._group_config['DesiredCapacity']
 
-        :param cluster: A cluster name
-        :param pool: A pool name
-        :param config: An ASG config
-        :returns: A dictionary of autoscaling resource groups, indexed by the id
-        """
-        asg_tags = _get_asg_tags()
-        asgs = {}
-        for asg_id, tags in asg_tags.items():
-            try:
-                puppet_role_tags = json.loads(tags[config['tag']])
-                if (puppet_role_tags['pool'] == pool and
-                        puppet_role_tags['paasta_cluster'] == cluster):
-                    asgs[asg_id] = AutoScalingResourceGroup(asg_id)
-            except KeyError:
-                continue
-        return asgs
-
-
-def _get_asg_tags() -> Mapping[str, Mapping[str, str]]:
-    """ Retrieves the tags for each ASG """
-    asg_id_to_tags = {}
-    for page in autoscaling.get_paginator('describe_auto_scaling_groups').paginate():
-        for asg in page['AutoScalingGroups']:
-            tags_dict = {tag['Key']: tag['Value'] for tag in asg['Tags']}
-            asg_id_to_tags[asg['AutoScalingGroupName']] = tags_dict
-    return asg_id_to_tags
+    @classmethod
+    def _get_resource_group_tags(cls) -> Mapping[str, Mapping[str, str]]:
+        """ Retrieves the tags for each ASG """
+        asg_id_to_tags = {}
+        for page in autoscaling.get_paginator('describe_auto_scaling_groups').paginate():
+            for asg in page['AutoScalingGroups']:
+                tags_dict = {tag['Key']: tag['Value'] for tag in asg['Tags']}
+                asg_id_to_tags[asg['AutoScalingGroupName']] = tags_dict
+        return asg_id_to_tags

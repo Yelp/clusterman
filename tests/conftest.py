@@ -56,12 +56,19 @@ def main_clusterman_config():
                 'run_interval_seconds': 120,
             },
         },
+        'drain_termination_timeout_seconds': {
+            'sfr': 123,
+        },
+        'mesos_maintenance_timeout_seconds': 1,
         'mesos_clusters': {
             'mesos-test': {
                 'fqdn': 'the.mesos.leader',
                 'aws_region': 'us-west-2',
                 'max_weight_to_add': 200,
                 'max_weight_to_remove': 10,
+                'drain_queue_url': 'mesos-test-draining.com',
+                'termination_queue_url': 'mesos-test-terminating.com',
+                'warning_queue_url': 'mesos-test-warning.com',
             },
         },
         'sensu_config': [

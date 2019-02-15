@@ -3,6 +3,8 @@ import socket
 import arrow
 import mock
 import pytest
+import simplejson as json
+import staticconf.testing
 
 from clusterman.draining.queue import DrainingClient
 from clusterman.draining.queue import Host
@@ -12,19 +14,18 @@ from clusterman.draining.queue import process_queues
 from clusterman.draining.queue import setup_config
 from clusterman.draining.queue import terminate_host
 from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
+from tests.conftest import mock_open
 
 
 @pytest.fixture
 def mock_draining_client():
     with mock.patch(
         'clusterman.draining.queue.sqs', autospec=True
-    ) as mock_sqs, mock.patch(
-        'clusterman.draining.queue.staticconf', autospec=True
-    ):
+    ) as mock_sqs:
         mock_sqs.send_message = mock.Mock()
         mock_sqs.receive_message = mock.Mock()
         mock_sqs.delete_message = mock.Mock()
-        return DrainingClient('mycluster')
+        return DrainingClient('mesos-test')
 
 
 def test_submit_instance_for_draining(mock_draining_client):
@@ -84,7 +85,7 @@ def test_submit_host_for_draining(mock_draining_client):
             }
         )
         mock_draining_client.client.send_message.assert_called_with(
-            QueueUrl=mock_draining_client.warning_queue_url,
+            QueueUrl=mock_draining_client.drain_queue_url,
             MessageAttributes={
                 'Sender': {
                     'DataType': 'String',
@@ -121,9 +122,7 @@ def test_get_warned_host(mock_draining_client):
 def test_submit_host_for_termination(mock_draining_client):
     with mock.patch(
         'clusterman.draining.queue.json', autospec=True,
-    ) as mock_json, mock.patch(
-        'clusterman.draining.queue.staticconf', autospec=True,
-    ) as mock_staticconf:
+    ) as mock_json:
         mock_host = mock.Mock(
             instance_id='i123',
             ip='10.1.1.1',
@@ -168,7 +167,7 @@ def test_submit_host_for_termination(mock_draining_client):
         )
         mock_draining_client.client.send_message.assert_called_with(
             QueueUrl=mock_draining_client.termination_queue_url,
-            DelaySeconds=mock_staticconf.read_int.return_value,
+            DelaySeconds=90,
             MessageAttributes={
                 'Sender': {
                     'DataType': 'String',
@@ -184,7 +183,7 @@ def test_get_host_to_drain(mock_draining_client):
         'clusterman.draining.queue.json', autospec=True,
     ) as mock_json:
         mock_draining_client.client.receive_message.return_value = {'Messages': []}
-        assert mock_draining_client.get_host_to_terminate() is None
+        assert mock_draining_client.get_host_to_drain() is None
         mock_draining_client.client.receive_message.return_value = {'Messages': [{
             'MessageAttributes': {'Sender': {'StringValue': 'clusterman'}},
             'ReceiptHandle': 'receipt_id',
@@ -197,7 +196,7 @@ def test_get_host_to_drain(mock_draining_client):
             'group_id': 'sfr123',
         }
 
-        assert mock_draining_client.get_host_to_terminate() == Host(
+        assert mock_draining_client.get_host_to_drain() == Host(
             sender='clusterman',
             receipt_handle='receipt_id',
             instance_id='i123',
@@ -355,9 +354,7 @@ def test_process_drain_queue(mock_draining_client):
         'clusterman.draining.queue.DrainingClient.submit_host_for_termination', autospec=True,
     ) as mock_submit_host_for_termination, mock.patch(
         'clusterman.draining.queue.arrow', autospec=False,
-    ) as mock_arrow, mock.patch(
-        'clusterman.draining.queue.staticconf.read_int', autospec=True, return_value=1,
-    ):
+    ) as mock_arrow:
         mock_arrow.now = mock.Mock(return_value=mock.Mock(timestamp=1))
         mock_mesos_client = mock.Mock()
         mock_get_host_to_drain.return_value = None
@@ -428,13 +425,16 @@ def test_clean_processing_hosts_cache(mock_draining_client):
 
 def test_process_warning_queue(mock_draining_client):
     with mock.patch(
-        'clusterman.draining.queue.load_spot_fleets_from_ec2', autospec=True,
+        'clusterman.draining.queue.SpotFleetResourceGroup.load',
     ) as mock_load_spot, mock.patch(
         'clusterman.draining.queue.DrainingClient.submit_host_for_draining', autospec=True,
     ) as mock_submit_host_for_draining, mock.patch(
         'clusterman.draining.queue.DrainingClient.delete_warning_messages', autospec=True,
-    ) as mock_delete_warning_messages:
+    ) as mock_delete_warning_messages, mock.patch(
+        'clusterman.draining.queue.get_pool_name_list', autospec=True,
+    ) as mock_get_pools:
         mock_load_spot.return_value = {}
+        mock_get_pools.return_value = ['bar']
         mock_host = mock.Mock(group_id='sfr-123')
         mock_draining_client.get_warned_host = mock.Mock(return_value=mock_host)
         mock_draining_client.process_warning_queue()
@@ -452,8 +452,8 @@ def test_process_warning_queue(mock_draining_client):
 def test_process_queues():
     with mock.patch(
         'clusterman.draining.queue.DrainingClient', autospec=True,
-    ) as mock_draining_client, mock.patch(
-        'clusterman.draining.queue.staticconf.read_string', return_value='westeros-prod', autospec=True
+    ) as mock_draining_client, staticconf.testing.PatchConfiguration(
+        {'mesos_clusters': {'westeros-prod': {'fqdn': 'westeros-prod'}}},
     ), mock.patch(
         'clusterman.draining.queue.time.sleep', autospec=True, side_effect=LoopBreak
     ):
@@ -566,10 +566,12 @@ def test_main():
 def test_setup_config():
     with mock.patch(
         'clusterman.draining.queue.load_default_config', autospec=True,
-    ), mock.patch(
-        'clusterman.draining.queue.staticconf', autospec=True,
-    ):
-        setup_config('clustername', '/nail/blah', 'debug')
+    ), mock_open('/etc/secrets', contents=json.dumps({
+            'accessKeyId': 'foo',
+            'secretAccessKey': 'bar',
+            'region': 'nowhere-useful',
+    })):
+        setup_config('mesos-test', '/nail/blah', 'debug')
 
 
 class LoopBreak(Exception):
