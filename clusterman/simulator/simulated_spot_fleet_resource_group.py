@@ -2,16 +2,16 @@ from collections import namedtuple
 from functools import lru_cache
 from uuid import uuid4
 
+from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.markets import get_instance_market
-from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 from clusterman.simulator.simulated_aws_cluster import SimulatedAWSCluster
 
 SpotMarketConfig = namedtuple('SpotMarketConfig', ['bid_price', 'weight'])
 
 
-class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, MesosPoolResourceGroup):
+class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, AWSResourceGroup):
     """ An implementation of a SimulatedAWSCluster designed to model the AWS EC2 Spot Fleet object, which is also a
-    ResourceGroup in a simulated Mesos cluster.
+    AWSResourceGroup in a simulated Mesos cluster.
 
     The simulated spot fleet resource group object encapsulates a group of spot instances and attempts to maintain a
     specified capacity of those instances, as long as the bid price for the instances does not exceed a user-specified
@@ -53,7 +53,7 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, MesosPoolResourceGrou
             }
         """
         SimulatedAWSCluster.__init__(self, simulator)
-        MesosPoolResourceGroup.__init__(self, f'ssfr-{uuid4()}')
+        AWSResourceGroup.__init__(self, f'ssfr-{uuid4()}')
         self._instance_types = {}
         for spec in config['LaunchSpecifications']:
             bid_price = float(spec['SpotPrice']) * spec['WeightedCapacity']

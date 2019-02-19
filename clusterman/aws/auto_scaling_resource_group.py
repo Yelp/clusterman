@@ -9,10 +9,10 @@ from cached_property import timed_cached_property
 from mypy_extensions import TypedDict
 from retry import retry
 
+from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.client import autoscaling
 from clusterman.aws.markets import InstanceMarket
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
-from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 
 _BATCH_TERM_SIZE = 200
 
@@ -27,7 +27,7 @@ AutoScalingResourceGroupConfig = TypedDict(
 )
 
 
-class AutoScalingResourceGroup(MesosPoolResourceGroup):
+class AutoScalingResourceGroup(AWSResourceGroup):
     """
     Wrapper for AWS Auto Scaling Groups (ASGs)
 

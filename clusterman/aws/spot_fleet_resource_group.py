@@ -7,13 +7,13 @@ import simplejson as json
 from cached_property import timed_cached_property
 from mypy_extensions import TypedDict
 
+from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.client import ec2
 from clusterman.aws.client import s3
 from clusterman.aws.markets import get_instance_market
 from clusterman.aws.markets import InstanceMarket
 from clusterman.exceptions import ResourceGroupError
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
-from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 
 logger = colorlog.getLogger(__name__)
 _CANCELLED_STATES = ('cancelled', 'cancelled_terminating')
@@ -35,7 +35,7 @@ SpotFleetResourceGroupConfig = TypedDict(
 )
 
 
-class SpotFleetResourceGroup(MesosPoolResourceGroup):
+class SpotFleetResourceGroup(AWSResourceGroup):
 
     def __init__(self, group_id: str) -> None:
         super().__init__(group_id)
@@ -119,7 +119,7 @@ class SpotFleetResourceGroup(MesosPoolResourceGroup):
         cluster: str,
         pool: str,
         config: SpotFleetResourceGroupConfig,
-    ) -> Mapping[str, MesosPoolResourceGroup]:
+    ) -> Mapping[str, AWSResourceGroup]:
         """ Loads a list of spot fleets in the given cluster and pool
 
         :param cluster: A cluster name

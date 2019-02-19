@@ -9,8 +9,8 @@ from hamcrest import not_
 
 from clusterman.aws.client import ec2
 from clusterman.aws.client import sqs
+from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
 from clusterman.draining.queue import DrainingClient
-from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
 from itests.environment import boto_patches
 from itests.environment import make_sfr
 
@@ -96,10 +96,10 @@ def warning_queue_process(context):
         'clusterman.draining.queue.socket.gethostbyaddr',
         return_value=('the-host', '', ''),
     ), mock.patch(
-        'clusterman.mesos.spot_fleet_resource_group.MesosPoolResourceGroup.load',
+        'clusterman.aws.spot_fleet_resource_group.SpotFleetResourceGroup.load',
         return_value={context.sfr_id: SpotFleetResourceGroup(context.sfr_id)},
     ), mock.patch(
-        'clusterman.mesos.spot_fleet_resource_group.load_spot_fleets_from_s3',
+        'clusterman.aws.spot_fleet_resource_group.load_spot_fleets_from_s3',
     ), mock.patch(
         'clusterman.draining.queue.get_pool_name_list',
         return_value=['bar'],

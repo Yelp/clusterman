@@ -7,20 +7,20 @@ import colorlog
 import simplejson as json
 from cached_property import timed_cached_property
 
+from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.client import ec2
 from clusterman.aws.client import ec2_describe_fleet_instances
 from clusterman.aws.markets import get_market
 from clusterman.aws.markets import InstanceMarket
 from clusterman.exceptions import ResourceGroupError
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
-from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 
 
 logger = colorlog.getLogger(__name__)
 _CANCELLED_STATES = ('deleted', 'deleted-terminating', 'failed')
 
 
-class EC2FleetResourceGroup(MesosPoolResourceGroup):
+class EC2FleetResourceGroup(AWSResourceGroup):
     def __init__(self, group_id: str) -> None:
         super().__init__(group_id)
 

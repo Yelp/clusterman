@@ -5,13 +5,13 @@ import mock
 import pytest
 import staticconf.testing
 
+from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
 from clusterman.draining.queue import DrainingClient
 from clusterman.draining.queue import Host
 from clusterman.draining.queue import host_from_instance_id
 from clusterman.draining.queue import main
 from clusterman.draining.queue import process_queues
 from clusterman.draining.queue import terminate_host
-from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
 
 
 @pytest.fixture

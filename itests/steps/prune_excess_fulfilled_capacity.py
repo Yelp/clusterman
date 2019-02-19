@@ -23,7 +23,7 @@ def mock_rg_is_stale(context):
         ]}
 
     with mock.patch(
-        'clusterman.mesos.spot_fleet_resource_group.ec2.describe_spot_fleet_requests',
+        'clusterman.aws.spot_fleet_resource_group.ec2.describe_spot_fleet_requests',
         side_effect=mock_describe_sfrs,
     ):
         yield
@@ -82,7 +82,7 @@ def set_non_orphaned_fulfilled_capacity(context, nofc):
 def prune_excess_fulfilled_capacity(context, target):
     context.original_agents = context.mesos_pool_manager.get_instance_metadatas()
     with mock.patch(
-        'clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup.target_capacity',
+        'clusterman.aws.spot_fleet_resource_group.SpotFleetResourceGroup.target_capacity',
         mock.PropertyMock(side_effect=[int(target)] + [0] * (len(context.rg_ids) - 1)),
     ):
         context.mesos_pool_manager.prune_excess_fulfilled_capacity(new_target_capacity=int(target))
