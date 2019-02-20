@@ -3,7 +3,6 @@ import socket
 import arrow
 import mock
 import pytest
-import simplejson as json
 import staticconf.testing
 
 from clusterman.draining.queue import DrainingClient
@@ -11,10 +10,8 @@ from clusterman.draining.queue import Host
 from clusterman.draining.queue import host_from_instance_id
 from clusterman.draining.queue import main
 from clusterman.draining.queue import process_queues
-from clusterman.draining.queue import setup_config
 from clusterman.draining.queue import terminate_host
 from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
-from tests.conftest import mock_open
 
 
 @pytest.fixture
@@ -557,21 +554,14 @@ def test_main():
     with mock.patch(
         'clusterman.draining.queue.setup_config', autospec=True,
     ), mock.patch(
+        'clusterman.draining.queue.load_cluster_pool_config', autospec=True,
+    ), mock.patch(
+        'clusterman.draining.queue.get_pool_name_list', autospec=True,
+    ), mock.patch(
         'clusterman.draining.queue.process_queues', autospec=True,
     ) as mock_process_queues:
         main(mock.Mock())
         assert mock_process_queues.called
-
-
-def test_setup_config():
-    with mock.patch(
-        'clusterman.draining.queue.load_default_config', autospec=True,
-    ), mock_open('/etc/secrets', contents=json.dumps({
-            'accessKeyId': 'foo',
-            'secretAccessKey': 'bar',
-            'region': 'nowhere-useful',
-    })):
-        setup_config('mesos-test', '/nail/blah', 'debug')
 
 
 class LoopBreak(Exception):
