@@ -92,6 +92,10 @@ class SimulatedMesosPoolManager(MesosPoolManager):
         return agent_metadatas
 
     @property
+    def non_orphan_fulfilled_capacity(self):
+        return self._calculate_non_orphan_fulfilled_capacity()
+
+    @property
     def agents(self):
         return [
             _make_agent(group.instances[instance_id])
