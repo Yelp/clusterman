@@ -6,6 +6,7 @@ from clusterman_metrics import APP_METRICS
 from clusterman_metrics import SYSTEM_METRICS
 from moto import mock_autoscaling
 from moto import mock_ec2
+from moto import mock_sqs
 
 from clusterman.aws.client import autoscaling
 from clusterman.aws.client import ec2
@@ -194,6 +195,8 @@ def make_sfr(subnet_id):
 
 @behave.fixture
 def boto_patches(context):
+    mock_sqs_obj = mock_sqs()
+    mock_sqs_obj.start()
     mock_ec2_obj = mock_ec2()
     mock_ec2_obj.start()
     mock_autoscaling_obj = mock_autoscaling()
@@ -206,6 +209,7 @@ def boto_patches(context):
     )
     context.subnet_id = subnet_response['Subnet']['SubnetId']
     yield
+    mock_sqs_obj.stop()
     mock_ec2_obj.stop()
     mock_autoscaling_obj.stop()
 

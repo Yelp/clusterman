@@ -1,6 +1,5 @@
 import argparse
 import json
-import logging
 import socket
 import time
 from typing import Callable
@@ -13,14 +12,14 @@ from typing import Type
 import arrow
 import colorlog
 import staticconf
-from yelp_servlib.config_util import load_default_config
 
 from clusterman.args import add_cluster_arg
 from clusterman.args import subparser
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.client import sqs
-from clusterman.config import CREDENTIALS_NAMESPACE
+from clusterman.config import load_cluster_pool_config
 from clusterman.config import POOL_NAMESPACE
+from clusterman.config import setup_config
 from clusterman.draining.mesos import down
 from clusterman.draining.mesos import drain
 from clusterman.draining.mesos import operator_api
@@ -265,11 +264,12 @@ class DrainingClient():
             spot_fleet_resource_groups = []
             for pool in get_pool_name_list(self.cluster):
                 pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=pool))
-                spot_fleet_resource_groups.extend(list(SpotFleetResourceGroup.load(
-                    cluster=self.cluster,
-                    pool=pool,
-                    config=pool_config,
-                ).keys()))
+                for resource_group_conf in pool_config.read_list('resource_groups'):
+                    spot_fleet_resource_groups.extend(list(SpotFleetResourceGroup.load(
+                        cluster=self.cluster,
+                        pool=pool,
+                        config=list(resource_group_conf.values())[0],
+                    ).keys()))
 
             # we should definitely ignore termination warnings that aren't from this
             # cluster or maybe not even paasta instances...
@@ -343,21 +343,10 @@ def terminate_host(host: Host) -> None:
     resource_group.terminate_instances_by_id([host.instance_id])
 
 
-def setup_config(cluster: str, env_config_path: str, log_level: str) -> None:
-    logger.setLevel(getattr(logging, log_level.upper()))
-    load_default_config(env_config_path, env_config_path)
-    boto_creds_file = staticconf.read_string('aws.access_key_file')
-    aws_region = staticconf.read_string(f'mesos_clusters.{cluster}.aws_region')
-    staticconf.DictConfiguration({'aws': {'region': aws_region}})
-    staticconf.JSONConfiguration(boto_creds_file, namespace=CREDENTIALS_NAMESPACE)
-
-
 def main(args: argparse.Namespace) -> None:
-    setup_config(
-        cluster=args.cluster,
-        env_config_path=args.env_config_path,
-        log_level=args.log_level,
-    )
+    setup_config(args)
+    for pool in get_pool_name_list(args.cluster):
+        load_cluster_pool_config(args.cluster, pool, None)
     process_queues(args.cluster)
 
 
