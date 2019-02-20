@@ -1,3 +1,9 @@
+clusterman (3.1.1) trusty; urgency=low
+
+  * fixing build bugs
+
+ -- David Morrison <drmorr@yelp.com>  Wed, 20 Feb 2019 09:00:24 -0800
+
 clusterman (3.1.0) trusty; urgency=low
 
   * added support for ec2fleet
