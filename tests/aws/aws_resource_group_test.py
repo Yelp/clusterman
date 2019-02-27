@@ -2,13 +2,13 @@ import mock
 import pytest
 import simplejson as json
 
+from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.client import ec2
 from clusterman.aws.markets import InstanceMarket
-from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
-from tests.mesos.conftest import mock_subnet
+from tests.aws.conftest import mock_subnet
 
 
-class MockResourceGroup(MesosPoolResourceGroup):
+class MockResourceGroup(AWSResourceGroup):
     def __init__(self, group_id):
         super().__init__(group_id)
         self.instances = ec2.run_instances(
@@ -79,7 +79,7 @@ class MockResourceGroup(MesosPoolResourceGroup):
 
 @pytest.fixture
 def mock_resource_group():
-    return MockResourceGroup.load(
+    yield MockResourceGroup.load(
         cluster='westeros-prod',
         pool='default',
         config={'tag': 'puppet:role::paasta'},
@@ -111,11 +111,11 @@ def mock_describe_instances_with_missing_subnet(orig):
     return describe_instances_with_missing_subnet
 
 
-@mock.patch('clusterman.mesos.mesos_pool_resource_group.logger')
+@mock.patch('clusterman.aws.aws_resource_group.logger')
 def test_terminate_instance_missing_subnet(mock_logger, mock_resource_group):
     ec2_describe = ec2.describe_instances
     with mock.patch(
-        'clusterman.mesos.spot_fleet_resource_group.ec2.describe_instances',
+        'clusterman.aws.aws_resource_group.ec2.describe_instances',
         wraps=mock_describe_instances_with_missing_subnet(ec2_describe)
     ):
         assert not mock_resource_group.terminate_instances_by_id(mock_resource_group.instance_ids)
@@ -128,7 +128,7 @@ def test_terminate_instance_missing_subnet(mock_logger, mock_resource_group):
 def test_terminate_all_instances_by_id_small_batch(mock_resource_group):
     instance_ids = mock_resource_group.instance_ids
     with mock.patch(
-        'clusterman.mesos.spot_fleet_resource_group.ec2.terminate_instances',
+        'clusterman.aws.aws_resource_group.ec2.terminate_instances',
         wraps=ec2.terminate_instances,
     ) as mock_terminate:
         terminated_ids = mock_resource_group.terminate_instances_by_id(instance_ids, batch_size=1)
@@ -136,9 +136,9 @@ def test_terminate_all_instances_by_id_small_batch(mock_resource_group):
         assert sorted(terminated_ids) == sorted(instance_ids)
 
 
-@mock.patch('clusterman.mesos.mesos_pool_resource_group.logger')
+@mock.patch('clusterman.aws.aws_resource_group.logger')
 def test_terminate_some_instances_missing(mock_logger, mock_resource_group):
-    with mock.patch('clusterman.mesos.spot_fleet_resource_group.ec2.terminate_instances') as mock_terminate:
+    with mock.patch('clusterman.aws.aws_resource_group.ec2.terminate_instances') as mock_terminate:
         mock_terminate.return_value = {
             'TerminatingInstances': [
                 {'InstanceId': i} for i in mock_resource_group.instance_ids[:3]
@@ -152,7 +152,7 @@ def test_terminate_some_instances_missing(mock_logger, mock_resource_group):
         assert mock_logger.warn.call_count == 2
 
 
-@mock.patch('clusterman.mesos.mesos_pool_resource_group.logger')
+@mock.patch('clusterman.aws.aws_resource_group.logger')
 def test_terminate_no_instances_by_id(mock_logger, mock_resource_group):
     terminated_ids = mock_resource_group.terminate_instances_by_id([])
     assert not terminated_ids

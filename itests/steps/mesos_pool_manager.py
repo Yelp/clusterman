@@ -6,13 +6,13 @@ from hamcrest import close_to
 from hamcrest import contains
 from hamcrest import equal_to
 
+from clusterman.aws.auto_scaling_resource_group import AutoScalingResourceGroup
 from clusterman.aws.client import autoscaling
 from clusterman.aws.client import ec2
 from clusterman.aws.client import ec2_describe_instances
-from clusterman.mesos.auto_scaling_resource_group import AutoScalingResourceGroup
-from clusterman.mesos.ec2_fleet_resource_group import EC2FleetResourceGroup
+from clusterman.aws.ec2_fleet_resource_group import EC2FleetResourceGroup
+from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
-from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
 from itests.environment import boto_patches
 from itests.environment import make_asg
 from itests.environment import make_fleet

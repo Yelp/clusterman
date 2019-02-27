@@ -14,6 +14,7 @@ import colorlog
 import staticconf
 from cached_property import timed_cached_property
 
+from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import get_instance_market
 from clusterman.aws.markets import InstanceMarket
@@ -22,7 +23,6 @@ from clusterman.draining.queue import DrainingClient
 from clusterman.exceptions import AllResourceGroupsAreStaleError
 from clusterman.exceptions import MesosPoolManagerError
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
-from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 from clusterman.mesos.util import agent_pid_to_ip
 from clusterman.mesos.util import allocated_agent_resources
 from clusterman.mesos.util import get_total_resource_value
@@ -45,7 +45,7 @@ class MesosPoolManager:
     Mesos pool.  Specifically, it allows users to interact with the Mesos master (querying the number of agents in the
     cluster, and what resources are available/allocated, for example) as well as to modify the capacity available to the
     Mesos pool.  Since many different types of hosts may be present in a Mesos cluster, this object refers to a list of
-    abstract :py:class:`.MesosPoolResourceGroup` objects to modify the underlying infrastructure.
+    abstract :py:class:`.ResourceGroup` objects to modify the underlying infrastructure.
 
     One major assumption the ``MesosPoolManager`` makes currently is that the underlying infrastructure for a particular
     pool belongs completely to that pool; in other words, at present no pools are co-located on the same physical
@@ -75,7 +75,7 @@ class MesosPoolManager:
         self.api_endpoint = f'http://{mesos_master_fqdn}:5050/'
         logger.info(f'Connecting to Mesos masters at {self.api_endpoint}')
 
-        self.resource_groups: MutableMapping[str, MesosPoolResourceGroup] = dict()
+        self.resource_groups: MutableMapping[str, AWSResourceGroup] = dict()
         if fetch_state:
             self.reload_state()
 
@@ -229,7 +229,7 @@ class MesosPoolManager:
         return used / total if total else 0
 
     def _reload_resource_groups(self) -> None:
-        resource_groups: MutableMapping[str, MesosPoolResourceGroup] = {}
+        resource_groups: MutableMapping[str, AWSResourceGroup] = {}
         for resource_group_conf in self.pool_config.read_list('resource_groups'):
             if not isinstance(resource_group_conf, dict) or len(resource_group_conf) != 1:
                 logger.error(f'Malformed config: {resource_group_conf}')

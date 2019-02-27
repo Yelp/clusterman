@@ -1,5 +1,5 @@
 AutoScalingResourceGroup
 ========================
 
-.. autoclass:: clusterman.mesos.auto_scaling_resource_group.AutoScalingResourceGroup
+.. autoclass:: clusterman.aws.auto_scaling_resource_group.AutoScalingResourceGroup
    :members:

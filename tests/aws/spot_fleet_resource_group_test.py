@@ -8,9 +8,9 @@ from moto import mock_s3
 from clusterman.aws.client import ec2
 from clusterman.aws.client import s3
 from clusterman.aws.markets import InstanceMarket
+from clusterman.aws.spot_fleet_resource_group import load_spot_fleets_from_s3
+from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
 from clusterman.exceptions import ResourceGroupError
-from clusterman.mesos.spot_fleet_resource_group import load_spot_fleets_from_s3
-from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
 
 
 @pytest.fixture
@@ -92,7 +92,7 @@ def test_load_spot_fleets_from_s3():
     }).encode())
 
     with mock.patch(
-        'clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup',
+        'clusterman.aws.spot_fleet_resource_group.SpotFleetResourceGroup',
     ):
         sfrgs = load_spot_fleets_from_s3(
             bucket='fake-clusterman-sfrs',
@@ -105,9 +105,9 @@ def test_load_spot_fleets_from_s3():
 
 def test_load_spot_fleets():
     with mock.patch(
-        'clusterman.mesos.spot_fleet_resource_group.MesosPoolResourceGroup.load',
+        'clusterman.aws.spot_fleet_resource_group.AWSResourceGroup.load',
     ) as mock_tag_load, mock.patch(
-        'clusterman.mesos.spot_fleet_resource_group.load_spot_fleets_from_s3',
+        'clusterman.aws.spot_fleet_resource_group.load_spot_fleets_from_s3',
     ) as mock_s3_load:
         mock_tag_load.return_value = {'sfr-1': mock.Mock(id='sfr-1'), 'sfr-2': mock.Mock(id='sfr-2')}
         mock_s3_load.return_value = {'sfr-3': mock.Mock(id='sfr-3', status='cancelled'), 'sfr-4': mock.Mock(id='sfr-4')}
@@ -129,7 +129,7 @@ def test_get_spot_fleet_request_tags(mock_spot_fleet_resource_group):
     # doing this the old fashioned way until
     # https://github.com/spulec/moto/issues/1644 is fixed
     with mock.patch(
-        'clusterman.mesos.spot_fleet_resource_group.ec2.describe_spot_fleet_requests',
+        'clusterman.aws.spot_fleet_resource_group.ec2.describe_spot_fleet_requests',
     ) as mock_describe_spot_fleet_requests:
         mock_describe_spot_fleet_requests.return_value = {
             'SpotFleetRequestConfigs': [{
@@ -198,7 +198,7 @@ def test_fulfilled_capacity(mock_spot_fleet_resource_group):
 
 
 def test_modify_target_capacity_stale(mock_spot_fleet_resource_group):
-    with mock.patch('clusterman.mesos.spot_fleet_resource_group.ec2.describe_spot_fleet_requests') as mock_describe:
+    with mock.patch('clusterman.aws.spot_fleet_resource_group.ec2.describe_spot_fleet_requests') as mock_describe:
         mock_describe.return_value = {
             'SpotFleetRequestConfigs': [
                 {'SpotFleetRequestState': 'cancelled_running'}
@@ -235,7 +235,7 @@ def test_modify_target_capacity_dry_run(mock_spot_fleet_resource_group):
 
 
 def test_modify_target_capacity_error(mock_spot_fleet_resource_group):
-    with mock.patch('clusterman.mesos.spot_fleet_resource_group.ec2.modify_spot_fleet_request') as mock_modify, \
+    with mock.patch('clusterman.aws.spot_fleet_resource_group.ec2.modify_spot_fleet_request') as mock_modify, \
             pytest.raises(ResourceGroupError):
         mock_modify.return_value = {'Return': False}
         mock_spot_fleet_resource_group.modify_target_capacity(5)
@@ -259,7 +259,7 @@ def test_is_stale(mock_spot_fleet_resource_group):
 
 
 def test_is_stale_not_found(mock_spot_fleet_resource_group):
-    with mock.patch('clusterman.mesos.spot_fleet_resource_group.ec2.describe_spot_fleet_requests') as mock_describe:
+    with mock.patch('clusterman.aws.spot_fleet_resource_group.ec2.describe_spot_fleet_requests') as mock_describe:
         mock_describe.side_effect = botocore.exceptions.ClientError(
             {'Error': {'Code': 'InvalidSpotFleetRequestId.NotFound'}},
             'foo',
@@ -268,7 +268,7 @@ def test_is_stale_not_found(mock_spot_fleet_resource_group):
 
 
 def test_is_stale_error(mock_spot_fleet_resource_group):
-    with mock.patch('clusterman.mesos.spot_fleet_resource_group.ec2.describe_spot_fleet_requests') as mock_describe, \
+    with mock.patch('clusterman.aws.spot_fleet_resource_group.ec2.describe_spot_fleet_requests') as mock_describe, \
             pytest.raises(botocore.exceptions.ClientError):
         mock_describe.side_effect = botocore.exceptions.ClientError({}, 'foo')
         mock_spot_fleet_resource_group.is_stale

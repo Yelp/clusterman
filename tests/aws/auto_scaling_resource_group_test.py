@@ -3,9 +3,9 @@ import json
 import mock
 import pytest
 
+from clusterman.aws.auto_scaling_resource_group import AutoScalingResourceGroup
 from clusterman.aws.client import autoscaling
 from clusterman.aws.markets import InstanceMarket
-from clusterman.mesos.auto_scaling_resource_group import AutoScalingResourceGroup
 
 
 @pytest.fixture
@@ -35,13 +35,7 @@ def mock_pool():
 
 
 @pytest.fixture
-def mock_asg_config(
-    mock_launch_config,
-    mock_subnet,
-    mock_asg_name,
-    mock_cluster,
-    mock_pool,
-):
+def mock_asg_config(mock_subnet, mock_launch_config, mock_asg_name, mock_cluster, mock_pool):
     asg = {
         'AutoScalingGroupName': mock_asg_name,
         'LaunchConfigurationName': mock_launch_config['LaunchConfigurationName'],

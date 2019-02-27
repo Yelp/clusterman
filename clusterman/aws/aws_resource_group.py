@@ -22,7 +22,7 @@ logger = colorlog.getLogger(__name__)
 
 
 def protect_unowned_instances(func):
-    """ A decorator that protects instances that are not owned by a particular ResourceGroup from being modified
+    """ A decorator that protects instances that are not owned by a particular AWSResourceGroup from being modified
 
     It is assumed that the decorated function takes a list of instance IDs as its first argument; this list
     is modified before the decorated function is called to strip out any unowned instances.  In this case a warning
@@ -38,12 +38,12 @@ def protect_unowned_instances(func):
     return wrapper
 
 
-class MesosPoolResourceGroup(metaclass=ABCMeta):
+class AWSResourceGroup(metaclass=ABCMeta):
     """
-    The MesosPoolResourceGroup is an abstract object codifying the interface that objects belonging to a Mesos
-    cluster are expected to adhere to.  In general, a "ResourceGroup" object should represent a collection of machines
-    that are a part of a Mesos cluster, and should have an API for adding and removing hosts from the ResourceGroup,
-    as well as querying the state of the resource group.
+    The AWSResourceGroup is an abstract object codifying the interface that objects belonging to a Mesos
+    cluster are expected to adhere to.  In general, a "AWSResourceGroup" object should represent a collection of
+    machines that are a part of a Mesos cluster, and should have an API for adding and removing hosts from the
+    AWSResourceGroup, as well as querying the state of the resource group.
     """
 
     def __init__(self, group_id: str) -> None:
@@ -122,12 +122,12 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
 
     @property
     def id(self) -> str:
-        """ A unique identifier for this ResourceGroup """
+        """ A unique identifier for this AWSResourceGroup """
         return self.group_id
 
     @abstractproperty
     def instance_ids(self) -> Sequence[str]:  # pragma: no cover
-        """ The list of instance IDs belonging to this ResourceGroup """
+        """ The list of instance IDs belonging to this AWSResourceGroup """
         pass
 
     @property
@@ -140,10 +140,10 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
 
     @property
     def target_capacity(self) -> float:
-        """ The target (or desired) weighted capacity for this ResourceGroup
+        """ The target (or desired) weighted capacity for this AWSResourceGroup
 
-        Note that the actual weighted capacity in the ResourceGroup may be smaller or larger than the
-        target capacity, depending on the state of the ResourceGroup, available instance types, and
+        Note that the actual weighted capacity in the AWSResourceGroup may be smaller or larger than the
+        target capacity, depending on the state of the AWSResourceGroup, available instance types, and
         previous operations; use self.fulfilled_capacity to get the actual capacity
         """
         if self.is_stale:
@@ -154,17 +154,17 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
 
     @abstractproperty
     def fulfilled_capacity(self) -> float:  # pragma: no cover
-        """ The actual weighted capacity for this ResourceGroup """
+        """ The actual weighted capacity for this AWSResourceGroup """
         pass
 
     @abstractproperty
     def status(self) -> str:  # pragma: no cover
-        """ The status of the ResourceGroup (e.g., running, modifying, terminated, etc.) """
+        """ The status of the AWSResourceGroup (e.g., running, modifying, terminated, etc.) """
         pass
 
     @abstractproperty
     def is_stale(self) -> bool:  # pragma: no cover
-        """Whether this ResourceGroup is stale."""
+        """Whether this AWSResourceGroup is stale."""
         pass
 
     @timed_cached_property(ttl=CACHE_TTL_SECONDS)
@@ -180,7 +180,7 @@ class MesosPoolResourceGroup(metaclass=ABCMeta):
         pass
 
     @classmethod
-    def load(cls, cluster: str, pool: str, config: Any) -> Mapping[str, 'MesosPoolResourceGroup']:
+    def load(cls, cluster: str, pool: str, config: Any) -> Mapping[str, 'AWSResourceGroup']:
         """ Load a list of corresponding resource groups
 
         :param cluster: a cluster name

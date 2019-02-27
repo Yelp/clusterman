@@ -1,7 +1,7 @@
 import mock
 import pytest
 
-from clusterman.mesos.ec2_fleet_resource_group import EC2FleetResourceGroup
+from clusterman.aws.ec2_fleet_resource_group import EC2FleetResourceGroup
 
 
 MOCK_FLEET_ID = 'fleet-abcdef1234567890'
@@ -61,7 +61,7 @@ MOCK_DESCRIBE_FLEETS = {
 @pytest.fixture
 def mock_ec2_things():
     with mock.patch(
-        'clusterman.mesos.ec2_fleet_resource_group.ec2.describe_fleets',
+        'clusterman.aws.ec2_fleet_resource_group.ec2.describe_fleets',
         return_value=MOCK_DESCRIBE_FLEETS,
     ), mock.patch(
         'clusterman.aws.markets.ec2.describe_subnets',
@@ -73,7 +73,7 @@ def mock_ec2_things():
 @pytest.fixture
 def mock_describe_fleets_paginator_response():
     with mock.patch(
-        'clusterman.mesos.ec2_fleet_resource_group.ec2.get_paginator',
+        'clusterman.aws.ec2_fleet_resource_group.ec2.get_paginator',
     ) as mock_paginator:
         mock_paginator.return_value.paginate.return_value = [MOCK_DESCRIBE_FLEETS]
         yield
@@ -101,7 +101,7 @@ def test_fulfilled_capacity(mock_ec2_fleet_resource_group):
 
 def test_modify_target_capacity_stale(mock_ec2_fleet_resource_group):
     with mock.patch(
-        'clusterman.mesos.ec2_fleet_resource_group.EC2FleetResourceGroup.is_stale',
+        'clusterman.aws.ec2_fleet_resource_group.EC2FleetResourceGroup.is_stale',
         mock.PropertyMock(return_value=True),
     ):
         mock_ec2_fleet_resource_group.modify_target_capacity(20)
@@ -111,7 +111,7 @@ def test_modify_target_capacity_stale(mock_ec2_fleet_resource_group):
 @pytest.mark.parametrize('terminate', [True, False])
 def test_modify_target_capacity(mock_ec2_fleet_resource_group, terminate):
     with mock.patch(
-        'clusterman.mesos.ec2_fleet_resource_group.ec2.modify_fleet',
+        'clusterman.aws.ec2_fleet_resource_group.ec2.modify_fleet',
     ) as mock_modify:
         mock_ec2_fleet_resource_group.modify_target_capacity(20, terminate_excess_capacity=terminate)
         assert mock_modify.call_args == mock.call(
@@ -125,7 +125,7 @@ def test_modify_target_capacity(mock_ec2_fleet_resource_group, terminate):
 
 def test_modify_target_capacity_dry_run(mock_ec2_fleet_resource_group):
     with mock.patch(
-        'clusterman.mesos.ec2_fleet_resource_group.ec2.modify_fleet',
+        'clusterman.aws.ec2_fleet_resource_group.ec2.modify_fleet',
     ) as mock_modify:
         mock_ec2_fleet_resource_group.modify_target_capacity(5, dry_run=True)
         assert mock_modify.call_count == 0

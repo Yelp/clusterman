@@ -4,12 +4,12 @@ import staticconf
 import staticconf.testing
 from moto import mock_ec2
 
+from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.client import ec2
 from clusterman.exceptions import AllResourceGroupsAreStaleError
 from clusterman.exceptions import MesosPoolManagerError
 from clusterman.mesos.mesos_pool_manager import InstanceMetadata
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
-from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
 from clusterman.mesos.util import MesosAgentState
 
 
@@ -49,7 +49,7 @@ def mock_resource_groups():
             is_stale=False,
             market_weight=mock.Mock(return_value=1.0),
             terminate_instances_by_id=mock.Mock(return_value=[]),
-            spec=MesosPoolResourceGroup,
+            spec=AWSResourceGroup,
         )
         for i in range(7)
     }
@@ -58,7 +58,7 @@ def mock_resource_groups():
 @pytest.fixture
 def mock_pool_manager(mock_resource_groups):
     with mock.patch(
-        'clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup.load',
+        'clusterman.aws.spot_fleet_resource_group.SpotFleetResourceGroup.load',
         return_value={},
     ), mock.patch(
         'clusterman.mesos.mesos_pool_manager.DrainingClient', autospec=True
@@ -85,7 +85,7 @@ def test_mesos_pool_manager_init(mock_pool_manager, mock_resource_groups):
                 namespace='bar_config',
             ):
         with mock.patch(
-                    'clusterman.mesos.spot_fleet_resource_group.SpotFleetResourceGroup.load',
+                    'clusterman.aws.spot_fleet_resource_group.SpotFleetResourceGroup.load',
                     return_value={},
                 ), mock.patch(
                     'clusterman.mesos.mesos_pool_manager.DrainingClient', autospec=True
@@ -142,10 +142,10 @@ class TestPruneExcessFulfilledCapacity:
         mock_pool_manager.draining_enabled = True
         mock_pool_manager.prune_excess_fulfilled_capacity(100)
         assert mock_pool_manager.draining_client.submit_instance_for_draining.call_args_list == [
-            mock.call(mock_instances_to_prune['sfr-1'][0], sender=MesosPoolResourceGroup),
-            mock.call(mock_instances_to_prune['sfr-3'][0], sender=MesosPoolResourceGroup),
-            mock.call(mock_instances_to_prune['sfr-3'][1], sender=MesosPoolResourceGroup),
-            mock.call(mock_instances_to_prune['sfr-3'][2], sender=MesosPoolResourceGroup),
+            mock.call(mock_instances_to_prune['sfr-1'][0], sender=AWSResourceGroup),
+            mock.call(mock_instances_to_prune['sfr-3'][0], sender=AWSResourceGroup),
+            mock.call(mock_instances_to_prune['sfr-3'][1], sender=AWSResourceGroup),
+            mock.call(mock_instances_to_prune['sfr-3'][2], sender=AWSResourceGroup),
         ]
 
     def test_terminate_immediately(self, mock_pool_manager):
@@ -264,6 +264,9 @@ class TestReloadResourceGroups:
         with mock.patch.dict(
             'clusterman.mesos.mesos_pool_manager.RESOURCE_GROUPS',
             {'sfr': mock.Mock(load=mock.Mock(return_value={'rg1': mock.Mock()}))},
+        ), staticconf.testing.PatchConfiguration(
+            {'resource_groups': [{'sfr': {'tag': 'puppet:role::paasta'}}]},
+            namespace='bar_config',
         ):
             mock_pool_manager._reload_resource_groups()
 

@@ -6,8 +6,8 @@ from hamcrest import contains
 
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.autoscaler.signals import ACK
+from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
-from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
 from itests.environment import boto_patches
 
 

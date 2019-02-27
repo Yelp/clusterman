@@ -15,8 +15,10 @@ import staticconf
 
 from clusterman.args import add_cluster_arg
 from clusterman.args import subparser
+from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.client import sqs
+from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
 from clusterman.config import load_cluster_pool_config
 from clusterman.config import POOL_NAMESPACE
 from clusterman.config import setup_config
@@ -24,8 +26,6 @@ from clusterman.draining.mesos import down
 from clusterman.draining.mesos import drain
 from clusterman.draining.mesos import operator_api
 from clusterman.draining.mesos import up
-from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
-from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
 from clusterman.mesos.util import get_pool_name_list
 from clusterman.mesos.util import InstanceMetadata
 from clusterman.mesos.util import RESOURCE_GROUPS
@@ -54,7 +54,7 @@ class DrainingClient():
         self.draining_host_ttl_cache: Dict[str, arrow.Arrow] = {}
         self.warning_queue_url = staticconf.read_string(f'mesos_clusters.{cluster_name}.warning_queue_url')
 
-    def submit_instance_for_draining(self, instance: InstanceMetadata, sender: Type[MesosPoolResourceGroup]) -> None:
+    def submit_instance_for_draining(self, instance: InstanceMetadata, sender: Type[AWSResourceGroup]) -> None:
         return self.client.send_message(
             QueueUrl=self.drain_queue_url,
             MessageAttributes={

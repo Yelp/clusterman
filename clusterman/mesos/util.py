@@ -13,13 +13,13 @@ import staticconf
 from mypy_extensions import TypedDict
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
+from clusterman.aws.auto_scaling_resource_group import AutoScalingResourceGroup
+from clusterman.aws.aws_resource_group import AWSResourceGroup
+from clusterman.aws.ec2_fleet_resource_group import EC2FleetResourceGroup
 from clusterman.aws.markets import InstanceMarket
+from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
 from clusterman.config import get_cluster_config_directory
 from clusterman.exceptions import MesosPoolManagerError
-from clusterman.mesos.auto_scaling_resource_group import AutoScalingResourceGroup
-from clusterman.mesos.ec2_fleet_resource_group import EC2FleetResourceGroup
-from clusterman.mesos.mesos_pool_resource_group import MesosPoolResourceGroup
-from clusterman.mesos.spot_fleet_resource_group import SpotFleetResourceGroup
 
 logger = colorlog.getLogger(__name__)
 MesosResources = NamedTuple('MesosResources', [('cpus', float), ('mem', float), ('disk', float)])
@@ -34,14 +34,14 @@ MesosAgentDict = TypedDict(
 )
 RESOURCE_GROUPS: Mapping[
     str,
-    Type[MesosPoolResourceGroup]
+    Type[AWSResourceGroup]
 ] = {
     'asg': AutoScalingResourceGroup,
     'fleet': EC2FleetResourceGroup,
     'sfr': SpotFleetResourceGroup,
 }
 RESOURCE_GROUPS_REV: Mapping[
-    Type[MesosPoolResourceGroup],
+    Type[AWSResourceGroup],
     str
 ] = {v: k for k, v in RESOURCE_GROUPS.items()}
 
