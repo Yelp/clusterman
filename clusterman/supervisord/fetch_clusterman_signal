@@ -1,7 +1,9 @@
 #!/bin/bash
-set -ex
 
 source /etc/boto_cfg/clusterman.sh
+
+# don't set -ex until after executing the above so we don't leak keys in the logs
+set -ex
 source /etc/lsb-release  # gives us DISTRIB_CODENAME
 
 SIGNAL_DIR=${2:-.}
