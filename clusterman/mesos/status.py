@@ -6,9 +6,9 @@ from clusterman.args import add_cluster_arg
 from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_pool_arg
 from clusterman.args import subparser
-from clusterman.mesos.mesos_pool_manager import InstanceMetadata
-from clusterman.mesos.mesos_pool_manager import MesosPoolManager
-from clusterman.mesos.util import MesosAgentState
+from clusterman.interfaces.pool_manager import AgentState
+from clusterman.interfaces.pool_manager import InstanceMetadata
+from clusterman.interfaces.pool_manager import PoolManager
 from clusterman.util import any_of
 from clusterman.util import color_conditions
 
@@ -39,13 +39,13 @@ def _write_agent_details(metadata: InstanceMetadata) -> None:
 
     agent_mesos_state = color_conditions(
         metadata.mesos_state,
-        green=any_of(MesosAgentState.RUNNING,),
-        blue=any_of(MesosAgentState.IDLE,),
-        red=any_of(MesosAgentState.ORPHANED, MesosAgentState.UNKNOWN),
+        green=any_of(AgentState.RUNNING,),
+        blue=any_of(AgentState.IDLE,),
+        red=any_of(AgentState.ORPHANED, AgentState.UNKNOWN),
     )
     sys.stdout.write(f'\t   {agent_mesos_state} ')
 
-    if metadata.mesos_state == MesosAgentState.RUNNING:
+    if metadata.mesos_state == AgentState.RUNNING:
         allocated_cpus, allocated_mem, allocated_disk = metadata.allocated_resources
         total_cpus, total_mem, total_disk = metadata.total_resources
         colored_resources = [
@@ -68,7 +68,7 @@ def _write_agent_details(metadata: InstanceMetadata) -> None:
     sys.stdout.write('\n')
 
 
-def _write_summary(manager: MesosPoolManager) -> None:
+def _write_summary(manager: PoolManager) -> None:
     print('Cluster statistics:')
     total_cpus = manager.get_resource_total('cpus')
     total_mem = humanize.naturalsize(manager.get_resource_total('mem') * 1000000)
@@ -81,7 +81,7 @@ def _write_summary(manager: MesosPoolManager) -> None:
     print(f'\tDisk allocation: {allocated_disk} disk space allocated to tasks, {total_disk} total')
 
 
-def print_status(manager: MesosPoolManager, args) -> None:
+def print_status(manager: PoolManager, args) -> None:
     sys.stdout.write('\n')
     print(f'Current status for the {manager.pool} pool in the {manager.cluster} cluster:\n')
     print(
@@ -95,8 +95,8 @@ def print_status(manager: MesosPoolManager, args) -> None:
         _write_resource_group_line(group)
         for metadata in instance_metadatas:
             if (metadata.group_id != group.id or
-                    (args.only_orphans and metadata.mesos_state != MesosAgentState.ORPHANED) or
-                    (args.only_idle and metadata.mesos_state != MesosAgentState.IDLE)):
+                    (args.only_orphans and metadata.mesos_state != AgentState.ORPHANED) or
+                    (args.only_idle and metadata.mesos_state != AgentState.IDLE)):
                 continue
             _write_agent_details(metadata)
 
@@ -107,7 +107,7 @@ def print_status(manager: MesosPoolManager, args) -> None:
 
 
 def main(args):  # pragma: no cover
-    manager = MesosPoolManager(args.cluster, args.pool)
+    manager = PoolManager(args.cluster, args.pool)
     print_status(manager, args)
 
 

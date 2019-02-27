@@ -15,9 +15,10 @@ from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 from clusterman.autoscaler.config import get_autoscaling_config
 from clusterman.autoscaler.signals import Signal
 from clusterman.autoscaler.signals import SignalResponseDict
+from clusterman.aws.aws_pool_manager import AWSPoolManager
 from clusterman.config import POOL_NAMESPACE
 from clusterman.exceptions import NoSignalConfiguredException
-from clusterman.mesos.mesos_pool_manager import MesosPoolManager
+from clusterman.interfaces.pool_manager import PoolManager
 from clusterman.util import sensu_checkin
 
 SIGNAL_LOAD_CHECK_NAME = 'signal_configuration_failed'
@@ -33,7 +34,7 @@ class Autoscaler:
         pool: str,
         apps: List[str],
         *,
-        pool_manager: Optional[MesosPoolManager] = None,
+        pool_manager: Optional[PoolManager] = None,
         metrics_client: Optional[ClustermanMetricsBotoClient] = None,
         monitoring_enabled: bool = True,
     ) -> None:
@@ -42,7 +43,7 @@ class Autoscaler:
         :param cluster: the name of the cluster to autoscale
         :param pool: the name of the pool to autoscale
         :param apps: a list of apps running on the pool
-        :param pool_manager: a MesosPoolManager object (used for simulations)
+        :param pool_manager: a PoolManager object (used for simulations)
         :param metrics_client: a ClustermanMetricsBotoClient object (used for simulations)
         :param monitoring_enabled: set to False to disable sensu alerts during scaling
         """
@@ -67,7 +68,7 @@ class Autoscaler:
             )
 
         self.autoscaling_config = get_autoscaling_config(POOL_NAMESPACE.format(pool=self.pool))
-        self.mesos_pool_manager = pool_manager or MesosPoolManager(self.cluster, self.pool)
+        self.pool_manager = pool_manager or AWSPoolManager(self.cluster, self.pool)
 
         self.mesos_region = staticconf.read_string('aws.region')
         self.metrics_client = metrics_client or ClustermanMetricsBotoClient(self.mesos_region)
@@ -106,13 +107,13 @@ class Autoscaler:
             exception, tb = e, traceback.format_exc()
 
         logger.info(f'Signal {signal_name} requested {resource_request}')
-        self.mesos_pool_manager.reload_state()
+        self.pool_manager.reload_state()
         new_target_capacity = self._compute_target_capacity(resource_request)
 
         self.target_capacity_gauge.set(new_target_capacity, {'dry_run': dry_run})
         self._emit_requested_resource_metrics(resource_request, dry_run=dry_run)
 
-        self.mesos_pool_manager.modify_target_capacity(new_target_capacity, dry_run=dry_run)
+        self.pool_manager.modify_target_capacity(new_target_capacity, dry_run=dry_run)
 
         if exception:
             logger.error(f'The client signal failed with:\n{tb}')
@@ -163,8 +164,8 @@ class Autoscaler:
         :param resource_request: a resource_request object from the signal evaluation
         :returns: the new target capacity we should scale to
         """
-        current_target_capacity = self.mesos_pool_manager.target_capacity
-        non_orphan_fulfilled_capacity = self.mesos_pool_manager.non_orphan_fulfilled_capacity
+        current_target_capacity = self.pool_manager.target_capacity
+        non_orphan_fulfilled_capacity = self.pool_manager.non_orphan_fulfilled_capacity
         logger.info(f'Currently at target_capacity of {current_target_capacity}')
 
         if all(requested_quantity is None for requested_quantity in resource_request.values()):
@@ -247,7 +248,7 @@ class Autoscaler:
             if resource not in resource_request or resource_request[resource] is None:
                 continue
 
-            resource_total = self.mesos_pool_manager.get_resource_total(resource)
+            resource_total = self.pool_manager.get_resource_total(resource)
             # mypy isn't smart enough to see resource_request[resource] can't be None here
             requested_resource_usage_pcts[resource] = resource_request[resource] / resource_total  # type: ignore
         return max(requested_resource_usage_pcts.items(), key=lambda x: x[1])

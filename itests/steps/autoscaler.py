@@ -6,8 +6,8 @@ from hamcrest import contains
 
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.autoscaler.signals import ACK
+from clusterman.aws.aws_pool_manager import AWSPoolManager
 from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
-from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from itests.environment import boto_patches
 
 
@@ -26,15 +26,15 @@ def autoscaler_patches(context):
         'clusterman.mesos.util.SpotFleetResourceGroup.load',
         return_value={rg1.id: rg1, rg2.id: rg2},
     ), mock.patch(
-        'clusterman.mesos.mesos_pool_manager.MesosPoolManager',
-        wraps=MesosPoolManager,
+        'clusterman.aws.aws_pool_manager.AWSPoolManager',
+        wraps=AWSPoolManager,
     ), mock.patch(
-        'clusterman.autoscaler.autoscaler.MesosPoolManager.prune_excess_fulfilled_capacity',
+        'clusterman.autoscaler.autoscaler.AWSPoolManager.prune_excess_fulfilled_capacity',
     ), mock.patch(
-        'clusterman.autoscaler.autoscaler.MesosPoolManager.get_resource_total',
+        'clusterman.autoscaler.autoscaler.AWSPoolManager.get_resource_total',
         side_effect=resource_totals.__getitem__,
     ), mock.patch(
-        'clusterman.autoscaler.autoscaler.MesosPoolManager._calculate_non_orphan_fulfilled_capacity',
+        'clusterman.autoscaler.autoscaler.AWSPoolManager._calculate_non_orphan_fulfilled_capacity',
         return_value=20,
     ), mock.patch(
         'clusterman.autoscaler.signals.Signal._connect_to_signal_process',
@@ -58,7 +58,7 @@ def autoscaler(context):
 
 @behave.when('the pool is empty')
 def empty_pool(context):
-    manager = context.autoscaler.mesos_pool_manager
+    manager = context.autoscaler.pool_manager
     groups = list(manager.resource_groups.values())
     groups[0].target_capacity = 0
     groups[1].target_capacity = 0
@@ -83,7 +83,7 @@ def signal_resource_request(context, value):
 
 @behave.then('the autoscaler should scale rg(?P<rg>[12]) to (?P<target>\d+) capacity')
 def rg_capacity_change(context, rg, target):
-    groups = list(context.autoscaler.mesos_pool_manager.resource_groups.values())
+    groups = list(context.autoscaler.pool_manager.resource_groups.values())
     assert_that(
         groups[int(rg) - 1].modify_target_capacity.call_args_list,
         contains(

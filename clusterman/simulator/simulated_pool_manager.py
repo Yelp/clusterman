@@ -6,13 +6,13 @@ from typing import Sequence
 
 import staticconf
 
+from clusterman.aws.aws_pool_manager import AWSPoolManager
 from clusterman.config import POOL_NAMESPACE
-from clusterman.mesos.mesos_pool_manager import InstanceMetadata
-from clusterman.mesos.mesos_pool_manager import MesosPoolManager
+from clusterman.interfaces.pool_manager import AgentState
+from clusterman.interfaces.pool_manager import InstanceMetadata
 from clusterman.mesos.util import agent_pid_to_ip
 from clusterman.mesos.util import allocated_agent_resources
 from clusterman.mesos.util import MesosAgentDict
-from clusterman.mesos.util import MesosAgentState
 from clusterman.mesos.util import total_agent_resources
 from clusterman.simulator.simulated_aws_cluster import SimulatedAWSCluster
 from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSpotFleetResourceGroup
@@ -36,7 +36,7 @@ def _make_agent(instance):
     }
 
 
-class SimulatedMesosPoolManager(MesosPoolManager):
+class SimulatedPoolManager(AWSPoolManager):
 
     def __init__(self, cluster, pool, configs, simulator):
         self.draining_enabled = False
@@ -76,10 +76,10 @@ class SimulatedMesosPoolManager(MesosPoolManager):
                     instance_ip=instance.ip_address,
                     is_resource_group_stale=group.is_stale,
                     market=instance.market,
-                    mesos_state=(
-                        MesosAgentState.ORPHANED
+                    state=(
+                        AgentState.ORPHANED
                         if self.simulator.current_time < instance.join_time
-                        else MesosAgentState.RUNNING
+                        else AgentState.RUNNING
                     ),
                     task_count=0,  # CLUSTERMAN-145
                     batch_task_count=0,

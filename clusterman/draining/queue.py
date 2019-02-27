@@ -26,8 +26,8 @@ from clusterman.draining.mesos import down
 from clusterman.draining.mesos import drain
 from clusterman.draining.mesos import operator_api
 from clusterman.draining.mesos import up
+from clusterman.interfaces.pool_manager import InstanceMetadata
 from clusterman.mesos.util import get_pool_name_list
-from clusterman.mesos.util import InstanceMetadata
 from clusterman.mesos.util import RESOURCE_GROUPS
 from clusterman.mesos.util import RESOURCE_GROUPS_REV
 

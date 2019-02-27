@@ -5,7 +5,7 @@ from clusterman.aws.markets import get_market_resources
 from clusterman.aws.markets import InstanceMarket
 from clusterman.mesos.util import get_total_resource_value
 from clusterman.simulator.simulated_aws_cluster import Instance
-from clusterman.simulator.simulated_mesos_pool_manager import SimulatedMesosPoolManager
+from clusterman.simulator.simulated_pool_manager import SimulatedPoolManager
 from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSpotFleetResourceGroup
 
 
@@ -30,7 +30,7 @@ def mock_ssfrg(ssfrg_config):
 
 @pytest.fixture
 def mock_pool_manager(mock_ssfrg, simulator):
-    pool_manager = SimulatedMesosPoolManager('foo', 'bar', [], simulator)
+    pool_manager = SimulatedPoolManager('foo', 'bar', [], simulator)
     pool_manager.resource_groups = {'rg1': mock_ssfrg}
     return pool_manager
 

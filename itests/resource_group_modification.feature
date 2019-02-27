@@ -1,7 +1,7 @@
 Feature: make sure the MesosPoolManager is requesting the right capacities
 
     Scenario Outline: initialization at minimum capacity
-        Given a mesos pool manager with 5 <rg_type> resource groups
+        Given a pool manager with 5 <rg_type> resource groups
          Then the resource groups should be at minimum capacity
 
       Examples:
@@ -10,7 +10,7 @@ Feature: make sure the MesosPoolManager is requesting the right capacities
         | sfr     |
 
     Scenario Outline: balanced scale-up
-        Given a mesos pool manager with 5 <rg_type> resource groups
+        Given a pool manager with 5 <rg_type> resource groups
          When we request 53 capacity
          Then the resource groups should have evenly-balanced capacity
 
@@ -20,7 +20,7 @@ Feature: make sure the MesosPoolManager is requesting the right capacities
         | sfr     |
 
     Scenario Outline: balanced scale-up with dry-run
-        Given a mesos pool manager with 5 <rg_type> resource groups
+        Given a pool manager with 5 <rg_type> resource groups
          When we request 53 capacity and dry-run is active
          Then the resource group capacities should not change
 
@@ -30,7 +30,7 @@ Feature: make sure the MesosPoolManager is requesting the right capacities
         | sfr     |
 
     Scenario Outline: balanced scale-up after external modification
-        Given a mesos pool manager with 5 <rg_type> resource groups
+        Given a pool manager with 5 <rg_type> resource groups
           And the fulfilled capacity of resource group 1 is 13
          When we request 76 capacity
          Then the resource groups should have evenly-balanced capacity
@@ -41,7 +41,7 @@ Feature: make sure the MesosPoolManager is requesting the right capacities
         | sfr     |
 
     Scenario Outline: imbalanced scale-up
-        Given a mesos pool manager with 5 <rg_type> resource groups
+        Given a pool manager with 5 <rg_type> resource groups
           And the fulfilled capacity of resource group 1 is 30
          When we request 1000 capacity
          Then the first resource group's capacity should not change
@@ -53,7 +53,7 @@ Feature: make sure the MesosPoolManager is requesting the right capacities
         | sfr     |
 
     Scenario Outline: balanced scale-down
-        Given a mesos pool manager with 5 <rg_type> resource groups
+        Given a pool manager with 5 <rg_type> resource groups
           And we request 1000 capacity
          When we request 80 capacity
          Then the resource groups should have evenly-balanced capacity
@@ -64,7 +64,7 @@ Feature: make sure the MesosPoolManager is requesting the right capacities
         | sfr     |
 
     Scenario Outline: balanced scale-down with dry-run
-        Given a mesos pool manager with 5 <rg_type> resource groups
+        Given a pool manager with 5 <rg_type> resource groups
           And we request 1000 capacity
          When we request 80 capacity and dry-run is active
          Then the resource group capacities should not change
@@ -75,7 +75,7 @@ Feature: make sure the MesosPoolManager is requesting the right capacities
         | sfr     |
 
     Scenario Outline: imbalanced scale-down
-        Given a mesos pool manager with 5 <rg_type> resource groups
+        Given a pool manager with 5 <rg_type> resource groups
           And we request 1000 capacity
           And the fulfilled capacity of resource group 1 is 1
          When we request 22 capacity

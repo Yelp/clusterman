@@ -36,7 +36,7 @@ def test_get_target_capacity_value_invalid():
 
 @mock.patch('clusterman.mesos.manage.logger')
 @mock.patch('clusterman.mesos.manage.ask_for_confirmation')
-@mock.patch('clusterman.mesos.manage.MesosPoolManager')
+@mock.patch('clusterman.mesos.manage.AWSPoolManager')
 @mock.patch('clusterman.mesos.manage.get_target_capacity_value')
 @mock.patch('clusterman.mesos.manage.log_to_scribe')
 class TestMain:

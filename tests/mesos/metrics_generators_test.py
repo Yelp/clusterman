@@ -1,7 +1,7 @@
 import mock
 import pytest
 
-from clusterman.mesos.mesos_pool_manager import MesosPoolManager
+from clusterman.aws.aws_pool_manager import AWSPoolManager
 from clusterman.mesos.metrics_generators import ClusterMetric
 from clusterman.mesos.metrics_generators import generate_framework_metadata
 from clusterman.mesos.metrics_generators import generate_simple_metadata
@@ -10,10 +10,11 @@ from clusterman.mesos.metrics_generators import generate_system_metrics
 
 @pytest.fixture
 def mock_pool_manager():
-    mock_pool_manager = mock.Mock(spec=MesosPoolManager)
+    mock_pool_manager = mock.Mock(spec=AWSPoolManager)
     mock_pool_manager.cluster = 'mesos-test'
     mock_pool_manager.pool = 'bar'
     return mock_pool_manager
+    return mock.Mock(spec=AWSPoolManager)
 
 
 def test_generate_system_metrics(mock_pool_manager):

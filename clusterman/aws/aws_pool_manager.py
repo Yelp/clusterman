@@ -23,16 +23,17 @@ from clusterman.aws.markets import InstanceMarket
 from clusterman.config import POOL_NAMESPACE
 from clusterman.draining.queue import DrainingClient
 from clusterman.exceptions import AllResourceGroupsAreStaleError
-from clusterman.exceptions import MesosPoolManagerError
+from clusterman.exceptions import PoolManagerError
 from clusterman.exceptions import ResourceGroupError
+from clusterman.interfaces.pool_manager import AgentState
+from clusterman.interfaces.pool_manager import InstanceMetadata
+from clusterman.interfaces.pool_manager import PoolManager
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
 from clusterman.mesos.util import agent_pid_to_ip
 from clusterman.mesos.util import allocated_agent_resources
 from clusterman.mesos.util import get_total_resource_value
-from clusterman.mesos.util import InstanceMetadata
 from clusterman.mesos.util import mesos_post
 from clusterman.mesos.util import MesosAgentDict
-from clusterman.mesos.util import MesosAgentState
 from clusterman.mesos.util import RESOURCE_GROUPS
 from clusterman.mesos.util import total_agent_resources
 from clusterman.util import read_int_or_inf
@@ -44,20 +45,7 @@ RESOURCE_GROUP_MODIFICATION_FAILED_NAME = 'clusterman.resource_group_modificatio
 logger = colorlog.getLogger(__name__)
 
 
-class MesosPoolManager:
-    """ The ``MesosPoolManager`` object provides a consistent interface to the infrastructure that underpins a particular
-    Mesos pool.  Specifically, it allows users to interact with the Mesos master (querying the number of agents in the
-    cluster, and what resources are available/allocated, for example) as well as to modify the capacity available to the
-    Mesos pool.  Since many different types of hosts may be present in a Mesos cluster, this object refers to a list of
-    abstract :py:class:`.ResourceGroup` objects to modify the underlying infrastructure.
-
-    One major assumption the ``MesosPoolManager`` makes currently is that the underlying infrastructure for a particular
-    pool belongs completely to that pool; in other words, at present no pools are co-located on the same physical
-    hardware.  This assumption is subject to change in the future.
-
-    .. note:: Values returned from ``MesosPoolManager`` functions may be cached to limit requests made to the Mesos
-       masters or AWS API endpoints.
-    """
+class AWSPoolManager(PoolManager):
 
     def __init__(self, cluster: str, pool: str, *, fetch_state: bool = True) -> None:
         self.cluster = cluster
@@ -115,7 +103,7 @@ class MesosPoolManager:
         if dry_run:
             logger.warn('Running in "dry-run" mode; cluster state will not be modified')
         if not self.resource_groups:
-            raise MesosPoolManagerError('No resource groups available')
+            raise PoolManagerError('No resource groups available')
 
         orig_target_capacity = self.target_capacity
         new_target_capacity = self._constrain_target_capacity(new_target_capacity, force)
@@ -204,7 +192,7 @@ class MesosPoolManager:
                     instance_ip=instance_ip,
                     is_resource_group_stale=group.is_stale,
                     market=instance_market,
-                    mesos_state=self._get_mesos_agent_state(instance_ip, agent),
+                    state=self._get_mesos_agent_state(instance_ip, agent),
                     task_count=instance_id_to_task_count[agent['id']] if agent else 0,
                     batch_task_count=instance_id_to_batch_task_count[agent['id']] if agent else 0,
                     total_resources=total_agent_resources(agent),
@@ -371,7 +359,7 @@ class MesosPoolManager:
                 )
                 continue
 
-            if instance.mesos_state != MesosAgentState.ORPHANED:
+            if instance.state != AgentState.ORPHANED:
                 if (remaining_non_orphan_capacity - instance.weight < new_target_capacity):  # case 3
                     logger.info(
                         f'Killing instance {instance.instance_id} with weight {instance.weight} would take us under '
@@ -384,7 +372,7 @@ class MesosPoolManager:
             rem_group_capacities[instance.group_id] -= instance.weight
             curr_capacity -= instance.weight
             killed_task_count += instance.task_count
-            if instance.mesos_state != MesosAgentState.ORPHANED:
+            if instance.state != AgentState.ORPHANED:
                 remaining_non_orphan_capacity -= instance.weight
 
             if curr_capacity <= new_target_capacity:
@@ -473,7 +461,7 @@ class MesosPoolManager:
         return self._prioritize_killable_instances(killable_instances)
 
     def _is_instance_killable(self, metadata: InstanceMetadata) -> bool:
-        if metadata.mesos_state == MesosAgentState.UNKNOWN:
+        if metadata.state == AgentState.UNKNOWN:
             return False
         elif self.max_tasks_to_kill > metadata.task_count:
             return True
@@ -484,8 +472,8 @@ class MesosPoolManager:
         """Returns killable_instances sorted with most-killable things first."""
         def sort_key(killable_instance: InstanceMetadata) -> Tuple[int, int, int, int, int]:
             return (
-                0 if killable_instance.mesos_state == MesosAgentState.ORPHANED else 1,
-                0 if killable_instance.mesos_state == MesosAgentState.IDLE else 1,
+                0 if killable_instance.state == AgentState.ORPHANED else 1,
+                0 if killable_instance.state == AgentState.IDLE else 1,
                 0 if killable_instance.is_resource_group_stale else 1,
                 killable_instance.batch_task_count,
                 killable_instance.task_count,
@@ -495,15 +483,15 @@ class MesosPoolManager:
             key=sort_key,
         )
 
-    def _get_mesos_agent_state(self, instance_ip: Optional[str], agent: Optional[MesosAgentDict]) -> MesosAgentState:
+    def _get_mesos_agent_state(self, instance_ip: Optional[str], agent: Optional[MesosAgentDict]) -> AgentState:
         if not instance_ip:
-            return MesosAgentState.UNKNOWN
+            return AgentState.UNKNOWN
         elif not agent:
-            return MesosAgentState.ORPHANED
+            return AgentState.ORPHANED
         elif allocated_agent_resources(agent)[0] == 0:
-            return MesosAgentState.IDLE
+            return AgentState.IDLE
         else:
-            return MesosAgentState.RUNNING
+            return AgentState.RUNNING
 
     def _count_tasks_per_mesos_agent(self) -> MutableMapping[str, int]:
         """Given a list of mesos tasks, return a count of tasks per agent"""
@@ -558,7 +546,7 @@ class MesosPoolManager:
     def _calculate_non_orphan_fulfilled_capacity(self) -> float:
         return sum(
             metadata.weight for metadata in self.get_instance_metadatas(AWS_RUNNING_STATES)
-            if metadata.mesos_state not in (MesosAgentState.ORPHANED, MesosAgentState.UNKNOWN)
+            if metadata.state not in (AgentState.ORPHANED, AgentState.UNKNOWN)
         )
 
     # TODO (CLUSTERMAN-278): fetch this in reload_state

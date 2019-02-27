@@ -1,12 +1,9 @@
-import enum
 import os
 import re
 from typing import Mapping
-from typing import NamedTuple
 from typing import Optional
 from typing import Type
 
-import arrow
 import colorlog
 import requests
 import staticconf
@@ -16,13 +13,12 @@ from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 from clusterman.aws.auto_scaling_resource_group import AutoScalingResourceGroup
 from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.ec2_fleet_resource_group import EC2FleetResourceGroup
-from clusterman.aws.markets import InstanceMarket
 from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
 from clusterman.config import get_cluster_config_directory
-from clusterman.exceptions import MesosPoolManagerError
+from clusterman.exceptions import PoolManagerError
+from clusterman.interfaces.pool_manager import ClustermanResources
 
 logger = colorlog.getLogger(__name__)
-MesosResources = NamedTuple('MesosResources', [('cpus', float), ('mem', float), ('disk', float)])
 MesosAgentDict = TypedDict(
     'MesosAgentDict',
     {
@@ -44,30 +40,6 @@ RESOURCE_GROUPS_REV: Mapping[
     Type[AWSResourceGroup],
     str
 ] = {v: k for k, v in RESOURCE_GROUPS.items()}
-
-
-class MesosAgentState(enum.Enum):
-    IDLE = 'idle'
-    ORPHANED = 'orphaned'
-    RUNNING = 'running'
-    UNKNOWN = 'unknown'
-
-
-class InstanceMetadata(NamedTuple):
-    hostname: str
-    allocated_resources: MesosResources
-    aws_state: str
-    group_id: str
-    instance_id: str
-    instance_ip: Optional[str]
-    is_resource_group_stale: bool
-    market: InstanceMarket
-    mesos_state: MesosAgentState
-    batch_task_count: int
-    task_count: int
-    total_resources: MesosResources
-    uptime: arrow.Arrow
-    weight: float
 
 
 def agent_pid_to_ip(slave_pid):
@@ -99,20 +71,20 @@ def get_total_resource_value(agents, value_name, resource_name):
     )
 
 
-def allocated_agent_resources(agent: Optional[MesosAgentDict]) -> MesosResources:
-    return MesosResources(
+def allocated_agent_resources(agent: Optional[MesosAgentDict]) -> ClustermanResources:
+    return ClustermanResources(
         get_resource_value(agent.get('used_resources', {}), 'cpus'),
         get_resource_value(agent.get('used_resources', {}), 'mem'),
         get_resource_value(agent.get('used_resources', {}), 'disk'),
-    ) if agent else MesosResources(0, 0, 0)
+    ) if agent else ClustermanResources(0, 0, 0)
 
 
-def total_agent_resources(agent: Optional[MesosAgentDict]) -> MesosResources:
-    return MesosResources(
+def total_agent_resources(agent: Optional[MesosAgentDict]) -> ClustermanResources:
+    return ClustermanResources(
         get_resource_value(agent.get('resources', {}), 'cpus'),
         get_resource_value(agent.get('resources', {}), 'mem'),
         get_resource_value(agent.get('resources', {}), 'disk'),
-    ) if agent else MesosResources(0, 0, 0)
+    ) if agent else ClustermanResources(0, 0, 0)
 
 
 def mesos_post(url, endpoint):
@@ -137,7 +109,7 @@ def mesos_post(url, endpoint):
                 f'Response Text: {response.text}\n'
             )
         logger.critical(log_message)
-        raise MesosPoolManagerError(f'Mesos master unreachable: check the logs for details') from e
+        raise PoolManagerError(f'Mesos master unreachable: check the logs for details') from e
 
     return response
 

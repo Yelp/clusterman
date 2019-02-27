@@ -37,7 +37,7 @@ def mock_watcher():
 
 @pytest.fixture(autouse=True)
 def mock_pool_manager():
-    with mock.patch('clusterman.batch.autoscaler.MesosPoolManager', autospec=True):
+    with mock.patch('clusterman.batch.autoscaler.AWSPoolManager', autospec=True):
         yield
 
 
