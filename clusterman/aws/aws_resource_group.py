@@ -5,15 +5,19 @@ from typing import Any
 from typing import List
 from typing import Mapping
 from typing import Sequence
+from typing import Type
 
 import colorlog
 import simplejson as json
 from cached_property import timed_cached_property
 
+from clusterman.aws.auto_scaling_resource_group import AutoScalingResourceGroup
 from clusterman.aws.client import ec2
 from clusterman.aws.client import ec2_describe_instances
+from clusterman.aws.ec2_fleet_resource_group import EC2FleetResourceGroup
 from clusterman.aws.markets import get_instance_market
 from clusterman.aws.markets import InstanceMarket
+from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
 from clusterman.interfaces.resource_group import ResourceGroup
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
 
@@ -155,3 +159,17 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
     @classmethod
     def _get_resource_group_tags(cls) -> Mapping[str, Mapping[str, str]]:  # pragma: no cover
         return {}
+
+
+RESOURCE_GROUPS: Mapping[
+    str,
+    Type[AWSResourceGroup]
+] = {
+    'asg': AutoScalingResourceGroup,
+    'fleet': EC2FleetResourceGroup,
+    'sfr': SpotFleetResourceGroup,
+}
+RESOURCE_GROUPS_REV: Mapping[
+    Type[AWSResourceGroup],
+    str
+] = {v: k for k, v in RESOURCE_GROUPS.items()}

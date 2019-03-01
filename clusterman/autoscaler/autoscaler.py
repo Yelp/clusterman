@@ -248,7 +248,7 @@ class Autoscaler:
             if resource not in resource_request or resource_request[resource] is None:
                 continue
 
-            resource_total = self.pool_manager.get_resource_total(resource)
+            resource_total = self.pool_manager.connector.get_resource_total(resource)
             # mypy isn't smart enough to see resource_request[resource] can't be None here
             requested_resource_usage_pcts[resource] = resource_request[resource] / resource_total  # type: ignore
         return max(requested_resource_usage_pcts.items(), key=lambda x: x[1])

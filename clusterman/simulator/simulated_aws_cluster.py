@@ -69,10 +69,11 @@ class SimulatedAWSCluster:
         self.instances.update({instance.id: instance for instance in added_instances})
         return added_instances, removed_instances
 
-    def terminate_instances_by_id(self, ids):
+    def terminate_instances_by_id(self, ids, batch_size=-1):
         """ Terminate instance in the ids list
 
         :param ids: a list of IDs to be terminated
+        :param batch_size: unused, needed for inheritance compatibility
         """
         for terminate_id in ids:
             instance = self.instances[terminate_id]

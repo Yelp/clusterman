@@ -1,93 +1,53 @@
 import os
 import re
-from typing import Mapping
-from typing import Optional
-from typing import Type
 
 import colorlog
 import requests
 import staticconf
-from mypy_extensions import TypedDict
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
-from clusterman.aws.auto_scaling_resource_group import AutoScalingResourceGroup
-from clusterman.aws.aws_resource_group import AWSResourceGroup
-from clusterman.aws.ec2_fleet_resource_group import EC2FleetResourceGroup
-from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
 from clusterman.config import get_cluster_config_directory
 from clusterman.exceptions import PoolManagerError
-from clusterman.interfaces.pool_manager import ClustermanResources
+from clusterman.interfaces.cluster_connector import ClustermanResources
+from clusterman.mesos.mesos_cluster_connector import MesosAgentDict
 
 logger = colorlog.getLogger(__name__)
-MesosAgentDict = TypedDict(
-    'MesosAgentDict',
-    {
-        'id': str,
-        'used_resources': dict,
-        'resources': dict,
-        'hostname': str,
-    },
-)
-RESOURCE_GROUPS: Mapping[
-    str,
-    Type[AWSResourceGroup]
-] = {
-    'asg': AutoScalingResourceGroup,
-    'fleet': EC2FleetResourceGroup,
-    'sfr': SpotFleetResourceGroup,
-}
-RESOURCE_GROUPS_REV: Mapping[
-    Type[AWSResourceGroup],
-    str
-] = {v: k for k, v in RESOURCE_GROUPS.items()}
 
 
-def agent_pid_to_ip(slave_pid):
+def agent_pid_to_ip(agent_pid: str) -> str:
     """Convert the agent PID from Mesos into an IP address
 
     :param: agent pid (this is in the format 'slave(1)@10.40.31.172:5051')
     :returns: ip address
     """
-    regex = re.compile(r'.+?@([\d\.]+):\d+')
-    return regex.match(slave_pid).group(1)
+    m = re.match(r'.+?@([\d\.]+):\d+', agent_pid)
+    assert m
+    return m.group(1)
 
 
-def get_resource_value(resources, resource_name):
-    """Helper to get the value of the given resource, from a list of resources returned by Mesos."""
-    return resources.get(resource_name, 0)
-
-
-def get_total_resource_value(agents, value_name, resource_name):
-    """
-    Get the total value of a resource type from the list of agents.
-
-    :param agents: list of agents from Mesos
-    :param value_name: desired resource value (e.g. total_resources, allocated_resources)
-    :param resource_name: name of resource recognized by Mesos (e.g. cpus, memory, disk)
-    """
-    return sum(
-        get_resource_value(agent.get(value_name, {}), resource_name)
-        for agent in agents
+def allocated_agent_resources(agent_dict: MesosAgentDict) -> ClustermanResources:
+    used_resources = agent_dict.get('used_resources', {})
+    return ClustermanResources(
+        cpus=used_resources.get('cpus', 0),
+        mem=used_resources.get('mem', 0),
+        disk=used_resources.get('disk', 0),
     )
 
 
-def allocated_agent_resources(agent: Optional[MesosAgentDict]) -> ClustermanResources:
-    return ClustermanResources(
-        get_resource_value(agent.get('used_resources', {}), 'cpus'),
-        get_resource_value(agent.get('used_resources', {}), 'mem'),
-        get_resource_value(agent.get('used_resources', {}), 'disk'),
-    ) if agent else ClustermanResources(0, 0, 0)
+def get_cluster_name_list(config_namespace=DEFAULT_NAMESPACE):
+    namespace = staticconf.config.get_namespace(config_namespace)
+    return namespace.get_config_dict().get('mesos_clusters', {}).keys()
 
 
-def total_agent_resources(agent: Optional[MesosAgentDict]) -> ClustermanResources:
-    return ClustermanResources(
-        get_resource_value(agent.get('resources', {}), 'cpus'),
-        get_resource_value(agent.get('resources', {}), 'mem'),
-        get_resource_value(agent.get('resources', {}), 'disk'),
-    ) if agent else ClustermanResources(0, 0, 0)
+def get_pool_name_list(cluster_name):
+    cluster_config_directory = get_cluster_config_directory(cluster_name)
+    return [
+        f[:-5] for f in os.listdir(cluster_config_directory)
+        if f[0] != '.' and f[-5:] == '.yaml'  # skip dotfiles and only read yaml-files
+    ]
 
 
-def mesos_post(url, endpoint):
+def mesos_post(url: str, endpoint: str) -> requests.Response:
     master_url = url if endpoint == 'redirect' else mesos_post(url, 'redirect').url + '/'
     request_url = master_url + endpoint
     response = None
@@ -114,14 +74,10 @@ def mesos_post(url, endpoint):
     return response
 
 
-def get_cluster_name_list(config_namespace=DEFAULT_NAMESPACE):
-    namespace = staticconf.config.get_namespace(config_namespace)
-    return namespace.get_config_dict().get('mesos_clusters', {}).keys()
-
-
-def get_pool_name_list(cluster_name):
-    cluster_config_directory = get_cluster_config_directory(cluster_name)
-    return [
-        f[:-5] for f in os.listdir(cluster_config_directory)
-        if f[0] != '.' and f[-5:] == '.yaml'  # skip dotfiles and only read yaml-files
-    ]
+def total_agent_resources(agent: MesosAgentDict) -> ClustermanResources:
+    resources = agent.get('resources', {})
+    return ClustermanResources(
+        cpus=resources.get('cpus', 0),
+        mem=resources.get('mem', 0),
+        disk=resources.get('disk', 0),
+    )

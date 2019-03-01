@@ -1,4 +1,3 @@
-import enum
 from abc import ABCMeta
 from abc import abstractmethod
 from abc import abstractproperty
@@ -12,31 +11,20 @@ from typing import Sequence
 import arrow
 
 from clusterman.aws.markets import InstanceMarket
+from clusterman.interfaces.cluster_connector import Agent
+from clusterman.interfaces.cluster_connector import ClusterConnector
 from clusterman.interfaces.resource_group import ResourceGroup
-
-ClustermanResources = NamedTuple('ClustermanResources', [('cpus', float), ('mem', float), ('disk', float)])
-
-
-class AgentState(enum.Enum):
-    IDLE = 'idle'
-    ORPHANED = 'orphaned'
-    RUNNING = 'running'
-    UNKNOWN = 'unknown'
 
 
 class InstanceMetadata(NamedTuple):
-    hostname: str
-    allocated_resources: ClustermanResources
-    aws_state: str
+    agent: Agent
     group_id: str
+    hostname: Optional[str]
     instance_id: str
     instance_ip: Optional[str]
     is_resource_group_stale: bool
     market: InstanceMarket
-    state: AgentState
-    batch_task_count: int
-    task_count: int
-    total_resources: ClustermanResources
+    state: str
     uptime: arrow.Arrow
     weight: float
 
@@ -52,7 +40,10 @@ class PoolManager(metaclass=ABCMeta):
     pool belongs completely to that pool; in other words, at present no pools are co-located on the same physical
     hardware.  This assumption is subject to change in the future.
     """
-    resource_groups: MutableMapping[str, ResourceGroup] = dict()
+    cluster: str
+    pool: str
+    resource_groups: MutableMapping[str, ResourceGroup]
+    connector: ClusterConnector
 
     @abstractmethod
     def __init__(self, cluster: str, pool: str, *, fetch_state: bool = True) -> None:
@@ -117,35 +108,6 @@ class PoolManager(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def get_resource_allocation(self, resource_name: str) -> float:
-        """Get the total amount of the given resource currently allocated for this pool.
-
-        :param resource_name: a resource recognized by Clusterman (e.g. 'cpus', 'mem', 'disk')
-        :returns: the allocated resources in the pool for the specified resource
-        """
-        pass
-
-    @abstractmethod
-    def get_resource_total(self, resource_name: str) -> float:
-        """Get the total amount of the given resource for this pool.
-
-        :param resource_name: a resource recognized by Clusterman (e.g. 'cpus', 'mem', 'disk')
-        :returns: the total resources in the pool for the specified resource
-        """
-        pass
-
-    @abstractmethod
-    def get_percent_resource_allocation(self, resource_name: str) -> float:
-        """Get the overall proportion of the given resource that is in use.
-
-        :param resource_name: a resource recognized by Clusterman (e.g. 'cpus', 'mem', 'disk')
-        :returns: the percentage allocated for the specified resource
-        """
-        total = self.get_resource_total(resource_name)
-        used = self.get_resource_allocation(resource_name)
-        return used / total if total else 0
-
-    @abstractmethod
     def get_market_capacities(
         self,
         market_filter: Optional[Collection[InstanceMarket]] = None
@@ -171,4 +133,8 @@ class PoolManager(metaclass=ABCMeta):
         and state of AWS at the time.  In general, once the cluster has reached equilibrium, the fulfilled capacity will
         be greater than or equal to the target capacity.
         """
+        pass
+
+    @abstractproperty
+    def non_orphan_fulfilled_capacity(self) -> float:
         pass

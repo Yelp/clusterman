@@ -1,6 +1,6 @@
+import uuid
 from typing import cast
 from typing import Collection
-from typing import Dict
 from typing import Optional
 from typing import Sequence
 
@@ -8,32 +8,29 @@ import staticconf
 
 from clusterman.aws.aws_pool_manager import AWSPoolManager
 from clusterman.config import POOL_NAMESPACE
-from clusterman.interfaces.pool_manager import AgentState
+from clusterman.interfaces.cluster_connector import Agent
+from clusterman.interfaces.cluster_connector import AgentState
+from clusterman.interfaces.cluster_connector import ClustermanResources
 from clusterman.interfaces.pool_manager import InstanceMetadata
-from clusterman.mesos.util import agent_pid_to_ip
-from clusterman.mesos.util import allocated_agent_resources
-from clusterman.mesos.util import MesosAgentDict
-from clusterman.mesos.util import total_agent_resources
 from clusterman.simulator.simulated_aws_cluster import SimulatedAWSCluster
 from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSpotFleetResourceGroup
 from clusterman.util import read_int_or_inf
 
 
-def _make_agent(instance):
-    return {
-        'resources': {
-            'cpus': instance.resources.cpus,
-            'mem': instance.resources.mem * 1000,
-            'disk': (instance.resources.disk or staticconf.read_int('ebs_volume_size', 0)) * 1000,
-        },
-        'used_resources': {
-            # TODO CLUSTERMAN-145 - at some point we should track task start and end time, as well as
-            # resource usage; then we can start simulating allocated resources as well.  But that is a longer
-            # term goal, for right now the simulator just pretends that all agents are idle all the time.
-        },
-        '_aws_instance': instance,
-        'pid': f'agent(1)@{instance.ip_address}:5051',
-    }
+def _make_agent(instance, current_time):
+    return Agent(
+        agent_id=uuid.uuid4(),
+        state=(
+            AgentState.ORPHANED
+            if current_time < instance.join_time
+            else AgentState.RUNNING
+        ),
+        total_resources=ClustermanResources(
+            cpus=instance.resources.cpus,
+            mem=instance.resources.mem * 1000,
+            disk=(instance.resources.disk or staticconf.read_int('ebs_volume_size', 0)) * 1000,
+        )
+    )
 
 
 class SimulatedPoolManager(AWSPoolManager):
@@ -58,55 +55,24 @@ class SimulatedPoolManager(AWSPoolManager):
 
     def get_instance_metadatas(self, aws_state_filter: Optional[Collection[str]] = None) -> Sequence[InstanceMetadata]:
         agent_metadatas = []
-        ip_to_agent: Dict[Optional[str], MesosAgentDict] = {
-            agent_pid_to_ip(agent['pid']): agent for agent in self.agents
-        }
         for group in self.resource_groups.values():
             for instance in cast(SimulatedAWSCluster, group).instances.values():
                 if aws_state_filter and 'running' not in aws_state_filter:
                     continue
 
-                agent = ip_to_agent.get(instance.ip_address)
+                agent = self.connector.get_agent_by_ip(instance.ip_address)
                 metadata = InstanceMetadata(
-                    hostname='host123',
-                    allocated_resources=allocated_agent_resources(agent),
-                    aws_state='running',
+                    agent=agent,
                     group_id=group.id,
+                    hostname=f'{instance.id}.com',
                     instance_id=instance.id,
                     instance_ip=instance.ip_address,
                     is_resource_group_stale=group.is_stale,
                     market=instance.market,
-                    state=(
-                        AgentState.ORPHANED
-                        if self.simulator.current_time < instance.join_time
-                        else AgentState.RUNNING
-                    ),
-                    task_count=0,  # CLUSTERMAN-145
-                    batch_task_count=0,
-                    total_resources=total_agent_resources(agent),
+                    state='running',
                     uptime=(self.simulator.current_time - instance.start_time),
                     weight=group.market_weight(instance.market),
                 )
                 agent_metadatas.append(metadata)
 
         return agent_metadatas
-
-    @property
-    def non_orphan_fulfilled_capacity(self):
-        return self._calculate_non_orphan_fulfilled_capacity()
-
-    @property
-    def agents(self):
-        return [
-            _make_agent(group.instances[instance_id])
-            for group in self.resource_groups.values()
-            for instance_id in group.instances
-        ]
-
-    @property
-    def frameworks(self):
-        return []
-
-    @property
-    def tasks(self):
-        return []

@@ -16,6 +16,8 @@ import staticconf
 from clusterman.args import add_cluster_arg
 from clusterman.args import subparser
 from clusterman.aws.aws_resource_group import AWSResourceGroup
+from clusterman.aws.aws_resource_group import RESOURCE_GROUPS
+from clusterman.aws.aws_resource_group import RESOURCE_GROUPS_REV
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.client import sqs
 from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
@@ -28,8 +30,6 @@ from clusterman.draining.mesos import operator_api
 from clusterman.draining.mesos import up
 from clusterman.interfaces.pool_manager import InstanceMetadata
 from clusterman.mesos.util import get_pool_name_list
-from clusterman.mesos.util import RESOURCE_GROUPS
-from clusterman.mesos.util import RESOURCE_GROUPS_REV
 
 
 logger = colorlog.getLogger(__name__)
