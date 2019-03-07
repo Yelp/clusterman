@@ -1,9 +1,7 @@
 import arrow
 import pytest
 
-from clusterman.aws.markets import get_market_resources
 from clusterman.aws.markets import InstanceMarket
-from clusterman.mesos.util import get_total_resource_value
 from clusterman.simulator.simulated_aws_cluster import Instance
 from clusterman.simulator.simulated_pool_manager import SimulatedPoolManager
 from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSpotFleetResourceGroup
@@ -35,11 +33,11 @@ def mock_pool_manager(mock_ssfrg, simulator):
     return pool_manager
 
 
-def test_simulated_agents(mock_pool_manager):
-    assert len(mock_pool_manager.agents) == 10
-    assert get_total_resource_value(mock_pool_manager.agents, 'resources', 'cpus') == \
-        10 * get_market_resources(TEST_MARKET).cpus
-    assert get_total_resource_value(mock_pool_manager.agents, 'resources', 'mem') == \
-        10 * get_market_resources(TEST_MARKET).mem * 1000
-    assert get_total_resource_value(mock_pool_manager.agents, 'resources', 'disk') == \
-        10 * get_market_resources(TEST_MARKET).disk * 1000
+# def test_simulated_agents(mock_pool_manager):
+#     assert len(mock_pool_manager.agents) == 10
+#     assert get_total_resource_value(mock_pool_manager.agents, 'resources', 'cpus') == \
+#         10 * get_market_resources(TEST_MARKET).cpus
+#     assert get_total_resource_value(mock_pool_manager.agents, 'resources', 'mem') == \
+#         10 * get_market_resources(TEST_MARKET).mem * 1000
+#     assert get_total_resource_value(mock_pool_manager.agents, 'resources', 'disk') == \
+#         10 * get_market_resources(TEST_MARKET).disk * 1000

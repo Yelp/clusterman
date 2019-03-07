@@ -27,7 +27,7 @@ def _write_resource_group_line(group) -> None:
 
 def _write_agent_details(metadata: InstanceMetadata) -> None:
     agent_aws_state = color_conditions(
-        metadata.state,
+        metadata.instance_state,
         green=any_of('running',),
         blue=any_of('pending',),
         red=any_of('shutting-down', 'terminated', 'stopping', 'stopped'),
@@ -38,14 +38,14 @@ def _write_agent_details(metadata: InstanceMetadata) -> None:
     )
 
     agent_mesos_state = color_conditions(
-        metadata.agent.state,
+        metadata.agent.agent_state,
         green=any_of(AgentState.RUNNING,),
         blue=any_of(AgentState.IDLE,),
         red=any_of(AgentState.ORPHANED, AgentState.UNKNOWN),
     )
     sys.stdout.write(f'\t   {agent_mesos_state} ')
 
-    if metadata.agent.state == AgentState.RUNNING:
+    if metadata.agent.agent_state == AgentState.RUNNING:
         allocated_cpus, allocated_mem, allocated_disk = metadata.agent.allocated_resources
         total_cpus, total_mem, total_disk = metadata.agent.total_resources
         colored_resources = [
@@ -95,8 +95,8 @@ def print_status(manager: PoolManager, args) -> None:
         _write_resource_group_line(group)
         for metadata in instance_metadatas:
             if (metadata.group_id != group.id or
-                    (args.only_orphans and metadata.agent.state != AgentState.ORPHANED) or
-                    (args.only_idle and metadata.agent.state != AgentState.IDLE)):
+                    (args.only_orphans and metadata.agent.agent_state != AgentState.ORPHANED) or
+                    (args.only_idle and metadata.agent.agent_state != AgentState.IDLE)):
                 continue
             _write_agent_details(metadata)
 

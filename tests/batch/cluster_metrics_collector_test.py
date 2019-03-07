@@ -49,19 +49,21 @@ def test_configure_initial(mock_ls, mock_mesos_pool_manager, mock_client_class, 
 
 
 def test_write_metrics(batch):
-    batch.mesos_managers = {
-        'pool_A': mock.Mock(spec=AWSPoolManager, pool='pool_A'),
-        'pool_B': mock.Mock(spec=AWSPoolManager, pool='pool_B'),
+    batch.pool_managers = {
+        'pool_A': mock.Mock(autospec=AWSPoolManager, pool='pool_A'),
+        'pool_B': mock.Mock(autospec=AWSPoolManager, pool='pool_B'),
     }
+    batch.pool_managers['pool_A'].connector = mock.Mock()
+    batch.pool_managers['pool_B'].connector = mock.Mock()
     writer = mock.Mock()
 
     def metric_generator(manager):
-        yield ClusterMetric('allocated', manager.get_resource_allocation('cpus'), {'pool': manager.pool})
+        yield ClusterMetric('allocated', manager.connector.get_resource_allocation('cpus'), {'pool': manager.pool})
 
     batch.write_metrics(writer, metric_generator, pools=All)
 
     for pool, manager in batch.pool_managers.items():
-        assert manager.get_resource_allocation.call_args_list == [mock.call('cpus')]
+        assert manager.connector.get_resource_allocation.call_args_list == [mock.call('cpus')]
 
     assert writer.send.call_count == 2
 

@@ -18,16 +18,17 @@ import staticconf
 import yelp_meteorite
 
 from clusterman.aws.aws_resource_group import AWSResourceGroup
-from clusterman.aws.aws_resource_group import RESOURCE_GROUPS
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import get_instance_market
 from clusterman.aws.markets import InstanceMarket
+from clusterman.aws.util import RESOURCE_GROUPS
 from clusterman.config import POOL_NAMESPACE
 from clusterman.draining.queue import DrainingClient
 from clusterman.exceptions import AllResourceGroupsAreStaleError
 from clusterman.exceptions import PoolManagerError
 from clusterman.exceptions import ResourceGroupError
 from clusterman.interfaces.cluster_connector import AgentState
+from clusterman.interfaces.cluster_connector import ClusterConnector
 from clusterman.interfaces.pool_manager import InstanceMetadata
 from clusterman.interfaces.pool_manager import PoolManager
 from clusterman.interfaces.resource_group import ResourceGroup
@@ -42,6 +43,8 @@ logger = colorlog.getLogger(__name__)
 
 
 class AWSPoolManager(PoolManager):
+
+    connector: ClusterConnector
 
     def __init__(self, cluster: str, pool: str, *, fetch_state: bool = True) -> None:
         self.cluster = cluster
@@ -173,9 +176,9 @@ class AWSPoolManager(PoolManager):
                     hostname=hostname,
                     instance_id=instance_dict['InstanceId'],
                     instance_ip=instance_ip,
+                    instance_state=aws_state,
                     is_resource_group_stale=group.is_stale,
                     market=instance_market,
-                    state=aws_state,
                     uptime=(arrow.now() - arrow.get(instance_dict['LaunchTime'])),
                     weight=group.market_weight(instance_market),
                 )
@@ -313,7 +316,7 @@ class AWSPoolManager(PoolManager):
                 )
                 continue
 
-            if metadata.state != AgentState.ORPHANED:
+            if metadata.agent.agent_state != AgentState.ORPHANED:
                 if (remaining_non_orphan_capacity - metadata.weight < new_target_capacity):  # case 3
                     logger.info(
                         f'Killing instance {metadata.instance_id} with weight {metadata.weight} would take us under '
@@ -326,7 +329,7 @@ class AWSPoolManager(PoolManager):
             rem_group_capacities[metadata.group_id] -= metadata.weight
             curr_capacity -= metadata.weight
             killed_task_count += metadata.agent.task_count
-            if metadata.state != AgentState.ORPHANED:
+            if metadata.agent.agent_state != AgentState.ORPHANED:
                 remaining_non_orphan_capacity -= metadata.weight
 
             if curr_capacity <= new_target_capacity:
@@ -415,7 +418,7 @@ class AWSPoolManager(PoolManager):
         return self._prioritize_killable_instances(killable_instances)
 
     def _is_instance_killable(self, metadata: InstanceMetadata) -> bool:
-        if metadata.state == AgentState.UNKNOWN:
+        if metadata.agent.agent_state == AgentState.UNKNOWN:
             return False
         elif self.max_tasks_to_kill > metadata.agent.task_count:
             return True
@@ -426,8 +429,8 @@ class AWSPoolManager(PoolManager):
         """Returns killable_instances sorted with most-killable things first."""
         def sort_key(killable_instance_metadata: InstanceMetadata) -> Tuple[int, int, int, int, int]:
             return (
-                0 if killable_instance_metadata.agent.state == AgentState.ORPHANED else 1,
-                0 if killable_instance_metadata.agent.state == AgentState.IDLE else 1,
+                0 if killable_instance_metadata.agent.agent_state == AgentState.ORPHANED else 1,
+                0 if killable_instance_metadata.agent.agent_state == AgentState.IDLE else 1,
                 0 if killable_instance_metadata.is_resource_group_stale else 1,
                 killable_instance_metadata.agent.batch_task_count,
                 killable_instance_metadata.agent.task_count,
@@ -440,7 +443,7 @@ class AWSPoolManager(PoolManager):
     def _calculate_non_orphan_fulfilled_capacity(self) -> float:
         return sum(
             metadata.weight for metadata in self.get_instance_metadatas(AWS_RUNNING_STATES)
-            if metadata.agent.state not in (AgentState.ORPHANED, AgentState.UNKNOWN)
+            if metadata.agent.agent_state not in (AgentState.ORPHANED, AgentState.UNKNOWN)
         )
 
     @property

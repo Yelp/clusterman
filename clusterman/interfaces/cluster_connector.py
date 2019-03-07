@@ -6,9 +6,9 @@ from typing import Optional
 
 
 class ClustermanResources(NamedTuple):
-    cpus: float = 0
-    mem: float = 0
-    disk: float = 0
+    cpus: float
+    mem: float
+    disk: float
 
 
 class AgentState(enum.Enum):
@@ -19,12 +19,12 @@ class AgentState(enum.Enum):
 
 
 class Agent(NamedTuple):
-    agent_id: str = ''
-    allocated_resources: ClustermanResources = ClustermanResources()
-    batch_task_count: int = 0
-    state: AgentState = AgentState.UNKNOWN
-    task_count: int = 0
-    total_resources: ClustermanResources = ClustermanResources()
+    agent_id: str
+    agent_state: AgentState
+    allocated_resources: ClustermanResources
+    batch_task_count: int
+    task_count: int
+    total_resources: ClustermanResources
 
 
 class ClusterConnector(metaclass=ABCMeta):

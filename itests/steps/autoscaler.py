@@ -23,7 +23,7 @@ def autoscaler_patches(context):
     ), mock.patch(
         'clusterman.autoscaler.autoscaler.yelp_meteorite',
     ), mock.patch(
-        'clusterman.mesos.util.SpotFleetResourceGroup.load',
+        'clusterman.aws.util.SpotFleetResourceGroup.load',
         return_value={rg1.id: rg1, rg2.id: rg2},
     ), mock.patch(
         'clusterman.aws.aws_pool_manager.AWSPoolManager',
@@ -31,16 +31,17 @@ def autoscaler_patches(context):
     ), mock.patch(
         'clusterman.autoscaler.autoscaler.AWSPoolManager.prune_excess_fulfilled_capacity',
     ), mock.patch(
-        'clusterman.autoscaler.autoscaler.AWSPoolManager.get_resource_total',
-        side_effect=resource_totals.__getitem__,
-    ), mock.patch(
+        'clusterman.aws.aws_pool_manager.MesosClusterConnector',
+    ) as mock_cluster_connector, mock.patch(
         'clusterman.autoscaler.autoscaler.AWSPoolManager._calculate_non_orphan_fulfilled_capacity',
         return_value=20,
     ), mock.patch(
         'clusterman.autoscaler.signals.Signal._connect_to_signal_process',
     ), mock.patch(
         'clusterman.autoscaler.autoscaler.Signal._get_metrics',
-    ):
+    ) as mock_metrics:
+        mock_metrics.return_value = {}  # don't know why this is necessary but we get flaky tests if it's not set
+        mock_cluster_connector.return_value.get_resource_total.side_effect = resource_totals.__getitem__
         yield
 
 
@@ -65,8 +66,8 @@ def empty_pool(context):
     groups[0].fulfilled_capacity = 0
     groups[1].fulfilled_capacity = 0
     manager.min_capacity = 0
-    manager.get_resource_total = mock.Mock(return_value=0)
-    manager.non_orphan_fulfilled_capacity = 0
+    manager.connector.get_resource_capacity = mock.Mock(return_value=0)
+    manager._non_orphan_fulfilled_capacity = 0
 
 
 @behave.when('the signal resource request is (?P<value>\d+ cpus|empty)')

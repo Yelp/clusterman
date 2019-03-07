@@ -16,11 +16,11 @@ import staticconf
 from clusterman.args import add_cluster_arg
 from clusterman.args import subparser
 from clusterman.aws.aws_resource_group import AWSResourceGroup
-from clusterman.aws.aws_resource_group import RESOURCE_GROUPS
-from clusterman.aws.aws_resource_group import RESOURCE_GROUPS_REV
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.client import sqs
 from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
+from clusterman.aws.util import RESOURCE_GROUPS
+from clusterman.aws.util import RESOURCE_GROUPS_REV
 from clusterman.config import load_cluster_pool_config
 from clusterman.config import POOL_NAMESPACE
 from clusterman.config import setup_config

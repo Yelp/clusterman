@@ -58,24 +58,28 @@ def killable_instance_with_tasks(context, tasks):
     def get_tasks():
         rg = context.aws_pool_manager.resource_groups[context.rg_ids[0]]
         instances = ec2_describe_instances(instance_ids=rg.instance_ids[:1])
-        return [{'slave_id': instances[0]['InstanceId'], 'state': 'TASK_RUNNING'}] * int(tasks)
+        return [
+            {'slave_id': instances[0]['InstanceId'], 'state': 'TASK_RUNNING', 'framework_id': 'framework_a'}
+        ] * int(tasks)
 
-    with mock.patch(
-        'clusterman.aws.aws_pool_manager.AWSPoolManager.tasks',
-        mock.PropertyMock(side_effect=get_tasks),
-    ):
-        context.aws_pool_manager._count_batch_tasks_per_mesos_agent = mock.Mock(return_value={
-            i['id']: 0 for i in context.aws_pool_manager.agents
-        })
-        context.aws_pool_manager._get_prioritized_killable_instances = mock.Mock(return_value=[
-            context.aws_pool_manager.get_instance_metadatas()[0],
-        ])
+    def get_frameworks():
+        return {'framework_a': {'name': 'framework_a_name'}}
+
+    context.aws_pool_manager.connector._get_tasks.side_effect = get_tasks
+    context.aws_pool_manager.connector._get_frameworks.side_effect = get_frameworks
+    context.aws_pool_manager.connector.reload_state()
+    context.aws_pool_manager._count_batch_tasks_per_mesos_agent = mock.Mock(return_value={
+        i['id']: 0 for i in context.aws_pool_manager.connector._agents.values()
+    })
+    context.aws_pool_manager._get_prioritized_killable_instances = mock.Mock(return_value=[
+        context.aws_pool_manager.get_instance_metadatas()[0],
+    ])
 
 
 @behave.given('the non-orphaned fulfilled capacity is (?P<nofc>\d+)')
 def set_non_orphaned_fulfilled_capacity(context, nofc):
     context.nofc = int(nofc)
-    context.aws_pool_manager.non_orphan_fulfilled_capacity = context.nofc
+    context.aws_pool_manager._non_orphan_fulfilled_capacity = context.nofc
 
 
 @behave.when('we prune excess fulfilled capacity to (?P<target>\d+)')

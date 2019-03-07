@@ -67,9 +67,9 @@ class SimulatedPoolManager(AWSPoolManager):
                     hostname=f'{instance.id}.com',
                     instance_id=instance.id,
                     instance_ip=instance.ip_address,
+                    instance_state='running',
                     is_resource_group_stale=group.is_stale,
                     market=instance.market,
-                    state='running',
                     uptime=(self.simulator.current_time - instance.start_time),
                     weight=group.market_weight(instance.market),
                 )

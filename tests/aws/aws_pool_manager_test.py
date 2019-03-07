@@ -10,29 +10,28 @@ from clusterman.aws.client import ec2
 from clusterman.exceptions import AllResourceGroupsAreStaleError
 from clusterman.exceptions import ResourceGroupError
 from clusterman.exceptions import PoolManagerError
-from clusterman.interfaces.pool_manager import AgentState
+from clusterman.interfaces.cluster_connector import AgentState
 from clusterman.interfaces.pool_manager import InstanceMetadata
 
 
-def _check_metadata(metadata, state, task_count=0, batch_task_count=0):
-    assert metadata.state == state
-    assert metadata.task_count == task_count
-
-
-def _make_metadata(rg_id, instance_id, state=AgentState.RUNNING, is_stale=False, weight=1, tasks=5, batch_tasks=0):
+def _make_metadata(
+    rg_id,
+    instance_id,
+    agent_state=AgentState.RUNNING,
+    is_stale=False,
+    weight=1,
+    tasks=5,
+    batch_tasks=0,
+):
     return InstanceMetadata(
-        allocated_resources=(0, 0, 0) if state in {AgentState.ORPHANED, AgentState.IDLE} else (10, 0, 0),
-        aws_state='running',
+        agent=mock.Mock(task_count=tasks, batch_task_count=batch_tasks, agent_state=agent_state),
         group_id=rg_id,
         hostname='host1',
         instance_id=instance_id,
         instance_ip='1.2.3.4',
+        instance_state='running',
         is_resource_group_stale=is_stale,
         market='market-1',
-        state=state,
-        task_count=0 if state in {AgentState.ORPHANED, AgentState.IDLE} else max(tasks, batch_tasks),
-        batch_task_count=batch_tasks,
-        total_resources=(10, 10, 10),
         uptime=1000,
         weight=weight,
     )
@@ -62,9 +61,13 @@ def mock_pool_manager(mock_resource_groups):
         'clusterman.aws.spot_fleet_resource_group.SpotFleetResourceGroup.load',
         return_value={},
     ), mock.patch(
-        'clusterman.aws.aws_pool_manager.DrainingClient', autospec=True
+        'clusterman.aws.aws_pool_manager.DrainingClient',
+        autospec=True,
     ), mock.patch(
         'clusterman.aws.aws_pool_manager.AWSPoolManager.reload_state'
+    ), mock.patch(
+        'clusterman.aws.aws_pool_manager.MesosClusterConnector',
+        autospec=True,
     ):
         manager = AWSPoolManager('mesos-test', 'bar')
         manager.resource_groups = mock_resource_groups
@@ -73,9 +76,8 @@ def mock_pool_manager(mock_resource_groups):
 
 
 def test_aws_pool_manager_init(mock_pool_manager, mock_resource_groups):
+    assert mock_pool_manager.cluster == 'mesos-test'
     assert mock_pool_manager.pool == 'bar'
-    assert mock_pool_manager.api_endpoint == 'http://the.mesos.leader:5050/'
-
     with staticconf.testing.MockConfiguration(
                 {'scaling_limits':
                     {'max_tasks_to_kill': 'inf',
@@ -168,80 +170,39 @@ def test_get_instance_metadatas(mock_pool_manager):
     mock_pool_manager.resource_groups = {
         'sfr-1': mock.Mock(instance_ids=[i['InstanceId'] for i in reservations['Instances']]),
     }
-    mock_pool_manager._count_batch_tasks_per_mesos_agent = mock.Mock(return_value={
-        reservations['Instances'][1]['InstanceId']: 0,
-        reservations['Instances'][2]['InstanceId']: 0,
-        reservations['Instances'][3]['InstanceId']: 0,
-        reservations['Instances'][4]['InstanceId']: 1,
-    })
-    mock_pool_manager._count_tasks_per_mesos_agent = mock.Mock(return_value={
-        reservations['Instances'][1]['InstanceId']: 0,
-        reservations['Instances'][2]['InstanceId']: 3,
-        reservations['Instances'][3]['InstanceId']: 8,
-        reservations['Instances'][4]['InstanceId']: 1,
-    })
-    with mock.patch(
-        'clusterman.aws.aws_pool_manager.AWSPoolManager.agents',
-        mock.PropertyMock(return_value=[
-            {
-                'pid': f'slave(1)@{reservations["Instances"][1]["PrivateIpAddress"]}:1',
-                'id': f'{reservations["Instances"][1]["InstanceId"]}',
-                'used_resources': {'cpus': 0},
-                'hostname': 'host1',
-            },
-            {
-                'pid': f'slave(1)@{reservations["Instances"][2]["PrivateIpAddress"]}:1',
-                'id': f'{reservations["Instances"][2]["InstanceId"]}',
-                'used_resources': {'cpus': 1},
-                'hostname': 'host2',
-            },
-            {
-                'pid': f'slave(1)@{reservations["Instances"][3]["PrivateIpAddress"]}:1',
-                'id': f'{reservations["Instances"][3]["InstanceId"]}',
-                'used_resources': {'cpus': 1},
-                'hostname': 'host3',
-            },
-            {
-                'pid': f'slave(1)@{reservations["Instances"][4]["PrivateIpAddress"]}:1',
-                'id': f'{reservations["Instances"][4]["InstanceId"]}',
-                'used_resources': {'cpus': 1},
-                'hostname': 'host4',
-            },
-        ]),
-    ):
+    ips = [i['PrivateIpAddress'] for i in reservations['Instances']]
+    with mock.patch('clusterman.aws.aws_pool_manager.gethostbyaddr') as mock_hostname:
+        mock_hostname.side_effect = lambda ip: {ips[i]: (f'host{i}',) for i in range(5)}[ip]
         metadatas = mock_pool_manager.get_instance_metadatas()
         cancelled_metadatas = mock_pool_manager.get_instance_metadatas({'cancelled'})
 
     assert len(metadatas) == 5
     assert len(cancelled_metadatas) == 0
-    _check_metadata(metadatas[0], state=AgentState.ORPHANED)
-    _check_metadata(metadatas[1], state=AgentState.IDLE)
-    _check_metadata(metadatas[2], state=AgentState.RUNNING, task_count=3)
-    _check_metadata(metadatas[3], state=AgentState.RUNNING, task_count=8)
-    _check_metadata(metadatas[4], state=AgentState.RUNNING, task_count=1, batch_task_count=1)
+    for i, metadata in enumerate(metadatas):
+        # Other metadata properties are mocked out
+        assert metadata.hostname == f'host{i}'
+        assert metadata.instance_id == reservations['Instances'][i]['InstanceId']
+        assert metadata.instance_ip == ips[i]
+        assert metadata.instance_state == 'running'
+        assert metadata.market.instance == 't2.nano'
 
 
 def test_get_unknown_instance(mock_pool_manager):
     with mock.patch(
         'clusterman.aws.aws_pool_manager.ec2_describe_instances',
-    ) as mock_describe_instances, mock.patch(
-        'clusterman.aws.aws_pool_manager.AWSPoolManager.tasks', mock.PropertyMock(return_value=[]),
-    ), mock.patch(
-        'clusterman.aws.aws_pool_manager.AWSPoolManager.agents', mock.PropertyMock(return_value=[]),
-    ):
-        mock_pool_manager.resource_groups = {'rg1': mock.Mock(instance_ids=[1])}
-        mock_describe_instances.return_value = [{  # missing the 'PrivateIpAddress' key
+        return_value=[{  # missing the 'PrivateIpAddress' key
             'InstanceId': 1,
             'InstanceType': 't2.nano',
             'State': {
                 'Name': 'running',
             },
             'LaunchTime': '2018-07-25T14:50:00Z',
-        }]
-
+        }],
+    ):
+        mock_pool_manager.resource_groups = {'rg1': mock.Mock(instance_ids=[1])}
         metadatas = mock_pool_manager.get_instance_metadatas()
-        assert len(metadatas) == 1
-        _check_metadata(metadatas[0], AgentState.UNKNOWN)
+
+    assert len(metadatas) == 1
 
 
 @mock.patch('clusterman.aws.aws_pool_manager.logger', autospec=True)
@@ -308,7 +269,7 @@ class TestChooseInstancesToPrune:
 
     @pytest.fixture
     def mock_pool_manager(self, mock_pool_manager):
-        mock_pool_manager.non_orphan_fulfilled_capacity = 126
+        mock_pool_manager._non_orphan_fulfilled_capacity = 126
         return mock_pool_manager
 
     def test_fulfilled_capacity_under_target(self, mock_logger, mock_pool_manager):
@@ -472,136 +433,17 @@ def test_fulfilled_capacity(mock_pool_manager):
 def test_instance_kill_order(mock_pool_manager):
     mock_pool_manager.get_instance_metadatas = mock.Mock(return_value=[
         _make_metadata('sfr-0', 'i-7', batch_tasks=100),
-        _make_metadata('sfr-0', 'i-0', state=AgentState.ORPHANED),
+        _make_metadata('sfr-0', 'i-0', agent_state=AgentState.ORPHANED),
         _make_metadata('sfr-0', 'i-2', tasks=1, is_stale=True),
-        _make_metadata('sfr-0', 'i-1', state=AgentState.IDLE),
+        _make_metadata('sfr-0', 'i-1', agent_state=AgentState.IDLE),
         _make_metadata('sfr-0', 'i-4', tasks=1),
         _make_metadata('sfr-0', 'i-5', tasks=100),
         _make_metadata('sfr-0', 'i-3', tasks=100, is_stale=True),
         _make_metadata('sfr-0', 'i-6', batch_tasks=1),
-        _make_metadata('sfr-0', 'i-8', state=AgentState.UNKNOWN),
+        _make_metadata('sfr-0', 'i-8', agent_state=AgentState.UNKNOWN),
         _make_metadata('sfr-0', 'i-9', tasks=100000),
     ])
     mock_pool_manager.max_tasks_to_kill = 1000
     killable_instances = mock_pool_manager._get_prioritized_killable_instances()
     killable_instance_ids = [instance.instance_id for instance in killable_instances]
     assert killable_instance_ids == [f'i-{i}' for i in range(8)]
-
-
-def test_count_tasks_by_agent(mock_pool_manager):
-    tasks = [
-        {'slave_id': 1, 'state': 'TASK_RUNNING'},
-        {'slave_id': 2, 'state': 'TASK_RUNNING'},
-        {'slave_id': 3, 'state': 'TASK_FINISHED'},
-        {'slave_id': 1, 'state': 'TASK_FAILED'},
-        {'slave_id': 2, 'state': 'TASK_RUNNING'}
-    ]
-    mock_tasks = mock.PropertyMock(return_value=tasks)
-    with mock.patch('clusterman.aws.aws_pool_manager.AWSPoolManager.tasks', mock_tasks):
-        assert mock_pool_manager._count_tasks_per_mesos_agent() == {1: 1, 2: 2}
-
-
-def test_count_batch_tasks_by_agent(mock_pool_manager):
-    tasks = [
-        {'slave_id': '1', 'state': 'TASK_RUNNING', 'framework_id': '2'},
-        {'slave_id': '2', 'state': 'TASK_RUNNING', 'framework_id': '2'},
-        {'slave_id': '3', 'state': 'TASK_FINISHED', 'framework_id': '2'},
-        {'slave_id': '1', 'state': 'TASK_FAILED', 'framework_id': '2'},
-        {'slave_id': '2', 'state': 'TASK_RUNNING', 'framework_id': '1'}
-    ]
-    mock_tasks = mock.PropertyMock(return_value=tasks)
-    mock_frameworks = mock.PropertyMock(return_value={
-        'frameworks': [{'id': '1', 'name': 'chronos'}, {'id': '2', 'name': 'marathon123'}]
-    })
-
-    with mock.patch(
-        'clusterman.aws.aws_pool_manager.AWSPoolManager.tasks', mock_tasks
-    ), mock.patch(
-        'clusterman.aws.aws_pool_manager.AWSPoolManager.frameworks', mock_frameworks
-    ):
-        ret = mock_pool_manager._count_batch_tasks_per_mesos_agent()
-        assert ret == {'2': 1}
-        assert ret['1'] == 0
-
-
-def test_is_batch_task(mock_pool_manager):
-    mock_pool_manager.non_batch_framework_prefixes = ('marathon', 'paasta')
-    framework_id_to_name = {
-        '1': 'marathon123',
-        '2': 'paasta123',
-        '3': 'chronos',
-    }
-    assert mock_pool_manager._is_batch_task({'framework_id': '3'}, framework_id_to_name)
-    assert not mock_pool_manager._is_batch_task({'framework_id': '2'}, framework_id_to_name)
-    assert not mock_pool_manager._is_batch_task({'framework_id': '1'}, framework_id_to_name)
-
-
-@mock.patch('clusterman.aws.aws_pool_manager.mesos_post')
-class TestAgentListing:
-    def test_agent_list_error(self, mock_post, mock_pool_manager):
-        mock_post.side_effect = PoolManagerError('dummy error')
-        with pytest.raises(PoolManagerError):
-            mock_pool_manager.agents
-
-    def test_filter_pools(self, mock_post, mock_agents_response, mock_pool_manager):
-        mock_post.return_value = mock_agents_response
-        agents = mock_pool_manager.agents
-        assert len(agents) == 1
-        assert agents[0]['hostname'] == 'im-in-the-pool.yelpcorp.com'
-
-        # Multiple calls should have the same result.
-        assert agents == mock_pool_manager.agents
-        assert mock_post.call_count == 2  # cache expires immediately in tests
-
-
-class TestResources:
-    @pytest.fixture
-    def mock_agents(self, mock_pool_manager):
-        with mock.patch(
-            'clusterman.aws.aws_pool_manager.AWSPoolManager.agents',
-            new_callable=mock.PropertyMock
-        ) as mock_agents:
-            mock_agents.return_value = [
-                {
-                    'id': 'idle',
-                    'resources': {'cpus': 4, 'gpus': 2},
-                },
-                {
-                    'id': 'no-gpus',
-                    'resources': {'cpus': 8},
-                    'used_resources': {'cpus': 1.5},
-                },
-                {
-                    'id': 'gpus-1',
-                    'resources': {'gpus': 2},
-                    'used_resources': {'gpus': 1},
-                },
-                {
-                    'id': 'gpus-2',
-                    'resources': {'gpus': 4},
-                    'used_resources': {'gpus': 0.2},
-                },
-            ]
-            yield mock_pool_manager
-
-    @pytest.mark.parametrize('resource_name,expected', [
-        ('cpus', 1.5),
-        ('gpus', 1.2),
-    ])
-    def test_allocation(self, mock_agents, resource_name, expected):
-        assert mock_agents.get_resource_allocation(resource_name) == expected
-
-    @pytest.mark.parametrize('resource_name,expected', [
-        ('cpus', 12),
-        ('gpus', 8),
-    ])
-    def test_total_cpus(self, mock_agents, resource_name, expected):
-        assert mock_agents.get_resource_total(resource_name) == expected
-
-    @pytest.mark.parametrize('resource_name,expected', [
-        ('mem', 0),
-        ('cpus', 0.125),
-        ('gpus', 0.15),
-    ])
-    def test_average_allocation(self, mock_agents, resource_name, expected):
-        assert mock_agents.get_percent_resource_allocation(resource_name) == expected

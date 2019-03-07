@@ -1,17 +1,49 @@
 import os
 import re
+from typing import Any
+from typing import Mapping
+from typing import Sequence
 
 import colorlog
 import requests
 import staticconf
+from mypy_extensions import TypedDict
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 from clusterman.config import get_cluster_config_directory
 from clusterman.exceptions import PoolManagerError
 from clusterman.interfaces.cluster_connector import ClustermanResources
-from clusterman.mesos.mesos_cluster_connector import MesosAgentDict
 
 logger = colorlog.getLogger(__name__)
+MesosAgentDict = TypedDict(
+    'MesosAgentDict',
+    {
+        'attributes': Mapping[str, str],
+        'id': str,
+        'pid': str,
+        'resources': Mapping[str, Any],
+        'used_resources': Mapping[str, Any]
+    }
+)
+MesosTaskDict = TypedDict(
+    'MesosTaskDict',
+    {
+        'id': str,
+        'framework_id': str,
+        'state': str,
+        'slave_id': str,
+    }
+)
+MesosFrameworkDict = TypedDict(
+    'MesosFrameworkDict',
+    {
+        'id': str,
+        'name': str,
+        'tasks': Sequence[MesosTaskDict],
+    }
+)
+MesosAgents = TypedDict('MesosAgents', {'slaves': Sequence[MesosAgentDict]})
+MesosFrameworks = TypedDict('MesosFrameworks', {'frameworks': Sequence[MesosFrameworkDict]})
 
 
 def agent_pid_to_ip(agent_pid: str) -> str:

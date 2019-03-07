@@ -10,7 +10,6 @@ from clusterman.aws.auto_scaling_resource_group import AutoScalingResourceGroup
 from clusterman.aws.aws_pool_manager import AWSPoolManager
 from clusterman.aws.client import autoscaling
 from clusterman.aws.client import ec2
-from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.ec2_fleet_resource_group import EC2FleetResourceGroup
 from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
 from clusterman.exceptions import ResourceGroupError
@@ -49,25 +48,32 @@ def mock_fleets(num, subnet_id):
 
 @behave.fixture
 def mock_agents_and_tasks(context):
-    def get_agents(aws_pool_manager):
-        agents = []
-        for rg in aws_pool_manager.resource_groups.values():
-            for instance in ec2_describe_instances(instance_ids=rg.instance_ids):
-                agents.append({
-                    'pid': f'slave(1)@{instance["PrivateIpAddress"]}:1',
+    def get_agents():
+        agents = {}
+        for reservation in ec2.describe_instances()['Reservations']:
+            for instance in reservation['Instances']:
+                ip_addr = instance['PrivateIpAddress']
+                agents[ip_addr] = {
+                    'pid': f'slave(1)@{ip_addr}:1',
                     'id': f'{instance["InstanceId"]}',
-                    'hostname': 'host1'
-                })
+                    'hostname': 'host1',
+                }
         return agents
 
     with mock.patch(
-        'clusterman.aws.aws_pool_manager.AWSPoolManager.agents',
-        property(get_agents),
+        'clusterman.aws.aws_pool_manager.MesosClusterConnector._get_agents',
+        side_effect=get_agents,
     ), mock.patch(
-        'clusterman.aws.aws_pool_manager.AWSPoolManager.tasks',
-        mock.PropertyMock(return_value=[]),
+        'clusterman.aws.aws_pool_manager.MesosClusterConnector._get_tasks',
+        return_value=[],
+    ), mock.patch(
+        'clusterman.aws.aws_pool_manager.MesosClusterConnector._get_frameworks',
+        return_value=[],
     ), staticconf.testing.PatchConfiguration(
         {'mesos_clusters': {'mesos-test': {'max_weight_to_remove': 1000}}},
+    ), mock.patch(
+        'clusterman.aws.aws_pool_manager.gethostbyaddr',
+        return_value=('the-host', '', ''),
     ):
         yield
 
@@ -78,13 +84,13 @@ def make_aws_pool_manager(context, num, rg_type):
     behave.use_fixture(mock_agents_and_tasks, context)
     context.rg_type = rg_type
     with mock.patch(
-        'clusterman.mesos.util.AutoScalingResourceGroup.load',
+        'clusterman.aws.auto_scaling_resource_group.AutoScalingResourceGroup.load',
         return_value={},
     ) as mock_asg_load, mock.patch(
-        'clusterman.mesos.util.SpotFleetResourceGroup.load',
+        'clusterman.aws.spot_fleet_resource_group.SpotFleetResourceGroup.load',
         return_value={},
     ) as mock_sfr_load, mock.patch(
-        'clusterman.mesos.util.EC2FleetResourceGroup.load',
+        'clusterman.aws.ec2_fleet_resource_group.EC2FleetResourceGroup.load',
         return_value={},
     ) as mock_fleet_load:
         if context.rg_type == 'asg':

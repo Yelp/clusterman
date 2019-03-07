@@ -22,9 +22,9 @@ class InstanceMetadata(NamedTuple):
     hostname: Optional[str]
     instance_id: str
     instance_ip: Optional[str]
+    instance_state: str
     is_resource_group_stale: bool
     market: InstanceMarket
-    state: str
     uptime: arrow.Arrow
     weight: float
 

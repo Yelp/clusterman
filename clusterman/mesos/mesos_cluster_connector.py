@@ -1,5 +1,4 @@
 from collections import defaultdict
-from typing import Any
 from typing import List
 from typing import Mapping
 from typing import MutableMapping
@@ -8,47 +7,23 @@ from typing import Sequence
 
 import colorlog
 import staticconf
-from mypy_extensions import TypedDict
 
 from clusterman.config import POOL_NAMESPACE
 from clusterman.interfaces.cluster_connector import Agent
 from clusterman.interfaces.cluster_connector import AgentState
 from clusterman.interfaces.cluster_connector import ClusterConnector
+from clusterman.interfaces.cluster_connector import ClustermanResources
 from clusterman.mesos.util import agent_pid_to_ip
 from clusterman.mesos.util import allocated_agent_resources
 from clusterman.mesos.util import mesos_post
+from clusterman.mesos.util import MesosAgentDict
+from clusterman.mesos.util import MesosAgents
+from clusterman.mesos.util import MesosFrameworkDict
+from clusterman.mesos.util import MesosFrameworks
+from clusterman.mesos.util import MesosTaskDict
 from clusterman.mesos.util import total_agent_resources
 
 logger = colorlog.getLogger(__name__)
-MesosAgentDict = TypedDict(
-    'MesosAgentDict',
-    {
-        'attributes': Mapping[str, str],
-        'id': str,
-        'pid': str,
-        'resources': Mapping[str, Any],
-        'used_resources': Mapping[str, Any]
-    }
-)
-MesosTaskDict = TypedDict(
-    'MesosTaskDict',
-    {
-        'id': str,
-        'framework_id': str,
-        'state': str,
-        'slave_id': str,
-    }
-)
-MesosFrameworkDict = TypedDict(
-    'MesosFrameworkDict',
-    {
-        'id': str,
-        'name': str,
-        'tasks': Sequence[MesosTaskDict],
-    }
-)
-MesosAgentsDict = TypedDict('MesosAgentsDict', {'slaves': Sequence[MesosAgentDict]})
-MesosFrameworks = TypedDict('MesosFrameworks', {'frameworks': Sequence[MesosFrameworkDict]})
 
 
 class MesosClusterConnector(ClusterConnector):
@@ -81,18 +56,32 @@ class MesosClusterConnector(ClusterConnector):
 
     def get_agent_by_ip(self, instance_ip: Optional[str]) -> Agent:
         if not instance_ip:
-            return Agent()
+            return Agent(
+                '',
+                AgentState.UNKNOWN,
+                ClustermanResources(0, 0, 0),
+                0,
+                0,
+                ClustermanResources(0, 0, 0),
+            )
 
         agent_dict = self._agents.get(instance_ip)
         if not agent_dict:
-            return Agent(state=AgentState.ORPHANED)
+            return Agent(
+                '',
+                AgentState.ORPHANED,
+                ClustermanResources(0, 0, 0),
+                0,
+                0,
+                ClustermanResources(0, 0, 0),
+            )
 
         allocated_resources = allocated_agent_resources(agent_dict)
         return Agent(
             agent_id=agent_dict['id'],
             allocated_resources=allocated_agent_resources(agent_dict),
             batch_task_count=self._batch_task_count_per_agent[agent_dict['id']],
-            state=(AgentState.RUNNING if any(allocated_resources) else AgentState.IDLE),
+            agent_state=(AgentState.RUNNING if any(allocated_resources) else AgentState.IDLE),
             task_count=self._task_count_per_agent[agent_dict['id']],
             total_resources=total_agent_resources(agent_dict),
         )
@@ -149,7 +138,7 @@ class MesosClusterConnector(ClusterConnector):
         return instance_id_to_task_count
 
     def _get_agents(self) -> Mapping[str, MesosAgentDict]:
-        response: MesosAgentsDict = mesos_post(self.api_endpoint, 'slaves').json()
+        response: MesosAgents = mesos_post(self.api_endpoint, 'slaves').json()
         return {
             agent_pid_to_ip(agent_dict['pid']): agent_dict
             for agent_dict in response['slaves']
