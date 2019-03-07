@@ -3,8 +3,8 @@ from argparse import Namespace
 import mock
 import pytest
 
-from clusterman.mesos.manage import get_target_capacity_value
-from clusterman.mesos.manage import main
+from clusterman.cli.manage import get_target_capacity_value
+from clusterman.cli.manage import main
 
 
 @pytest.fixture
@@ -34,11 +34,11 @@ def test_get_target_capacity_value_invalid():
         get_target_capacity_value('asdf', 'bar')
 
 
-@mock.patch('clusterman.mesos.manage.logger')
-@mock.patch('clusterman.mesos.manage.ask_for_confirmation')
-@mock.patch('clusterman.mesos.manage.AWSPoolManager')
-@mock.patch('clusterman.mesos.manage.get_target_capacity_value')
-@mock.patch('clusterman.mesos.manage.log_to_scribe')
+@mock.patch('clusterman.cli.manage.logger')
+@mock.patch('clusterman.cli.manage.ask_for_confirmation')
+@mock.patch('clusterman.cli.manage.AWSPoolManager')
+@mock.patch('clusterman.cli.manage.get_target_capacity_value')
+@mock.patch('clusterman.cli.manage.log_to_scribe')
 class TestMain:
     @pytest.mark.parametrize('dry_run', [True, False])
     def test_manage(

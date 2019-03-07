@@ -8,7 +8,6 @@ from clusterman.mesos.util import allocated_agent_resources
 from clusterman.mesos.util import get_cluster_name_list
 from clusterman.mesos.util import get_pool_name_list
 from clusterman.mesos.util import mesos_post
-from tests.aws.conftest import mock_agents_response
 
 
 @pytest.fixture
@@ -28,7 +27,6 @@ def test_agent_pid_to_ip():
     assert ret == '10.40.31.172'
 
 
-@pytest.mark.usefixtures('mock_agents_response')
 def test_allocated_agent_resources(mock_agents_response):
     assert allocated_agent_resources(mock_agents_response.json()['slaves'][0])[0] == 0
     assert allocated_agent_resources(mock_agents_response.json()['slaves'][1])[0] == 0

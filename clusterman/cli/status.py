@@ -6,6 +6,7 @@ from clusterman.args import add_cluster_arg
 from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_pool_arg
 from clusterman.args import subparser
+from clusterman.aws.aws_pool_manager import AWSPoolManager
 from clusterman.interfaces.cluster_connector import AgentState
 from clusterman.interfaces.pool_manager import InstanceMetadata
 from clusterman.interfaces.pool_manager import PoolManager
@@ -107,7 +108,7 @@ def print_status(manager: PoolManager, args) -> None:
 
 
 def main(args):  # pragma: no cover
-    manager = PoolManager(args.cluster, args.pool)
+    manager = AWSPoolManager(args.cluster, args.pool)
     print_status(manager, args)
 
 

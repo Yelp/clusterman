@@ -160,12 +160,12 @@ def parse_args(description):  # pragma: no cover
     :param description: a string descripting the tool
     :returns: a namedtuple of the parsed command-line options with their values
     """
-    from clusterman.mesos.manage import add_mesos_manager_parser
-    from clusterman.mesos.status import add_mesos_status_parser
-    from clusterman.mesos.info import add_mesos_list_clusters_parser
-    from clusterman.mesos.info import add_mesos_list_pools_parser
-    from clusterman.simulator.run import add_simulate_parser
-    from clusterman.tools.generate_data import add_generate_data_parser
+    from clusterman.cli.info import add_mesos_list_clusters_parser
+    from clusterman.cli.info import add_mesos_list_pools_parser
+    from clusterman.cli.manage import add_mesos_manager_parser
+    from clusterman.cli.status import add_mesos_status_parser
+    from clusterman.cli.simulate import add_simulate_parser
+    from clusterman.cli.generate_data import add_generate_data_parser
     from clusterman.draining.queue import add_queue_parser
 
     root_parser = argparse.ArgumentParser(prog='clusterman', description=description, formatter_class=help_formatter)
