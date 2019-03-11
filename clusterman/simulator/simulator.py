@@ -71,7 +71,7 @@ class Simulator:
 
         if autoscaler_config_file:
             self._make_autoscaler(autoscaler_config_file)
-            self.aws_clusters = self.autoscaler.mesos_pool_manager.resource_groups.values()  # type: ignore
+            self.aws_clusters = self.autoscaler.pool_manager.resource_groups.values()  # type: ignore
             period = self.autoscaler.signal.period_minutes  # type: ignore
             print(f'Autoscaler configured; will run every {period} minutes')
         else:
@@ -270,7 +270,7 @@ class Simulator:
         # take the earliest data point available - this is a Decimal, which doesn't play nicely, so convert to an int
         with patch_join_delay():
             actual_target_capacity = int(metric_values['target_capacity'][0][1])
-            pool_manager.modify_target_capacity(actual_target_capacity, force=True)
+            pool_manager.modify_target_capacity(actual_target_capacity, force=True, prune=False)
 
         for config in configs:
             for spec in config['LaunchSpecifications']:

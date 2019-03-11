@@ -1,4 +1,3 @@
-import uuid
 from typing import cast
 from typing import Collection
 from typing import Optional
@@ -8,34 +7,17 @@ import staticconf
 
 from clusterman.aws.aws_pool_manager import AWSPoolManager
 from clusterman.config import POOL_NAMESPACE
-from clusterman.interfaces.cluster_connector import Agent
-from clusterman.interfaces.cluster_connector import AgentState
-from clusterman.interfaces.cluster_connector import ClustermanResources
 from clusterman.interfaces.pool_manager import InstanceMetadata
+from clusterman.simulator import simulator
 from clusterman.simulator.simulated_aws_cluster import SimulatedAWSCluster
+from clusterman.simulator.simulated_cluster_connector import SimulatedClusterConnector
 from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSpotFleetResourceGroup
 from clusterman.util import read_int_or_inf
 
 
-def _make_agent(instance, current_time):
-    return Agent(
-        agent_id=uuid.uuid4(),
-        state=(
-            AgentState.ORPHANED
-            if current_time < instance.join_time
-            else AgentState.RUNNING
-        ),
-        total_resources=ClustermanResources(
-            cpus=instance.resources.cpus,
-            mem=instance.resources.mem * 1000,
-            disk=(instance.resources.disk or staticconf.read_int('ebs_volume_size', 0)) * 1000,
-        )
-    )
-
-
 class SimulatedPoolManager(AWSPoolManager):
 
-    def __init__(self, cluster, pool, configs, simulator):
+    def __init__(self, cluster: str, pool: str, configs: Sequence, simulator: 'simulator.Simulator') -> None:
         self.draining_enabled = False
         self.cluster = cluster
         self.pool = pool
@@ -49,6 +31,7 @@ class SimulatedPoolManager(AWSPoolManager):
         self.min_capacity = self.pool_config.read_int('scaling_limits.min_capacity')
         self.max_capacity = self.pool_config.read_int('scaling_limits.max_capacity')
         self.max_tasks_to_kill = read_int_or_inf(self.pool_config, 'scaling_limits.max_tasks_to_kill')
+        self.connector = SimulatedClusterConnector(self.cluster, self.pool, self.simulator)
 
     def reload_state(self) -> None:
         pass
@@ -76,3 +59,7 @@ class SimulatedPoolManager(AWSPoolManager):
                 agent_metadatas.append(metadata)
 
         return agent_metadatas
+
+    @property
+    def non_orphan_fulfilled_capacity(self):
+        return self._calculate_non_orphan_fulfilled_capacity()

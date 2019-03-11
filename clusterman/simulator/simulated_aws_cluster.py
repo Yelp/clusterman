@@ -9,12 +9,12 @@ class Instance:
     id = itertools.count()
     ip = ip_address('10.0.0.1')
 
-    def __init__(self, market, start_time, bid_price=None):
+    def __init__(self, market, start_time, bid_price=None, join_time=None):
         self.id = next(Instance.id)
         self.ip_address = Instance.ip
         self.market = market
         self.start_time = start_time
-        self.join_time = None
+        self.join_time = join_time
         self.end_time = None
         self.resources = get_market_resources(self.market)
         self.bid_price = bid_price

@@ -75,6 +75,7 @@ class AWSPoolManager(PoolManager):
         new_target_capacity: float,
         dry_run: bool = False,
         force: bool = False,
+        prune: bool = True,
     ) -> float:
         """ Change the desired :attr:`target_capacity` of the resource groups belonging to this pool.
 
@@ -117,7 +118,8 @@ class AWSPoolManager(PoolManager):
                 rge_counter.count()
                 continue
 
-        self.prune_excess_fulfilled_capacity(new_target_capacity, res_group_targets, dry_run)
+        if prune:
+            self.prune_excess_fulfilled_capacity(new_target_capacity, res_group_targets, dry_run)
         logger.info(f'Target capacity for {self.pool} changed from {orig_target_capacity} to {new_target_capacity}')
         return new_target_capacity
 
