@@ -86,3 +86,11 @@ Feature: make sure the MesosPoolManager is requesting the right capacities
         | rg_type |
         | asg     |
         | sfr     |
+
+    Scenario: one sfr is broken
+        Given a mesos pool manager with 5 sfr resource groups
+         When resource group 1 is broken
+          And we request 100 capacity
+         Then the first resource group's capacity should not change
+          And the remaining resource groups should have evenly-balanced capacity
+          And the log should contain "resource group is broken"

@@ -1,3 +1,4 @@
+import traceback
 from bisect import bisect
 from collections import defaultdict
 from typing import Any
@@ -12,6 +13,7 @@ from typing import Tuple
 import arrow
 import colorlog
 import staticconf
+import yelp_meteorite
 from cached_property import timed_cached_property
 
 from clusterman.aws.aws_resource_group import AWSResourceGroup
@@ -22,6 +24,7 @@ from clusterman.config import POOL_NAMESPACE
 from clusterman.draining.queue import DrainingClient
 from clusterman.exceptions import AllResourceGroupsAreStaleError
 from clusterman.exceptions import MesosPoolManagerError
+from clusterman.exceptions import ResourceGroupError
 from clusterman.mesos.constants import CACHE_TTL_SECONDS
 from clusterman.mesos.util import agent_pid_to_ip
 from clusterman.mesos.util import allocated_agent_resources
@@ -37,6 +40,7 @@ from clusterman.util import read_int_or_inf
 
 AWS_RUNNING_STATES = ('running',)
 MIN_CAPACITY_PER_GROUP = 1
+RESOURCE_GROUP_MODIFICATION_FAILED_NAME = 'clusterman.resource_group_modification_failed'
 logger = colorlog.getLogger(__name__)
 
 
@@ -118,11 +122,17 @@ class MesosPoolManager:
 
         res_group_targets = self._compute_new_resource_group_targets(new_target_capacity)
         for group_id, target in res_group_targets.items():
-            self.resource_groups[group_id].modify_target_capacity(
-                target,
-                terminate_excess_capacity=False,
-                dry_run=dry_run,
-            )
+            try:
+                self.resource_groups[group_id].modify_target_capacity(
+                    target,
+                    terminate_excess_capacity=False,
+                    dry_run=dry_run,
+                )
+            except ResourceGroupError:
+                logger.critical(traceback.format_exc())
+                rge_counter = yelp_meteorite.create_counter(RESOURCE_GROUP_MODIFICATION_FAILED_NAME)
+                rge_counter.count()
+                continue
 
         self.prune_excess_fulfilled_capacity(new_target_capacity, res_group_targets, dry_run)
         logger.info(f'Target capacity for {self.pool} changed from {orig_target_capacity} to {new_target_capacity}')

@@ -12,6 +12,7 @@ from clusterman.aws.client import ec2
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.ec2_fleet_resource_group import EC2FleetResourceGroup
 from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
+from clusterman.exceptions import ResourceGroupError
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from itests.environment import boto_patches
 from itests.environment import make_asg
@@ -124,6 +125,12 @@ def modify_capacity(context, capacity, dry_run=False):
     context.mesos_pool_manager.prune_excess_fulfilled_capacity = mock.Mock()
     context.original_capacities = [rg.target_capacity for rg in context.mesos_pool_manager.resource_groups.values()]
     context.mesos_pool_manager.modify_target_capacity(int(capacity), dry_run=dry_run)
+
+
+@behave.when('resource group (?P<rgid>\d+) is broken')
+def broken_resource_group(context, rgid):
+    rg = list(context.mesos_pool_manager.resource_groups.values())[0]
+    rg.modify_target_capacity = mock.Mock(side_effect=ResourceGroupError('resource group is broken'))
 
 
 @behave.then('the resource groups should be at minimum capacity')

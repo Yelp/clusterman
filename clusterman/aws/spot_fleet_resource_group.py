@@ -65,10 +65,13 @@ class SpotFleetResourceGroup(AWSResourceGroup):
         if dry_run:
             return
 
-        response = ec2.modify_spot_fleet_request(**kwargs)
+        try:
+            response = ec2.modify_spot_fleet_request(**kwargs)
+        except botocore.exceptions.ClientError as e:
+            raise ResourceGroupError('Could not change size of spot fleet') from e
+
         if not response['Return']:
-            logger.critical('Could not change size of spot fleet:\n{resp}'.format(resp=json.dumps(response)))
-            raise ResourceGroupError('Could not change size of spot fleet: check logs for details')
+            raise ResourceGroupError('Could not change size of spot fleet')
 
     @timed_cached_property(ttl=CACHE_TTL_SECONDS)
     def instance_ids(self) -> Sequence[str]:
