@@ -8,6 +8,7 @@ from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.client import ec2
 from clusterman.exceptions import AllResourceGroupsAreStaleError
 from clusterman.exceptions import MesosPoolManagerError
+from clusterman.exceptions import ResourceGroupError
 from clusterman.mesos.mesos_pool_manager import InstanceMetadata
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.mesos.util import MesosAgentState
@@ -101,6 +102,13 @@ def test_modify_target_capacity_no_resource_groups(mock_pool_manager):
     mock_pool_manager.resource_groups = []
     with pytest.raises(MesosPoolManagerError):
         mock_pool_manager.modify_target_capacity(1234)
+
+
+def test_modify_target_capacity_skip_failing_group(mock_pool_manager):
+    list(mock_pool_manager.resource_groups.values())[0].modify_target_capacity.side_effect = ResourceGroupError('foo')
+    with mock.patch('clusterman.mesos.mesos_pool_manager.yelp_meteorite') as mock_meteorite:
+        mock_pool_manager.modify_target_capacity(1234)
+        assert mock_meteorite.create_counter.call_count == 1
 
 
 @pytest.mark.parametrize('new_target,constrained_target', ((100, 90), (10, 49)))

@@ -2,6 +2,7 @@ import behave
 import mock
 import simplejson as json
 import staticconf.testing
+import yelp_meteorite
 from clusterman_metrics import APP_METRICS
 from clusterman_metrics import SYSTEM_METRICS
 from moto import mock_autoscaling
@@ -16,6 +17,12 @@ _ttl_patch = mock.patch('clusterman.mesos.constants.CACHE_TTL_SECONDS', -1)
 _ttl_patch.__enter__()
 behave.use_step_matcher('re')
 BEHAVE_DEBUG_ON_ERROR = False
+
+
+@behave.fixture
+def patch_meteorite(context):
+    with yelp_meteorite.testcase():
+        yield
 
 
 @behave.fixture
@@ -218,6 +225,7 @@ def before_all(context):
     global BEHAVE_DEBUG_ON_ERROR
     BEHAVE_DEBUG_ON_ERROR = context.config.userdata.getbool('BEHAVE_DEBUG_ON_ERROR')
     behave.use_fixture(setup_configurations, context)
+    behave.use_fixture(patch_meteorite, context)
 
 
 def after_step(context, step):
