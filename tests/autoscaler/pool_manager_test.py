@@ -76,8 +76,7 @@ def mock_pool_manager(mock_resource_groups):
     ), mock.patch(
         'clusterman.autoscaler.pool_manager.PoolManager.reload_state'
     ), mock.patch(
-        'clusterman.autoscaler.pool_manager.MesosClusterConnector',
-        autospec=True,
+        'clusterman.autoscaler.pool_manager.ClusterConnector.load',
     ):
         manager = PoolManager('mesos-test', 'bar')
         manager.resource_groups = mock_resource_groups
@@ -238,28 +237,28 @@ class TestConstrainTargetCapacity:
 
 
 @mock.patch('clusterman.autoscaler.pool_manager.logger', autospec=True)
-class TestChooseInstancesToPrune:
+class TestChooseNodesToPrune:
 
     @pytest.fixture
     def mock_pool_manager(self, mock_pool_manager):
-        mock_pool_manager._non_orphan_fulfilled_capacity = 126
+        mock_pool_manager.non_orphan_fulfilled_capacity = 126
         return mock_pool_manager
 
     def test_fulfilled_capacity_under_target(self, mock_logger, mock_pool_manager):
         assert mock_pool_manager._choose_nodes_to_prune(300, None) == {}
 
-    def test_no_instances_to_kill(self, mock_logger, mock_pool_manager):
+    def test_no_nodes_to_kill(self, mock_logger, mock_pool_manager):
         mock_pool_manager._get_prioritized_killable_nodes = mock.Mock(return_value=[])
         assert mock_pool_manager._choose_nodes_to_prune(100, None) == {}
 
-    def test_killable_instance_under_group_capacity(self, mock_logger, mock_pool_manager):
+    def test_killable_node_under_group_capacity(self, mock_logger, mock_pool_manager):
         mock_pool_manager._get_prioritized_killable_nodes = mock.Mock(return_value=[
             _make_metadata('sfr-1', 'i-1', weight=1000)
         ])
         assert mock_pool_manager._choose_nodes_to_prune(100, None) == {}
         assert 'is at target capacity' in mock_logger.info.call_args[0][0]
 
-    def test_killable_instance_too_many_tasks(self, mock_logger, mock_pool_manager):
+    def test_killable_node_too_many_tasks(self, mock_logger, mock_pool_manager):
         mock_pool_manager._get_prioritized_killable_nodes = mock.Mock(return_value=[
             _make_metadata('sfr-1', 'i-1')
         ])
@@ -274,7 +273,7 @@ class TestChooseInstancesToPrune:
         assert mock_pool_manager._choose_nodes_to_prune(125, None) == {}
         assert 'would take us under our target_capacity' in mock_logger.info.call_args[0][0]
 
-    def test_kill_instance(self, mock_logger, mock_pool_manager):
+    def test_kill_node(self, mock_logger, mock_pool_manager):
         mock_pool_manager._get_prioritized_killable_nodes = mock.Mock(return_value=[
             _make_metadata('sfr-1', 'i-1', weight=2)
         ])

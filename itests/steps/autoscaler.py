@@ -31,7 +31,7 @@ def autoscaler_patches(context):
     ), mock.patch(
         'clusterman.autoscaler.autoscaler.PoolManager.prune_excess_fulfilled_capacity',
     ), mock.patch(
-        'clusterman.autoscaler.pool_manager.MesosClusterConnector',
+        'clusterman.autoscaler.pool_manager.ClusterConnector.load',
     ) as mock_cluster_connector, mock.patch(
         'clusterman.autoscaler.autoscaler.PoolManager._calculate_non_orphan_fulfilled_capacity',
         return_value=20,
@@ -67,7 +67,7 @@ def empty_pool(context):
     groups[1].fulfilled_capacity = 0
     manager.min_capacity = 0
     manager.cluster_connector.get_resource_capacity = mock.Mock(return_value=0)
-    manager._non_orphan_fulfilled_capacity = 0
+    manager.non_orphan_fulfilled_capacity = 0
 
 
 @behave.when('the signal resource request is (?P<value>\d+ cpus|empty)')

@@ -55,18 +55,17 @@ def killable_instance_with_weight(context, weight):
 
 @behave.given('the killable instance has (?P<tasks>\d+) tasks')
 def killable_instance_with_tasks(context, tasks):
-    def get_tasks():
+    def get_tasks_and_frameworks():
         rg = context.pool_manager.resource_groups[context.rg_ids[0]]
         instances = ec2_describe_instances(instance_ids=rg.instance_ids[:1])
-        return [
-            {'slave_id': instances[0]['InstanceId'], 'state': 'TASK_RUNNING', 'framework_id': 'framework_a'}
-        ] * int(tasks)
+        return (
+            [
+                {'slave_id': instances[0]['InstanceId'], 'state': 'TASK_RUNNING', 'framework_id': 'framework_a'}
+            ] * int(tasks),
+            {'framework_a': {'name': 'framework_a_name'}}
+        )
 
-    def get_frameworks():
-        return {'framework_a': {'name': 'framework_a_name'}}
-
-    context.pool_manager.cluster_connector._get_tasks.side_effect = get_tasks
-    context.pool_manager.cluster_connector._get_frameworks.side_effect = get_frameworks
+    context.pool_manager.cluster_connector._get_tasks_and_frameworks.side_effect = get_tasks_and_frameworks
     context.pool_manager.cluster_connector.reload_state()
     context.pool_manager.cluster_connector._batch_tasks_per_mesos_agent = {
         i['id']: 0 for i in context.pool_manager.cluster_connector._agents.values()
@@ -79,7 +78,7 @@ def killable_instance_with_tasks(context, tasks):
 @behave.given('the non-orphaned fulfilled capacity is (?P<nofc>\d+)')
 def set_non_orphaned_fulfilled_capacity(context, nofc):
     context.nofc = int(nofc)
-    context.pool_manager._non_orphan_fulfilled_capacity = context.nofc
+    context.pool_manager.non_orphan_fulfilled_capacity = context.nofc
 
 
 @behave.when('we prune excess fulfilled capacity to (?P<target>\d+)')

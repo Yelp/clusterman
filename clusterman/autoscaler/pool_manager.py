@@ -29,7 +29,6 @@ from clusterman.interfaces.cluster_connector import AgentState
 from clusterman.interfaces.cluster_connector import ClusterConnector
 from clusterman.interfaces.resource_group import InstanceMetadata
 from clusterman.interfaces.resource_group import ResourceGroup
-from clusterman.mesos.mesos_cluster_connector import MesosClusterConnector
 from clusterman.util import read_int_or_inf
 
 AWS_RUNNING_STATES = ('running',)
@@ -44,14 +43,15 @@ class ClusterNodeMetadata(NamedTuple):
 
 
 class PoolManager:
-
-    cluster_connector: ClusterConnector
-
-    def __init__(self, cluster: str, pool: str, *, fetch_state: bool = True) -> None:
+    def __init__(
+        self,
+        cluster: str,
+        pool: str,
+        fetch_state: bool = True,
+    ) -> None:
         self.cluster = cluster
         self.pool = pool
-        self.cluster_connector = MesosClusterConnector(self.cluster, self.pool)
-
+        self.cluster_connector = ClusterConnector.load(self.cluster, self.pool)
         self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool))
 
         self.draining_enabled = self.pool_config.read_bool('draining_enabled', default=False)
@@ -69,7 +69,7 @@ class PoolManager:
         """
         self.cluster_connector.reload_state()
         self._reload_resource_groups()
-        self._non_orphan_fulfilled_capacity = self._calculate_non_orphan_fulfilled_capacity()
+        self.non_orphan_fulfilled_capacity = self._calculate_non_orphan_fulfilled_capacity()
 
     def modify_target_capacity(
         self,
@@ -456,7 +456,3 @@ class PoolManager:
         be greater than or equal to the target capacity.
         """
         return sum(group.fulfilled_capacity for group in self.resource_groups.values())
-
-    @property
-    def non_orphan_fulfilled_capacity(self) -> float:
-        return self._non_orphan_fulfilled_capacity

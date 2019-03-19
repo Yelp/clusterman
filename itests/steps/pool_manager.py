@@ -61,14 +61,11 @@ def mock_agents_and_tasks(context):
         return agents
 
     with mock.patch(
-        'clusterman.autoscaler.pool_manager.MesosClusterConnector._get_agents',
+        'clusterman.mesos.mesos_cluster_connector.MesosClusterConnector._get_agents',
         side_effect=get_agents,
     ), mock.patch(
-        'clusterman.autoscaler.pool_manager.MesosClusterConnector._get_tasks',
-        return_value=[],
-    ), mock.patch(
-        'clusterman.autoscaler.pool_manager.MesosClusterConnector._get_frameworks',
-        return_value=[],
+        'clusterman.mesos.mesos_cluster_connector.MesosClusterConnector._get_tasks_and_frameworks',
+        return_value=([], []),
     ), staticconf.testing.PatchConfiguration(
         {'mesos_clusters': {'mesos-test': {'max_weight_to_remove': 1000}}},
     ), mock.patch(

@@ -4,6 +4,7 @@ import pytest
 from clusterman.exceptions import PoolManagerError
 from clusterman.interfaces.cluster_connector import AgentState
 from clusterman.mesos.mesos_cluster_connector import MesosClusterConnector
+from clusterman.mesos.mesos_cluster_connector import TaskCount
 
 
 @pytest.fixture
@@ -20,8 +21,10 @@ def mock_cluster_connector():
             'used_resources': {'cpus': 1.5},
         },
     }
-    mock_cluster_connector._batch_task_count_per_agent = {'idle': 0, 'no-gpus': 0}
-    mock_cluster_connector._task_count_per_agent = {'idle': 0, 'no-gpus': 0}
+    mock_cluster_connector._task_count_per_agent = {
+        'idle': TaskCount(0, 0),
+        'no-gpus': TaskCount(1, 0),
+    }
     return mock_cluster_connector
 
 
@@ -35,23 +38,12 @@ def test_init(mock_cluster_connector):
     ('10.10.10.1', AgentState.IDLE),
     ('10.10.10.2', AgentState.RUNNING),
 ])
-def test_get_orphaned_agent(mock_cluster_connector, ip_address, expected_state):
+def test_get_agent_metadata(mock_cluster_connector, ip_address, expected_state):
     agent_metadata = mock_cluster_connector.get_agent_metadata(ip_address)
     assert agent_metadata.state == expected_state
 
 
 def test_count_tasks_by_agent(mock_cluster_connector):
-    mock_cluster_connector._tasks = [
-        {'slave_id': 1, 'state': 'TASK_RUNNING'},
-        {'slave_id': 2, 'state': 'TASK_RUNNING'},
-        {'slave_id': 3, 'state': 'TASK_FINISHED'},
-        {'slave_id': 1, 'state': 'TASK_FAILED'},
-        {'slave_id': 2, 'state': 'TASK_RUNNING'}
-    ]
-    assert mock_cluster_connector._count_tasks_per_agent() == {1: 1, 2: 2}
-
-
-def test_count_batch_tasks_by_agent(mock_cluster_connector):
     mock_cluster_connector._tasks = [
         {'slave_id': '1', 'state': 'TASK_RUNNING', 'framework_id': '2'},
         {'slave_id': '2', 'state': 'TASK_RUNNING', 'framework_id': '2'},
@@ -63,10 +55,10 @@ def test_count_batch_tasks_by_agent(mock_cluster_connector):
         '1': {'name': 'chronos'},
         '2': {'name': 'marathon123'},
     }
-
-    ret = mock_cluster_connector._count_batch_tasks_per_agent()
-    assert ret == {'2': 1}
-    assert ret['1'] == 0
+    assert mock_cluster_connector._count_tasks_per_agent() == {
+        '1': TaskCount(1, 0),
+        '2': TaskCount(2, 1),
+    }
 
 
 def test_is_batch_task(mock_cluster_connector):

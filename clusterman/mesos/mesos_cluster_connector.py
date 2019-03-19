@@ -2,8 +2,8 @@ from collections import defaultdict
 from typing import List
 from typing import Mapping
 from typing import MutableMapping
-from typing import Optional
 from typing import Sequence
+from typing import Tuple
 
 import colorlog
 import staticconf
@@ -26,13 +26,21 @@ from clusterman.util import ClustermanResources
 logger = colorlog.getLogger(__name__)
 
 
-class MesosClusterConnector(ClusterConnector):
+class TaskCount:
+    all_tasks: int
+    batch_tasks: int
 
-    _agents: Mapping[str, MesosAgentDict]
-    _frameworks: Mapping[str, MesosFrameworkDict]
-    _tasks: Sequence[MesosTaskDict]
-    _task_count_per_agent: Mapping[str, int]
-    _batch_task_count_per_agent: Mapping[str, int]
+    def __init__(self, all_tasks: int = 0, batch_tasks: int = 0):
+        self.all_tasks, self.batch_tasks = all_tasks, batch_tasks
+
+    def __eq__(self, other):
+        return self.all_tasks == other.all_tasks and self.batch_tasks == other.batch_tasks
+
+    def __repr__(self):
+        return f'<{self.all_tasks}, {self.batch_tasks}>'
+
+
+class MesosClusterConnector(ClusterConnector):
 
     def __init__(self, cluster: str, pool: str) -> None:
         self.cluster = cluster
@@ -48,23 +56,26 @@ class MesosClusterConnector(ClusterConnector):
         logger.info(f'Connecting to Mesos masters at {self.api_endpoint}')
 
     def reload_state(self) -> None:
+
+        # Note that order matters here: we can't map tasks to agents until we've calculated
+        # all of the tasks and agents
         self._agents = self._get_agents()
-        self._frameworks = self._get_frameworks()
-        self._tasks = self._get_tasks()
+        self._tasks, self._frameworks = self._get_tasks_and_frameworks()
         self._task_count_per_agent = self._count_tasks_per_agent()
-        self._batch_task_count_per_agent = self._count_batch_tasks_per_agent()
 
-    def get_agent_metadata(self, instance_ip: Optional[str]) -> AgentMetadata:
-        if not instance_ip:
-            return AgentMetadata(
-                agent_id='',
-                allocated_resources=ClustermanResources(0, 0, 0),
-                batch_task_count=0,
-                state=AgentState.UNKNOWN,
-                task_count=0,
-                total_resources=ClustermanResources(0, 0, 0),
-            )
+    def get_resource_allocation(self, resource_name: str) -> float:
+        return sum(
+            getattr(allocated_agent_resources(agent), resource_name)
+            for agent in self._agents.values()
+        )
 
+    def get_resource_total(self, resource_name: str) -> float:
+        return sum(
+            getattr(total_agent_resources(agent), resource_name)
+            for agent in self._agents.values()
+        )
+
+    def _get_agent_metadata(self, instance_ip: str) -> AgentMetadata:
         agent_dict = self._agents.get(instance_ip)
         if not agent_dict:
             return AgentMetadata(
@@ -80,61 +91,22 @@ class MesosClusterConnector(ClusterConnector):
         return AgentMetadata(
             agent_id=agent_dict['id'],
             allocated_resources=allocated_agent_resources(agent_dict),
-            batch_task_count=self._batch_task_count_per_agent[agent_dict['id']],
+            batch_task_count=self._task_count_per_agent[agent_dict['id']].batch_tasks,
             state=(AgentState.RUNNING if any(allocated_resources) else AgentState.IDLE),
-            task_count=self._task_count_per_agent[agent_dict['id']],
+            task_count=self._task_count_per_agent[agent_dict['id']].all_tasks,
             total_resources=total_agent_resources(agent_dict),
         )
 
-    def get_resource_allocation(self, resource_name: str) -> float:
-        """Get the total amount of the given resource currently allocated for this Mesos pool.
-
-        :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
-        :returns: the allocated resources in the Mesos cluster for the specified resource
-        """
-        return sum(
-            getattr(allocated_agent_resources(agent), resource_name)
-            for agent in self._agents.values()
-        )
-
-    def get_resource_total(self, resource_name: str) -> float:
-        """Get the total amount of the given resource for this Mesos pool.
-
-        :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
-        :returns: the total resources in the Mesos cluster for the specified resource
-        """
-        return sum(
-            getattr(total_agent_resources(agent), resource_name)
-            for agent in self._agents.values()
-        )
-
-    def get_percent_resource_allocation(self, resource_name: str) -> float:
-        """Get the overall proportion of the given resource that is in use.
-
-        :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
-        :returns: the percentage allocated for the specified resource
-        """
-        total = self.get_resource_total(resource_name)
-        used = self.get_resource_allocation(resource_name)
-        return used / total if total else 0
-
-    def _count_tasks_per_agent(self) -> Mapping[str, int]:
+    def _count_tasks_per_agent(self) -> Mapping[str, TaskCount]:
         """Given a list of mesos tasks, return a count of tasks per agent"""
-        instance_id_to_task_count: MutableMapping[str, int] = defaultdict(int)
+        instance_id_to_task_count: MutableMapping[str, TaskCount] = defaultdict(TaskCount)
+
         for task in self._tasks:
             if task['state'] == 'TASK_RUNNING':
-                instance_id_to_task_count[task['slave_id']] += 1
-        return instance_id_to_task_count
-
-    def _count_batch_tasks_per_agent(self) -> MutableMapping[str, int]:
-        """Given a list of mesos tasks, return a count of tasks per agent
-        filtered by frameworks that we consider to be used for batch tasks
-        which we prefer not to interrupt"""
-        instance_id_to_task_count: MutableMapping[str, int] = defaultdict(int)
-        for task in self._tasks:
-            framework_name = self._frameworks[task['framework_id']]['name']
-            if task['state'] == 'TASK_RUNNING' and self._is_batch_framework(framework_name):
-                instance_id_to_task_count[task['slave_id']] += 1
+                instance_id_to_task_count[task['slave_id']].all_tasks += 1
+                framework_name = self._frameworks[task['framework_id']]['name']
+                if self._is_batch_framework(framework_name):
+                    instance_id_to_task_count[task['slave_id']].batch_tasks += 1
         return instance_id_to_task_count
 
     def _get_agents(self) -> Mapping[str, MesosAgentDict]:
@@ -145,18 +117,18 @@ class MesosClusterConnector(ClusterConnector):
             if agent_dict.get('attributes', {}).get('pool', 'default') == self.pool
         }
 
-    def _get_frameworks(self) -> Mapping[str, MesosFrameworkDict]:
+    def _get_tasks_and_frameworks(self) -> Tuple[Sequence[MesosTaskDict], Mapping[str, MesosFrameworkDict]]:
         response: MesosFrameworks = mesos_post(self.api_endpoint, 'master/frameworks').json()
-        return {
+        frameworks = {
             framework['id']: framework
             for framework in response['frameworks']
         }
 
-    def _get_tasks(self) -> Sequence[MesosTaskDict]:
         tasks: List[MesosTaskDict] = []
-        for framework in self._frameworks.values():
+        for framework in frameworks.values():
             tasks.extend(framework['tasks'])
-        return tasks
+
+        return tasks, frameworks
 
     def _is_batch_framework(self, framework_name: str) -> bool:
         """If the framework matches any of the prefixes in self.non_batch_framework_prefixes

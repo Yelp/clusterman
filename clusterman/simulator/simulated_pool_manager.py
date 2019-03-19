@@ -32,12 +32,12 @@ class SimulatedPoolManager(PoolManager):
         self.min_capacity = self.pool_config.read_int('scaling_limits.min_capacity')
         self.max_capacity = self.pool_config.read_int('scaling_limits.max_capacity')
         self.max_tasks_to_kill = read_int_or_inf(self.pool_config, 'scaling_limits.max_tasks_to_kill')
-        self.connector = SimulatedClusterConnector(self.cluster, self.pool, self.simulator)
+        self.cluster_connector = SimulatedClusterConnector(self.cluster, self.pool, self.simulator)
 
     def reload_state(self) -> None:
         pass
 
-    def get_instance_metadatas(
+    def get_node_metadatas(
         self,
         aws_state_filter: Optional[Collection[str]] = None,
     ) -> Sequence[ClusterNodeMetadata]:
@@ -48,7 +48,7 @@ class SimulatedPoolManager(PoolManager):
                     continue
 
                 metadata = ClusterNodeMetadata(
-                    self.connector.get_agent_metadata(instance.ip_address),
+                    self.cluster_connector.get_agent_metadata(instance.ip_address),
                     InstanceMetadata(
                         group_id=group.id,
                         hostname=f'{instance.id}.com',

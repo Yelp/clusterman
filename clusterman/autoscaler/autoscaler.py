@@ -32,7 +32,6 @@ class Autoscaler:
         cluster: str,
         pool: str,
         apps: List[str],
-        *,
         pool_manager: Optional[PoolManager] = None,
         metrics_client: Optional[ClustermanMetricsBotoClient] = None,
         monitoring_enabled: bool = True,

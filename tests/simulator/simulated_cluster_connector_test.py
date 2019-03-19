@@ -59,7 +59,7 @@ def test_get_agent_metadata_unknown(mock_cluster_connector):
         agent_id='',
         allocated_resources=ClustermanResources(0, 0, 0),
         batch_task_count=0,
-        state=AgentState.UNKNOWN,
+        state=AgentState.ORPHANED,
         task_count=0,
         total_resources=ClustermanResources(0, 0, 0),
     )
