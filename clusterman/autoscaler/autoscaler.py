@@ -13,12 +13,11 @@ from pysensu_yelp import Status
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 from clusterman.autoscaler.config import get_autoscaling_config
+from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.autoscaler.signals import Signal
 from clusterman.autoscaler.signals import SignalResponseDict
-from clusterman.aws.aws_pool_manager import AWSPoolManager
 from clusterman.config import POOL_NAMESPACE
 from clusterman.exceptions import NoSignalConfiguredException
-from clusterman.interfaces.pool_manager import PoolManager
 from clusterman.util import sensu_checkin
 
 SIGNAL_LOAD_CHECK_NAME = 'signal_configuration_failed'
@@ -68,7 +67,7 @@ class Autoscaler:
             )
 
         self.autoscaling_config = get_autoscaling_config(POOL_NAMESPACE.format(pool=self.pool))
-        self.pool_manager = pool_manager or AWSPoolManager(self.cluster, self.pool)
+        self.pool_manager = pool_manager or PoolManager(self.cluster, self.pool)
 
         self.mesos_region = staticconf.read_string('aws.region')
         self.metrics_client = metrics_client or ClustermanMetricsBotoClient(self.mesos_region)
@@ -248,7 +247,7 @@ class Autoscaler:
             if resource not in resource_request or resource_request[resource] is None:
                 continue
 
-            resource_total = self.pool_manager.connector.get_resource_total(resource)
+            resource_total = self.pool_manager.cluster_connector.get_resource_total(resource)
             # mypy isn't smart enough to see resource_request[resource] can't be None here
             requested_resource_usage_pcts[resource] = resource_request[resource] / resource_total  # type: ignore
         return max(requested_resource_usage_pcts.items(), key=lambda x: x[1])

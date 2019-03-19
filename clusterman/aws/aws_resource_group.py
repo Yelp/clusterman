@@ -1,11 +1,15 @@
 from abc import ABCMeta
 from abc import abstractproperty
 from collections import defaultdict
+from socket import gethostbyaddr
 from typing import Any
+from typing import Collection
 from typing import List
 from typing import Mapping
+from typing import Optional
 from typing import Sequence
 
+import arrow
 import colorlog
 import simplejson as json
 from cached_property import timed_cached_property
@@ -15,6 +19,7 @@ from clusterman.aws.client import ec2
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import get_instance_market
 from clusterman.aws.markets import InstanceMarket
+from clusterman.interfaces.resource_group import InstanceMetadata
 from clusterman.interfaces.resource_group import ResourceGroup
 
 
@@ -41,6 +46,31 @@ def protect_unowned_instances(func):
 class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
     def __init__(self, group_id: str) -> None:
         self.group_id = group_id
+
+    def get_instance_metadatas(self, state_filter: Optional[Collection[str]] = None) -> Sequence[InstanceMetadata]:
+        instance_metadatas = []
+        for instance_dict in ec2_describe_instances(instance_ids=self.instance_ids):
+            aws_state = instance_dict['State']['Name']
+            if state_filter and aws_state not in state_filter:
+                continue
+
+            instance_market = get_instance_market(instance_dict)
+            instance_ip = instance_dict.get('PrivateIpAddress')
+            hostname = gethostbyaddr(instance_ip)[0] if instance_ip else None
+
+            metadata = InstanceMetadata(
+                group_id=self.id,
+                hostname=hostname,
+                instance_id=instance_dict['InstanceId'],
+                ip_address=instance_ip,
+                is_resource_group_stale=self.is_stale,
+                market=instance_market,
+                state=aws_state,
+                uptime=(arrow.now() - arrow.get(instance_dict['LaunchTime'])),
+                weight=self.market_weight(instance_market),
+            )
+            instance_metadatas.append(metadata)
+        return instance_metadatas
 
     def market_weight(self, market: InstanceMarket) -> float:
         # some types of resource groups don't understand weights, so default to 1 for every market

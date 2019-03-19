@@ -2,16 +2,42 @@ import mock
 import pytest
 
 from clusterman.exceptions import PoolManagerError
+from clusterman.interfaces.cluster_connector import AgentState
 from clusterman.mesos.mesos_cluster_connector import MesosClusterConnector
 
 
 @pytest.fixture
 def mock_cluster_connector():
-    return MesosClusterConnector('mesos-test', 'bar')
+    mock_cluster_connector = MesosClusterConnector('mesos-test', 'bar')
+    mock_cluster_connector._agents = {
+        '10.10.10.1': {
+            'id': 'idle',
+            'resources': {'cpus': 4, 'gpus': 2},
+        },
+        '10.10.10.2': {
+            'id': 'no-gpus',
+            'resources': {'cpus': 8},
+            'used_resources': {'cpus': 1.5},
+        },
+    }
+    mock_cluster_connector._batch_task_count_per_agent = {'idle': 0, 'no-gpus': 0}
+    mock_cluster_connector._task_count_per_agent = {'idle': 0, 'no-gpus': 0}
+    return mock_cluster_connector
 
 
 def test_init(mock_cluster_connector):
     assert mock_cluster_connector.api_endpoint == 'http://the.mesos.leader:5050/'
+
+
+@pytest.mark.parametrize('ip_address,expected_state', [
+    (None, AgentState.UNKNOWN),
+    ('1.2.3.4', AgentState.ORPHANED),
+    ('10.10.10.1', AgentState.IDLE),
+    ('10.10.10.2', AgentState.RUNNING),
+])
+def test_get_orphaned_agent(mock_cluster_connector, ip_address, expected_state):
+    agent_metadata = mock_cluster_connector.get_agent_metadata(ip_address)
+    assert agent_metadata.state == expected_state
 
 
 def test_count_tasks_by_agent(mock_cluster_connector):
@@ -66,37 +92,16 @@ class TestAgentListing:
         assert agents == mock_cluster_connector._get_agents()
 
 
-class TestResources:
-    @pytest.fixture
-    def mock_agents(self, mock_cluster_connector):
-        mock_cluster_connector._agents = {
-            '10.10.10.1': {
-                'id': 'idle',
-                'resources': {'cpus': 4, 'gpus': 2},
-            },
-            '10.10.10.2': {
-                'id': 'no-gpus',
-                'resources': {'cpus': 8},
-                'used_resources': {'cpus': 1.5},
-            },
-        }
-        yield mock_cluster_connector
+@pytest.mark.parametrize('resource_name,expected', [('cpus', 1.5)])
+def test_allocation(mock_cluster_connector, resource_name, expected):
+    assert mock_cluster_connector.get_resource_allocation(resource_name) == expected
 
-    @pytest.mark.parametrize('resource_name,expected', [
-        ('cpus', 1.5),
-    ])
-    def test_allocation(self, mock_agents, resource_name, expected):
-        assert mock_agents.get_resource_allocation(resource_name) == expected
 
-    @pytest.mark.parametrize('resource_name,expected', [
-        ('cpus', 12),
-    ])
-    def test_total_cpus(self, mock_agents, resource_name, expected):
-        assert mock_agents.get_resource_total(resource_name) == expected
+@pytest.mark.parametrize('resource_name,expected', [('cpus', 12)])
+def test_total_cpus(mock_cluster_connector, resource_name, expected):
+    assert mock_cluster_connector.get_resource_total(resource_name) == expected
 
-    @pytest.mark.parametrize('resource_name,expected', [
-        ('mem', 0),
-        ('cpus', 0.125),
-    ])
-    def test_average_allocation(self, mock_agents, resource_name, expected):
-        assert mock_agents.get_percent_resource_allocation(resource_name) == expected
+
+@pytest.mark.parametrize('resource_name,expected', [('mem', 0), ('cpus', 0.125)])
+def test_average_allocation(mock_cluster_connector, resource_name, expected):
+    assert mock_cluster_connector.get_percent_resource_allocation(resource_name) == expected

@@ -5,8 +5,8 @@ from hamcrest import assert_that
 from hamcrest import contains
 
 from clusterman.autoscaler.autoscaler import Autoscaler
+from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.autoscaler.signals import ACK
-from clusterman.aws.aws_pool_manager import AWSPoolManager
 from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
 from itests.environment import boto_patches
 
@@ -26,14 +26,14 @@ def autoscaler_patches(context):
         'clusterman.aws.util.SpotFleetResourceGroup.load',
         return_value={rg1.id: rg1, rg2.id: rg2},
     ), mock.patch(
-        'clusterman.aws.aws_pool_manager.AWSPoolManager',
-        wraps=AWSPoolManager,
+        'clusterman.autoscaler.pool_manager.PoolManager',
+        wraps=PoolManager,
     ), mock.patch(
-        'clusterman.autoscaler.autoscaler.AWSPoolManager.prune_excess_fulfilled_capacity',
+        'clusterman.autoscaler.autoscaler.PoolManager.prune_excess_fulfilled_capacity',
     ), mock.patch(
-        'clusterman.aws.aws_pool_manager.MesosClusterConnector',
+        'clusterman.autoscaler.pool_manager.MesosClusterConnector',
     ) as mock_cluster_connector, mock.patch(
-        'clusterman.autoscaler.autoscaler.AWSPoolManager._calculate_non_orphan_fulfilled_capacity',
+        'clusterman.autoscaler.autoscaler.PoolManager._calculate_non_orphan_fulfilled_capacity',
         return_value=20,
     ), mock.patch(
         'clusterman.autoscaler.signals.Signal._connect_to_signal_process',
@@ -66,7 +66,7 @@ def empty_pool(context):
     groups[0].fulfilled_capacity = 0
     groups[1].fulfilled_capacity = 0
     manager.min_capacity = 0
-    manager.connector.get_resource_capacity = mock.Mock(return_value=0)
+    manager.cluster_connector.get_resource_capacity = mock.Mock(return_value=0)
     manager._non_orphan_fulfilled_capacity = 0
 
 

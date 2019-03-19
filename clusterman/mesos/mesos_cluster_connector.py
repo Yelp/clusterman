@@ -9,10 +9,9 @@ import colorlog
 import staticconf
 
 from clusterman.config import POOL_NAMESPACE
-from clusterman.interfaces.cluster_connector import Agent
+from clusterman.interfaces.cluster_connector import AgentMetadata
 from clusterman.interfaces.cluster_connector import AgentState
 from clusterman.interfaces.cluster_connector import ClusterConnector
-from clusterman.interfaces.cluster_connector import ClustermanResources
 from clusterman.mesos.util import agent_pid_to_ip
 from clusterman.mesos.util import allocated_agent_resources
 from clusterman.mesos.util import mesos_post
@@ -22,6 +21,7 @@ from clusterman.mesos.util import MesosFrameworkDict
 from clusterman.mesos.util import MesosFrameworks
 from clusterman.mesos.util import MesosTaskDict
 from clusterman.mesos.util import total_agent_resources
+from clusterman.util import ClustermanResources
 
 logger = colorlog.getLogger(__name__)
 
@@ -54,34 +54,34 @@ class MesosClusterConnector(ClusterConnector):
         self._task_count_per_agent = self._count_tasks_per_agent()
         self._batch_task_count_per_agent = self._count_batch_tasks_per_agent()
 
-    def get_agent_by_ip(self, instance_ip: Optional[str]) -> Agent:
+    def get_agent_metadata(self, instance_ip: Optional[str]) -> AgentMetadata:
         if not instance_ip:
-            return Agent(
-                '',
-                AgentState.UNKNOWN,
-                ClustermanResources(0, 0, 0),
-                0,
-                0,
-                ClustermanResources(0, 0, 0),
+            return AgentMetadata(
+                agent_id='',
+                allocated_resources=ClustermanResources(0, 0, 0),
+                batch_task_count=0,
+                state=AgentState.UNKNOWN,
+                task_count=0,
+                total_resources=ClustermanResources(0, 0, 0),
             )
 
         agent_dict = self._agents.get(instance_ip)
         if not agent_dict:
-            return Agent(
-                '',
-                AgentState.ORPHANED,
-                ClustermanResources(0, 0, 0),
-                0,
-                0,
-                ClustermanResources(0, 0, 0),
+            return AgentMetadata(
+                agent_id='',
+                allocated_resources=ClustermanResources(0, 0, 0),
+                batch_task_count=0,
+                state=AgentState.ORPHANED,
+                task_count=0,
+                total_resources=ClustermanResources(0, 0, 0),
             )
 
         allocated_resources = allocated_agent_resources(agent_dict)
-        return Agent(
+        return AgentMetadata(
             agent_id=agent_dict['id'],
             allocated_resources=allocated_agent_resources(agent_dict),
             batch_task_count=self._batch_task_count_per_agent[agent_dict['id']],
-            agent_state=(AgentState.RUNNING if any(allocated_resources) else AgentState.IDLE),
+            state=(AgentState.RUNNING if any(allocated_resources) else AgentState.IDLE),
             task_count=self._task_count_per_agent[agent_dict['id']],
             total_resources=total_agent_resources(agent_dict),
         )

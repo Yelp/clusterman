@@ -3,11 +3,28 @@ from abc import abstractclassmethod
 from abc import abstractmethod
 from abc import abstractproperty
 from typing import Any
+from typing import Collection
 from typing import List
 from typing import Mapping
+from typing import NamedTuple
+from typing import Optional
 from typing import Sequence
 
+import arrow
+
 from clusterman.aws.markets import InstanceMarket
+
+
+class InstanceMetadata(NamedTuple):
+    group_id: str
+    hostname: Optional[str]
+    instance_id: str
+    ip_address: Optional[str]
+    is_resource_group_stale: bool
+    market: InstanceMarket
+    state: str
+    uptime: arrow.Arrow
+    weight: float
 
 
 class ResourceGroup(metaclass=ABCMeta):
@@ -20,6 +37,10 @@ class ResourceGroup(metaclass=ABCMeta):
 
     @abstractmethod
     def __init__(self, group_id: str) -> None:
+        pass
+
+    @abstractmethod
+    def get_instance_metadatas(self, state_filter: Optional[Collection[str]] = None) -> Sequence[InstanceMetadata]:
         pass
 
     @abstractmethod

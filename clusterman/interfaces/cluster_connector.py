@@ -4,11 +4,7 @@ from abc import abstractmethod
 from typing import NamedTuple
 from typing import Optional
 
-
-class ClustermanResources(NamedTuple):
-    cpus: float
-    mem: float
-    disk: float
+from clusterman.util import ClustermanResources
 
 
 class AgentState(enum.Enum):
@@ -18,11 +14,11 @@ class AgentState(enum.Enum):
     UNKNOWN = 'unknown'
 
 
-class Agent(NamedTuple):
+class AgentMetadata(NamedTuple):
     agent_id: str
-    agent_state: AgentState
     allocated_resources: ClustermanResources
     batch_task_count: int
+    state: AgentState
     task_count: int
     total_resources: ClustermanResources
 
@@ -37,7 +33,7 @@ class ClusterConnector(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def get_agent_by_ip(self, instance_ip: Optional[str]) -> Agent:
+    def get_agent_metadata(self, instance_ip: Optional[str]) -> AgentMetadata:
         pass
 
     @abstractmethod

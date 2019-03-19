@@ -28,7 +28,7 @@ from clusterman.draining.mesos import down
 from clusterman.draining.mesos import drain
 from clusterman.draining.mesos import operator_api
 from clusterman.draining.mesos import up
-from clusterman.interfaces.pool_manager import InstanceMetadata
+from clusterman.interfaces.resource_group import InstanceMetadata
 from clusterman.mesos.util import get_pool_name_list
 
 
@@ -66,7 +66,7 @@ class DrainingClient():
             MessageBody=json.dumps(
                 {
                     'instance_id': instance.instance_id,
-                    'ip': instance.instance_ip,
+                    'ip': instance.ip_address,
                     'hostname': instance.hostname,
                     'group_id': instance.group_id,
                 }

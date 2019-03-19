@@ -6,8 +6,8 @@ from hamcrest import close_to
 from hamcrest import contains
 from hamcrest import equal_to
 
+from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.aws.auto_scaling_resource_group import AutoScalingResourceGroup
-from clusterman.aws.aws_pool_manager import AWSPoolManager
 from clusterman.aws.client import autoscaling
 from clusterman.aws.client import ec2
 from clusterman.aws.ec2_fleet_resource_group import EC2FleetResourceGroup
@@ -61,25 +61,25 @@ def mock_agents_and_tasks(context):
         return agents
 
     with mock.patch(
-        'clusterman.aws.aws_pool_manager.MesosClusterConnector._get_agents',
+        'clusterman.autoscaler.pool_manager.MesosClusterConnector._get_agents',
         side_effect=get_agents,
     ), mock.patch(
-        'clusterman.aws.aws_pool_manager.MesosClusterConnector._get_tasks',
+        'clusterman.autoscaler.pool_manager.MesosClusterConnector._get_tasks',
         return_value=[],
     ), mock.patch(
-        'clusterman.aws.aws_pool_manager.MesosClusterConnector._get_frameworks',
+        'clusterman.autoscaler.pool_manager.MesosClusterConnector._get_frameworks',
         return_value=[],
     ), staticconf.testing.PatchConfiguration(
         {'mesos_clusters': {'mesos-test': {'max_weight_to_remove': 1000}}},
     ), mock.patch(
-        'clusterman.aws.aws_pool_manager.gethostbyaddr',
+        'clusterman.aws.aws_resource_group.gethostbyaddr',
         return_value=('the-host', '', ''),
     ):
         yield
 
 
 @behave.given('a pool manager with (?P<num>\d+) (?P<rg_type>asg|sfr|fleet) resource groups?')
-def make_aws_pool_manager(context, num, rg_type):
+def make_pool_manager(context, num, rg_type):
     behave.use_fixture(boto_patches, context)
     behave.use_fixture(mock_agents_and_tasks, context)
     context.rg_type = rg_type
@@ -99,9 +99,9 @@ def make_aws_pool_manager(context, num, rg_type):
             mock_sfr_load.return_value = mock_sfrs(int(num), context.subnet_id)
         elif context.rg_type == 'fleet':
             mock_fleet_load.return_value = mock_fleets(int(num), context.subnet_id)
-        context.aws_pool_manager = AWSPoolManager('mesos-test', 'bar')
-    context.rg_ids = [i for i in context.aws_pool_manager.resource_groups]
-    context.aws_pool_manager.max_capacity = 101
+        context.pool_manager = PoolManager('mesos-test', 'bar')
+    context.rg_ids = [i for i in context.pool_manager.resource_groups]
+    context.pool_manager.max_capacity = 101
 
 
 @behave.given('the fulfilled capacity of resource group (?P<rg_index>\d+) is (?P<capacity>\d+)')
@@ -120,35 +120,35 @@ def external_target_capacity(context, rg_index, capacity):
         )
 
     # make sure our non orphan fulfilled capacity is up-to-date
-    with mock.patch('clusterman.aws.aws_pool_manager.AWSPoolManager._reload_resource_groups'):
-        context.aws_pool_manager.reload_state()
+    with mock.patch('clusterman.autoscaler.pool_manager.PoolManager._reload_resource_groups'):
+        context.pool_manager.reload_state()
 
 
 @behave.given('we request (?P<capacity>\d+) capacity')
 @behave.when('we request (?P<capacity>\d+) capacity(?P<dry_run> and dry-run is active)?')
 def modify_capacity(context, capacity, dry_run=False):
     dry_run = True if dry_run else False
-    context.aws_pool_manager.prune_excess_fulfilled_capacity = mock.Mock()
-    context.original_capacities = [rg.target_capacity for rg in context.aws_pool_manager.resource_groups.values()]
-    context.aws_pool_manager.modify_target_capacity(int(capacity), dry_run=dry_run)
+    context.pool_manager.prune_excess_fulfilled_capacity = mock.Mock()
+    context.original_capacities = [rg.target_capacity for rg in context.pool_manager.resource_groups.values()]
+    context.pool_manager.modify_target_capacity(int(capacity), dry_run=dry_run)
 
 
 @behave.when('resource group (?P<rgid>\d+) is broken')
 def broken_resource_group(context, rgid):
-    rg = list(context.mesos_pool_manager.resource_groups.values())[0]
+    rg = list(context.pool_manager.resource_groups.values())[0]
     rg.modify_target_capacity = mock.Mock(side_effect=ResourceGroupError('resource group is broken'))
 
 
 @behave.then('the resource groups should be at minimum capacity')
 def check_at_min_capacity(context):
-    for rg in context.aws_pool_manager.resource_groups.values():
+    for rg in context.pool_manager.resource_groups.values():
         assert_that(rg.target_capacity, equal_to(1))
 
 
 @behave.then('the resource group capacities should not change')
 def check_unchanged_capacity(context):
     assert_that(
-        [rg.target_capacity for rg in context.aws_pool_manager.resource_groups.values()],
+        [rg.target_capacity for rg in context.pool_manager.resource_groups.values()],
         contains(*context.original_capacities),
     )
 
@@ -156,7 +156,7 @@ def check_unchanged_capacity(context):
 @behave.then("the first resource group's capacity should not change")
 def check_first_rg_capacity_unchanged(context):
     assert_that(
-        context.aws_pool_manager.resource_groups[context.rg_ids[0]].target_capacity,
+        context.pool_manager.resource_groups[context.rg_ids[0]].target_capacity,
         equal_to(context.original_capacities[0]),
     )
 
@@ -166,12 +166,12 @@ def check_target_capacity(context, remaining):
     target_capacity = 0
     if remaining:
         desired_capacity = (
-            (context.aws_pool_manager.target_capacity - context.original_capacities[0]) / (len(context.rg_ids) - 1)
+            (context.pool_manager.target_capacity - context.original_capacities[0]) / (len(context.rg_ids) - 1)
         )
     else:
-        desired_capacity = context.aws_pool_manager.target_capacity / len(context.rg_ids)
+        desired_capacity = context.pool_manager.target_capacity / len(context.rg_ids)
 
-    for i, rg in enumerate(context.aws_pool_manager.resource_groups.values()):
+    for i, rg in enumerate(context.pool_manager.resource_groups.values()):
         target_capacity += rg.target_capacity
         if remaining and i == 0:
             continue
@@ -179,4 +179,4 @@ def check_target_capacity(context, remaining):
             rg.target_capacity,
             close_to(desired_capacity, 1.0),
         )
-    assert_that(target_capacity, equal_to(context.aws_pool_manager.target_capacity))
+    assert_that(target_capacity, equal_to(context.pool_manager.target_capacity))

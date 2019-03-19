@@ -2,16 +2,17 @@ import mock
 import pytest
 import staticconf
 import staticconf.testing
-from moto import mock_ec2
 
-from clusterman.aws.aws_pool_manager import AWSPoolManager
+from clusterman.autoscaler.pool_manager import ClusterNodeMetadata
+from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.aws.aws_resource_group import AWSResourceGroup
-from clusterman.aws.client import ec2
 from clusterman.exceptions import AllResourceGroupsAreStaleError
-from clusterman.exceptions import ResourceGroupError
 from clusterman.exceptions import PoolManagerError
+from clusterman.exceptions import ResourceGroupError
+from clusterman.interfaces.cluster_connector import AgentMetadata
 from clusterman.interfaces.cluster_connector import AgentState
-from clusterman.interfaces.pool_manager import InstanceMetadata
+from clusterman.interfaces.resource_group import InstanceMetadata
+from clusterman.util import ClustermanResources
 
 
 def _make_metadata(
@@ -23,17 +24,26 @@ def _make_metadata(
     tasks=5,
     batch_tasks=0,
 ):
-    return InstanceMetadata(
-        agent=mock.Mock(task_count=tasks, batch_task_count=batch_tasks, agent_state=agent_state),
-        group_id=rg_id,
-        hostname='host1',
-        instance_id=instance_id,
-        instance_ip='1.2.3.4',
-        instance_state='running',
-        is_resource_group_stale=is_stale,
-        market='market-1',
-        uptime=1000,
-        weight=weight,
+    return ClusterNodeMetadata(
+        AgentMetadata(
+            agent_id='foo',
+            allocated_resources=ClustermanResources(0, 0, 0),
+            batch_task_count=batch_tasks,
+            state=agent_state,
+            task_count=tasks,
+            total_resources=ClustermanResources(0, 0, 0),
+        ),
+        InstanceMetadata(
+            group_id=rg_id,
+            hostname='host1',
+            instance_id=instance_id,
+            ip_address='1.2.3.4',
+            is_resource_group_stale=is_stale,
+            market='market-1',
+            state='running',
+            uptime=1000,
+            weight=weight,
+        ),
     )
 
 
@@ -61,21 +71,21 @@ def mock_pool_manager(mock_resource_groups):
         'clusterman.aws.spot_fleet_resource_group.SpotFleetResourceGroup.load',
         return_value={},
     ), mock.patch(
-        'clusterman.aws.aws_pool_manager.DrainingClient',
+        'clusterman.autoscaler.pool_manager.DrainingClient',
         autospec=True,
     ), mock.patch(
-        'clusterman.aws.aws_pool_manager.AWSPoolManager.reload_state'
+        'clusterman.autoscaler.pool_manager.PoolManager.reload_state'
     ), mock.patch(
-        'clusterman.aws.aws_pool_manager.MesosClusterConnector',
+        'clusterman.autoscaler.pool_manager.MesosClusterConnector',
         autospec=True,
     ):
-        manager = AWSPoolManager('mesos-test', 'bar')
+        manager = PoolManager('mesos-test', 'bar')
         manager.resource_groups = mock_resource_groups
 
         return manager
 
 
-def test_aws_pool_manager_init(mock_pool_manager, mock_resource_groups):
+def test_pool_manager_init(mock_pool_manager, mock_resource_groups):
     assert mock_pool_manager.cluster == 'mesos-test'
     assert mock_pool_manager.pool == 'bar'
     with staticconf.testing.MockConfiguration(
@@ -91,11 +101,11 @@ def test_aws_pool_manager_init(mock_pool_manager, mock_resource_groups):
                     'clusterman.aws.spot_fleet_resource_group.SpotFleetResourceGroup.load',
                     return_value={},
                 ), mock.patch(
-                    'clusterman.aws.aws_pool_manager.DrainingClient', autospec=True
+                    'clusterman.autoscaler.pool_manager.DrainingClient', autospec=True
                 ), mock.patch(
-                    'clusterman.aws.aws_pool_manager.AWSPoolManager.reload_state'
+                    'clusterman.autoscaler.pool_manager.PoolManager.reload_state'
                 ):
-            mock_manager = AWSPoolManager('mesos-test', 'bar')
+            mock_manager = PoolManager('mesos-test', 'bar')
             mock_manager.resource_groups = mock_resource_groups
             assert mock_manager.max_tasks_to_kill == float('inf')
 
@@ -108,7 +118,7 @@ def test_modify_target_capacity_no_resource_groups(mock_pool_manager):
 
 def test_modify_target_capacity_skip_failing_group(mock_pool_manager):
     list(mock_pool_manager.resource_groups.values())[0].modify_target_capacity.side_effect = ResourceGroupError('foo')
-    with mock.patch('clusterman.mesos.mesos_pool_manager.yelp_meteorite') as mock_meteorite:
+    with mock.patch('clusterman.autoscaler.pool_manager.yelp_meteorite') as mock_meteorite:
         mock_pool_manager.modify_target_capacity(1234)
         assert mock_meteorite.create_counter.call_count == 1
 
@@ -130,15 +140,19 @@ def test_modify_target_capacity(new_target, constrained_target, mock_pool_manage
 
 class TestPruneExcessFulfilledCapacity:
     @pytest.fixture
-    def mock_instances_to_prune(self):
+    def mock_nodes_to_prune(self):
         return {
-            'sfr-1': [mock.Mock(instance_id=1)],
-            'sfr-3': [mock.Mock(instance_id=4), mock.Mock(instance_id=5), mock.Mock(instance_id=6)],
+            'sfr-1': [mock.Mock(instance=mock.Mock(instance_id=1))],
+            'sfr-3': [
+                mock.Mock(instance=mock.Mock(instance_id=4)),
+                mock.Mock(instance=mock.Mock(instance_id=5)),
+                mock.Mock(instance=mock.Mock(instance_id=6)),
+            ],
         }
 
     @pytest.fixture
-    def mock_pool_manager(self, mock_pool_manager, mock_instances_to_prune):
-        mock_pool_manager._choose_instances_to_prune = mock.Mock(return_value=mock_instances_to_prune)
+    def mock_pool_manager(self, mock_pool_manager, mock_nodes_to_prune):
+        mock_pool_manager._choose_nodes_to_prune = mock.Mock(return_value=mock_nodes_to_prune)
         mock_pool_manager.draining_client = mock.Mock()
         mock_pool_manager.terminate_instances_by_id = mock.Mock()
         return mock_pool_manager
@@ -148,14 +162,14 @@ class TestPruneExcessFulfilledCapacity:
         assert mock_pool_manager.draining_client.submit_instance_for_draining.call_count == 0
         assert mock_pool_manager.terminate_instances_by_id.call_count == 0
 
-    def test_drain_queue(self, mock_pool_manager, mock_instances_to_prune):
+    def test_drain_queue(self, mock_pool_manager, mock_nodes_to_prune):
         mock_pool_manager.draining_enabled = True
         mock_pool_manager.prune_excess_fulfilled_capacity(100)
         assert mock_pool_manager.draining_client.submit_instance_for_draining.call_args_list == [
-            mock.call(mock_instances_to_prune['sfr-1'][0], sender=AWSResourceGroup),
-            mock.call(mock_instances_to_prune['sfr-3'][0], sender=AWSResourceGroup),
-            mock.call(mock_instances_to_prune['sfr-3'][1], sender=AWSResourceGroup),
-            mock.call(mock_instances_to_prune['sfr-3'][2], sender=AWSResourceGroup),
+            mock.call(mock_nodes_to_prune['sfr-1'][0].instance, sender=AWSResourceGroup),
+            mock.call(mock_nodes_to_prune['sfr-3'][0].instance, sender=AWSResourceGroup),
+            mock.call(mock_nodes_to_prune['sfr-3'][1].instance, sender=AWSResourceGroup),
+            mock.call(mock_nodes_to_prune['sfr-3'][2].instance, sender=AWSResourceGroup),
         ]
 
     def test_terminate_immediately(self, mock_pool_manager):
@@ -164,48 +178,7 @@ class TestPruneExcessFulfilledCapacity:
         assert mock_pool_manager.resource_groups['sfr-3'].terminate_instances_by_id.call_args == mock.call([4, 5, 6])
 
 
-@mock_ec2
-def test_get_instance_metadatas(mock_pool_manager):
-    reservations = ec2.run_instances(ImageId='ami-foo', MinCount=5, MaxCount=5, InstanceType='t2.nano')
-    mock_pool_manager.resource_groups = {
-        'sfr-1': mock.Mock(instance_ids=[i['InstanceId'] for i in reservations['Instances']]),
-    }
-    ips = [i['PrivateIpAddress'] for i in reservations['Instances']]
-    with mock.patch('clusterman.aws.aws_pool_manager.gethostbyaddr') as mock_hostname:
-        mock_hostname.side_effect = lambda ip: {ips[i]: (f'host{i}',) for i in range(5)}[ip]
-        metadatas = mock_pool_manager.get_instance_metadatas()
-        cancelled_metadatas = mock_pool_manager.get_instance_metadatas({'cancelled'})
-
-    assert len(metadatas) == 5
-    assert len(cancelled_metadatas) == 0
-    for i, metadata in enumerate(metadatas):
-        # Other metadata properties are mocked out
-        assert metadata.hostname == f'host{i}'
-        assert metadata.instance_id == reservations['Instances'][i]['InstanceId']
-        assert metadata.instance_ip == ips[i]
-        assert metadata.instance_state == 'running'
-        assert metadata.market.instance == 't2.nano'
-
-
-def test_get_unknown_instance(mock_pool_manager):
-    with mock.patch(
-        'clusterman.aws.aws_pool_manager.ec2_describe_instances',
-        return_value=[{  # missing the 'PrivateIpAddress' key
-            'InstanceId': 1,
-            'InstanceType': 't2.nano',
-            'State': {
-                'Name': 'running',
-            },
-            'LaunchTime': '2018-07-25T14:50:00Z',
-        }],
-    ):
-        mock_pool_manager.resource_groups = {'rg1': mock.Mock(instance_ids=[1])}
-        metadatas = mock_pool_manager.get_instance_metadatas()
-
-    assert len(metadatas) == 1
-
-
-@mock.patch('clusterman.aws.aws_pool_manager.logger', autospec=True)
+@mock.patch('clusterman.autoscaler.pool_manager.logger', autospec=True)
 class TestReloadResourceGroups:
     def test_malformed_config(self, mock_logger, mock_pool_manager):
         with staticconf.testing.MockConfiguration(
@@ -231,7 +204,7 @@ class TestReloadResourceGroups:
 
     def test_successful(self, mock_logger, mock_pool_manager):
         with mock.patch.dict(
-            'clusterman.aws.aws_pool_manager.RESOURCE_GROUPS',
+            'clusterman.autoscaler.pool_manager.RESOURCE_GROUPS',
             {'sfr': mock.Mock(load=mock.Mock(return_value={'rg1': mock.Mock()}))},
         ), staticconf.testing.PatchConfiguration(
             {'resource_groups': [{'sfr': {'tag': 'puppet:role::paasta'}}]},
@@ -243,7 +216,7 @@ class TestReloadResourceGroups:
         assert 'rg1' in mock_pool_manager.resource_groups
 
 
-@mock.patch('clusterman.aws.aws_pool_manager.logger')
+@mock.patch('clusterman.autoscaler.pool_manager.logger')
 @pytest.mark.parametrize('force', [True, False])
 class TestConstrainTargetCapacity:
     def test_positive_delta(self, mock_logger, force, mock_pool_manager):
@@ -264,7 +237,7 @@ class TestConstrainTargetCapacity:
         assert mock_pool_manager._constrain_target_capacity(49, force) == 49
 
 
-@mock.patch('clusterman.aws.aws_pool_manager.logger', autospec=True)
+@mock.patch('clusterman.autoscaler.pool_manager.logger', autospec=True)
 class TestChooseInstancesToPrune:
 
     @pytest.fixture
@@ -273,40 +246,40 @@ class TestChooseInstancesToPrune:
         return mock_pool_manager
 
     def test_fulfilled_capacity_under_target(self, mock_logger, mock_pool_manager):
-        assert mock_pool_manager._choose_instances_to_prune(300, None) == {}
+        assert mock_pool_manager._choose_nodes_to_prune(300, None) == {}
 
     def test_no_instances_to_kill(self, mock_logger, mock_pool_manager):
-        mock_pool_manager._get_prioritized_killable_instances = mock.Mock(return_value=[])
-        assert mock_pool_manager._choose_instances_to_prune(100, None) == {}
+        mock_pool_manager._get_prioritized_killable_nodes = mock.Mock(return_value=[])
+        assert mock_pool_manager._choose_nodes_to_prune(100, None) == {}
 
     def test_killable_instance_under_group_capacity(self, mock_logger, mock_pool_manager):
-        mock_pool_manager._get_prioritized_killable_instances = mock.Mock(return_value=[
+        mock_pool_manager._get_prioritized_killable_nodes = mock.Mock(return_value=[
             _make_metadata('sfr-1', 'i-1', weight=1000)
         ])
-        assert mock_pool_manager._choose_instances_to_prune(100, None) == {}
+        assert mock_pool_manager._choose_nodes_to_prune(100, None) == {}
         assert 'is at target capacity' in mock_logger.info.call_args[0][0]
 
     def test_killable_instance_too_many_tasks(self, mock_logger, mock_pool_manager):
-        mock_pool_manager._get_prioritized_killable_instances = mock.Mock(return_value=[
+        mock_pool_manager._get_prioritized_killable_nodes = mock.Mock(return_value=[
             _make_metadata('sfr-1', 'i-1')
         ])
-        assert mock_pool_manager._choose_instances_to_prune(100, None) == {}
+        assert mock_pool_manager._choose_nodes_to_prune(100, None) == {}
         assert 'would take us over our max_tasks_to_kill' in mock_logger.info.call_args[0][0]
 
-    def test_killable_instances_under_target_capacity(self, mock_logger, mock_pool_manager):
-        mock_pool_manager._get_prioritized_killable_instances = mock.Mock(return_value=[
+    def test_killable_nodes_under_target_capacity(self, mock_logger, mock_pool_manager):
+        mock_pool_manager._get_prioritized_killable_nodes = mock.Mock(return_value=[
             _make_metadata('sfr-1', 'i-1', weight=2)
         ])
         mock_pool_manager.max_tasks_to_kill = 100
-        assert mock_pool_manager._choose_instances_to_prune(125, None) == {}
+        assert mock_pool_manager._choose_nodes_to_prune(125, None) == {}
         assert 'would take us under our target_capacity' in mock_logger.info.call_args[0][0]
 
     def test_kill_instance(self, mock_logger, mock_pool_manager):
-        mock_pool_manager._get_prioritized_killable_instances = mock.Mock(return_value=[
+        mock_pool_manager._get_prioritized_killable_nodes = mock.Mock(return_value=[
             _make_metadata('sfr-1', 'i-1', weight=2)
         ])
         mock_pool_manager.max_tasks_to_kill = 100
-        assert mock_pool_manager._choose_instances_to_prune(100, None)['sfr-1'][0].instance_id == 'i-1'
+        assert mock_pool_manager._choose_nodes_to_prune(100, None)['sfr-1'][0].instance.instance_id == 'i-1'
 
 
 def test_compute_new_resource_group_targets_no_unfilled_capacity(mock_pool_manager):
@@ -431,7 +404,7 @@ def test_fulfilled_capacity(mock_pool_manager):
 
 
 def test_instance_kill_order(mock_pool_manager):
-    mock_pool_manager.get_instance_metadatas = mock.Mock(return_value=[
+    mock_pool_manager.get_node_metadatas = mock.Mock(return_value=[
         _make_metadata('sfr-0', 'i-7', batch_tasks=100),
         _make_metadata('sfr-0', 'i-0', agent_state=AgentState.ORPHANED),
         _make_metadata('sfr-0', 'i-2', tasks=1, is_stale=True),
@@ -444,6 +417,6 @@ def test_instance_kill_order(mock_pool_manager):
         _make_metadata('sfr-0', 'i-9', tasks=100000),
     ])
     mock_pool_manager.max_tasks_to_kill = 1000
-    killable_instances = mock_pool_manager._get_prioritized_killable_instances()
-    killable_instance_ids = [instance.instance_id for instance in killable_instances]
+    killable_nodes = mock_pool_manager._get_prioritized_killable_nodes()
+    killable_instance_ids = [node_metadata.instance.instance_id for node_metadata in killable_nodes]
     assert killable_instance_ids == [f'i-{i}' for i in range(8)]

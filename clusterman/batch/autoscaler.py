@@ -12,7 +12,7 @@ from clusterman.args import add_env_config_path_arg
 from clusterman.args import add_healthcheck_only_arg
 from clusterman.args import add_pool_arg
 from clusterman.autoscaler.autoscaler import Autoscaler
-from clusterman.aws.aws_pool_manager import AWSPoolManager
+from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import BatchRunningSentinelMixin
 from clusterman.batch.util import suppress_request_limit_exceeded
@@ -83,7 +83,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
 
         self.apps = [self.options.pool]  # TODO (CLUSTERMAN-126) someday these should not be the same thing
 
-        pool_manager = AWSPoolManager(
+        pool_manager = PoolManager(
             self.options.cluster,
             self.options.pool,
             fetch_state=not self.options.healthcheck_only,

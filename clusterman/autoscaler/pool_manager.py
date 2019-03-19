@@ -1,25 +1,22 @@
 import traceback
 from bisect import bisect
 from collections import defaultdict
-from socket import gethostbyaddr
 from typing import cast
 from typing import Collection
 from typing import List
 from typing import Mapping
 from typing import MutableMapping
+from typing import NamedTuple
 from typing import Optional
 from typing import Sequence
 from typing import Tuple
 from typing import Type
 
-import arrow
 import colorlog
 import staticconf
 import yelp_meteorite
 
 from clusterman.aws.aws_resource_group import AWSResourceGroup
-from clusterman.aws.client import ec2_describe_instances
-from clusterman.aws.markets import get_instance_market
 from clusterman.aws.markets import InstanceMarket
 from clusterman.aws.util import RESOURCE_GROUPS
 from clusterman.config import POOL_NAMESPACE
@@ -27,14 +24,13 @@ from clusterman.draining.queue import DrainingClient
 from clusterman.exceptions import AllResourceGroupsAreStaleError
 from clusterman.exceptions import PoolManagerError
 from clusterman.exceptions import ResourceGroupError
+from clusterman.interfaces.cluster_connector import AgentMetadata
 from clusterman.interfaces.cluster_connector import AgentState
 from clusterman.interfaces.cluster_connector import ClusterConnector
-from clusterman.interfaces.pool_manager import InstanceMetadata
-from clusterman.interfaces.pool_manager import PoolManager
+from clusterman.interfaces.resource_group import InstanceMetadata
 from clusterman.interfaces.resource_group import ResourceGroup
 from clusterman.mesos.mesos_cluster_connector import MesosClusterConnector
 from clusterman.util import read_int_or_inf
-
 
 AWS_RUNNING_STATES = ('running',)
 MIN_CAPACITY_PER_GROUP = 1
@@ -42,14 +38,19 @@ RESOURCE_GROUP_MODIFICATION_FAILED_NAME = 'clusterman.resource_group_modificatio
 logger = colorlog.getLogger(__name__)
 
 
-class AWSPoolManager(PoolManager):
+class ClusterNodeMetadata(NamedTuple):
+    agent: AgentMetadata
+    instance: InstanceMetadata
 
-    connector: ClusterConnector
+
+class PoolManager:
+
+    cluster_connector: ClusterConnector
 
     def __init__(self, cluster: str, pool: str, *, fetch_state: bool = True) -> None:
         self.cluster = cluster
         self.pool = pool
-        self.connector = MesosClusterConnector(self.cluster, self.pool)
+        self.cluster_connector = MesosClusterConnector(self.cluster, self.pool)
 
         self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool))
 
@@ -66,7 +67,7 @@ class AWSPoolManager(PoolManager):
         """ Fetch any state that may have changed behind our back, but which we do not want to change during an
         ``Autoscaler.run()``.
         """
-        self.connector.reload_state()
+        self.cluster_connector.reload_state()
         self._reload_resource_groups()
         self._non_orphan_fulfilled_capacity = self._calculate_non_orphan_fulfilled_capacity()
 
@@ -80,7 +81,7 @@ class AWSPoolManager(PoolManager):
         """ Change the desired :attr:`target_capacity` of the resource groups belonging to this pool.
 
         Capacity changes are roughly evenly distributed across the resource groups to ensure that
-        instances are diversified in the cluster
+        nodes are diversified in the cluster
 
         :param new_target_capacity: the desired target capacity for the cluster and pool
         :param dry_run: boolean indicating whether the cluster should actually be modified
@@ -90,7 +91,7 @@ class AWSPoolManager(PoolManager):
         .. note:: It may take some time (up to a few minutes) for changes in the target capacity to be reflected in
            :attr:`fulfilled_capacity`.  Once the capacity has equilibrated, the fulfilled capacity and the target
            capacity may not exactly match, but the fulfilled capacity will never be under the target (for example, if
-           there is no combination of instances that evenly sum to the desired target capacity, the final fulfilled
+           there is no combination of nodes that evenly sum to the desired target capacity, the final fulfilled
            capacity will be slightly above the target capacity)
         """
         if dry_run:
@@ -131,7 +132,7 @@ class AWSPoolManager(PoolManager):
     ) -> None:
         """ Decrease the capacity in the cluster
 
-        The number of tasks killed is limited by ``self.max_tasks_to_kill``, and the instances are terminated in an
+        The number of tasks killed is limited by ``self.max_tasks_to_kill``, and the nodes are terminated in an
         order which (hopefully) reduces the impact on jobs running on the cluster.
 
         :param group_targets: a list of new resource group target_capacities; if None, use the existing
@@ -139,54 +140,38 @@ class AWSPoolManager(PoolManager):
         :param dry_run: if True, do not modify the state of the cluster, just log actions
         """
 
-        marked_instances = self._choose_instances_to_prune(new_target_capacity, group_targets)
+        marked_nodes_by_group = self._choose_nodes_to_prune(new_target_capacity, group_targets)
 
         if not dry_run:
             if self.draining_enabled:
                 assert self.draining_client  # make mypy happy
-                for group_id, instances in marked_instances.items():
-                    for instance in instances:
+                for group_id, node_metadatas in marked_nodes_by_group.items():
+                    for node_metadata in node_metadatas:
                         self.draining_client.submit_instance_for_draining(
-                            instance,
+                            node_metadata.instance,
                             sender=cast(Type[AWSResourceGroup], self.resource_groups[group_id].__class__),
                         )
             else:
-                for group_id, instances in marked_instances.items():
-                    self.resource_groups[group_id].terminate_instances_by_id([i.instance_id for i in instances])
+                for group_id, node_metadatas in marked_nodes_by_group.items():
+                    self.resource_groups[group_id].terminate_instances_by_id([
+                        node_metadata.instance.instance_id
+                        for node_metadata in node_metadatas
+                    ])
 
-    def get_instance_metadatas(self, aws_state_filter: Optional[Collection[str]] = None) -> Sequence[InstanceMetadata]:
-        """ Get a list of metadata about the instances currently in the pool
+    def get_node_metadatas(self, state_filter: Optional[Collection[str]] = None) -> Sequence[ClusterNodeMetadata]:
+        """ Get a list of metadata about the nodes currently in the pool
 
-        :param aws_state_filter: only return instances matching a particular AWS state ('running', 'cancelled', etc)
+        :param state_filter: only return nodes matching a particular state ('running', 'cancelled', etc)
         :returns: a list of InstanceMetadata objects
         """
-        instance_metadatas = []
-
-        for group in self.resource_groups.values():
-            for instance_dict in ec2_describe_instances(instance_ids=group.instance_ids):
-                aws_state = instance_dict['State']['Name']
-                if aws_state_filter and aws_state not in aws_state_filter:
-                    continue
-
-                instance_market = get_instance_market(instance_dict)
-                instance_ip = instance_dict.get('PrivateIpAddress')
-                hostname = gethostbyaddr(instance_ip)[0] if instance_ip else None
-
-                metadata = InstanceMetadata(
-                    agent=self.connector.get_agent_by_ip(instance_ip),
-                    group_id=group.id,
-                    hostname=hostname,
-                    instance_id=instance_dict['InstanceId'],
-                    instance_ip=instance_ip,
-                    instance_state=aws_state,
-                    is_resource_group_stale=group.is_stale,
-                    market=instance_market,
-                    uptime=(arrow.now() - arrow.get(instance_dict['LaunchTime'])),
-                    weight=group.market_weight(instance_market),
-                )
-                instance_metadatas.append(metadata)
-
-        return instance_metadatas
+        return [
+            ClusterNodeMetadata(
+                self.cluster_connector.get_agent_metadata(instance_metadata.ip_address),
+                instance_metadata,
+            )
+            for group in self.resource_groups.values()
+            for instance_metadata in group.get_instance_metadatas(state_filter)
+        ]
 
     def _reload_resource_groups(self) -> None:
         resource_groups: MutableMapping[str, ResourceGroup] = {}
@@ -248,14 +233,14 @@ class AWSPoolManager(PoolManager):
                 )
         return constrained_target_capacity
 
-    def _choose_instances_to_prune(
+    def _choose_nodes_to_prune(
         self,
         new_target_capacity: float,
         group_targets: Optional[Mapping[str, float]],
-    ) -> Mapping[str, List[InstanceMetadata]]:
-        """ Choose instances to kill in order to decrease the capacity on the cluster.
+    ) -> Mapping[str, List[ClusterNodeMetadata]]:
+        """ Choose nodes to kill in order to decrease the capacity on the cluster.
 
-        The number of tasks killed is limited by self.max_tasks_to_kill, and the instances are terminated in an order
+        The number of tasks killed is limited by self.max_tasks_to_kill, and the nodes are terminated in an order
         which (hopefully) reduces the impact on jobs running on the cluster.
 
         :param new_target_capacity: The total new target capacity for the pool. Most of the time, this is equal to
@@ -264,11 +249,11 @@ class AWSPoolManager(PoolManager):
             aim for the actual target value.
         :param group_targets: a list of new resource group target_capacities; if None, use the existing
             target_capacities (this parameter is necessary in order for dry runs to work correctly)
-        :returns: a dict of resource group ids -> list of instance ids to terminate
+        :returns: a dict of resource group ids -> list of nodes to terminate
         """
 
         # If dry_run is True in modify_target_capacity, the resource group target_capacity values will not have changed,
-        # so this function would not choose to terminate any instances (see case #2 in the while loop below).  So
+        # so this function would not choose to terminate any nodes (see case #2 in the while loop below).  So
         # instead we take a list of new target capacities to use in this computation.
         #
         # We leave the option for group_targets to be None in the event that we want to call
@@ -281,12 +266,12 @@ class AWSPoolManager(PoolManager):
         if curr_capacity <= new_target_capacity:
             return {}
 
-        prioritized_killable_instances = self._get_prioritized_killable_instances()
-        logger.info('Killable instance IDs in kill order:\n{instances}'.format(
-            instances=[instance.instance_id for instance in prioritized_killable_instances],
+        prioritized_killable_nodes = self._get_prioritized_killable_nodes()
+        logger.info('Killable instance IDs in kill order:\n{instance_ids}'.format(
+            instance_ids=[node_metadata.instance.instance_id for node_metadata in prioritized_killable_nodes],
         ))
 
-        if not prioritized_killable_instances:
+        if not prioritized_killable_nodes:
             return {}
         rem_group_capacities = {group_id: rg.fulfilled_capacity for group_id, rg in self.resource_groups.items()}
 
@@ -295,50 +280,54 @@ class AWSPoolManager(PoolManager):
 
         # Iterate through all of the idle agents and mark one at a time for removal until we reach our target capacity
         # or have reached our limit of tasks to kill.
-        marked_instances: Mapping[str, List[InstanceMetadata]] = defaultdict(list)
+        marked_nodes: Mapping[str, List[ClusterNodeMetadata]] = defaultdict(list)
         killed_task_count = 0
-        for metadata in prioritized_killable_instances:
-            # Try to mark the instance for removal; this could fail in a few different ways:
-            #  1) The resource group the instance belongs to can't be reduced further.
-            #  2) Killing the instance's tasks would take over the maximum number of tasks we are willing to kill.
-            #  3) Killing the instance would bring us under our target_capacity of non-orphaned instances.
-            # In each of the cases, the instance has been removed from consideration and we jump to the next iteration.
+        for node_metadata in prioritized_killable_nodes:
+            # Try to mark the node for removal; this could fail in a few different ways:
+            #  1) The resource group the node belongs to can't be reduced further.
+            #  2) Killing the node's tasks would take over the maximum number of tasks we are willing to kill.
+            #  3) Killing the node would bring us under our target_capacity of non-orphaned nodes.
+            # In each of the cases, the node has been removed from consideration and we jump to the next iteration.
 
-            # Make sure we don't make a resource group go below its target capacity
-            if rem_group_capacities[metadata.group_id] - metadata.weight < group_targets[metadata.group_id]:  # case 1
+            instance_id = node_metadata.instance.instance_id
+            group_id = node_metadata.instance.group_id
+            instance_weight = node_metadata.instance.weight
+
+            new_group_capacity = rem_group_capacities[group_id] - instance_weight
+            if new_group_capacity < group_targets[group_id]:  # case 1
                 logger.info(
-                    f'Resource group {metadata.group_id} is at target capacity; skipping {metadata.instance_id}'
+                    f'Resource group {group_id} is at target capacity; skipping {instance_id}'
                 )
                 continue
 
-            if killed_task_count + metadata.agent.task_count > self.max_tasks_to_kill:  # case 2
+            if killed_task_count + node_metadata.agent.task_count > self.max_tasks_to_kill:  # case 2
                 logger.info(
-                    f'Killing instance {metadata.instance_id} with {metadata.agent.task_count} tasks would take us '
+                    f'Killing instance {instance_id} with {node_metadata.agent.task_count} tasks would take us '
                     f'over our max_tasks_to_kill of {self.max_tasks_to_kill}. Skipping this instance.'
                 )
                 continue
 
-            if metadata.agent.agent_state != AgentState.ORPHANED:
-                if (remaining_non_orphan_capacity - metadata.weight < new_target_capacity):  # case 3
+            if node_metadata.agent.state != AgentState.ORPHANED:
+                if (remaining_non_orphan_capacity - instance_weight < new_target_capacity):  # case 3
                     logger.info(
-                        f'Killing instance {metadata.instance_id} with weight {metadata.weight} would take us under '
+                        f'Killing instance {instance_id} with weight {instance_weight} would take us under '
                         f'our target_capacity for non-orphan boxes. Skipping this instance.'
                     )
                     continue
 
-            logger.info(f'marking {metadata.instance_id} for termination')
-            marked_instances[metadata.group_id].append(metadata)
-            rem_group_capacities[metadata.group_id] -= metadata.weight
-            curr_capacity -= metadata.weight
-            killed_task_count += metadata.agent.task_count
-            if metadata.agent.agent_state != AgentState.ORPHANED:
-                remaining_non_orphan_capacity -= metadata.weight
+            logger.info(f'marking {instance_id} for termination')
+            marked_nodes[group_id].append(node_metadata)
+            rem_group_capacities[group_id] -= instance_weight
+            curr_capacity -= instance_weight
+            killed_task_count += node_metadata.agent.task_count
+            if node_metadata.agent.state != AgentState.ORPHANED:
+                remaining_non_orphan_capacity -= instance_weight
 
             if curr_capacity <= new_target_capacity:
-                logger.info("Seems like we've picked enough instances to kill; finishing")
+                logger.info("Seems like we've picked enough nodes to kill; finishing")
                 break
 
-        return marked_instances
+        return marked_nodes
 
     def _compute_new_resource_group_targets(self, new_target_capacity: float) -> Mapping[str, float]:
         """ Compute a balanced distribution of target capacities for the resource groups in the cluster
@@ -369,7 +358,7 @@ class AWSPoolManager(PoolManager):
             # groups could be over the new "uniform" capacity after we've subtracted the overage value
             #
             # (For scaling down, apply the same logic for resource groups below the target "uniform" capacity
-            # instead; i.e., instances will below the target capacity will not be increased)
+            # instead; i.e., groups will below the target capacity will not be increased)
             capacity_per_group, remainder = divmod(new_target_capacity, num_groups_to_change)
             pos = bisect(targets_to_change, coeff * capacity_per_group)
             residual = sum(targets_to_change[pos:num_groups_to_change])
@@ -409,43 +398,44 @@ class AWSPoolManager(PoolManager):
                     total_market_capacities[market] += capacity
         return total_market_capacities
 
-    def _get_prioritized_killable_instances(self) -> List[InstanceMetadata]:
-        """Get a list of killable instances in the cluster in the order in which they should be considered for
+    def _get_prioritized_killable_nodes(self) -> List[ClusterNodeMetadata]:
+        """Get a list of killable nodes in the cluster in the order in which they should be considered for
         termination.
         """
-        killable_instances = [
-            metadata for metadata in self.get_instance_metadatas(AWS_RUNNING_STATES)
-            if self._is_instance_killable(metadata)
+        killable_nodes = [
+            metadata for metadata in self.get_node_metadatas(AWS_RUNNING_STATES)
+            if self._is_node_killable(metadata)
         ]
-        return self._prioritize_killable_instances(killable_instances)
+        return self._prioritize_killable_nodes(killable_nodes)
 
-    def _is_instance_killable(self, metadata: InstanceMetadata) -> bool:
-        if metadata.agent.agent_state == AgentState.UNKNOWN:
+    def _is_node_killable(self, node_metadata: ClusterNodeMetadata) -> bool:
+        if node_metadata.agent.state == AgentState.UNKNOWN:
             return False
-        elif self.max_tasks_to_kill > metadata.agent.task_count:
+        elif self.max_tasks_to_kill > node_metadata.agent.task_count:
             return True
         else:
-            return metadata.agent.task_count == 0
+            return node_metadata.agent.task_count == 0
 
-    def _prioritize_killable_instances(self, killable_instances: List[InstanceMetadata]) -> List[InstanceMetadata]:
-        """Returns killable_instances sorted with most-killable things first."""
-        def sort_key(killable_instance_metadata: InstanceMetadata) -> Tuple[int, int, int, int, int]:
+    def _prioritize_killable_nodes(self, killable_nodes: List[ClusterNodeMetadata]) -> List[ClusterNodeMetadata]:
+        """Returns killable_nodes sorted with most-killable things first."""
+        def sort_key(node_metadata: ClusterNodeMetadata) -> Tuple[int, int, int, int, int]:
             return (
-                0 if killable_instance_metadata.agent.agent_state == AgentState.ORPHANED else 1,
-                0 if killable_instance_metadata.agent.agent_state == AgentState.IDLE else 1,
-                0 if killable_instance_metadata.is_resource_group_stale else 1,
-                killable_instance_metadata.agent.batch_task_count,
-                killable_instance_metadata.agent.task_count,
+                0 if node_metadata.agent.state == AgentState.ORPHANED else 1,
+                0 if node_metadata.agent.state == AgentState.IDLE else 1,
+                0 if node_metadata.instance.is_resource_group_stale else 1,
+                node_metadata.agent.batch_task_count,
+                node_metadata.agent.task_count,
             )
         return sorted(
-            killable_instances,
+            killable_nodes,
             key=sort_key,
         )
 
     def _calculate_non_orphan_fulfilled_capacity(self) -> float:
         return sum(
-            metadata.weight for metadata in self.get_instance_metadatas(AWS_RUNNING_STATES)
-            if metadata.agent.agent_state not in (AgentState.ORPHANED, AgentState.UNKNOWN)
+            node_metadata.instance.weight
+            for node_metadata in self.get_node_metadatas(AWS_RUNNING_STATES)
+            if node_metadata.agent.state not in (AgentState.ORPHANED, AgentState.UNKNOWN)
         )
 
     @property

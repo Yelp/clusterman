@@ -12,7 +12,7 @@ from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 from clusterman.config import get_cluster_config_directory
 from clusterman.exceptions import PoolManagerError
-from clusterman.interfaces.cluster_connector import ClustermanResources
+from clusterman.util import ClustermanResources
 
 logger = colorlog.getLogger(__name__)
 MesosAgentDict = TypedDict(

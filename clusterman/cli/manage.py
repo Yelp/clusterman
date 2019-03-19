@@ -9,7 +9,7 @@ from clusterman.args import add_cluster_arg
 from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_pool_arg
 from clusterman.args import subparser
-from clusterman.aws.aws_pool_manager import AWSPoolManager
+from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.config import POOL_NAMESPACE
 from clusterman.util import ask_for_confirmation
 from clusterman.util import get_autoscaler_scribe_stream
@@ -31,7 +31,7 @@ def get_target_capacity_value(target_capacity, pool):
 
 
 def main(args):
-    manager = AWSPoolManager(args.cluster, args.pool)
+    manager = PoolManager(args.cluster, args.pool)
     old_target = manager.target_capacity
     requested_target = get_target_capacity_value(args.target_capacity, args.pool)
     if not args.dry_run:

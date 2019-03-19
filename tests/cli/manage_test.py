@@ -36,7 +36,7 @@ def test_get_target_capacity_value_invalid():
 
 @mock.patch('clusterman.cli.manage.logger')
 @mock.patch('clusterman.cli.manage.ask_for_confirmation')
-@mock.patch('clusterman.cli.manage.AWSPoolManager')
+@mock.patch('clusterman.cli.manage.PoolManager')
 @mock.patch('clusterman.cli.manage.get_target_capacity_value')
 @mock.patch('clusterman.cli.manage.log_to_scribe')
 class TestMain:

@@ -3,11 +3,11 @@ from typing import Optional
 
 import staticconf
 
-from clusterman.interfaces.cluster_connector import Agent
+from clusterman.interfaces.cluster_connector import AgentMetadata
 from clusterman.interfaces.cluster_connector import AgentState
 from clusterman.interfaces.cluster_connector import ClusterConnector
-from clusterman.interfaces.cluster_connector import ClustermanResources
 from clusterman.simulator import simulator
+from clusterman.util import ClustermanResources
 
 
 class SimulatedClusterConnector(ClusterConnector):
@@ -20,19 +20,19 @@ class SimulatedClusterConnector(ClusterConnector):
     def reload_state(self) -> None:
         pass
 
-    def get_agent_by_ip(self, instance_ip: Optional[str]) -> Agent:
+    def get_agent_metadata(self, instance_ip: Optional[str]) -> AgentMetadata:
         for c in self.simulator.aws_clusters:
             for i in c.instances.values():
                 if instance_ip == i.ip_address:
-                    return Agent(
+                    return AgentMetadata(
                         agent_id=str(uuid.uuid4()),
-                        agent_state=(
+                        allocated_resources=ClustermanResources(0, 0, 0),
+                        batch_task_count=0,
+                        state=(
                             AgentState.ORPHANED
                             if self.simulator.current_time < i.join_time
                             else AgentState.IDLE
                         ),
-                        allocated_resources=ClustermanResources(0, 0, 0),
-                        batch_task_count=0,
                         task_count=0,
                         total_resources=ClustermanResources(
                             cpus=i.resources.cpus,
@@ -41,13 +41,13 @@ class SimulatedClusterConnector(ClusterConnector):
                         )
                     )
 
-        return Agent(
-            '',
-            AgentState.UNKNOWN,
-            ClustermanResources(0, 0, 0),
-            0,
-            0,
-            ClustermanResources(0, 0, 0),
+        return AgentMetadata(
+            agent_id='',
+            allocated_resources=ClustermanResources(0, 0, 0),
+            batch_task_count=0,
+            state=AgentState.UNKNOWN,
+            task_count=0,
+            total_resources=ClustermanResources(0, 0, 0),
         )
 
     def get_resource_allocation(self, resource_name: str) -> float:

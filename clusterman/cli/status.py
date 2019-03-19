@@ -6,10 +6,9 @@ from clusterman.args import add_cluster_arg
 from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_pool_arg
 from clusterman.args import subparser
-from clusterman.aws.aws_pool_manager import AWSPoolManager
+from clusterman.autoscaler.pool_manager import ClusterNodeMetadata
+from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.interfaces.cluster_connector import AgentState
-from clusterman.interfaces.pool_manager import InstanceMetadata
-from clusterman.interfaces.pool_manager import PoolManager
 from clusterman.util import any_of
 from clusterman.util import color_conditions
 
@@ -26,29 +25,30 @@ def _write_resource_group_line(group) -> None:
     print(f'\t{group.id}: {status_str} ({group.fulfilled_capacity} / {group.target_capacity})')
 
 
-def _write_agent_details(metadata: InstanceMetadata) -> None:
+def _write_agent_details(node_metadata: ClusterNodeMetadata) -> None:
     agent_aws_state = color_conditions(
-        metadata.instance_state,
+        node_metadata.instance.state,
         green=any_of('running',),
         blue=any_of('pending',),
         red=any_of('shutting-down', 'terminated', 'stopping', 'stopped'),
     )
     print(
-        f'\t - {metadata.instance_id} {metadata.market} ({metadata.instance_ip}): '
-        f'{agent_aws_state}, up for {humanize.naturaldelta(metadata.uptime)}'
+        f'\t - {node_metadata.instance.instance_id} {node_metadata.instance.market} '
+        f'({node_metadata.instance.ip_address}): {agent_aws_state}, up for '
+        f'{humanize.naturaldelta(node_metadata.instance.uptime)}'
     )
 
     agent_mesos_state = color_conditions(
-        metadata.agent.agent_state,
+        node_metadata.agent.state,
         green=any_of(AgentState.RUNNING,),
         blue=any_of(AgentState.IDLE,),
         red=any_of(AgentState.ORPHANED, AgentState.UNKNOWN),
     )
     sys.stdout.write(f'\t   {agent_mesos_state} ')
 
-    if metadata.agent.agent_state == AgentState.RUNNING:
-        allocated_cpus, allocated_mem, allocated_disk = metadata.agent.allocated_resources
-        total_cpus, total_mem, total_disk = metadata.agent.total_resources
+    if node_metadata.agent.state == AgentState.RUNNING:
+        allocated_cpus, allocated_mem, allocated_disk = node_metadata.agent.allocated_resources
+        total_cpus, total_mem, total_disk = node_metadata.agent.total_resources
         colored_resources = [
             color_conditions(
                 int(allocated / total * 100),
@@ -57,11 +57,11 @@ def _write_agent_details(metadata: InstanceMetadata) -> None:
                 yellow=lambda x: x <= 95,
                 red=lambda x: x > 95,
             )
-            for (allocated, total) in zip(metadata.agent.allocated_resources, metadata.agent.total_resources)
+            for (allocated, total) in zip(node_metadata.agent.allocated_resources, node_metadata.agent.total_resources)
         ]
 
         sys.stdout.write(
-            f'{metadata.agent.task_count} tasks; '
+            f'{node_metadata.agent.task_count} tasks; '
             f'CPUs: {colored_resources[0]}, '
             f'Mem: {colored_resources[1]}, '
             f'Disk: {colored_resources[2]}'
@@ -71,12 +71,12 @@ def _write_agent_details(metadata: InstanceMetadata) -> None:
 
 def _write_summary(manager: PoolManager) -> None:
     print('Cluster statistics:')
-    total_cpus = manager.connector.get_resource_total('cpus')
-    total_mem = humanize.naturalsize(manager.connector.get_resource_total('mem') * 1000000)
-    total_disk = humanize.naturalsize(manager.connector.get_resource_total('disk') * 1000000)
-    allocated_cpus = manager.connector.get_resource_allocation('cpus')
-    allocated_mem = humanize.naturalsize(manager.connector.get_resource_allocation('mem') * 1000000)
-    allocated_disk = humanize.naturalsize(manager.connector.get_resource_allocation('disk') * 1000000)
+    total_cpus = manager.cluster_connector.get_resource_total('cpus')
+    total_mem = humanize.naturalsize(manager.cluster_connector.get_resource_total('mem') * 1000000)
+    total_disk = humanize.naturalsize(manager.cluster_connector.get_resource_total('disk') * 1000000)
+    allocated_cpus = manager.cluster_connector.get_resource_allocation('cpus')
+    allocated_mem = humanize.naturalsize(manager.cluster_connector.get_resource_allocation('mem') * 1000000)
+    allocated_disk = humanize.naturalsize(manager.cluster_connector.get_resource_allocation('disk') * 1000000)
     print(f'\tCPU allocation: {allocated_cpus:.1f} CPUs allocated to tasks, {total_cpus:.1f} total')
     print(f'\tMemory allocation: {allocated_mem} memory allocated to tasks, {total_mem} total')
     print(f'\tDisk allocation: {allocated_disk} disk space allocated to tasks, {total_disk} total')
@@ -90,14 +90,14 @@ def print_status(manager: PoolManager, args) -> None:
         f'non-orphan: {manager.non_orphan_fulfilled_capacity}):'
     )
 
-    instance_metadatas = manager.get_instance_metadatas() if args.verbose else {}
+    node_metadatas = manager.get_node_metadatas() if args.verbose else {}
 
     for group in manager.resource_groups.values():
         _write_resource_group_line(group)
-        for metadata in instance_metadatas:
-            if (metadata.group_id != group.id or
-                    (args.only_orphans and metadata.agent.agent_state != AgentState.ORPHANED) or
-                    (args.only_idle and metadata.agent.agent_state != AgentState.IDLE)):
+        for metadata in node_metadatas:
+            if (metadata.instance.group_id != group.id or
+                    (args.only_orphans and metadata.agent.state != AgentState.ORPHANED) or
+                    (args.only_idle and metadata.agent.state != AgentState.IDLE)):
                 continue
             _write_agent_details(metadata)
 
@@ -108,7 +108,7 @@ def print_status(manager: PoolManager, args) -> None:
 
 
 def main(args):  # pragma: no cover
-    manager = AWSPoolManager(args.cluster, args.pool)
+    manager = PoolManager(args.cluster, args.pool)
     print_status(manager, args)
 
 

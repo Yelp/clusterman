@@ -88,7 +88,7 @@ Feature: make sure the MesosPoolManager is requesting the right capacities
         | sfr     |
 
     Scenario: one sfr is broken
-        Given a mesos pool manager with 5 sfr resource groups
+        Given a pool manager with 5 sfr resource groups
          When resource group 1 is broken
           And we request 100 capacity
          Then the first resource group's capacity should not change
