@@ -10,7 +10,10 @@ from clusterman.mesos.metrics_generators import generate_system_metrics
 
 @pytest.fixture
 def mock_pool_manager():
-    return mock.Mock(spec=MesosPoolManager)
+    mock_pool_manager = mock.Mock(spec=MesosPoolManager)
+    mock_pool_manager.cluster = 'mesos-test'
+    mock_pool_manager.pool = 'bar'
+    return mock_pool_manager
 
 
 def test_generate_system_metrics(mock_pool_manager):
@@ -18,9 +21,9 @@ def test_generate_system_metrics(mock_pool_manager):
     mock_pool_manager.get_resource_allocation.side_effect = resources_allocated.get
 
     expected_metrics = [
-        ClusterMetric(metric_name='cpus_allocated', value=10, dimensions={}),
-        ClusterMetric(metric_name='mem_allocated', value=1000, dimensions={}),
-        ClusterMetric(metric_name='disk_allocated', value=10000, dimensions={}),
+        ClusterMetric(metric_name='cpus_allocated', value=10, dimensions={'cluster': 'mesos-test', 'pool': 'bar'}),
+        ClusterMetric(metric_name='mem_allocated', value=1000, dimensions={'cluster': 'mesos-test', 'pool': 'bar'}),
+        ClusterMetric(metric_name='disk_allocated', value=10000, dimensions={'cluster': 'mesos-test', 'pool': 'bar'}),
     ]
     assert sorted(generate_system_metrics(mock_pool_manager)) == sorted(expected_metrics)
 
@@ -35,12 +38,24 @@ def test_generate_simple_metadata(mock_pool_manager):
     mock_pool_manager.non_orphan_fulfilled_capacity = 12
 
     expected_metrics = [
-        ClusterMetric(metric_name='cpus_total', value=20, dimensions={}),
-        ClusterMetric(metric_name='mem_total', value=2000, dimensions={}),
-        ClusterMetric(metric_name='disk_total', value=20000, dimensions={}),
-        ClusterMetric(metric_name='target_capacity', value=mock_pool_manager.target_capacity, dimensions={}),
-        ClusterMetric(metric_name='fulfilled_capacity', value=market_capacities, dimensions={}),
-        ClusterMetric(metric_name='non_orphan_fulfilled_capacity', value=12, dimensions={}),
+        ClusterMetric(metric_name='cpus_total', value=20, dimensions={'cluster': 'mesos-test', 'pool': 'bar'}),
+        ClusterMetric(metric_name='mem_total', value=2000, dimensions={'cluster': 'mesos-test', 'pool': 'bar'}),
+        ClusterMetric(metric_name='disk_total', value=20000, dimensions={'cluster': 'mesos-test', 'pool': 'bar'}),
+        ClusterMetric(
+            metric_name='target_capacity',
+            value=mock_pool_manager.target_capacity,
+            dimensions={'cluster': 'mesos-test', 'pool': 'bar'},
+        ),
+        ClusterMetric(
+            metric_name='fulfilled_capacity',
+            value=market_capacities,
+            dimensions={'cluster': 'mesos-test', 'pool': 'bar'},
+        ),
+        ClusterMetric(
+            metric_name='non_orphan_fulfilled_capacity',
+            value=12,
+            dimensions={'cluster': 'mesos-test', 'pool': 'bar'},
+        ),
     ]
     assert sorted(generate_simple_metadata(mock_pool_manager)) == sorted(expected_metrics)
 
@@ -73,7 +88,13 @@ def test_generate_framework_metadata(mock_pool_manager):
                 'cpus': 1, 'mem': 2, 'gpus': 3, 'disk': 4, 'registered_time': 1111, 'unregistered_time': 0,
                 'running_task_count': 1
             },
-            dimensions={'name': 'active', 'id': 'framework_1', 'active': True, 'completed': False},
+            dimensions={
+                'cluster': 'mesos-test',
+                'name': 'active',
+                'id': 'framework_1',
+                'active': True,
+                'completed': False,
+            },
         ),
         ClusterMetric(
             metric_name='framework',
@@ -81,7 +102,13 @@ def test_generate_framework_metadata(mock_pool_manager):
                 'cpus': 0, 'mem': 0, 'gpus': 0, 'disk': 0, 'registered_time': 123, 'unregistered_time': 456,
                 'running_task_count': 0
             },
-            dimensions={'name': 'completed', 'id': 'framework_2', 'active': False, 'completed': True},
+            dimensions={
+                'cluster': 'mesos-test',
+                'name': 'completed',
+                'id': 'framework_2',
+                'active': False,
+                'completed': True,
+            },
         )
     ]
     sorted_expected_metrics = sorted(expected_metrics, key=lambda x: x.dimensions['id'])

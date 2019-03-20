@@ -23,6 +23,10 @@ from clusterman.config import POOL_NAMESPACE
 logger = colorlog.getLogger(__name__)
 
 
+class All:
+    pass
+
+
 def setup_logging(log_level_str: str = 'info') -> None:
     EVENT_LOG_LEVEL = 25
     logging.addLevelName(EVENT_LOG_LEVEL, 'EVENT')
