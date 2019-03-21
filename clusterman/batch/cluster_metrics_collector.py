@@ -12,6 +12,7 @@ from typing import Union
 
 import colorlog
 import staticconf
+import yelp_meteorite
 from clusterman_metrics import ClustermanMetricsBotoClient
 from clusterman_metrics import generate_key_with_dimensions
 from clusterman_metrics import METADATA
@@ -41,6 +42,13 @@ from clusterman.util import All
 from clusterman.util import sensu_checkin
 from clusterman.util import setup_logging
 from clusterman.util import splay_event_time
+
+# This doesn't seem like it should be necessary, but some regions just consistently
+# drop data (or emit it very erratically) without it; also it seems like there's some
+# bug where if you use TCP but don't buffer your data, then *nothing* gets sent to
+# SignalFX.  Maybe in the future we can get rid of the TCP dependence.
+yelp_meteorite.configure_statsd_client('TCP')
+
 
 logger = colorlog.getLogger(__name__)
 
@@ -153,6 +161,9 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
         metric_generator: Callable[[MesosPoolManager], ClusterMetric],
         pools: Union[Type[All], List[str]],
     ) -> None:
+        # the data buffering is necessary while we're using TCP to talk to statsd; even if we
+        # eventually switch back to using UDP, it might still be a good idea
+        yelp_meteorite.start_buffering_data()
         for pool, manager in self.mesos_managers.items():
             if pools != All and pool not in cast(List[str], pools):
                 continue
@@ -163,6 +174,8 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
                 data = (metric_name, int(time.time()), cluster_metric.value)
 
                 writer.send(data)
+        yelp_meteorite.stop_buffering_data()
+        yelp_meteorite.flush_buffer()
 
 
 if __name__ == '__main__':
