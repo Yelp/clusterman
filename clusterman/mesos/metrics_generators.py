@@ -20,20 +20,22 @@ SIMPLE_METADATA = {
 
 
 def generate_system_metrics(manager):
+    dimensions = {'cluster': manager.cluster, 'pool': manager.pool}
     for metric_name, value_method in SYSTEM_METRICS.items():
-        yield ClusterMetric(metric_name, value_method(manager), dimensions={})
+        yield ClusterMetric(metric_name, value_method(manager), dimensions=dimensions)
 
 
 def generate_simple_metadata(manager):
+    dimensions = {'cluster': manager.cluster, 'pool': manager.pool}
     for metric_name, value_method in SIMPLE_METADATA.items():
-        yield ClusterMetric(metric_name, value_method(manager), dimensions={})
+        yield ClusterMetric(metric_name, value_method(manager), dimensions=dimensions)
 
 
 def _prune_resources_dict(resources_dict):
     return {resource: resources_dict[resource] for resource in ('cpus', 'mem', 'disk', 'gpus')}
 
 
-def _get_framework_metadata_for_frameworks(frameworks, completed):
+def _get_framework_metadata_for_frameworks(cluster, frameworks, completed):
     for framework in frameworks:
         value = _prune_resources_dict(framework['used_resources'])
         value['registered_time'] = int(framework['registered_time'])
@@ -43,11 +45,20 @@ def _get_framework_metadata_for_frameworks(frameworks, completed):
         ])
 
         dimensions = {field: framework[field] for field in ('name', 'id', 'active')}
+        dimensions['cluster'] = cluster
         dimensions['completed'] = completed
 
         yield ClusterMetric(metric_name='framework', value=value, dimensions=dimensions)
 
 
 def generate_framework_metadata(manager):
-    yield from _get_framework_metadata_for_frameworks(manager.frameworks['frameworks'], completed=False)
-    yield from _get_framework_metadata_for_frameworks(manager.frameworks['completed_frameworks'], completed=True)
+    yield from _get_framework_metadata_for_frameworks(
+        manager.cluster,
+        manager.frameworks['frameworks'],
+        completed=False,
+    )
+    yield from _get_framework_metadata_for_frameworks(
+        manager.cluster,
+        manager.frameworks['completed_frameworks'],
+        completed=True,
+    )

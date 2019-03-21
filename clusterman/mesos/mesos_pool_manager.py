@@ -130,7 +130,10 @@ class MesosPoolManager:
                 )
             except ResourceGroupError:
                 logger.critical(traceback.format_exc())
-                rge_counter = yelp_meteorite.create_counter(RESOURCE_GROUP_MODIFICATION_FAILED_NAME)
+                rge_counter = yelp_meteorite.create_counter(
+                    RESOURCE_GROUP_MODIFICATION_FAILED_NAME,
+                    {'cluster': self.cluster, 'pool': self.pool},
+                )
                 rge_counter.count()
                 continue
 

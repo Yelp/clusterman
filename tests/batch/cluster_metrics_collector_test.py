@@ -9,6 +9,7 @@ from clusterman.batch.cluster_metrics_collector import ClusterMetricsCollector
 from clusterman.batch.cluster_metrics_collector import METRICS_TO_WRITE
 from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.mesos.metrics_generators import ClusterMetric
+from clusterman.util import All
 from clusterman.util import splay_event_time
 
 
@@ -49,15 +50,15 @@ def test_configure_initial(mock_ls, mock_mesos_pool_manager, mock_client_class, 
 
 def test_write_metrics(batch):
     batch.mesos_managers = {
-        'pool_A': mock.Mock(spec_set=MesosPoolManager),
-        'pool_B': mock.Mock(spec_set=MesosPoolManager),
+        'pool_A': mock.Mock(spec=MesosPoolManager, pool='pool_A'),
+        'pool_B': mock.Mock(spec=MesosPoolManager, pool='pool_B'),
     }
     writer = mock.Mock()
 
     def metric_generator(manager):
-        yield ClusterMetric('allocated', manager.get_resource_allocation('cpus'), {'dim': 'val'})
+        yield ClusterMetric('allocated', manager.get_resource_allocation('cpus'), {'pool': manager.pool})
 
-    batch.write_metrics(writer, metric_generator)
+    batch.write_metrics(writer, metric_generator, pools=All)
 
     for pool, manager in batch.mesos_managers.items():
         assert manager.get_resource_allocation.call_args_list == [mock.call('cpus')]
@@ -66,8 +67,8 @@ def test_write_metrics(batch):
 
     metric_names = [call[0][0][0] for call in writer.send.call_args_list]
     assert sorted(metric_names) == sorted([
-        'allocated|cluster=mesos-test,dim=val,pool=pool_A',
-        'allocated|cluster=mesos-test,dim=val,pool=pool_B',
+        'allocated|pool=pool_A',
+        'allocated|pool=pool_B',
     ])
 
 
@@ -97,7 +98,7 @@ def test_run(mock_sensu, mock_running, mock_time, mock_sleep, batch):
             mock.patch.object(batch, 'write_metrics', autospec=True) as write_metrics, \
             mock.patch('clusterman.batch.cluster_metrics_collector.MesosPoolManager', autospec=True), \
             mock.patch('clusterman.batch.cluster_metrics_collector.logger') as mock_logger:
-        def mock_write_metrics(end_time, writer):
+        def mock_write_metrics(writer, generator, pools):
             if mock_time.call_count == 4:
                 raise socket.timeout('timed out')
             else:
@@ -116,7 +117,7 @@ def test_run(mock_sensu, mock_running, mock_time, mock_sleep, batch):
         )
 
         expected_write_metrics_calls = [
-            mock.call(writer, metric_to_write.generator) for metric_to_write in METRICS_TO_WRITE
+            mock.call(writer, metric_to_write.generator, metric_to_write.pools) for metric_to_write in METRICS_TO_WRITE
         ] * 4
         assert write_metrics.call_args_list == expected_write_metrics_calls
 
