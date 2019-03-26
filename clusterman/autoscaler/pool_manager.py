@@ -33,7 +33,7 @@ from clusterman.util import read_int_or_inf
 
 AWS_RUNNING_STATES = ('running',)
 MIN_CAPACITY_PER_GROUP = 1
-RESOURCE_GROUP_MODIFICATION_FAILED_NAME = 'clusterman.resource_group_modification_failed'
+SFX_RESOURCE_GROUP_MODIFICATION_FAILED_NAME = 'clusterman.resource_group_modification_failed'
 logger = colorlog.getLogger(__name__)
 
 
@@ -113,7 +113,7 @@ class PoolManager:
             except ResourceGroupError:
                 logger.critical(traceback.format_exc())
                 rge_counter = yelp_meteorite.create_counter(
-                    RESOURCE_GROUP_MODIFICATION_FAILED_NAME,
+                    SFX_RESOURCE_GROUP_MODIFICATION_FAILED_NAME,
                     {'cluster': self.cluster, 'pool': self.pool},
                 )
                 rge_counter.count()

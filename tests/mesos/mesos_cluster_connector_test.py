@@ -10,7 +10,7 @@ from clusterman.mesos.mesos_cluster_connector import TaskCount
 @pytest.fixture
 def mock_cluster_connector():
     mock_cluster_connector = MesosClusterConnector('mesos-test', 'bar')
-    mock_cluster_connector._agents = {
+    mock_cluster_connector._agents_by_ip = {
         '10.10.10.1': {
             'id': 'idle',
             'resources': {'cpus': 4, 'gpus': 2},
@@ -22,8 +22,8 @@ def mock_cluster_connector():
         },
     }
     mock_cluster_connector._task_count_per_agent = {
-        'idle': TaskCount(0, 0),
-        'no-gpus': TaskCount(1, 0),
+        'idle': TaskCount(all_tasks=0, batch_tasks=0),
+        'no-gpus': TaskCount(all_tasks=1, batch_tasks=0),
     }
     return mock_cluster_connector
 
@@ -56,8 +56,8 @@ def test_count_tasks_by_agent(mock_cluster_connector):
         '2': {'name': 'marathon123'},
     }
     assert mock_cluster_connector._count_tasks_per_agent() == {
-        '1': TaskCount(1, 0),
-        '2': TaskCount(2, 1),
+        '1': TaskCount(all_tasks=1, batch_tasks=0),
+        '2': TaskCount(all_tasks=2, batch_tasks=1),
     }
 
 
@@ -72,26 +72,24 @@ class TestAgentListing:
     def test_agent_list_error(self, mock_post, mock_cluster_connector):
         mock_post.side_effect = PoolManagerError('dummy error')
         with pytest.raises(PoolManagerError):
-            mock_cluster_connector._get_agents()
+            mock_cluster_connector._get_agents_by_ip()
 
     def test_filter_pools(self, mock_post, mock_agents_response, mock_cluster_connector):
         mock_post.return_value = mock_agents_response
-        agents = mock_cluster_connector._get_agents()
+        agents = mock_cluster_connector._get_agents_by_ip()
         assert len(agents) == 1
         assert agents['10.10.10.12']['hostname'] == 'im-in-the-pool.yelpcorp.com'
 
         # Multiple calls should have the same result.
-        assert agents == mock_cluster_connector._get_agents()
+        assert agents == mock_cluster_connector._get_agents_by_ip()
 
 
-@pytest.mark.parametrize('resource_name,expected', [('cpus', 1.5)])
-def test_allocation(mock_cluster_connector, resource_name, expected):
-    assert mock_cluster_connector.get_resource_allocation(resource_name) == expected
+def test_allocation(mock_cluster_connector):
+    assert mock_cluster_connector.get_resource_allocation('cpus') == 1.5
 
 
-@pytest.mark.parametrize('resource_name,expected', [('cpus', 12)])
-def test_total_cpus(mock_cluster_connector, resource_name, expected):
-    assert mock_cluster_connector.get_resource_total(resource_name) == expected
+def test_total_cpus(mock_cluster_connector):
+    assert mock_cluster_connector.get_resource_total('cpus') == 12
 
 
 @pytest.mark.parametrize('resource_name,expected', [('mem', 0), ('cpus', 0.125)])

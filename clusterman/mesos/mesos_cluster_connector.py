@@ -7,6 +7,7 @@ from typing import Tuple
 
 import colorlog
 import staticconf
+from mypy_extensions import TypedDict
 
 from clusterman.config import POOL_NAMESPACE
 from clusterman.interfaces.cluster_connector import AgentMetadata
@@ -26,18 +27,9 @@ from clusterman.util import ClustermanResources
 logger = colorlog.getLogger(__name__)
 
 
-class TaskCount:
+class TaskCount(TypedDict):
     all_tasks: int
     batch_tasks: int
-
-    def __init__(self, all_tasks: int = 0, batch_tasks: int = 0):
-        self.all_tasks, self.batch_tasks = all_tasks, batch_tasks
-
-    def __eq__(self, other):
-        return self.all_tasks == other.all_tasks and self.batch_tasks == other.batch_tasks
-
-    def __repr__(self):
-        return f'<{self.all_tasks}, {self.batch_tasks}>'
 
 
 class MesosClusterConnector(ClusterConnector):
@@ -59,24 +51,24 @@ class MesosClusterConnector(ClusterConnector):
 
         # Note that order matters here: we can't map tasks to agents until we've calculated
         # all of the tasks and agents
-        self._agents = self._get_agents()
+        self._agents_by_ip = self._get_agents_by_ip()
         self._tasks, self._frameworks = self._get_tasks_and_frameworks()
         self._task_count_per_agent = self._count_tasks_per_agent()
 
     def get_resource_allocation(self, resource_name: str) -> float:
         return sum(
             getattr(allocated_agent_resources(agent), resource_name)
-            for agent in self._agents.values()
+            for agent in self._agents_by_ip.values()
         )
 
     def get_resource_total(self, resource_name: str) -> float:
         return sum(
             getattr(total_agent_resources(agent), resource_name)
-            for agent in self._agents.values()
+            for agent in self._agents_by_ip.values()
         )
 
     def _get_agent_metadata(self, instance_ip: str) -> AgentMetadata:
-        agent_dict = self._agents.get(instance_ip)
+        agent_dict = self._agents_by_ip.get(instance_ip)
         if not agent_dict:
             return AgentMetadata(
                 agent_id='',
@@ -91,25 +83,27 @@ class MesosClusterConnector(ClusterConnector):
         return AgentMetadata(
             agent_id=agent_dict['id'],
             allocated_resources=allocated_agent_resources(agent_dict),
-            batch_task_count=self._task_count_per_agent[agent_dict['id']].batch_tasks,
+            batch_task_count=self._task_count_per_agent[agent_dict['id']]['batch_tasks'],
             state=(AgentState.RUNNING if any(allocated_resources) else AgentState.IDLE),
-            task_count=self._task_count_per_agent[agent_dict['id']].all_tasks,
+            task_count=self._task_count_per_agent[agent_dict['id']]['all_tasks'],
             total_resources=total_agent_resources(agent_dict),
         )
 
     def _count_tasks_per_agent(self) -> Mapping[str, TaskCount]:
         """Given a list of mesos tasks, return a count of tasks per agent"""
-        instance_id_to_task_count: MutableMapping[str, TaskCount] = defaultdict(TaskCount)
+        instance_id_to_task_count: MutableMapping[str, TaskCount] = defaultdict(
+            lambda: TaskCount(all_tasks=0, batch_tasks=0),
+        )
 
         for task in self._tasks:
             if task['state'] == 'TASK_RUNNING':
-                instance_id_to_task_count[task['slave_id']].all_tasks += 1
+                instance_id_to_task_count[task['slave_id']]['all_tasks'] += 1
                 framework_name = self._frameworks[task['framework_id']]['name']
                 if self._is_batch_framework(framework_name):
-                    instance_id_to_task_count[task['slave_id']].batch_tasks += 1
+                    instance_id_to_task_count[task['slave_id']]['batch_tasks'] += 1
         return instance_id_to_task_count
 
-    def _get_agents(self) -> Mapping[str, MesosAgentDict]:
+    def _get_agents_by_ip(self) -> Mapping[str, MesosAgentDict]:
         response: MesosAgents = mesos_post(self.api_endpoint, 'slaves').json()
         return {
             agent_pid_to_ip(agent_dict['pid']): agent_dict

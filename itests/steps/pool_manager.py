@@ -47,8 +47,8 @@ def mock_fleets(num, subnet_id):
 
 
 @behave.fixture
-def mock_agents_and_tasks(context):
-    def get_agents():
+def mock_agents_by_ip_and_tasks(context):
+    def get_agents_by_ip():
         agents = {}
         for reservation in ec2.describe_instances()['Reservations']:
             for instance in reservation['Instances']:
@@ -61,8 +61,8 @@ def mock_agents_and_tasks(context):
         return agents
 
     with mock.patch(
-        'clusterman.mesos.mesos_cluster_connector.MesosClusterConnector._get_agents',
-        side_effect=get_agents,
+        'clusterman.mesos.mesos_cluster_connector.MesosClusterConnector._get_agents_by_ip',
+        side_effect=get_agents_by_ip,
     ), mock.patch(
         'clusterman.mesos.mesos_cluster_connector.MesosClusterConnector._get_tasks_and_frameworks',
         return_value=([], []),
@@ -78,7 +78,7 @@ def mock_agents_and_tasks(context):
 @behave.given('a pool manager with (?P<num>\d+) (?P<rg_type>asg|sfr|fleet) resource groups?')
 def make_pool_manager(context, num, rg_type):
     behave.use_fixture(boto_patches, context)
-    behave.use_fixture(mock_agents_and_tasks, context)
+    behave.use_fixture(mock_agents_by_ip_and_tasks, context)
     context.rg_type = rg_type
     with mock.patch(
         'clusterman.aws.auto_scaling_resource_group.AutoScalingResourceGroup.load',

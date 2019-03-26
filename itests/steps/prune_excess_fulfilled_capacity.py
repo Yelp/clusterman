@@ -68,7 +68,7 @@ def killable_instance_with_tasks(context, tasks):
     context.pool_manager.cluster_connector._get_tasks_and_frameworks.side_effect = get_tasks_and_frameworks
     context.pool_manager.cluster_connector.reload_state()
     context.pool_manager.cluster_connector._batch_tasks_per_mesos_agent = {
-        i['id']: 0 for i in context.pool_manager.cluster_connector._agents.values()
+        i['id']: 0 for i in context.pool_manager.cluster_connector._agents_by_ip.values()
     }
     context.pool_manager._get_prioritized_killable_nodes = mock.Mock(return_value=[
         context.pool_manager.get_node_metadatas()[0],
