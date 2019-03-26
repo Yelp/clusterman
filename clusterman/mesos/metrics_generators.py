@@ -3,15 +3,15 @@ from collections import namedtuple
 ClusterMetric = namedtuple('ClusterMetric', ['metric_name', 'value', 'dimensions'])
 
 SYSTEM_METRICS = {
-    'cpus_allocated': lambda manager: manager.connector.get_resource_allocation('cpus'),
-    'mem_allocated': lambda manager: manager.connector.get_resource_allocation('mem'),
-    'disk_allocated': lambda manager: manager.connector.get_resource_allocation('disk'),
+    'cpus_allocated': lambda manager: manager.cluster_connector.get_resource_allocation('cpus'),
+    'mem_allocated': lambda manager: manager.cluster_connector.get_resource_allocation('mem'),
+    'disk_allocated': lambda manager: manager.cluster_connector.get_resource_allocation('disk'),
 }
 
 SIMPLE_METADATA = {
-    'cpus_total': lambda manager: manager.connector.get_resource_total('cpus'),
-    'mem_total': lambda manager: manager.connector.get_resource_total('mem'),
-    'disk_total': lambda manager: manager.connector.get_resource_total('disk'),
+    'cpus_total': lambda manager: manager.cluster_connector.get_resource_total('cpus'),
+    'mem_total': lambda manager: manager.cluster_connector.get_resource_total('mem'),
+    'disk_total': lambda manager: manager.cluster_connector.get_resource_total('disk'),
     'target_capacity': lambda manager: manager.target_capacity,
     'fulfilled_capacity': lambda manager: {str(market): value for market,
                                            value in manager.get_market_capacities().items()},
