@@ -30,10 +30,10 @@ def test_submit_instance_for_draining(mock_draining_client):
         'clusterman.draining.queue.json', autospec=True,
     ) as mock_json:
         mock_instance = mock.Mock(
-            instance_id='i123',
-            instance_ip='10.1.1.1',
-            hostname='host123',
             group_id='sfr123',
+            hostname='host123',
+            instance_id='i123',
+            ip_address='10.1.1.1',
         )
         assert mock_draining_client.submit_instance_for_draining(
             mock_instance,

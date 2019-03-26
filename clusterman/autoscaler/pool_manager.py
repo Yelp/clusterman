@@ -1,85 +1,65 @@
 import traceback
 from bisect import bisect
 from collections import defaultdict
-from typing import Any
+from typing import cast
 from typing import Collection
 from typing import List
 from typing import Mapping
 from typing import MutableMapping
+from typing import NamedTuple
 from typing import Optional
 from typing import Sequence
 from typing import Tuple
+from typing import Type
 
-import arrow
 import colorlog
 import staticconf
 import yelp_meteorite
-from cached_property import timed_cached_property
 
 from clusterman.aws.aws_resource_group import AWSResourceGroup
-from clusterman.aws.client import ec2_describe_instances
-from clusterman.aws.markets import get_instance_market
 from clusterman.aws.markets import InstanceMarket
+from clusterman.aws.util import RESOURCE_GROUPS
 from clusterman.config import POOL_NAMESPACE
 from clusterman.draining.queue import DrainingClient
 from clusterman.exceptions import AllResourceGroupsAreStaleError
-from clusterman.exceptions import MesosPoolManagerError
+from clusterman.exceptions import PoolManagerError
 from clusterman.exceptions import ResourceGroupError
-from clusterman.mesos.constants import CACHE_TTL_SECONDS
-from clusterman.mesos.util import agent_pid_to_ip
-from clusterman.mesos.util import allocated_agent_resources
-from clusterman.mesos.util import get_total_resource_value
-from clusterman.mesos.util import InstanceMetadata
-from clusterman.mesos.util import mesos_post
-from clusterman.mesos.util import MesosAgentDict
-from clusterman.mesos.util import MesosAgentState
-from clusterman.mesos.util import RESOURCE_GROUPS
-from clusterman.mesos.util import total_agent_resources
+from clusterman.interfaces.cluster_connector import AgentMetadata
+from clusterman.interfaces.cluster_connector import AgentState
+from clusterman.interfaces.cluster_connector import ClusterConnector
+from clusterman.interfaces.resource_group import InstanceMetadata
+from clusterman.interfaces.resource_group import ResourceGroup
 from clusterman.util import read_int_or_inf
-
 
 AWS_RUNNING_STATES = ('running',)
 MIN_CAPACITY_PER_GROUP = 1
-RESOURCE_GROUP_MODIFICATION_FAILED_NAME = 'clusterman.resource_group_modification_failed'
+SFX_RESOURCE_GROUP_MODIFICATION_FAILED_NAME = 'clusterman.resource_group_modification_failed'
 logger = colorlog.getLogger(__name__)
 
 
-class MesosPoolManager:
-    """ The ``MesosPoolManager`` object provides a consistent interface to the infrastructure that underpins a particular
-    Mesos pool.  Specifically, it allows users to interact with the Mesos master (querying the number of agents in the
-    cluster, and what resources are available/allocated, for example) as well as to modify the capacity available to the
-    Mesos pool.  Since many different types of hosts may be present in a Mesos cluster, this object refers to a list of
-    abstract :py:class:`.ResourceGroup` objects to modify the underlying infrastructure.
+class ClusterNodeMetadata(NamedTuple):
+    agent: AgentMetadata
+    instance: InstanceMetadata
 
-    One major assumption the ``MesosPoolManager`` makes currently is that the underlying infrastructure for a particular
-    pool belongs completely to that pool; in other words, at present no pools are co-located on the same physical
-    hardware.  This assumption is subject to change in the future.
 
-    .. note:: Values returned from ``MesosPoolManager`` functions may be cached to limit requests made to the Mesos
-       masters or AWS API endpoints.
-    """
-
-    def __init__(self, cluster: str, pool: str, *, fetch_state: bool = True) -> None:
+class PoolManager:
+    def __init__(
+        self,
+        cluster: str,
+        pool: str,
+        fetch_state: bool = True,
+    ) -> None:
         self.cluster = cluster
         self.pool = pool
-
+        self.cluster_connector = ClusterConnector.load(self.cluster, self.pool)
         self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool))
 
-        mesos_master_fqdn = staticconf.read_string(f'mesos_clusters.{self.cluster}.fqdn')
         self.draining_enabled = self.pool_config.read_bool('draining_enabled', default=False)
         self.draining_client: Optional[DrainingClient] = DrainingClient(cluster) if self.draining_enabled else None
         self.min_capacity = self.pool_config.read_int('scaling_limits.min_capacity')
         self.max_capacity = self.pool_config.read_int('scaling_limits.max_capacity')
         self.max_tasks_to_kill = read_int_or_inf(self.pool_config, 'scaling_limits.max_tasks_to_kill')
-        self.non_batch_framework_prefixes = self.pool_config.read_list(
-            'non_batch_framework_prefixes',
-            default=['marathon'],
-        )
 
-        self.api_endpoint = f'http://{mesos_master_fqdn}:5050/'
-        logger.info(f'Connecting to Mesos masters at {self.api_endpoint}')
-
-        self.resource_groups: MutableMapping[str, AWSResourceGroup] = dict()
         if fetch_state:
             self.reload_state()
 
@@ -87,6 +67,7 @@ class MesosPoolManager:
         """ Fetch any state that may have changed behind our back, but which we do not want to change during an
         ``Autoscaler.run()``.
         """
+        self.cluster_connector.reload_state()
         self._reload_resource_groups()
         self.non_orphan_fulfilled_capacity = self._calculate_non_orphan_fulfilled_capacity()
 
@@ -95,11 +76,12 @@ class MesosPoolManager:
         new_target_capacity: float,
         dry_run: bool = False,
         force: bool = False,
+        prune: bool = True,
     ) -> float:
         """ Change the desired :attr:`target_capacity` of the resource groups belonging to this pool.
 
         Capacity changes are roughly evenly distributed across the resource groups to ensure that
-        instances are diversified in the cluster
+        nodes are diversified in the cluster
 
         :param new_target_capacity: the desired target capacity for the cluster and pool
         :param dry_run: boolean indicating whether the cluster should actually be modified
@@ -109,13 +91,13 @@ class MesosPoolManager:
         .. note:: It may take some time (up to a few minutes) for changes in the target capacity to be reflected in
            :attr:`fulfilled_capacity`.  Once the capacity has equilibrated, the fulfilled capacity and the target
            capacity may not exactly match, but the fulfilled capacity will never be under the target (for example, if
-           there is no combination of instances that evenly sum to the desired target capacity, the final fulfilled
+           there is no combination of nodes that evenly sum to the desired target capacity, the final fulfilled
            capacity will be slightly above the target capacity)
         """
         if dry_run:
             logger.warn('Running in "dry-run" mode; cluster state will not be modified')
         if not self.resource_groups:
-            raise MesosPoolManagerError('No resource groups available')
+            raise PoolManagerError('No resource groups available')
 
         orig_target_capacity = self.target_capacity
         new_target_capacity = self._constrain_target_capacity(new_target_capacity, force)
@@ -131,13 +113,14 @@ class MesosPoolManager:
             except ResourceGroupError:
                 logger.critical(traceback.format_exc())
                 rge_counter = yelp_meteorite.create_counter(
-                    RESOURCE_GROUP_MODIFICATION_FAILED_NAME,
+                    SFX_RESOURCE_GROUP_MODIFICATION_FAILED_NAME,
                     {'cluster': self.cluster, 'pool': self.pool},
                 )
                 rge_counter.count()
                 continue
 
-        self.prune_excess_fulfilled_capacity(new_target_capacity, res_group_targets, dry_run)
+        if prune:
+            self.prune_excess_fulfilled_capacity(new_target_capacity, res_group_targets, dry_run)
         logger.info(f'Target capacity for {self.pool} changed from {orig_target_capacity} to {new_target_capacity}')
         return new_target_capacity
 
@@ -149,7 +132,7 @@ class MesosPoolManager:
     ) -> None:
         """ Decrease the capacity in the cluster
 
-        The number of tasks killed is limited by ``self.max_tasks_to_kill``, and the instances are terminated in an
+        The number of tasks killed is limited by ``self.max_tasks_to_kill``, and the nodes are terminated in an
         order which (hopefully) reduces the impact on jobs running on the cluster.
 
         :param group_targets: a list of new resource group target_capacities; if None, use the existing
@@ -157,92 +140,41 @@ class MesosPoolManager:
         :param dry_run: if True, do not modify the state of the cluster, just log actions
         """
 
-        marked_instances = self._choose_instances_to_prune(new_target_capacity, group_targets)
+        marked_nodes_by_group = self._choose_nodes_to_prune(new_target_capacity, group_targets)
 
         if not dry_run:
             if self.draining_enabled:
                 assert self.draining_client  # make mypy happy
-                for group_id, instances in marked_instances.items():
-                    for instance in instances:
+                for group_id, node_metadatas in marked_nodes_by_group.items():
+                    for node_metadata in node_metadatas:
                         self.draining_client.submit_instance_for_draining(
-                            instance,
-                            sender=self.resource_groups[group_id].__class__,
+                            node_metadata.instance,
+                            sender=cast(Type[AWSResourceGroup], self.resource_groups[group_id].__class__),
                         )
             else:
-                for group_id, instances in marked_instances.items():
-                    self.resource_groups[group_id].terminate_instances_by_id([i.instance_id for i in instances])
+                for group_id, node_metadatas in marked_nodes_by_group.items():
+                    self.resource_groups[group_id].terminate_instances_by_id([
+                        node_metadata.instance.instance_id
+                        for node_metadata in node_metadatas
+                    ])
 
-    def get_instance_metadatas(self, aws_state_filter: Optional[Collection[str]] = None) -> Sequence[InstanceMetadata]:
-        """ Get a list of metadata about the instances currently in the pool
+    def get_node_metadatas(self, state_filter: Optional[Collection[str]] = None) -> Sequence[ClusterNodeMetadata]:
+        """ Get a list of metadata about the nodes currently in the pool
 
-        :param aws_state_filter: only return instances matching a particular AWS state ('running', 'cancelled', etc)
+        :param state_filter: only return nodes matching a particular state ('running', 'cancelled', etc)
         :returns: a list of InstanceMetadata objects
         """
-        instance_id_to_batch_task_count = self._count_batch_tasks_per_mesos_agent()
-        instance_id_to_task_count = self._count_tasks_per_mesos_agent()
-        ip_to_agent: Mapping[Optional[str], MesosAgentDict] = {
-            agent_pid_to_ip(agent['pid']): agent for agent in self.agents
-        }
-        instance_metadatas = []
-
-        for group in self.resource_groups.values():
-            for instance_dict in ec2_describe_instances(instance_ids=group.instance_ids):
-                aws_state = instance_dict['State']['Name']
-                if aws_state_filter and aws_state not in aws_state_filter:
-                    continue
-
-                instance_market = get_instance_market(instance_dict)
-                instance_ip = instance_dict.get('PrivateIpAddress')
-                agent = ip_to_agent.get(instance_ip)
-
-                metadata = InstanceMetadata(
-                    hostname=agent['hostname'] if agent else '',
-                    allocated_resources=allocated_agent_resources(agent),
-                    aws_state=aws_state,
-                    group_id=group.id,
-                    instance_id=instance_dict['InstanceId'],
-                    instance_ip=instance_ip,
-                    is_resource_group_stale=group.is_stale,
-                    market=instance_market,
-                    mesos_state=self._get_mesos_agent_state(instance_ip, agent),
-                    task_count=instance_id_to_task_count[agent['id']] if agent else 0,
-                    batch_task_count=instance_id_to_batch_task_count[agent['id']] if agent else 0,
-                    total_resources=total_agent_resources(agent),
-                    uptime=(arrow.now() - arrow.get(instance_dict['LaunchTime'])),
-                    weight=group.market_weight(instance_market),
-                )
-                instance_metadatas.append(metadata)
-
-        return instance_metadatas
-
-    def get_resource_allocation(self, resource_name: str) -> float:
-        """Get the total amount of the given resource currently allocated for this Mesos pool.
-
-        :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
-        :returns: the allocated resources in the Mesos cluster for the specified resource
-        """
-        return get_total_resource_value(self.agents, 'used_resources', resource_name)
-
-    def get_resource_total(self, resource_name: str) -> float:
-        """Get the total amount of the given resource for this Mesos pool.
-
-        :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
-        :returns: the total resources in the Mesos cluster for the specified resource
-        """
-        return get_total_resource_value(self.agents, 'resources', resource_name)
-
-    def get_percent_resource_allocation(self, resource_name: str) -> float:
-        """Get the overall proportion of the given resource that is in use.
-
-        :param resource_name: a resource recognized by Mesos (e.g. 'cpus', 'mem', 'disk')
-        :returns: the percentage allocated for the specified resource
-        """
-        total = self.get_resource_total(resource_name)
-        used = self.get_resource_allocation(resource_name)
-        return used / total if total else 0
+        return [
+            ClusterNodeMetadata(
+                self.cluster_connector.get_agent_metadata(instance_metadata.ip_address),
+                instance_metadata,
+            )
+            for group in self.resource_groups.values()
+            for instance_metadata in group.get_instance_metadatas(state_filter)
+        ]
 
     def _reload_resource_groups(self) -> None:
-        resource_groups: MutableMapping[str, AWSResourceGroup] = {}
+        resource_groups: MutableMapping[str, ResourceGroup] = {}
         for resource_group_conf in self.pool_config.read_list('resource_groups'):
             if not isinstance(resource_group_conf, dict) or len(resource_group_conf) != 1:
                 logger.error(f'Malformed config: {resource_group_conf}')
@@ -301,14 +233,14 @@ class MesosPoolManager:
                 )
         return constrained_target_capacity
 
-    def _choose_instances_to_prune(
+    def _choose_nodes_to_prune(
         self,
         new_target_capacity: float,
         group_targets: Optional[Mapping[str, float]],
-    ) -> Mapping[str, List[InstanceMetadata]]:
-        """ Choose instances to kill in order to decrease the capacity on the cluster.
+    ) -> Mapping[str, List[ClusterNodeMetadata]]:
+        """ Choose nodes to kill in order to decrease the capacity on the cluster.
 
-        The number of tasks killed is limited by self.max_tasks_to_kill, and the instances are terminated in an order
+        The number of tasks killed is limited by self.max_tasks_to_kill, and the nodes are terminated in an order
         which (hopefully) reduces the impact on jobs running on the cluster.
 
         :param new_target_capacity: The total new target capacity for the pool. Most of the time, this is equal to
@@ -317,11 +249,11 @@ class MesosPoolManager:
             aim for the actual target value.
         :param group_targets: a list of new resource group target_capacities; if None, use the existing
             target_capacities (this parameter is necessary in order for dry runs to work correctly)
-        :returns: a dict of resource group ids -> list of instance ids to terminate
+        :returns: a dict of resource group ids -> list of nodes to terminate
         """
 
         # If dry_run is True in modify_target_capacity, the resource group target_capacity values will not have changed,
-        # so this function would not choose to terminate any instances (see case #2 in the while loop below).  So
+        # so this function would not choose to terminate any nodes (see case #2 in the while loop below).  So
         # instead we take a list of new target capacities to use in this computation.
         #
         # We leave the option for group_targets to be None in the event that we want to call
@@ -334,12 +266,12 @@ class MesosPoolManager:
         if curr_capacity <= new_target_capacity:
             return {}
 
-        prioritized_killable_instances = self._get_prioritized_killable_instances()
-        logger.info('Killable instance IDs in kill order:\n{instances}'.format(
-            instances=[instance.instance_id for instance in prioritized_killable_instances],
+        prioritized_killable_nodes = self._get_prioritized_killable_nodes()
+        logger.info('Killable instance IDs in kill order:\n{instance_ids}'.format(
+            instance_ids=[node_metadata.instance.instance_id for node_metadata in prioritized_killable_nodes],
         ))
 
-        if not prioritized_killable_instances:
+        if not prioritized_killable_nodes:
             return {}
         rem_group_capacities = {group_id: rg.fulfilled_capacity for group_id, rg in self.resource_groups.items()}
 
@@ -348,50 +280,54 @@ class MesosPoolManager:
 
         # Iterate through all of the idle agents and mark one at a time for removal until we reach our target capacity
         # or have reached our limit of tasks to kill.
-        marked_instances: Mapping[str, List[InstanceMetadata]] = defaultdict(list)
+        marked_nodes: Mapping[str, List[ClusterNodeMetadata]] = defaultdict(list)
         killed_task_count = 0
-        for instance in prioritized_killable_instances:
-            # Try to mark the instance for removal; this could fail in a few different ways:
-            #  1) The resource group the instance belongs to can't be reduced further.
-            #  2) Killing the instance's tasks would take over the maximum number of tasks we are willing to kill.
-            #  3) Killing the instance would bring us under our target_capacity of non-orphaned instances.
-            # In each of the cases, the instance has been removed from consideration and we jump to the next iteration.
+        for node_metadata in prioritized_killable_nodes:
+            # Try to mark the node for removal; this could fail in a few different ways:
+            #  1) The resource group the node belongs to can't be reduced further.
+            #  2) Killing the node's tasks would take over the maximum number of tasks we are willing to kill.
+            #  3) Killing the node would bring us under our target_capacity of non-orphaned nodes.
+            # In each of the cases, the node has been removed from consideration and we jump to the next iteration.
 
-            # Make sure we don't make a resource group go below its target capacity
-            if rem_group_capacities[instance.group_id] - instance.weight < group_targets[instance.group_id]:  # case 1
+            instance_id = node_metadata.instance.instance_id
+            group_id = node_metadata.instance.group_id
+            instance_weight = node_metadata.instance.weight
+
+            new_group_capacity = rem_group_capacities[group_id] - instance_weight
+            if new_group_capacity < group_targets[group_id]:  # case 1
                 logger.info(
-                    f'Resource group {instance.group_id} is at target capacity; skipping {instance.instance_id}'
+                    f'Resource group {group_id} is at target capacity; skipping {instance_id}'
                 )
                 continue
 
-            if killed_task_count + instance.task_count > self.max_tasks_to_kill:  # case 2
+            if killed_task_count + node_metadata.agent.task_count > self.max_tasks_to_kill:  # case 2
                 logger.info(
-                    f'Killing instance {instance.instance_id} with {instance.task_count} tasks would take us over our '
-                    f'max_tasks_to_kill of {self.max_tasks_to_kill}. Skipping this instance.'
+                    f'Killing instance {instance_id} with {node_metadata.agent.task_count} tasks would take us '
+                    f'over our max_tasks_to_kill of {self.max_tasks_to_kill}. Skipping this instance.'
                 )
                 continue
 
-            if instance.mesos_state != MesosAgentState.ORPHANED:
-                if (remaining_non_orphan_capacity - instance.weight < new_target_capacity):  # case 3
+            if node_metadata.agent.state != AgentState.ORPHANED:
+                if (remaining_non_orphan_capacity - instance_weight < new_target_capacity):  # case 3
                     logger.info(
-                        f'Killing instance {instance.instance_id} with weight {instance.weight} would take us under '
+                        f'Killing instance {instance_id} with weight {instance_weight} would take us under '
                         f'our target_capacity for non-orphan boxes. Skipping this instance.'
                     )
                     continue
 
-            logger.info(f'marking {instance.instance_id} for termination')
-            marked_instances[instance.group_id].append(instance)
-            rem_group_capacities[instance.group_id] -= instance.weight
-            curr_capacity -= instance.weight
-            killed_task_count += instance.task_count
-            if instance.mesos_state != MesosAgentState.ORPHANED:
-                remaining_non_orphan_capacity -= instance.weight
+            logger.info(f'marking {instance_id} for termination')
+            marked_nodes[group_id].append(node_metadata)
+            rem_group_capacities[group_id] -= instance_weight
+            curr_capacity -= instance_weight
+            killed_task_count += node_metadata.agent.task_count
+            if node_metadata.agent.state != AgentState.ORPHANED:
+                remaining_non_orphan_capacity -= instance_weight
 
             if curr_capacity <= new_target_capacity:
-                logger.info("Seems like we've picked enough instances to kill; finishing")
+                logger.info("Seems like we've picked enough nodes to kill; finishing")
                 break
 
-        return marked_instances
+        return marked_nodes
 
     def _compute_new_resource_group_targets(self, new_target_capacity: float) -> Mapping[str, float]:
         """ Compute a balanced distribution of target capacities for the resource groups in the cluster
@@ -422,7 +358,7 @@ class MesosPoolManager:
             # groups could be over the new "uniform" capacity after we've subtracted the overage value
             #
             # (For scaling down, apply the same logic for resource groups below the target "uniform" capacity
-            # instead; i.e., instances will below the target capacity will not be increased)
+            # instead; i.e., groups will below the target capacity will not be increased)
             capacity_per_group, remainder = divmod(new_target_capacity, num_groups_to_change)
             pos = bisect(targets_to_change, coeff * capacity_per_group)
             residual = sum(targets_to_change[pos:num_groups_to_change])
@@ -462,79 +398,45 @@ class MesosPoolManager:
                     total_market_capacities[market] += capacity
         return total_market_capacities
 
-    def _get_prioritized_killable_instances(self) -> List[InstanceMetadata]:
-        """Get a list of killable instances in the cluster in the order in which they should be considered for
+    def _get_prioritized_killable_nodes(self) -> List[ClusterNodeMetadata]:
+        """Get a list of killable nodes in the cluster in the order in which they should be considered for
         termination.
         """
-        killable_instances = [
-            metadata for metadata in self.get_instance_metadatas(AWS_RUNNING_STATES)
-            if self._is_instance_killable(metadata)
+        killable_nodes = [
+            metadata for metadata in self.get_node_metadatas(AWS_RUNNING_STATES)
+            if self._is_node_killable(metadata)
         ]
-        return self._prioritize_killable_instances(killable_instances)
+        return self._prioritize_killable_nodes(killable_nodes)
 
-    def _is_instance_killable(self, metadata: InstanceMetadata) -> bool:
-        if metadata.mesos_state == MesosAgentState.UNKNOWN:
+    def _is_node_killable(self, node_metadata: ClusterNodeMetadata) -> bool:
+        if node_metadata.agent.state == AgentState.UNKNOWN:
             return False
-        elif self.max_tasks_to_kill > metadata.task_count:
+        elif self.max_tasks_to_kill > node_metadata.agent.task_count:
             return True
         else:
-            return metadata.task_count == 0
+            return node_metadata.agent.task_count == 0
 
-    def _prioritize_killable_instances(self, killable_instances: List[InstanceMetadata]) -> List[InstanceMetadata]:
-        """Returns killable_instances sorted with most-killable things first."""
-        def sort_key(killable_instance: InstanceMetadata) -> Tuple[int, int, int, int, int]:
+    def _prioritize_killable_nodes(self, killable_nodes: List[ClusterNodeMetadata]) -> List[ClusterNodeMetadata]:
+        """Returns killable_nodes sorted with most-killable things first."""
+        def sort_key(node_metadata: ClusterNodeMetadata) -> Tuple[int, int, int, int, int]:
             return (
-                0 if killable_instance.mesos_state == MesosAgentState.ORPHANED else 1,
-                0 if killable_instance.mesos_state == MesosAgentState.IDLE else 1,
-                0 if killable_instance.is_resource_group_stale else 1,
-                killable_instance.batch_task_count,
-                killable_instance.task_count,
+                0 if node_metadata.agent.state == AgentState.ORPHANED else 1,
+                0 if node_metadata.agent.state == AgentState.IDLE else 1,
+                0 if node_metadata.instance.is_resource_group_stale else 1,
+                node_metadata.agent.batch_task_count,
+                node_metadata.agent.task_count,
             )
         return sorted(
-            killable_instances,
+            killable_nodes,
             key=sort_key,
         )
 
-    def _get_mesos_agent_state(self, instance_ip: Optional[str], agent: Optional[MesosAgentDict]) -> MesosAgentState:
-        if not instance_ip:
-            return MesosAgentState.UNKNOWN
-        elif not agent:
-            return MesosAgentState.ORPHANED
-        elif allocated_agent_resources(agent)[0] == 0:
-            return MesosAgentState.IDLE
-        else:
-            return MesosAgentState.RUNNING
-
-    def _count_tasks_per_mesos_agent(self) -> MutableMapping[str, int]:
-        """Given a list of mesos tasks, return a count of tasks per agent"""
-        instance_id_to_task_count: MutableMapping[str, int] = defaultdict(int)
-        for task in self.tasks:
-            if task['state'] == 'TASK_RUNNING':
-                instance_id_to_task_count[task['slave_id']] += 1
-        return instance_id_to_task_count
-
-    def _count_batch_tasks_per_mesos_agent(self) -> MutableMapping[str, int]:
-        """Given a list of mesos tasks, return a count of tasks per agent
-        filtered by frameworks that we consider to be used for batch tasks
-        which we prefer not to interrupt"""
-        instance_id_to_task_count: MutableMapping[str, int] = defaultdict(int)
-        if not self.tasks:
-            return instance_id_to_task_count
-        framework_id_to_names: Mapping[str, str] = {
-            framework['id']: framework['name'] for framework in self.frameworks['frameworks']
-        }
-        for task in self.tasks:
-            if task['state'] == 'TASK_RUNNING' and self._is_batch_task(task, framework_id_to_names):
-                instance_id_to_task_count[task['slave_id']] += 1
-        return instance_id_to_task_count
-
-    def _is_batch_task(self, task: Mapping[str, Any], framework_id_to_name: Mapping[str, str]) -> bool:
-        """If the framework matches any of the prefixes in self.non_batch_framework_prefixes
-        this will return False, otherwise we assume the task to be a batch task"""
-        framework_name = framework_id_to_name[task['framework_id']]
-        if any([framework_name.startswith(prefix) for prefix in self.non_batch_framework_prefixes]):
-            return False
-        return True
+    def _calculate_non_orphan_fulfilled_capacity(self) -> float:
+        return sum(
+            node_metadata.instance.weight
+            for node_metadata in self.get_node_metadatas(AWS_RUNNING_STATES)
+            if node_metadata.agent.state not in (AgentState.ORPHANED, AgentState.UNKNOWN)
+        )
 
     @property
     def target_capacity(self) -> float:
@@ -554,31 +456,3 @@ class MesosPoolManager:
         be greater than or equal to the target capacity.
         """
         return sum(group.fulfilled_capacity for group in self.resource_groups.values())
-
-    def _calculate_non_orphan_fulfilled_capacity(self) -> float:
-        return sum(
-            metadata.weight for metadata in self.get_instance_metadatas(AWS_RUNNING_STATES)
-            if metadata.mesos_state not in (MesosAgentState.ORPHANED, MesosAgentState.UNKNOWN)
-        )
-
-    # TODO (CLUSTERMAN-278): fetch this in reload_state
-    @timed_cached_property(CACHE_TTL_SECONDS)
-    def agents(self) -> Sequence[MesosAgentDict]:
-        response = mesos_post(self.api_endpoint, 'slaves').json()
-        return [
-            agent
-            for agent in response['slaves']
-            if agent.get('attributes', {}).get('pool', 'default') == self.pool
-        ]
-
-    # TODO (CLUSTERMAN-278): fetch this in reload_state
-    @timed_cached_property(CACHE_TTL_SECONDS)
-    def frameworks(self) -> Mapping[str, Any]:
-        return mesos_post(self.api_endpoint, 'master/frameworks').json()
-
-    @property
-    def tasks(self) -> Sequence[Mapping]:
-        tasks: List[Mapping] = []
-        for framework in self.frameworks['frameworks']:
-            tasks.extend(framework['tasks'])
-        return tasks
