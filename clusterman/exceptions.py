@@ -15,7 +15,7 @@ class MetricsError(ClustermanException):
     pass
 
 
-class PoolManagerError(ClustermanException):
+class MesosPoolManagerError(ClustermanException):
     pass
 
 

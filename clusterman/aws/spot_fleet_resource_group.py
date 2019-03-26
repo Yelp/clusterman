@@ -7,13 +7,13 @@ import simplejson as json
 from cached_property import timed_cached_property
 from mypy_extensions import TypedDict
 
-from clusterman.aws import CACHE_TTL_SECONDS
 from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.client import ec2
 from clusterman.aws.client import s3
 from clusterman.aws.markets import get_instance_market
 from clusterman.aws.markets import InstanceMarket
 from clusterman.exceptions import ResourceGroupError
+from clusterman.mesos.constants import CACHE_TTL_SECONDS
 
 logger = colorlog.getLogger(__name__)
 _CANCELLED_STATES = ('cancelled', 'cancelled_terminating')

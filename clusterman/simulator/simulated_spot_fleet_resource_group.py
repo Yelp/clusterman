@@ -97,7 +97,7 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, AWSResourceGroup):
         elif curr_capacity < target_capacity:
             self._increase_capacity_to_target(target_capacity)
 
-    def terminate_instances_by_id(self, ids, batch_size=-1):
+    def terminate_instances_by_id(self, ids):
         """ Terminate specified instances
 
         :param ids: desired ids of instances to be terminated
@@ -105,7 +105,7 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, AWSResourceGroup):
         """
         for id in ids:
             self.simulator.remove_instance(self.instances[id])
-        super().terminate_instances_by_id(ids, batch_size)
+        super().terminate_instances_by_id(ids)
         # restore capacity if current capacity is less than target capacity
         if self.fulfilled_capacity < self.target_capacity:
             self._increase_capacity_to_target(self.target_capacity)

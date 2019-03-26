@@ -7,9 +7,9 @@ colorlog
 colorama
 humanize
 jsonpickle
-matplotlib>=3.0.3
+matplotlib
 mypy-extensions
-numpy>=1.16
+numpy
 parsedatetime
 pysensu-yelp
 py-zipkin

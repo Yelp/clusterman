@@ -4,7 +4,6 @@ import time
 from datetime import datetime
 from typing import Any
 from typing import Callable
-from typing import NamedTuple
 from typing import Optional
 from typing import TypeVar
 
@@ -26,12 +25,6 @@ logger = colorlog.getLogger(__name__)
 
 class All:
     pass
-
-
-class ClustermanResources(NamedTuple):
-    cpus: float
-    mem: float
-    disk: float
 
 
 def setup_logging(log_level_str: str = 'info') -> None:

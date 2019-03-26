@@ -173,23 +173,3 @@ def test_market_capacities(mock_resource_group):
 def test_target_capacity(mock_resource_group, is_stale):
     with mock.patch(f'{__name__}.MockResourceGroup.is_stale', mock.PropertyMock(return_value=is_stale)):
         assert mock_resource_group.target_capacity == 0 if is_stale else 5
-
-
-def test_get_node_metadatas(mock_resource_group):
-    ips = [i['PrivateIpAddress'] for i in mock_resource_group.instances]
-    with mock.patch('clusterman.aws.aws_resource_group.gethostbyaddr') as mock_get_host:
-        mock_get_host.side_effect = lambda ip: {ips[i]: (f'host{i}',) for i in range(5)}[ip]
-        instance_metadatas = mock_resource_group.get_instance_metadatas()
-        cancelled_metadatas = mock_resource_group.get_instance_metadatas({'cancelled'})
-
-    assert len(instance_metadatas) == 5
-    assert len(cancelled_metadatas) == 0
-    for i, instance_metadata in enumerate(instance_metadatas):
-        assert instance_metadata.group_id == mock_resource_group.id
-        assert instance_metadata.hostname == f'host{i}'
-        assert instance_metadata.instance_id == mock_resource_group.instances[i]['InstanceId']
-        assert not instance_metadata.is_resource_group_stale
-        assert instance_metadata.ip_address == ips[i]
-        assert instance_metadata.market.instance == 'c3.4xlarge'
-        assert instance_metadata.state == 'running'
-        assert instance_metadata.weight == 1

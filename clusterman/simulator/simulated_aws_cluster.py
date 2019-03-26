@@ -9,12 +9,12 @@ class Instance:
     id = itertools.count()
     ip = ip_address('10.0.0.1')
 
-    def __init__(self, market, start_time, bid_price=None, join_time=None):
+    def __init__(self, market, start_time, bid_price=None):
         self.id = next(Instance.id)
         self.ip_address = Instance.ip
         self.market = market
         self.start_time = start_time
-        self.join_time = join_time
+        self.join_time = None
         self.end_time = None
         self.resources = get_market_resources(self.market)
         self.bid_price = bid_price
@@ -69,11 +69,10 @@ class SimulatedAWSCluster:
         self.instances.update({instance.id: instance for instance in added_instances})
         return added_instances, removed_instances
 
-    def terminate_instances_by_id(self, ids, batch_size=-1):
+    def terminate_instances_by_id(self, ids):
         """ Terminate instance in the ids list
 
         :param ids: a list of IDs to be terminated
-        :param batch_size: unused, needed for inheritance compatibility
         """
         for terminate_id in ids:
             instance = self.instances[terminate_id]

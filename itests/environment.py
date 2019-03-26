@@ -13,7 +13,7 @@ from clusterman.aws.client import autoscaling
 from clusterman.aws.client import ec2
 from clusterman.config import CREDENTIALS_NAMESPACE
 
-_ttl_patch = mock.patch('clusterman.aws.CACHE_TTL_SECONDS', -1)
+_ttl_patch = mock.patch('clusterman.mesos.constants.CACHE_TTL_SECONDS', -1)
 _ttl_patch.__enter__()
 behave.use_step_matcher('re')
 BEHAVE_DEBUG_ON_ERROR = False

@@ -2,7 +2,7 @@ import mock
 import pytest
 import staticconf
 
-from clusterman.exceptions import PoolManagerError
+from clusterman.exceptions import MesosPoolManagerError
 from clusterman.mesos.util import agent_pid_to_ip
 from clusterman.mesos.util import allocated_agent_resources
 from clusterman.mesos.util import get_cluster_name_list
@@ -47,7 +47,7 @@ class TestMesosPost:
 
     def test_failure(self, wrapped_post):
         with mock.patch('clusterman.mesos.util.requests') as mock_requests, \
-                pytest.raises(PoolManagerError):
+                pytest.raises(MesosPoolManagerError):
             mock_requests.post.side_effect = Exception('something bad happened')
             wrapped_post('http://the.mesos.master/', 'an-endpoint')
 

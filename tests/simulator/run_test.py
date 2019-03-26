@@ -4,7 +4,7 @@ from argparse import Namespace
 import mock
 import pytest
 
-from clusterman.cli.simulate import main
+from clusterman.simulator.run import main
 
 
 @pytest.fixture
@@ -34,12 +34,12 @@ def test_main_too_many_compares(args):
 @pytest.mark.parametrize('compare', [[], ['sim1'], ['sim1', 'sim2']])
 def test_main_compare_param(compare, args):
     args.compare = compare
-    with mock.patch('clusterman.cli.simulate.read_object_from_compressed_json') as mock_read, \
-            mock.patch('clusterman.cli.simulate.write_object_to_compressed_json') as mock_write, \
-            mock.patch('clusterman.cli.simulate._load_metrics') as mock_load_metrics, \
-            mock.patch('clusterman.cli.simulate._run_simulation') as mock_run_simulation, \
-            mock.patch('clusterman.cli.simulate.operator') as mock_operator, \
-            mock.patch('clusterman.cli.simulate.make_report'):
+    with mock.patch('clusterman.simulator.run.read_object_from_compressed_json') as mock_read, \
+            mock.patch('clusterman.simulator.run.write_object_to_compressed_json') as mock_write, \
+            mock.patch('clusterman.simulator.run._load_metrics') as mock_load_metrics, \
+            mock.patch('clusterman.simulator.run._run_simulation') as mock_run_simulation, \
+            mock.patch('clusterman.simulator.run.operator') as mock_operator, \
+            mock.patch('clusterman.simulator.run.make_report'):
         main(args)
         expected_call_count = 1 if len(compare) < 2 else 0
         assert mock_load_metrics.call_count == expected_call_count

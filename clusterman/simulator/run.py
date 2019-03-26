@@ -23,8 +23,8 @@ from clusterman.simulator.event import InstancePriceChangeEvent
 from clusterman.simulator.event import ModifyClusterSizeEvent
 from clusterman.simulator.io import read_object_from_compressed_json
 from clusterman.simulator.io import write_object_to_compressed_json
+from clusterman.simulator.simulator import SimulationMetadata
 from clusterman.simulator.simulator import Simulator
-from clusterman.simulator.util import SimulationMetadata
 from clusterman.util import parse_time_string
 from clusterman.util import splay_event_time
 

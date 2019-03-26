@@ -9,10 +9,10 @@ from cached_property import timed_cached_property
 from mypy_extensions import TypedDict
 from retry import retry
 
-from clusterman.aws import CACHE_TTL_SECONDS
 from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.client import autoscaling
 from clusterman.aws.markets import InstanceMarket
+from clusterman.mesos.constants import CACHE_TTL_SECONDS
 
 _BATCH_TERM_SIZE = 200
 

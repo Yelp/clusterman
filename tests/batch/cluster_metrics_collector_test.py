@@ -5,9 +5,9 @@ import mock
 import pytest
 from clusterman_metrics import ClustermanMetricsBotoClient
 
-from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.batch.cluster_metrics_collector import ClusterMetricsCollector
 from clusterman.batch.cluster_metrics_collector import METRICS_TO_WRITE
+from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.mesos.metrics_generators import ClusterMetric
 from clusterman.util import All
 from clusterman.util import splay_event_time
@@ -32,7 +32,7 @@ def mock_setup_config():
 
 
 @mock.patch('clusterman.batch.cluster_metrics_collector.ClustermanMetricsBotoClient', autospec=True)
-@mock.patch('clusterman.batch.cluster_metrics_collector.PoolManager', autospec=True)
+@mock.patch('clusterman.batch.cluster_metrics_collector.MesosPoolManager', autospec=True)
 @mock.patch('os.listdir')
 def test_configure_initial(mock_ls, mock_mesos_pool_manager, mock_client_class, batch, mock_setup_config):
     pools = ['pool-1', 'pool-3']
@@ -49,21 +49,19 @@ def test_configure_initial(mock_ls, mock_mesos_pool_manager, mock_client_class, 
 
 
 def test_write_metrics(batch):
-    batch.pool_managers = {
-        'pool_A': mock.Mock(autospec=PoolManager, pool='pool_A'),
-        'pool_B': mock.Mock(autospec=PoolManager, pool='pool_B'),
+    batch.mesos_managers = {
+        'pool_A': mock.Mock(spec=MesosPoolManager, pool='pool_A'),
+        'pool_B': mock.Mock(spec=MesosPoolManager, pool='pool_B'),
     }
-    batch.pool_managers['pool_A'].connector = mock.Mock()
-    batch.pool_managers['pool_B'].connector = mock.Mock()
     writer = mock.Mock()
 
     def metric_generator(manager):
-        yield ClusterMetric('allocated', manager.connector.get_resource_allocation('cpus'), {'pool': manager.pool})
+        yield ClusterMetric('allocated', manager.get_resource_allocation('cpus'), {'pool': manager.pool})
 
     batch.write_metrics(writer, metric_generator, pools=All)
 
-    for pool, manager in batch.pool_managers.items():
-        assert manager.connector.get_resource_allocation.call_args_list == [mock.call('cpus')]
+    for pool, manager in batch.mesos_managers.items():
+        assert manager.get_resource_allocation.call_args_list == [mock.call('cpus')]
 
     assert writer.send.call_count == 2
 
@@ -98,7 +96,7 @@ def test_run(mock_sensu, mock_running, mock_time, mock_sleep, batch):
 
     with mock.patch('clusterman.batch.cluster_metrics_collector.splay_event_time', mock_splay_event_time), \
             mock.patch.object(batch, 'write_metrics', autospec=True) as write_metrics, \
-            mock.patch('clusterman.batch.cluster_metrics_collector.PoolManager', autospec=True), \
+            mock.patch('clusterman.batch.cluster_metrics_collector.MesosPoolManager', autospec=True), \
             mock.patch('clusterman.batch.cluster_metrics_collector.logger') as mock_logger:
         def mock_write_metrics(writer, generator, pools):
             if mock_time.call_count == 4:
