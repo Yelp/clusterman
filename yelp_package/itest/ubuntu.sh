@@ -21,6 +21,7 @@ PACKAGE_VERSION="$2"
 
 # This will get DISTRIB_CODENAME
 source /etc/lsb-release
+export DISTRIB_CODENAME
 
 # Set up the timezone so clusterman_metrics gets the right data
 export TZ=US/Pacific
@@ -34,15 +35,9 @@ apt-get update
 apt-get install -y --force-yes git make tox python3-pip python3-yaml aws-cli
 apt-get install -y --force-yes  -f "${PACKAGE_NAME}=${PACKAGE_VERSION}"
 
-AWS_ENDPOINT_URL_ARGS='--endpoint-url http://moto-s3:5000'
-
-aws ${AWS_ENDPOINT_URL_ARGS} s3 mb "s3://yelp-clusterman-signals/"
-aws ${AWS_ENDPOINT_URL_ARGS} s3 cp /itest/clusterman_signals_acceptance.tar.gz "s3://yelp-clusterman-signals/${DISTRIB_CODENAME}/clusterman_signals_acceptance.tar.gz"
-
+export ACCEPTANCE_ROOT=/itest
 pip3 install boto3 simplejson
 python3 /itest/run_instance.py
-
-rm -rf /opt/venvs/clusterman/lib/python3.6/site-packages/clog  # pretend we're in a non-Yelp env
 
 # Run the critical clusterman CLI commands
 highlight_exec /usr/bin/clusterman --version

@@ -8,6 +8,8 @@ UID:=`id -u`
 GID:=`id -g`
 DOCKER_BUILD_RUN:=docker run -t -v $(CURDIR)/..:/src:ro -v $(CURDIR)/dist:/dist:rw
 DOCKER_ITEST_RUN:=docker run -t -v $(CURDIR)/itest:/itest:rw -v $(CURDIR)/dist:/dist:ro --net=acceptance_default \
+	-v $(CURDIR)/../acceptance/run_instance.py:/itest/run_instance.py:ro \
+	-v $(CURDIR)/../acceptance/autoscaler_config.tmpl:/itest/autoscaler_config.tmpl:ro \
 	-v $(CURDIR)/../acceptance/srv-configs:/nail/srv/configs:ro \
 	-v $(CURDIR)/../acceptance/clusterman.sh:/etc/boto_cfg/clusterman.sh:ro \
 	-v $(CURDIR)/../acceptance/clusterman.json:/etc/boto_cfg/clusterman.json:ro \
@@ -17,7 +19,8 @@ DOCKER_WORKDIR:=mkdir -p /work && cd /src && cp -v --parents $(VERSIONED_FILES) 
 
 itest_%: package_% dist/%/Packages.gz
 	$(DOCKER_ITEST_RUN) \
-		-v $(CURDIR)/../acceptance/$*/clusterman_signals_acceptance.tar.gz:/itest/clusterman_signals_acceptance.tar.gz \
+		-it \
+		-v $(CURDIR)/../acceptance/$*/clusterman_signals_acceptance.tar.gz:/itest/$*/clusterman_signals_acceptance.tar.gz \
 		docker-dev.yelpcorp.com/$*_yelp \
 		/itest/ubuntu.sh $(SYSTEM_PKG_NAME) $(PACKAGE_VERSION)
 

@@ -1,3 +1,5 @@
 summary_prefix: '[clusterman]'
 testing_done: |
-    paasta-acceptance [-y <soaconfigs directory] [-s <srv-configs directory>] [--srv-configs-args "--test-ecosystem testopia"] |& fpb
+    make test
+    make itest
+    make package

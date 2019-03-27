@@ -54,4 +54,4 @@ RUN     mkdir -p /nail/run && chown -R nobody /nail/run
 # For sake of security, don't run your service as a privileged user
 USER    nobody
 WORKDIR /code
-ENV     BASEPATH=/code PATH=/code/virtualenv_run/bin:$PATH
+ENV     BASEPATH=/code PATH=/code/virtualenv_run/bin:$PATH DISTRIB_CODENAME=xenial
