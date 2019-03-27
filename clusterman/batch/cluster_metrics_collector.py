@@ -4,6 +4,7 @@ import time
 from traceback import format_exc
 from typing import Callable
 from typing import cast
+from typing import Generator
 from typing import List
 from typing import Mapping
 from typing import NamedTuple
@@ -54,7 +55,7 @@ logger = colorlog.getLogger(__name__)
 
 
 class MetricToWrite(NamedTuple):
-    generator: Callable[[PoolManager], ClusterMetric]
+    generator: Callable[[PoolManager], Generator[ClusterMetric, None, None]]
     type: str
     aggregate_meteorite_dims: bool
     pools: Union[Type[All], List['str']]
@@ -158,7 +159,7 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
     def write_metrics(
         self,
         writer,
-        metric_generator: Callable[[PoolManager], ClusterMetric],
+        metric_generator: Callable[[PoolManager], Generator[ClusterMetric, None, None]],
         pools: Union[Type[All], List[str]],
     ) -> None:
         # the data buffering is necessary while we're using TCP to talk to statsd; even if we

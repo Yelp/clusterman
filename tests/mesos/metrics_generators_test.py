@@ -11,7 +11,7 @@ from clusterman.mesos.metrics_generators import generate_system_metrics
 @pytest.fixture
 def mock_pool_manager():
     mock_pool_manager = mock.Mock(spec=PoolManager)
-    mock_pool_manager.cluster_connector = mock.Mock()
+    mock_pool_manager.cluster_connector = mock.Mock(cluster='mesos-test', pool='bar')
     mock_pool_manager.cluster = 'mesos-test'
     mock_pool_manager.pool = 'bar'
     return mock_pool_manager
@@ -62,8 +62,8 @@ def test_generate_simple_metadata(mock_pool_manager):
 
 
 def test_generate_framework_metadata(mock_pool_manager):
-    mock_pool_manager.frameworks = {
-        'frameworks': [{
+    mock_pool_manager.cluster_connector.get_framework_list.side_effect = [
+        [{
             'id': 'framework_1',
             'name': 'active',
             'active': True,
@@ -72,7 +72,7 @@ def test_generate_framework_metadata(mock_pool_manager):
             'unregistered_time': 0,
             'tasks': [{'state': 'TASK_RUNNING'}, {'state': 'TASK_FINISHED'}],
         }],
-        'completed_frameworks': [{
+        [{
             'id': 'framework_2',
             'name': 'completed',
             'active': False,
@@ -80,8 +80,8 @@ def test_generate_framework_metadata(mock_pool_manager):
             'registered_time': 123,
             'unregistered_time': 456,
             'tasks': [{'state': 'TASK_FINISHED'}, {'state': 'TASK_FAILED'}]
-        }]
-    }
+        }],
+    ]
     expected_metrics = [
         ClusterMetric(
             metric_name='framework',
@@ -93,8 +93,8 @@ def test_generate_framework_metadata(mock_pool_manager):
                 'cluster': 'mesos-test',
                 'name': 'active',
                 'id': 'framework_1',
-                'active': True,
-                'completed': False,
+                'active': 'True',
+                'completed': 'False',
             },
         ),
         ClusterMetric(
@@ -107,8 +107,8 @@ def test_generate_framework_metadata(mock_pool_manager):
                 'cluster': 'mesos-test',
                 'name': 'completed',
                 'id': 'framework_2',
-                'active': False,
-                'completed': True,
+                'active': 'False',
+                'completed': 'True',
             },
         )
     ]

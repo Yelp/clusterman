@@ -15,35 +15,40 @@ from clusterman.exceptions import PoolManagerError
 from clusterman.util import ClustermanResources
 
 logger = colorlog.getLogger(__name__)
-MesosAgentDict = TypedDict(
-    'MesosAgentDict',
-    {
-        'attributes': Mapping[str, str],
-        'id': str,
-        'pid': str,
-        'resources': Mapping[str, Any],
-        'used_resources': Mapping[str, Any]
-    }
-)
-MesosTaskDict = TypedDict(
-    'MesosTaskDict',
-    {
-        'id': str,
-        'framework_id': str,
-        'state': str,
-        'slave_id': str,
-    }
-)
-MesosFrameworkDict = TypedDict(
-    'MesosFrameworkDict',
-    {
-        'id': str,
-        'name': str,
-        'tasks': Sequence[MesosTaskDict],
-    }
-)
-MesosAgents = TypedDict('MesosAgents', {'slaves': Sequence[MesosAgentDict]})
-MesosFrameworks = TypedDict('MesosFrameworks', {'frameworks': Sequence[MesosFrameworkDict]})
+
+
+class MesosAgentDict(TypedDict):
+    attributes: Mapping[str, str]
+    id: str
+    pid: str
+    resources: Mapping[str, Any]
+    used_resources: Mapping[str, Any]
+
+
+class MesosAgents(TypedDict):
+    slaves: Sequence[MesosAgentDict]
+
+
+class MesosTaskDict(TypedDict):
+    id: str
+    framework_id: str
+    slave_id: str
+    state: str
+
+
+class MesosFrameworkDict(TypedDict):
+    active: str
+    id: str
+    name: str
+    registered_time: str
+    tasks: Sequence[MesosTaskDict]
+    unregistered_time: str
+    used_resources: Mapping[str, Any]
+
+
+class MesosFrameworks(TypedDict):
+    completed_frameworks: Sequence[MesosFrameworkDict]
+    frameworks: Sequence[MesosFrameworkDict]
 
 
 def agent_pid_to_ip(agent_pid: str) -> str:
