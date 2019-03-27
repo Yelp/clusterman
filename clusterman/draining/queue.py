@@ -19,6 +19,8 @@ from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.client import sqs
 from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
+from clusterman.aws.util import RESOURCE_GROUPS
+from clusterman.aws.util import RESOURCE_GROUPS_REV
 from clusterman.config import load_cluster_pool_config
 from clusterman.config import POOL_NAMESPACE
 from clusterman.config import setup_config
@@ -26,10 +28,8 @@ from clusterman.draining.mesos import down
 from clusterman.draining.mesos import drain
 from clusterman.draining.mesos import operator_api
 from clusterman.draining.mesos import up
+from clusterman.interfaces.resource_group import InstanceMetadata
 from clusterman.mesos.util import get_pool_name_list
-from clusterman.mesos.util import InstanceMetadata
-from clusterman.mesos.util import RESOURCE_GROUPS
-from clusterman.mesos.util import RESOURCE_GROUPS_REV
 
 
 logger = colorlog.getLogger(__name__)
@@ -66,7 +66,7 @@ class DrainingClient():
             MessageBody=json.dumps(
                 {
                     'instance_id': instance.instance_id,
-                    'ip': instance.instance_ip,
+                    'ip': instance.ip_address,
                     'hostname': instance.hostname,
                     'group_id': instance.group_id,
                 }

@@ -26,13 +26,13 @@ from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_disable_sensu_arg
 from clusterman.args import add_env_config_path_arg
 from clusterman.args import add_healthcheck_only_arg
+from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import BatchRunningSentinelMixin
 from clusterman.batch.util import suppress_request_limit_exceeded
 from clusterman.config import get_pool_config_path
 from clusterman.config import load_cluster_pool_config
 from clusterman.config import setup_config
-from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.mesos.metrics_generators import ClusterMetric
 from clusterman.mesos.metrics_generators import generate_framework_metadata
 from clusterman.mesos.metrics_generators import generate_simple_metadata
@@ -54,7 +54,7 @@ logger = colorlog.getLogger(__name__)
 
 
 class MetricToWrite(NamedTuple):
-    generator: Callable[[MesosPoolManager], ClusterMetric]
+    generator: Callable[[PoolManager], ClusterMetric]
     type: str
     aggregate_meteorite_dims: bool
     pools: Union[Type[All], List['str']]
@@ -101,16 +101,16 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
 
         self.metrics_client = ClustermanMetricsBotoClient(region_name=self.region)
 
-    def load_mesos_managers(self) -> None:
-        logger.info('Reloading all MesosPoolManagers')
-        self.mesos_managers: Mapping[str, MesosPoolManager] = {}
+    def load_pool_managers(self) -> None:
+        logger.info('Reloading all PoolManagers')
+        self.pool_managers: Mapping[str, PoolManager] = {}
         for pool in self.pools:
             logger.info(f'Loading resource groups for {pool} on {self.options.cluster}')
-            self.mesos_managers[pool] = MesosPoolManager(self.options.cluster, pool)
+            self.pool_managers[pool] = PoolManager(self.options.cluster, pool)
 
     @suppress_request_limit_exceeded()
     def run(self) -> None:
-        self.load_mesos_managers()  # Load the pools on the first run; do it here so we get logging
+        self.load_pool_managers()  # Load the pools on the first run; do it here so we get logging
 
         while self.running:
             time.sleep(splay_event_time(
@@ -120,7 +120,7 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
             if self.options.healthcheck_only:
                 continue
 
-            for manager in self.mesos_managers.values():
+            for manager in self.pool_managers.values():
                 manager.reload_state()
 
             successful = self.write_all_metrics()
@@ -158,13 +158,13 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
     def write_metrics(
         self,
         writer,
-        metric_generator: Callable[[MesosPoolManager], ClusterMetric],
+        metric_generator: Callable[[PoolManager], ClusterMetric],
         pools: Union[Type[All], List[str]],
     ) -> None:
         # the data buffering is necessary while we're using TCP to talk to statsd; even if we
         # eventually switch back to using UDP, it might still be a good idea
         yelp_meteorite.start_buffering_data()
-        for pool, manager in self.mesos_managers.items():
+        for pool, manager in self.pool_managers.items():
             if pools != All and pool not in cast(List[str], pools):
                 continue
 
