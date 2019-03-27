@@ -11,7 +11,7 @@ from clusterman.mesos.metrics_generators import generate_system_metrics
 @pytest.fixture
 def mock_pool_manager():
     mock_pool_manager = mock.Mock(spec=PoolManager)
-    mock_pool_manager.connector = mock.Mock()
+    mock_pool_manager.cluster_connector = mock.Mock()
     mock_pool_manager.cluster = 'mesos-test'
     mock_pool_manager.pool = 'bar'
     return mock_pool_manager
@@ -19,7 +19,7 @@ def mock_pool_manager():
 
 def test_generate_system_metrics(mock_pool_manager):
     resources_allocated = {'cpus': 10, 'mem': 1000, 'disk': 10000}
-    mock_pool_manager.connector.get_resource_allocation.side_effect = resources_allocated.get
+    mock_pool_manager.cluster_connector.get_resource_allocation.side_effect = resources_allocated.get
 
     expected_metrics = [
         ClusterMetric(metric_name='cpus_allocated', value=10, dimensions={'cluster': 'mesos-test', 'pool': 'bar'}),
@@ -31,7 +31,7 @@ def test_generate_system_metrics(mock_pool_manager):
 
 def test_generate_simple_metadata(mock_pool_manager):
     resource_totals = {'cpus': 20, 'mem': 2000, 'disk': 20000}
-    mock_pool_manager.connector.get_resource_total.side_effect = resource_totals.get
+    mock_pool_manager.cluster_connector.get_resource_total.side_effect = resource_totals.get
 
     market_capacities = {'market1': 15, 'market2': 25}
     mock_pool_manager.get_market_capacities.return_value = market_capacities
