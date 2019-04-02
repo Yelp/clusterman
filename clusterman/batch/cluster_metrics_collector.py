@@ -26,7 +26,6 @@ from clusterman.args import add_cluster_arg
 from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_disable_sensu_arg
 from clusterman.args import add_env_config_path_arg
-from clusterman.args import add_healthcheck_only_arg
 from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import BatchRunningSentinelMixin
@@ -82,7 +81,6 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
         add_cluster_arg(arg_group, required=True)
         add_env_config_path_arg(arg_group)
         add_disable_sensu_arg(arg_group)
-        add_healthcheck_only_arg(arg_group)
         add_cluster_config_directory_arg(arg_group)
 
     @batch_configure
@@ -91,7 +89,7 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
 
         # Since we want to collect metrics for all the pools, we need to call setup_config
         # first to load the cluster config path, and then read all the entries in that directory
-        self.pools = get_pool_name_list(self.options.cluster) if not self.options.healthcheck_only else []
+        self.pools = get_pool_name_list(self.options.cluster)
         for pool in self.pools:
             self.config.watchers.append({pool: get_pool_config_path(self.options.cluster, pool)})
             load_cluster_pool_config(self.options.cluster, pool, None)
@@ -118,8 +116,6 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
                 self.run_interval,
                 self.get_name() + self.options.cluster,
             ))
-            if self.options.healthcheck_only:
-                continue
 
             for manager in self.pool_managers.values():
                 manager.reload_state()

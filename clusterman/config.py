@@ -24,7 +24,6 @@ def setup_config(args: argparse.Namespace) -> None:
     aws_region = getattr(args, 'aws_region', None)
     cluster = getattr(args, 'cluster', None)
     pool = getattr(args, 'pool', None)
-    healthcheck_only = getattr(args, 'healthcheck_only', False)
     if aws_region and cluster:
         raise argparse.ArgumentError(None, 'Cannot specify both cluster and aws_region')
 
@@ -33,17 +32,9 @@ def setup_config(args: argparse.Namespace) -> None:
     # we might want to be operating on a cluster in one region while running from a
     # different region.
     elif cluster:
-        if healthcheck_only:
-            staticconf.DictConfiguration({
-                'mesos_clusters': {args.cluster: {
-                    'fqdn': args.cluster + '.healthcheck',
-                    'aws_region': 'us-west-1',
-                }
-                },
-            })
         aws_region = staticconf.read_string(f'mesos_clusters.{cluster}.aws_region', default=None)
         if pool:
-            load_cluster_pool_config(cluster, pool, signals_branch_or_tag, mock_config=healthcheck_only)
+            load_cluster_pool_config(cluster, pool, signals_branch_or_tag)
 
     staticconf.DictConfiguration({'aws': {'region': aws_region}})
 
@@ -55,11 +46,7 @@ def setup_config(args: argparse.Namespace) -> None:
         staticconf.DictConfiguration({'autoscale_signal': {'branch_or_tag': signals_branch_or_tag}})
 
 
-def load_cluster_pool_config(cluster, pool, signals_branch_or_tag, mock_config=False):
-    if mock_config:
-        _load_mock_cluster_pool_config(cluster, pool, signals_branch_or_tag)
-        return
-
+def load_cluster_pool_config(cluster, pool, signals_branch_or_tag):
     pool_namespace = POOL_NAMESPACE.format(pool=pool)
     pool_config_file = get_pool_config_path(cluster, pool)
 
@@ -77,14 +64,3 @@ def get_cluster_config_directory(cluster):
 
 def get_pool_config_path(cluster, pool):
     return os.path.join(get_cluster_config_directory(cluster), f'{pool}.yaml')
-
-
-def _load_mock_cluster_pool_config(cluster, pool, signals_branch_or_tag):
-    pool_namespace = POOL_NAMESPACE.format(pool=pool)
-    staticconf.DictConfiguration(
-        {
-            'resource_groups': [],
-            'scaling_limits': {'min_capacity': 1, 'max_capacity': 10},
-        },
-        namespace=pool_namespace,
-    )

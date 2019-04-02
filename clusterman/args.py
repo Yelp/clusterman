@@ -120,14 +120,6 @@ def add_disable_sensu_arg(parser):  # pragma: no cover
     )
 
 
-def add_healthcheck_only_arg(parser):
-    parser.add_argument(
-        '--healthcheck-only',
-        action='store_true',
-        help='Service healthcheck only',
-    )
-
-
 def help_formatter(prog):  # pragma: no cover
     """Formatter for the argument parser help strings"""
     return argparse.ArgumentDefaultsHelpFormatter(prog, max_help_position=35, width=100)
