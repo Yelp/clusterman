@@ -1,3 +1,9 @@
+clusterman (3.2.1) trusty; urgency=low
+
+  * minor bugfix
+
+ -- David Morrison <drmorr@yelp.com>  Mon, 08 Apr 2019 12:02:36 -0700
+
 clusterman (3.2.0) trusty; urgency=low
 
   * refactor of interactions between the Mesos cluster and AWS
