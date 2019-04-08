@@ -19,7 +19,6 @@ DOCKER_WORKDIR:=mkdir -p /work && cd /src && cp -v --parents $(VERSIONED_FILES) 
 
 itest_%: package_% dist/%/Packages.gz
 	$(DOCKER_ITEST_RUN) \
-		-it \
 		-v $(CURDIR)/../acceptance/$*/clusterman_signals_acceptance.tar.gz:/itest/$*/clusterman_signals_acceptance.tar.gz \
 		docker-dev.yelpcorp.com/$*_yelp \
 		/itest/ubuntu.sh $(SYSTEM_PKG_NAME) $(PACKAGE_VERSION)
