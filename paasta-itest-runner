@@ -12,7 +12,7 @@ BATCH=$1
 ARGS=$2
 STATUS_EXECUTABLE=${3:-$BATCH}
 
-paasta local-run -s clusterman -c norcal-devc -i itest --no-healthcheck -y ~/pg/yelpsoa-configs &
+paasta local-run -s clusterman -c norcal-devc -i itest --no-healthcheck &
 while [ -z ${CONTAINER} ]; do CONTAINER=$(docker ps | grep paasta-local-run-clusterman-$(whoami) | cut -d' ' -f1); done
 docker network connect acceptance_default ${CONTAINER}
 docker exec --user=0 ${CONTAINER} python acceptance/run_instance.py
