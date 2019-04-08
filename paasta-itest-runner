@@ -1,0 +1,31 @@
+#!/bin/bash
+
+set -e
+
+cleanup() {
+    docker kill ${CONTAINER}
+}
+trap cleanup ERR
+trap cleanup SIGINT
+
+BATCH=$1
+ARGS=$2
+STATUS_EXECUTABLE=${3:-$BATCH}
+
+paasta local-run -s clusterman -c norcal-devc -i itest --no-healthcheck -y ~/pg/yelpsoa-configs &
+while [ -z ${CONTAINER} ]; do CONTAINER=$(docker ps | grep paasta-local-run-clusterman-$(whoami) | cut -d' ' -f1); done
+docker network connect acceptance_default ${CONTAINER}
+docker exec --user=0 ${CONTAINER} python acceptance/run_instance.py
+docker exec ${CONTAINER} /bin/bash -c "AWS_ENDPOINT_URL_ARGS='--endpoint-url http://moto-s3:5000' python -m clusterman.batch.$BATCH start $ARGS" &
+count=0
+while docker exec ${CONTAINER} /bin/sh -c "python -m clusterman.batch.status $STATUS_EXECUTABLE"; [ $? -ne 0 ]; do
+    count=$((count+1))
+    if [ $count -ge 10 ]; then
+        break;
+    fi
+    sleep 10;
+done;
+docker kill ${CONTAINER}
+if [ $count -ge 10 ]; then
+    exit 1
+fi

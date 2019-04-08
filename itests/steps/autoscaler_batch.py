@@ -29,7 +29,7 @@ def _check_sensu_args(call_args, *, name=None, app_name=None, status=Status.OK):
 
 @behave.fixture
 def autoscaler_patches(context):
-    with mock.patch('clusterman.batch.autoscaler.MesosPoolManager'), \
+    with mock.patch('clusterman.batch.autoscaler.PoolManager'), \
             mock.patch('clusterman.autoscaler.autoscaler.yelp_meteorite'), \
             mock.patch('clusterman.autoscaler.autoscaler.ClustermanMetricsBotoClient'), \
             mock.patch('clusterman.autoscaler.autoscaler.Signal') as signal_class, \

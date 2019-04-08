@@ -1,7 +1,7 @@
 import mock
 import pytest
 
-from clusterman.mesos.mesos_pool_manager import MesosPoolManager
+from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.mesos.metrics_generators import ClusterMetric
 from clusterman.mesos.metrics_generators import generate_framework_metadata
 from clusterman.mesos.metrics_generators import generate_simple_metadata
@@ -10,7 +10,8 @@ from clusterman.mesos.metrics_generators import generate_system_metrics
 
 @pytest.fixture
 def mock_pool_manager():
-    mock_pool_manager = mock.Mock(spec=MesosPoolManager)
+    mock_pool_manager = mock.Mock(spec=PoolManager)
+    mock_pool_manager.cluster_connector = mock.Mock(cluster='mesos-test', pool='bar')
     mock_pool_manager.cluster = 'mesos-test'
     mock_pool_manager.pool = 'bar'
     return mock_pool_manager
@@ -18,7 +19,7 @@ def mock_pool_manager():
 
 def test_generate_system_metrics(mock_pool_manager):
     resources_allocated = {'cpus': 10, 'mem': 1000, 'disk': 10000}
-    mock_pool_manager.get_resource_allocation.side_effect = resources_allocated.get
+    mock_pool_manager.cluster_connector.get_resource_allocation.side_effect = resources_allocated.get
 
     expected_metrics = [
         ClusterMetric(metric_name='cpus_allocated', value=10, dimensions={'cluster': 'mesos-test', 'pool': 'bar'}),
@@ -30,7 +31,7 @@ def test_generate_system_metrics(mock_pool_manager):
 
 def test_generate_simple_metadata(mock_pool_manager):
     resource_totals = {'cpus': 20, 'mem': 2000, 'disk': 20000}
-    mock_pool_manager.get_resource_total.side_effect = resource_totals.get
+    mock_pool_manager.cluster_connector.get_resource_total.side_effect = resource_totals.get
 
     market_capacities = {'market1': 15, 'market2': 25}
     mock_pool_manager.get_market_capacities.return_value = market_capacities
@@ -61,8 +62,8 @@ def test_generate_simple_metadata(mock_pool_manager):
 
 
 def test_generate_framework_metadata(mock_pool_manager):
-    mock_pool_manager.frameworks = {
-        'frameworks': [{
+    mock_pool_manager.cluster_connector.get_framework_list.side_effect = [
+        [{
             'id': 'framework_1',
             'name': 'active',
             'active': True,
@@ -71,7 +72,7 @@ def test_generate_framework_metadata(mock_pool_manager):
             'unregistered_time': 0,
             'tasks': [{'state': 'TASK_RUNNING'}, {'state': 'TASK_FINISHED'}],
         }],
-        'completed_frameworks': [{
+        [{
             'id': 'framework_2',
             'name': 'completed',
             'active': False,
@@ -79,8 +80,8 @@ def test_generate_framework_metadata(mock_pool_manager):
             'registered_time': 123,
             'unregistered_time': 456,
             'tasks': [{'state': 'TASK_FINISHED'}, {'state': 'TASK_FAILED'}]
-        }]
-    }
+        }],
+    ]
     expected_metrics = [
         ClusterMetric(
             metric_name='framework',
@@ -92,8 +93,8 @@ def test_generate_framework_metadata(mock_pool_manager):
                 'cluster': 'mesos-test',
                 'name': 'active',
                 'id': 'framework_1',
-                'active': True,
-                'completed': False,
+                'active': 'True',
+                'completed': 'False',
             },
         ),
         ClusterMetric(
@@ -106,8 +107,8 @@ def test_generate_framework_metadata(mock_pool_manager):
                 'cluster': 'mesos-test',
                 'name': 'completed',
                 'id': 'framework_2',
-                'active': False,
-                'completed': True,
+                'active': 'False',
+                'completed': 'True',
             },
         )
     ]

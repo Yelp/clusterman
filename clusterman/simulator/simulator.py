@@ -29,7 +29,7 @@ from clusterman.math.piecewise import piecewise_max
 from clusterman.math.piecewise import PiecewiseConstantFunction
 from clusterman.simulator.event import Event
 from clusterman.simulator.simulated_aws_cluster import SimulatedAWSCluster
-from clusterman.simulator.simulated_mesos_pool_manager import SimulatedMesosPoolManager
+from clusterman.simulator.simulated_pool_manager import SimulatedPoolManager
 from clusterman.simulator.util import patch_join_delay
 from clusterman.simulator.util import SimulationMetadata
 
@@ -71,7 +71,7 @@ class Simulator:
 
         if autoscaler_config_file:
             self._make_autoscaler(autoscaler_config_file)
-            self.aws_clusters = self.autoscaler.mesos_pool_manager.resource_groups.values()  # type: ignore
+            self.aws_clusters = self.autoscaler.pool_manager.resource_groups.values()  # type: ignore
             period = self.autoscaler.signal.period_minutes  # type: ignore
             print(f'Autoscaler configured; will run every {period} minutes')
         else:
@@ -257,7 +257,7 @@ class Simulator:
         if 'sfrs' in autoscaler_config:
             aws_configs = ec2.describe_spot_fleet_requests(SpotFleetRequestIds=autoscaler_config['sfrs'])
             configs.extend([config['SpotFleetRequestConfig'] for config in aws_configs['SpotFleetRequestConfigs']])
-        pool_manager = SimulatedMesosPoolManager(self.metadata.cluster, self.metadata.pool, configs, self)
+        pool_manager = SimulatedPoolManager(self.metadata.cluster, self.metadata.pool, configs, self)
         metric_values = self.metrics_client.get_metric_values(
             'target_capacity',
             METADATA,
@@ -270,7 +270,7 @@ class Simulator:
         # take the earliest data point available - this is a Decimal, which doesn't play nicely, so convert to an int
         with patch_join_delay():
             actual_target_capacity = int(metric_values['target_capacity'][0][1])
-            pool_manager.modify_target_capacity(actual_target_capacity, force=True)
+            pool_manager.modify_target_capacity(actual_target_capacity, force=True, prune=False)
 
         for config in configs:
             for spec in config['LaunchSpecifications']:

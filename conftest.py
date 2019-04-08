@@ -9,5 +9,5 @@ import mock
 
 # suffice it to say, you shouldn't put anything else in this file
 
-_ttl_patch = mock.patch('clusterman.mesos.constants.CACHE_TTL_SECONDS', -1)
+_ttl_patch = mock.patch('clusterman.aws.CACHE_TTL_SECONDS', -1)
 _ttl_patch.__enter__()

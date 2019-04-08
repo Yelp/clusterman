@@ -9,16 +9,15 @@ from yelp_batch.batch_daemon import BatchDaemon
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_env_config_path_arg
-from clusterman.args import add_healthcheck_only_arg
 from clusterman.args import add_pool_arg
 from clusterman.autoscaler.autoscaler import Autoscaler
+from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import BatchRunningSentinelMixin
 from clusterman.batch.util import suppress_request_limit_exceeded
 from clusterman.config import setup_config
 from clusterman.exceptions import AutoscalerError
 from clusterman.exceptions import ClustermanSignalError
-from clusterman.mesos.mesos_pool_manager import MesosPoolManager
 from clusterman.util import get_autoscaler_scribe_stream
 from clusterman.util import sensu_checkin
 from clusterman.util import setup_logging
@@ -67,7 +66,6 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
         add_pool_arg(arg_group)
         add_cluster_config_directory_arg(arg_group)
         add_env_config_path_arg(arg_group)
-        add_healthcheck_only_arg(arg_group)
         arg_group.add_argument(
             '--dry-run',
             default=False,
@@ -83,16 +81,15 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
 
         self.apps = [self.options.pool]  # TODO (CLUSTERMAN-126) someday these should not be the same thing
 
-        pool_manager = MesosPoolManager(
+        pool_manager = PoolManager(
             self.options.cluster,
             self.options.pool,
-            fetch_state=not self.options.healthcheck_only,
         )
         self.autoscaler = Autoscaler(
             self.options.cluster,
             self.options.pool,
             self.apps,
-            monitoring_enabled=not (self.options.dry_run or self.options.healthcheck_only),
+            monitoring_enabled=(not self.options.dry_run),
             pool_manager=pool_manager,
         )
 
@@ -113,8 +110,6 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
             self.autoscaler.run_frequency,
             self.get_name() + self.options.cluster + self.options.pool,
         ))
-        if self.options.healthcheck_only:
-            return
         with suppress_request_limit_exceeded():
             self.autoscaler.run(dry_run=self.options.dry_run)
 
@@ -137,7 +132,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
             source=f'{self.options.cluster}_{self.options.pool}',
             ttl=alert_delay,
             alert_after=alert_delay,
-            noop=self.options.dry_run or self.options.healthcheck_only,
+            noop=self.options.dry_run,
             pool=self.options.pool,
         )
 

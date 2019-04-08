@@ -1,21 +1,26 @@
 from abc import ABCMeta
-from abc import abstractmethod
 from abc import abstractproperty
 from collections import defaultdict
+from socket import gethostbyaddr
 from typing import Any
+from typing import Collection
 from typing import List
 from typing import Mapping
+from typing import Optional
 from typing import Sequence
 
+import arrow
 import colorlog
 import simplejson as json
 from cached_property import timed_cached_property
 
+from clusterman.aws import CACHE_TTL_SECONDS
 from clusterman.aws.client import ec2
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import get_instance_market
 from clusterman.aws.markets import InstanceMarket
-from clusterman.mesos.constants import CACHE_TTL_SECONDS
+from clusterman.interfaces.resource_group import InstanceMetadata
+from clusterman.interfaces.resource_group import ResourceGroup
 
 
 logger = colorlog.getLogger(__name__)
@@ -38,47 +43,38 @@ def protect_unowned_instances(func):
     return wrapper
 
 
-class AWSResourceGroup(metaclass=ABCMeta):
-    """
-    The AWSResourceGroup is an abstract object codifying the interface that objects belonging to a Mesos
-    cluster are expected to adhere to.  In general, a "AWSResourceGroup" object should represent a collection of
-    machines that are a part of a Mesos cluster, and should have an API for adding and removing hosts from the
-    AWSResourceGroup, as well as querying the state of the resource group.
-    """
-
+class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
     def __init__(self, group_id: str) -> None:
         self.group_id = group_id
 
-    def market_weight(self, market: InstanceMarket) -> float:  # pragma: no cover
-        """ Return the weighted capacity assigned to a particular EC2 market by this resource group
+    def get_instance_metadatas(self, state_filter: Optional[Collection[str]] = None) -> Sequence[InstanceMetadata]:
+        instance_metadatas = []
+        for instance_dict in ec2_describe_instances(instance_ids=self.instance_ids):
+            aws_state = instance_dict['State']['Name']
+            if state_filter and aws_state not in state_filter:
+                continue
 
-        The weighted capacity is a SpotFleet concept but for consistency we assume other resource group types will also
-        have weights assigned to them; this will allow the MesosPool to operate on a variety of different resource types
+            instance_market = get_instance_market(instance_dict)
+            instance_ip = instance_dict.get('PrivateIpAddress')
+            hostname = gethostbyaddr(instance_ip)[0] if instance_ip else None
 
-        Note that market_weight is compared to fulfilled_capacity when scaling down a pool, so it must return the same
-        units.
+            metadata = InstanceMetadata(
+                group_id=self.id,
+                hostname=hostname,
+                instance_id=instance_dict['InstanceId'],
+                ip_address=instance_ip,
+                is_resource_group_stale=self.is_stale,
+                market=instance_market,
+                state=aws_state,
+                uptime=(arrow.now() - arrow.get(instance_dict['LaunchTime'])),
+                weight=self.market_weight(instance_market),
+            )
+            instance_metadatas.append(metadata)
+        return instance_metadatas
 
-        :param market: the :py:class:`.InstanceMarket` to get the weighted capacity for
-        :returns: the weighted capacity of the market (defaults to 1 unless overridden)
-        """
+    def market_weight(self, market: InstanceMarket) -> float:
+        # some types of resource groups don't understand weights, so default to 1 for every market
         return 1
-
-    @abstractmethod
-    def modify_target_capacity(
-        self,
-        target_capacity: float,
-        *,
-        terminate_excess_capacity: bool,
-        dry_run: bool,
-    ) -> None:  # pragma: no cover
-        """ Modify the target capacity for the resource group
-
-        :param target_capacity: the (weighted) new target capacity for the resource group
-        :param terminate_excess_capacity: boolean indicating whether to terminate instances if the
-            new target capacity is less than the current capacity
-        :param dry_run: boolean indicating whether to take action or just write to stdout
-        """
-        pass
 
     @protect_unowned_instances
     def terminate_instances_by_id(self, instance_ids: List[str], batch_size: int = 500) -> Sequence[str]:
@@ -125,11 +121,6 @@ class AWSResourceGroup(metaclass=ABCMeta):
         """ A unique identifier for this AWSResourceGroup """
         return self.group_id
 
-    @abstractproperty
-    def instance_ids(self) -> Sequence[str]:  # pragma: no cover
-        """ The list of instance IDs belonging to this AWSResourceGroup """
-        pass
-
     @property
     def market_capacities(self) -> Mapping[InstanceMarket, float]:
         return {
@@ -151,21 +142,6 @@ class AWSResourceGroup(metaclass=ABCMeta):
             # launched. This is effectively a target_capacity of 0, so let's just pretend like it is.
             return 0
         return self._target_capacity
-
-    @abstractproperty
-    def fulfilled_capacity(self) -> float:  # pragma: no cover
-        """ The actual weighted capacity for this AWSResourceGroup """
-        pass
-
-    @abstractproperty
-    def status(self) -> str:  # pragma: no cover
-        """ The status of the AWSResourceGroup (e.g., running, modifying, terminated, etc.) """
-        pass
-
-    @abstractproperty
-    def is_stale(self) -> bool:  # pragma: no cover
-        """Whether this AWSResourceGroup is stale."""
-        pass
 
     @timed_cached_property(ttl=CACHE_TTL_SECONDS)
     def _instances_by_market(self):

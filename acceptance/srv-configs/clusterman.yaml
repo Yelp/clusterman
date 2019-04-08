@@ -1,5 +1,7 @@
 ---
 module_config:
+    - namespace: clog
+      file: /nail/srv/configs/clog.yaml
     - namespace: clusterman_metrics
       file: /nail/srv/configs/clusterman_metrics.yaml
 
@@ -21,10 +23,10 @@ aws:
 
 batches:
     spot_prices:
-        run_interval_seconds: 60
+        run_interval_seconds: 1
         dedupe_interval_seconds: 60
     cluster_metrics:
-        run_interval_seconds: 60
+        run_interval_seconds: 1
 
 autoscaling:
     default_signal_role: 'clusterman'
@@ -34,7 +36,7 @@ autoscaling:
 autoscale_signal:
     name: ConstantSignal
     branch_or_tag: acceptance
-    period_minutes: 10
+    period_minutes: 1
 
 sensu_config:
     - team: noop
