@@ -42,6 +42,13 @@ ENV     HOME /home/nobody
 # break the preceding cache layer.
 COPY    . /code
 RUN     chown nobody /code
+
+# This is needed so that we can pass PaaSTA itests on Jenkins; for some reason (probably aufs-related?)
+# root can't modify the contents of /code on Jenkins, even though it works locally.  Root needs to
+# modify these contents so that it can configure the Dockerized Mesos cluster that we run our itests on.
+# This shouldn't be a security risk because we drop privileges below and on overlay2, root can already
+# modify the contents of this directory.
+RUN     chmod -R 775 /code
 RUN     ln -s /code/clusterman/supervisord/fetch_clusterman_signal /usr/bin/fetch_clusterman_signal
 RUN     ln -s /code/clusterman/supervisord/run_clusterman_signal /usr/bin/run_clusterman_signal
 
