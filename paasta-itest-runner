@@ -13,7 +13,8 @@ ARGS=$2
 STATUS_EXECUTABLE=${3:-$BATCH}
 
 paasta local-run -s clusterman -c norcal-devc -i itest --no-healthcheck &
-while [ -z ${CONTAINER} ]; do CONTAINER=$(docker ps | grep paasta-local-run-clusterman-$(whoami) | cut -d' ' -f1); done
+CONTAINER_NAME_REGEX="(paasta-local-run-clusterman-$(whoami)|services-clusterman:paasta-$(git rev-parse HEAD))"
+while [ -z ${CONTAINER} ]; do CONTAINER=$(docker ps | egrep $CONTAINER_NAME_REGEX | cut -d' ' -f1); done
 docker network connect acceptance_default ${CONTAINER}
 docker exec --user=0 ${CONTAINER} python acceptance/run_instance.py
 docker exec ${CONTAINER} /bin/bash -c "AWS_ENDPOINT_URL_ARGS='--endpoint-url http://moto-s3:5000' python -m clusterman.batch.$BATCH start $ARGS" &
