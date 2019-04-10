@@ -78,7 +78,7 @@ utils.handleInputRejection {
             }
 
             ystage('dev-stage-testopia.default') {
-                paastaDeploy(SERVICE_NAME, commit, 'dev-stage-testopia.default', waitForDeployment: true, confirmation: false, deployTimeout: true, autoRollback: false, productionDeploy: false)
+                paastaDeploy(SERVICE_NAME, commit, 'dev-stage-testopia.default', waitForDeployment: true, confirmation: false, deployTimeout: false, autoRollback: false, productionDeploy: false)
             }
 
             ystage('advance1') {
