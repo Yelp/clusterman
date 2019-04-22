@@ -67,8 +67,13 @@ class PoolManager:
         """ Fetch any state that may have changed behind our back, but which we do not want to change during an
         ``Autoscaler.run()``.
         """
+        logger.info('Reloading cluster connector state')
         self.cluster_connector.reload_state()
+
+        logger.info('Reloading resource groups')
         self._reload_resource_groups()
+
+        logger.info('Recalculating non-orphan fulfilled capacity')
         self.non_orphan_fulfilled_capacity = self._calculate_non_orphan_fulfilled_capacity()
 
     def modify_target_capacity(

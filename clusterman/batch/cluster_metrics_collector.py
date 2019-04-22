@@ -109,8 +109,10 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
                 self.get_name() + self.options.cluster,
             ))
 
-            for manager in self.pool_managers.values():
+            for pool, manager in self.pool_managers.items():
+                logger.info(f'Reloading state for pool manager for pool {pool}')
                 manager.reload_state()
+                logger.info(f'Done reloading state for pool {pool}')
 
             successful = self.write_all_metrics()
 
@@ -156,8 +158,8 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
 
             for cluster_metric in metric_generator(manager):
                 metric_name = generate_key_with_dimensions(cluster_metric.metric_name, cluster_metric.dimensions)
-                logger.info(f'Writing {metric_name} to metric store')
                 data = (metric_name, int(time.time()), cluster_metric.value)
+                logger.info(f'Writing value {cluster_metric.value} for metric {metric_name} to metric store')
 
                 writer.send(data)
 
