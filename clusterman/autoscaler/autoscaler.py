@@ -18,6 +18,7 @@ from clusterman.autoscaler.signals import Signal
 from clusterman.autoscaler.signals import SignalResponseDict
 from clusterman.config import POOL_NAMESPACE
 from clusterman.exceptions import NoSignalConfiguredException
+from clusterman.util import ClustermanResources
 from clusterman.util import sensu_checkin
 
 SIGNAL_LOAD_CHECK_NAME = 'signal_configuration_failed'
@@ -163,8 +164,12 @@ class Autoscaler:
         :returns: the new target capacity we should scale to
         """
         current_target_capacity = self.pool_manager.target_capacity
+        cluster_total_resources = self._get_cluster_total_resources()
+        cluster_allocated_resources = self._get_cluster_allocated_resources()
         non_orphan_fulfilled_capacity = self.pool_manager.non_orphan_fulfilled_capacity
         logger.info(f'Currently at target_capacity of {current_target_capacity}')
+        logger.info(f'Current cluster total resources: {cluster_total_resources}')
+        logger.info(f'Current cluster allocated resources: {cluster_allocated_resources}')
 
         if all(requested_quantity is None for requested_quantity in resource_request.values()):
             logger.info('No data from signal, not changing capacity')
@@ -186,7 +191,10 @@ class Autoscaler:
             )
             return current_target_capacity
 
-        most_constrained_resource, usage_pct = self._get_most_constrained_resource_for_request(resource_request)
+        most_constrained_resource, usage_pct = self._get_most_constrained_resource_for_request(
+            resource_request,
+            cluster_total_resources,
+        )
         logger.info(
             f'Fulfilling resource request will cause {most_constrained_resource} to be the most constrained resource '
             f'at {usage_pct} usage'
@@ -233,20 +241,38 @@ class Autoscaler:
 
         return new_target_capacity
 
-    def _get_most_constrained_resource_for_request(self, resource_request: SignalResponseDict) -> Tuple[str, float]:
+    def _get_cluster_total_resources(self) -> ClustermanResources:
+        total_resources = {
+            resource: self.pool_manager.cluster_connector.get_resource_total(resource)
+            for resource in ('cpus', 'mem', 'disk')
+        }
+        return ClustermanResources(**total_resources)
+
+    def _get_cluster_allocated_resources(self) -> ClustermanResources:
+        allocated_resources = {
+            resource: self.pool_manager.cluster_connector.get_resource_allocation(resource)
+            for resource in ('cpus', 'mem', 'disk')
+        }
+        return ClustermanResources(**allocated_resources)
+
+    def _get_most_constrained_resource_for_request(
+        self,
+        resource_request: SignalResponseDict,
+        cluster_total_resources: ClustermanResources,
+    ) -> Tuple[str, float]:
         """Determine what would be the most constrained resource if were to fulfill a resource_request without scaling
         the cluster.
 
         :param resource_rquest: dictionary of resource name (cpu, mem, disk) to the requested quantity of that resource
+        :param cluster_total_resources: the currently available resources in the cluster
         :returns: a tuple of the most constrained resource name and its utilization percentage if the provided request
             were to be fulfilled
         """
         requested_resource_usage_pcts = {}
-        for resource in ('cpus', 'mem', 'disk'):
+        for resource, resource_total in cluster_total_resources._asdict().items():
             if resource not in resource_request or resource_request[resource] is None:
                 continue
 
-            resource_total = self.pool_manager.cluster_connector.get_resource_total(resource)
             # mypy isn't smart enough to see resource_request[resource] can't be None here
             requested_resource_usage_pcts[resource] = resource_request[resource] / resource_total  # type: ignore
         return max(requested_resource_usage_pcts.items(), key=lambda x: x[1])

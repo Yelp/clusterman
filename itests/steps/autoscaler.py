@@ -17,7 +17,8 @@ def autoscaler_patches(context):
     rg1 = mock.Mock(spec=SpotFleetResourceGroup, target_capacity=10, fulfilled_capacity=10, is_stale=False)
     rg2 = mock.Mock(spec=SpotFleetResourceGroup, target_capacity=10, fulfilled_capacity=10, is_stale=False)
 
-    resource_totals = {'cpus': 80}
+    resource_totals = {'cpus': 80, 'mem': 1000, 'disk': 1000}
+
     with staticconf.testing.PatchConfiguration(
         {'autoscaling': {'default_signal_role': 'bar'}},
     ), mock.patch(
