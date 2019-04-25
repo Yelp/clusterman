@@ -57,7 +57,10 @@ class MesosClusterConnector(ClusterConnector):
 
         # Note that order matters here: we can't map tasks to agents until we've calculated
         # all of the tasks and agents
+        logger.info('Reloading agents')
         self._agents_by_ip = self._get_agents_by_ip()
+
+        logger.info('Reloading frameworks and tasks')
         self._tasks, self._frameworks, self._completed_frameworks = self._get_tasks_and_frameworks()
         self._task_count_per_agent = self._count_tasks_per_agent()
 
