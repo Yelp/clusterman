@@ -65,6 +65,7 @@ utils.handleInputRejection {
                     // We do networking with docker-compose and the networks conflict so we have to do each version separately
                     debItestUpload("services/${SERVICE_NAME}", ['trusty'])
                     debItestUpload("services/${SERVICE_NAME}", ['xenial'])
+                    debItestUpload("services/${SERVICE_NAME}", ['bionic'])
 
                 }
 

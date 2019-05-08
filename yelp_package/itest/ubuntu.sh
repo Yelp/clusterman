@@ -29,7 +29,7 @@ ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # This will set us up to install our package through apt-get
 highlight "Creating new apt source"
-echo "deb file:/dist/${DISTRIB_CODENAME} ./" | tee "/etc/apt/sources.list.d/itest-${PACKAGE_NAME}.list"
+echo "deb [trusted=yes] file:/dist/${DISTRIB_CODENAME} ./" | tee "/etc/apt/sources.list.d/itest-${PACKAGE_NAME}.list"
 
 apt-get update
 apt-get install -y --force-yes git make tox python3-pip python3-yaml aws-cli
