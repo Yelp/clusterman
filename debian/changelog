@@ -1,3 +1,9 @@
+clusterman (3.2.2) trusty xenial bionic; urgency=medium
+
+  * Build for bionic
+
+ -- Timothy Zhu <tzhu@yelp.com>  Thu, 09 May 2019 15:49:32 -0700
+
 clusterman (3.2.1) trusty; urgency=low
 
   * minor bugfix
