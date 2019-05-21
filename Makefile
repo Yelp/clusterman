@@ -73,9 +73,9 @@ version-bump:
 		echo "package version unchanged; aborting"; \
 		false; \
 	elif [ ! -f debian/changelog ]; then \
-		dch -v $${PACKAGE_VERSION} --create --package=$(PKG_NAME) -D trusty -u low ${ARGS}; \
+		dch -v $${PACKAGE_VERSION} --create --package=$(PKG_NAME) -D "xenial bionic" -u low ${ARGS}; \
 	else \
-		dch -v $${PACKAGE_VERSION} -D trusty -u low ${ARGS}; \
+		dch -v $${PACKAGE_VERSION} -D "xenial bionic" -u low ${ARGS}; \
 	fi; \
 	git add debian/changelog ${PKG_NAME}/__init__.py; \
 	set +e; git commit -m "Bump to version $${PACKAGE_VERSION}"; \
@@ -94,7 +94,7 @@ itest_%: dist
 	./virtualenv_run/bin/docker-compose -f acceptance/docker-compose.yaml down
 
 .PHONY:
-package: itest_trusty itest_xenial
+package: itest_xenial itest_bionic
 
 .PHONY:
 clean:
