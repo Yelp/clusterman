@@ -85,13 +85,13 @@ version-bump:
 	fi; \
 	if [ $$? -eq 0 ]; then git tag "v$${PACKAGE_VERSION}"; fi
 
-dist: development
+dist:
 	ln -sf yelp_package/dist ./dist
 
 itest_%: dist
 	tox -e acceptance
 	make -C yelp_package $@
-	./virtualenv_run/bin/docker-compose -f acceptance/docker-compose.yaml down
+	./.tox/acceptance/bin/docker-compose -f acceptance/docker-compose.yaml down
 
 .PHONY:
 package: itest_xenial itest_bionic
