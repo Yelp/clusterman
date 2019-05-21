@@ -13,12 +13,12 @@ RUN     apt-get update \
             git \
             libatlas-base-dev \
             libmysqlclient20 \
-            libpython3.6 \
+            libpython3.7 \
             libxml2 \
             libyaml-0-2 \
             make \
             openssh-client \
-            python3.6 \
+            python3.7 \
             python-pip \
             python-setuptools \
             stdin2scribe \
