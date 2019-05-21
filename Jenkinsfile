@@ -21,7 +21,7 @@ node {
 utils.handleInputRejection {
     ircMsgResult(IRC_CHANNELS) {
         emailResult(EMAILS) {
-            node('trusty') {
+            node('xenial') {
                 ystage('clone') {
                     commit = clone("services/${SERVICE_NAME}")['GIT_COMMIT']
                     eeMetrics.emitLink('sha', "${commit}", 'jenkins', "${env.JOB_NAME}-${env.BUILD_ID}")
@@ -63,7 +63,6 @@ utils.handleInputRejection {
                     // This will automatically break all the steps into stages for you
                     //
                     // We do networking with docker-compose and the networks conflict so we have to do each version separately
-                    debItestUpload("services/${SERVICE_NAME}", ['trusty'])
                     debItestUpload("services/${SERVICE_NAME}", ['xenial'])
                     debItestUpload("services/${SERVICE_NAME}", ['bionic'])
 
