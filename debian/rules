@@ -4,4 +4,4 @@
 	dh $@ --with python-virtualenv
 
 override_dh_virtualenv:
-	dh_virtualenv --pypi-url='https://pypi.yelpcorp.com/simple' --python python3.6 --preinstall=pip-custom-platform --pip-tool=pip-custom-platform
+	dh_virtualenv --pypi-url='https://pypi.yelpcorp.com/simple' --python python3.7 --preinstall=pip-custom-platform --pip-tool=pip-custom-platform

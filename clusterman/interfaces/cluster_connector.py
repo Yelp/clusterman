@@ -15,12 +15,12 @@ class AgentState(enum.Enum):
 
 
 class AgentMetadata(NamedTuple):
-    agent_id: str
-    allocated_resources: ClustermanResources
-    batch_task_count: int
-    state: AgentState
-    task_count: int
-    total_resources: ClustermanResources
+    agent_id: str = ''
+    allocated_resources: ClustermanResources = ClustermanResources()
+    batch_task_count: int = 0
+    state: AgentState = AgentState.UNKNOWN
+    task_count: int = 0
+    total_resources: ClustermanResources = ClustermanResources()
 
 
 class ClusterConnector(metaclass=ABCMeta):
@@ -41,14 +41,7 @@ class ClusterConnector(metaclass=ABCMeta):
         :returns: whatever information the cluster connector can determine about the state of the agent
         """
         if not ip_address:
-            return AgentMetadata(
-                agent_id='',
-                allocated_resources=ClustermanResources(0, 0, 0),
-                batch_task_count=0,
-                state=AgentState.UNKNOWN,
-                task_count=0,
-                total_resources=ClustermanResources(0, 0, 0),
-            )
+            return AgentMetadata()
         else:
             return self._get_agent_metadata(ip_address)
 

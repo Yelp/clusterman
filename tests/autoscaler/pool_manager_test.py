@@ -12,7 +12,6 @@ from clusterman.exceptions import ResourceGroupError
 from clusterman.interfaces.cluster_connector import AgentMetadata
 from clusterman.interfaces.cluster_connector import AgentState
 from clusterman.interfaces.resource_group import InstanceMetadata
-from clusterman.util import ClustermanResources
 
 
 def _make_metadata(
@@ -27,11 +26,9 @@ def _make_metadata(
     return ClusterNodeMetadata(
         AgentMetadata(
             agent_id='foo',
-            allocated_resources=ClustermanResources(0, 0, 0),
             batch_task_count=batch_tasks,
             state=agent_state,
             task_count=tasks,
-            total_resources=ClustermanResources(0, 0, 0),
         ),
         InstanceMetadata(
             group_id=rg_id,

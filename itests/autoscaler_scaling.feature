@@ -16,6 +16,7 @@ Feature: make sure the autoscaler scales to the proper amount
         | 1000 cpus | 50         | 50         |
         | 42 cpus   | 8          | 8          |
         | 2 cpus    | 5          | 5          |
+        | 0 gpus    | 5          | 5          |
 
     Scenario Outline: make sure the autoscaler works on empty pools
        Given an autoscaler object
@@ -28,3 +29,8 @@ Feature: make sure the autoscaler scales to the proper amount
         | value     | rg1_target | rg2_target |
         | 0 cpus    | 0          | 0          |
         | 20 cpus   | 1          | 0          |
+
+    Scenario: requesting GPUs on a pool without GPU instances is an error
+        Given an autoscaler object
+         When the signal resource request is 1 gpus
+         Then a ResourceRequestError is raised

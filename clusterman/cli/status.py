@@ -47,15 +47,17 @@ def _write_agent_details(node_metadata: ClusterNodeMetadata) -> None:
     sys.stdout.write(f'\t   {agent_mesos_state} ')
 
     if node_metadata.agent.state == AgentState.RUNNING:
-        allocated_cpus, allocated_mem, allocated_disk = node_metadata.agent.allocated_resources
-        total_cpus, total_mem, total_disk = node_metadata.agent.total_resources
         colored_resources = [
-            color_conditions(
-                int(allocated / total * 100),
-                postfix='%',
-                green=lambda x: x <= 90,
-                yellow=lambda x: x <= 95,
-                red=lambda x: x > 95,
+            (
+                color_conditions(
+                    int(allocated / total * 100),
+                    postfix='%',
+                    green=lambda x: x <= 90,
+                    yellow=lambda x: x <= 95,
+                    red=lambda x: x > 95,
+                )
+                if total
+                else 'None'
             )
             for (allocated, total) in zip(node_metadata.agent.allocated_resources, node_metadata.agent.total_resources)
         ]
@@ -64,7 +66,8 @@ def _write_agent_details(node_metadata: ClusterNodeMetadata) -> None:
             f'{node_metadata.agent.task_count} tasks; '
             f'CPUs: {colored_resources[0]}, '
             f'Mem: {colored_resources[1]}, '
-            f'Disk: {colored_resources[2]}'
+            f'Disk: {colored_resources[2]}, '
+            f'GPUs: {colored_resources[3]}'
         )
     sys.stdout.write('\n')
 
@@ -74,12 +77,15 @@ def _write_summary(manager: PoolManager) -> None:
     total_cpus = manager.cluster_connector.get_resource_total('cpus')
     total_mem = humanize.naturalsize(manager.cluster_connector.get_resource_total('mem') * 1000000)
     total_disk = humanize.naturalsize(manager.cluster_connector.get_resource_total('disk') * 1000000)
+    total_gpus = manager.cluster_connector.get_resource_total('gpus')
     allocated_cpus = manager.cluster_connector.get_resource_allocation('cpus')
     allocated_mem = humanize.naturalsize(manager.cluster_connector.get_resource_allocation('mem') * 1000000)
     allocated_disk = humanize.naturalsize(manager.cluster_connector.get_resource_allocation('disk') * 1000000)
+    allocated_gpus = manager.cluster_connector.get_resource_allocation('gpus')
     print(f'\tCPU allocation: {allocated_cpus:.1f} CPUs allocated to tasks, {total_cpus:.1f} total')
     print(f'\tMemory allocation: {allocated_mem} memory allocated to tasks, {total_mem} total')
     print(f'\tDisk allocation: {allocated_disk} disk space allocated to tasks, {total_disk} total')
+    print(f'\tGPUs allocation: {allocated_gpus} GPUs allocated to tasks, {total_gpus} total')
 
 
 def print_status(manager: PoolManager, args) -> None:

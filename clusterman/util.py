@@ -29,9 +29,10 @@ class All:
 
 
 class ClustermanResources(NamedTuple):
-    cpus: float
-    mem: float
-    disk: float
+    cpus: float = 0
+    mem: float = 0
+    disk: float = 0
+    gpus: float = 0
 
 
 def setup_logging(log_level_str: str = 'info') -> None:

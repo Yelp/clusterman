@@ -131,7 +131,7 @@ def test_autoscaler_run(dry_run, mock_autoscaler, run_timestamp):
 
 class TestComputeTargetCapacity:
 
-    @pytest.mark.parametrize('resource', ['cpus', 'mem', 'disk'])
+    @pytest.mark.parametrize('resource', ['cpus', 'mem', 'disk', 'gpus'])
     @pytest.mark.parametrize('signal_resource,total_resource,expected_capacity', [
         (None, 1000, 125),
         (767, 1000, 125),  # above setpoint, but within setpoint margin
@@ -157,7 +157,7 @@ class TestComputeTargetCapacity:
         mock_autoscaler.pool_manager.non_orphan_fulfilled_capacity = 125
 
         new_target_capacity = mock_autoscaler._compute_target_capacity(
-            {'cpus': 0, 'mem': 0, 'disk': 0}
+            {'cpus': 0, 'mem': 0, 'disk': 0, 'gpus': 0}
         )
         assert new_target_capacity == 0
 
@@ -167,7 +167,7 @@ class TestComputeTargetCapacity:
         mock_autoscaler.pool_manager.non_orphan_fulfilled_capacity = 0
 
         new_target_capacity = mock_autoscaler._compute_target_capacity(
-            {'cpus': 10, 'mem': 500, 'disk': 1000}
+            {'cpus': 10, 'mem': 500, 'disk': 1000, 'gpus': 0}
         )
         assert new_target_capacity == 1
 
@@ -177,13 +177,13 @@ class TestComputeTargetCapacity:
         mock_autoscaler.pool_manager.non_orphan_fulfilled_capacity = 0
 
         new_target_capacity = mock_autoscaler._compute_target_capacity(
-            {'cpus': 10, 'mem': 500, 'disk': 1000}
+            {'cpus': 10, 'mem': 500, 'disk': 1000, 'gpus': 0}
         )
         assert new_target_capacity == mock_autoscaler.pool_manager.target_capacity
 
     def test_scale_most_constrained_resource(self, mock_autoscaler):
-        resource_request = {'cpus': 500, 'mem': 30000, 'disk': 19000}
-        resource_totals = {'cpus': 1000, 'mem': 50000, 'disk': 20000}
+        resource_request = {'cpus': 500, 'mem': 30000, 'disk': 19000, 'gpus': 0}
+        resource_totals = {'cpus': 1000, 'mem': 50000, 'disk': 20000, 'gpus': 0}
         mock_autoscaler.pool_manager.non_orphan_fulfilled_capacity = 100
         mock_autoscaler.pool_manager.cluster_connector.get_resource_total.side_effect = resource_totals.__getitem__
         new_target_capacity = mock_autoscaler._compute_target_capacity(resource_request)

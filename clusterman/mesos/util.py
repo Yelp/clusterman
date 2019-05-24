@@ -68,6 +68,7 @@ def allocated_agent_resources(agent_dict: MesosAgentDict) -> ClustermanResources
         cpus=used_resources.get('cpus', 0),
         mem=used_resources.get('mem', 0),
         disk=used_resources.get('disk', 0),
+        gpus=used_resources.get('gpus', 0),
     )
 
 
@@ -117,4 +118,5 @@ def total_agent_resources(agent: MesosAgentDict) -> ClustermanResources:
         cpus=resources.get('cpus', 0),
         mem=resources.get('mem', 0),
         disk=resources.get('disk', 0),
+        gpus=resources.get('gpus', 0),
     )
