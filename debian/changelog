@@ -1,3 +1,9 @@
+clusterman (3.3.1) xenial bionic; urgency=low
+
+  * Build shell completions for cli
+
+ -- Timothy Zhu <tzhu@yelp.com>  Wed, 29 May 2019 15:09:12 -0700
+
 clusterman (3.3.0) xenial bionic; urgency=low
 
   * remove support for trusty
