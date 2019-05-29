@@ -89,6 +89,7 @@ sphinx-autodoc-annotation==1.0.post1
 sphinx-rtd-theme==0.2.4
 sphinxcontrib-programoutput==0.8
 sphinxcontrib-websupport==1.0.1
+static-completion==0.1.7
 strict-rfc3339==0.7
 swagger-spec-validator==2.4.3
 synapse-discovery==1.1.1

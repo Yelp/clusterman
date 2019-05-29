@@ -52,6 +52,13 @@ cook-image:
 	git rev-parse HEAD > version
 	docker build -t $(DOCKER_TAG) .
 
+.PHONY: completions
+completions: virtualenv_run
+	mkdir -p completions
+	virtualenv_run/bin/static_completion clusterman bash --write-vendor-directory $@
+	virtualenv_run/bin/static_completion clusterman zsh --write-vendor-directory $@
+	virtualenv_run/bin/static_completion clusterman fish --write-vendor-directory $@
+
 .PHONY: install-hooks
 install-hooks: virtualenv_run
 	./virtualenv_run/bin/pre-commit install -f --install-hooks
@@ -88,7 +95,7 @@ version-bump:
 dist:
 	ln -sf yelp_package/dist ./dist
 
-itest_%: dist
+itest_%: dist completions
 	tox -e acceptance
 	make -C yelp_package $@
 	./.tox/acceptance/bin/docker-compose -f acceptance/docker-compose.yaml down
