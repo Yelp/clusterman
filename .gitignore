@@ -31,4 +31,3 @@ yelp_package/itest/run_instance.py
 yelp_package/itest/trusty/*
 yelp_package/itest/xenial/*
 yelp_package/itest/bionic/*
-/completions/

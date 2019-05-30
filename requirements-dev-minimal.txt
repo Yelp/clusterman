@@ -15,4 +15,3 @@ sphinx>=1.6.6
 sphinx-rtd-theme
 sphinxcontrib-programoutput
 sphinx-autodoc-annotation
-static-completion
