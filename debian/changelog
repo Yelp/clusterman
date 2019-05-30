@@ -1,3 +1,10 @@
+clusterman (3.4.0) xenial bionic; urgency=low
+
+  * Adding GPU resource to the autoscaler
+  * reverted shell completions for cli
+
+ -- David Morrison <drmorr@yelp.com>  Thu, 30 May 2019 10:09:43 -0700
+
 clusterman (3.3.1) xenial bionic; urgency=low
 
   * Build shell completions for cli
