@@ -27,6 +27,10 @@ class ResourceGroupError(ClustermanException):
     pass
 
 
+class ResourceRequestError(ClustermanException):
+    pass
+
+
 class SignalValidationError(ClustermanSignalError):
     pass
 

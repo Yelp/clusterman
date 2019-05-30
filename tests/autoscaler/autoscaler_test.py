@@ -6,6 +6,7 @@ import staticconf
 from yelp_meteorite.metrics import Gauge
 
 from clusterman.autoscaler.autoscaler import Autoscaler
+from clusterman.autoscaler.config import AutoscalingConfig
 from clusterman.config import POOL_NAMESPACE
 from clusterman.exceptions import NoSignalConfiguredException
 
@@ -131,7 +132,7 @@ def test_autoscaler_run(dry_run, mock_autoscaler, run_timestamp):
 
 class TestComputeTargetCapacity:
 
-    @pytest.mark.parametrize('resource', ['cpus', 'mem', 'disk'])
+    @pytest.mark.parametrize('resource', ['cpus', 'mem', 'disk', 'gpus'])
     @pytest.mark.parametrize('signal_resource,total_resource,expected_capacity', [
         (None, 1000, 125),
         (767, 1000, 125),  # above setpoint, but within setpoint margin
@@ -157,7 +158,7 @@ class TestComputeTargetCapacity:
         mock_autoscaler.pool_manager.non_orphan_fulfilled_capacity = 125
 
         new_target_capacity = mock_autoscaler._compute_target_capacity(
-            {'cpus': 0, 'mem': 0, 'disk': 0}
+            {'cpus': 0, 'mem': 0, 'disk': 0, 'gpus': 0}
         )
         assert new_target_capacity == 0
 
@@ -167,7 +168,7 @@ class TestComputeTargetCapacity:
         mock_autoscaler.pool_manager.non_orphan_fulfilled_capacity = 0
 
         new_target_capacity = mock_autoscaler._compute_target_capacity(
-            {'cpus': 10, 'mem': 500, 'disk': 1000}
+            {'cpus': 10, 'mem': 500, 'disk': 1000, 'gpus': 0}
         )
         assert new_target_capacity == 1
 
@@ -177,13 +178,13 @@ class TestComputeTargetCapacity:
         mock_autoscaler.pool_manager.non_orphan_fulfilled_capacity = 0
 
         new_target_capacity = mock_autoscaler._compute_target_capacity(
-            {'cpus': 10, 'mem': 500, 'disk': 1000}
+            {'cpus': 10, 'mem': 500, 'disk': 1000, 'gpus': 0}
         )
         assert new_target_capacity == mock_autoscaler.pool_manager.target_capacity
 
     def test_scale_most_constrained_resource(self, mock_autoscaler):
-        resource_request = {'cpus': 500, 'mem': 30000, 'disk': 19000}
-        resource_totals = {'cpus': 1000, 'mem': 50000, 'disk': 20000}
+        resource_request = {'cpus': 500, 'mem': 30000, 'disk': 19000, 'gpus': 0}
+        resource_totals = {'cpus': 1000, 'mem': 50000, 'disk': 20000, 'gpus': 0}
         mock_autoscaler.pool_manager.non_orphan_fulfilled_capacity = 100
         mock_autoscaler.pool_manager.cluster_connector.get_resource_total.side_effect = resource_totals.__getitem__
         new_target_capacity = mock_autoscaler._compute_target_capacity(resource_request)
@@ -191,4 +192,16 @@ class TestComputeTargetCapacity:
         # disk would be the most constrained resource, so we should scale the target_capacity (100) by an amount
         # such that requested/(total*scale_factor) = setpoint
         expected_new_target_capacity = 100 * 19000 / (20000 * 0.7)
-        assert new_target_capacity == expected_new_target_capacity
+        assert new_target_capacity == pytest.approx(expected_new_target_capacity)
+
+    def test_excluded_resourcess(self, mock_autoscaler):
+        resource_request = {'cpus': 500, 'mem': 30000, 'disk': 19000, 'gpus': 0}
+        resource_totals = {'cpus': 1000, 'mem': 50000, 'disk': 20000, 'gpus': 0}
+        mock_autoscaler.autoscaling_config = AutoscalingConfig(['disk'], 0.7, 0.1)
+        mock_autoscaler.pool_manager.non_orphan_fulfilled_capacity = 100
+        mock_autoscaler.pool_manager.cluster_connector.get_resource_total.side_effect = resource_totals.__getitem__
+        new_target_capacity = mock_autoscaler._compute_target_capacity(resource_request)
+
+        # disk would be the most constrained resource, but it's excluded, so we scale on the next most constrained (mem)
+        expected_new_target_capacity = 100 * 30000 / (50000 * 0.7)
+        assert new_target_capacity == pytest.approx(expected_new_target_capacity)

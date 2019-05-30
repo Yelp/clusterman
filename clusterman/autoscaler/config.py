@@ -1,28 +1,32 @@
-from collections import namedtuple
+from typing import List
+from typing import NamedTuple
 
 import colorlog
 import staticconf
 
 logger = colorlog.getLogger(__name__)
-AutoscalingConfig = namedtuple(
-    'AutoscalingConfig',
-    ['setpoint', 'setpoint_margin'],
-)
-SIGNALS_REPO = 'git@git.yelpcorp.com:clusterman_signals'  # TODO (CLUSTERMAN-254) make this a config param
 
 
-def get_autoscaling_config(config_namespace):
+class AutoscalingConfig(NamedTuple):
+    excluded_resources: List[str]
+    setpoint: float
+    setpoint_margin: float
+
+
+def get_autoscaling_config(config_namespace: str) -> AutoscalingConfig:
     """ Load autoscaling configuration values from the provided config_namespace, falling back to the
     values stored in the default namespace if none are specified.
 
     :param config_namespace: namespace to read from before falling back to the default namespace
     :returns: AutoscalingConfig object with loaded config values
     """
+    default_excluded_resources = staticconf.read_list('autoscaling.excluded_resources', default=[])
     default_setpoint = staticconf.read_float('autoscaling.setpoint')
     default_setpoint_margin = staticconf.read_float('autoscaling.setpoint_margin')
 
     reader = staticconf.NamespaceReaders(config_namespace)
     return AutoscalingConfig(
+        excluded_resources=reader.read_list('excluded_resources', default=default_excluded_resources),
         setpoint=reader.read_float('autoscaling.setpoint', default=default_setpoint),
         setpoint_margin=reader.read_float('autoscaling.setpoint_margin', default=default_setpoint_margin),
     )

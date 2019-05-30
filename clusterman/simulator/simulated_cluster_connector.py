@@ -38,27 +38,18 @@ class SimulatedClusterConnector(ClusterConnector):
                 if instance_ip == i.ip_address:
                     return AgentMetadata(
                         agent_id=str(uuid.uuid4()),
-                        allocated_resources=ClustermanResources(0, 0, 0),
-                        batch_task_count=0,
                         state=(
                             AgentState.ORPHANED
                             if self.simulator.current_time < i.join_time
                             else AgentState.IDLE
                         ),
-                        task_count=0,
                         total_resources=ClustermanResources(
                             cpus=i.resources.cpus,
                             mem=i.resources.mem * 1000,
                             disk=(i.resources.disk or staticconf.read_int('ebs_volume_size', 0)) * 1000,
+                            gpus=(i.resources.gpus),
                         )
                     )
 
         # if we don't know the given IP then it's orphaned
-        return AgentMetadata(
-            agent_id='',
-            allocated_resources=ClustermanResources(0, 0, 0),
-            batch_task_count=0,
-            state=AgentState.ORPHANED,
-            task_count=0,
-            total_resources=ClustermanResources(0, 0, 0),
-        )
+        return AgentMetadata(state=AgentState.ORPHANED)

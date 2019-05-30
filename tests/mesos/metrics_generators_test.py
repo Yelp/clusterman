@@ -18,19 +18,20 @@ def mock_pool_manager():
 
 
 def test_generate_system_metrics(mock_pool_manager):
-    resources_allocated = {'cpus': 10, 'mem': 1000, 'disk': 10000}
+    resources_allocated = {'cpus': 10, 'mem': 1000, 'disk': 10000, 'gpus': 0}
     mock_pool_manager.cluster_connector.get_resource_allocation.side_effect = resources_allocated.get
 
     expected_metrics = [
         ClusterMetric(metric_name='cpus_allocated', value=10, dimensions={'cluster': 'mesos-test', 'pool': 'bar'}),
         ClusterMetric(metric_name='mem_allocated', value=1000, dimensions={'cluster': 'mesos-test', 'pool': 'bar'}),
         ClusterMetric(metric_name='disk_allocated', value=10000, dimensions={'cluster': 'mesos-test', 'pool': 'bar'}),
+        ClusterMetric(metric_name='gpus_allocated', value=0, dimensions={'cluster': 'mesos-test', 'pool': 'bar'}),
     ]
     assert sorted(generate_system_metrics(mock_pool_manager)) == sorted(expected_metrics)
 
 
 def test_generate_simple_metadata(mock_pool_manager):
-    resource_totals = {'cpus': 20, 'mem': 2000, 'disk': 20000}
+    resource_totals = {'cpus': 20, 'mem': 2000, 'disk': 20000, 'gpus': 0}
     mock_pool_manager.cluster_connector.get_resource_total.side_effect = resource_totals.get
 
     market_capacities = {'market1': 15, 'market2': 25}
@@ -42,6 +43,7 @@ def test_generate_simple_metadata(mock_pool_manager):
         ClusterMetric(metric_name='cpus_total', value=20, dimensions={'cluster': 'mesos-test', 'pool': 'bar'}),
         ClusterMetric(metric_name='mem_total', value=2000, dimensions={'cluster': 'mesos-test', 'pool': 'bar'}),
         ClusterMetric(metric_name='disk_total', value=20000, dimensions={'cluster': 'mesos-test', 'pool': 'bar'}),
+        ClusterMetric(metric_name='gpus_total', value=0, dimensions={'cluster': 'mesos-test', 'pool': 'bar'}),
         ClusterMetric(
             metric_name='target_capacity',
             value=mock_pool_manager.target_capacity,

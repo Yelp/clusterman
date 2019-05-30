@@ -17,7 +17,7 @@ def autoscaler_patches(context):
     rg1 = mock.Mock(spec=SpotFleetResourceGroup, target_capacity=10, fulfilled_capacity=10, is_stale=False)
     rg2 = mock.Mock(spec=SpotFleetResourceGroup, target_capacity=10, fulfilled_capacity=10, is_stale=False)
 
-    resource_totals = {'cpus': 80, 'mem': 1000, 'disk': 1000}
+    resource_totals = {'cpus': 80, 'mem': 1000, 'disk': 1000, 'gpus': 0}
 
     with staticconf.testing.PatchConfiguration(
         {'autoscaling': {'default_signal_role': 'bar'}},
@@ -71,7 +71,7 @@ def empty_pool(context):
     manager.non_orphan_fulfilled_capacity = 0
 
 
-@behave.when('the signal resource request is (?P<value>\d+ cpus|empty)')
+@behave.when('the signal resource request is (?P<value>\d+ cpus|\d+ gpus|empty)')
 def signal_resource_request(context, value):
     if value == 'empty':
         resources = '{}' if value == 'empty' else '{'
@@ -79,8 +79,14 @@ def signal_resource_request(context, value):
         n, t = value.split(' ')
         resources = '{"' + t + '":' + n + '}'
     context.autoscaler.signal._signal_conn.recv.side_effect = [ACK, ACK, '{"Resources": ' + resources + '}'] * 2
-    context.autoscaler.run()
-    context.autoscaler.run()
+    try:
+        context.autoscaler.run()
+    except Exception as e:
+        context.exception = e
+
+    if not hasattr(context, 'exception'):
+        # run it a second time to make sure nothing's changed
+        context.autoscaler.run()
 
 
 @behave.then('the autoscaler should scale rg(?P<rg>[12]) to (?P<target>\d+) capacity')

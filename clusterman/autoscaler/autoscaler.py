@@ -18,6 +18,7 @@ from clusterman.autoscaler.signals import Signal
 from clusterman.autoscaler.signals import SignalResponseDict
 from clusterman.config import POOL_NAMESPACE
 from clusterman.exceptions import NoSignalConfiguredException
+from clusterman.exceptions import ResourceRequestError
 from clusterman.util import ClustermanResources
 from clusterman.util import sensu_checkin
 
@@ -133,7 +134,7 @@ class Autoscaler:
 
         # TODO (CLUSTERMAN-126, CLUSTERMAN-195) apps will eventually have separate namespaces from pools
         pool_namespace = POOL_NAMESPACE.format(pool=app)
-        signal_namespace = staticconf.get_string('autoscale_signal.namespace', default=app, namespace=pool_namespace)
+        signal_namespace = staticconf.read_string('autoscale_signal.namespace', default=app, namespace=pool_namespace)
 
         try:
             # see if the pool has set up a custom signal correctly; if not, fall back to the default signal
@@ -244,14 +245,14 @@ class Autoscaler:
     def _get_cluster_total_resources(self) -> ClustermanResources:
         total_resources = {
             resource: self.pool_manager.cluster_connector.get_resource_total(resource)
-            for resource in ('cpus', 'mem', 'disk')
+            for resource in ClustermanResources._fields
         }
         return ClustermanResources(**total_resources)
 
     def _get_cluster_allocated_resources(self) -> ClustermanResources:
         allocated_resources = {
             resource: self.pool_manager.cluster_connector.get_resource_allocation(resource)
-            for resource in ('cpus', 'mem', 'disk')
+            for resource in ClustermanResources._fields
         }
         return ClustermanResources(**allocated_resources)
 
@@ -270,9 +271,21 @@ class Autoscaler:
         """
         requested_resource_usage_pcts = {}
         for resource, resource_total in cluster_total_resources._asdict().items():
-            if resource not in resource_request or resource_request[resource] is None:
+            resource_request_value = resource_request.get(resource)
+            if not resource_request_value:
                 continue
 
-            # mypy isn't smart enough to see resource_request[resource] can't be None here
-            requested_resource_usage_pcts[resource] = resource_request[resource] / resource_total  # type: ignore
+            if resource in self.autoscaling_config.excluded_resources:
+                logger.info(f'Signal requested {resource_total} {resource} but it is excluded from scaling decisions')
+                continue
+
+            if resource_total == 0:
+                if resource_request_value > 0:
+                    raise ResourceRequestError(
+                        f'Signal requested {resource_request_value} for {resource} '
+                        "but the cluster doesn't have any of that resource"
+                    )
+                requested_resource_usage_pcts[resource] = 0
+            else:
+                requested_resource_usage_pcts[resource] = resource_request_value / resource_total
         return max(requested_resource_usage_pcts.items(), key=lambda x: x[1])

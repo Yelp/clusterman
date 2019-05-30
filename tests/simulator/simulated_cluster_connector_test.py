@@ -46,22 +46,14 @@ def test_get_agent_metadata(mock_cluster_connector):
     )
     assert mock_cluster_connector.get_agent_metadata(instance.ip_address) == AgentMetadata(
         agent_id=mock.ANY,
-        allocated_resources=ClustermanResources(0, 0, 0),
-        batch_task_count=0,
         state=AgentState.IDLE,
-        task_count=0,
         total_resources=mesos_resources,
     )
 
 
 def test_get_agent_metadata_unknown(mock_cluster_connector):
     assert mock_cluster_connector.get_agent_metadata('1.2.3.4') == AgentMetadata(
-        agent_id='',
-        allocated_resources=ClustermanResources(0, 0, 0),
-        batch_task_count=0,
         state=AgentState.ORPHANED,
-        task_count=0,
-        total_resources=ClustermanResources(0, 0, 0),
     )
 
 

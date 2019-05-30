@@ -23,7 +23,6 @@ from clusterman.mesos.util import MesosFrameworkDict
 from clusterman.mesos.util import MesosFrameworks
 from clusterman.mesos.util import MesosTaskDict
 from clusterman.mesos.util import total_agent_resources
-from clusterman.util import ClustermanResources
 
 logger = colorlog.getLogger(__name__)
 
@@ -88,14 +87,7 @@ class MesosClusterConnector(ClusterConnector):
     def _get_agent_metadata(self, instance_ip: str) -> AgentMetadata:
         agent_dict = self._agents_by_ip.get(instance_ip)
         if not agent_dict:
-            return AgentMetadata(
-                agent_id='',
-                allocated_resources=ClustermanResources(0, 0, 0),
-                batch_task_count=0,
-                state=AgentState.ORPHANED,
-                task_count=0,
-                total_resources=ClustermanResources(0, 0, 0),
-            )
+            return AgentMetadata(state=AgentState.ORPHANED)
 
         allocated_resources = allocated_agent_resources(agent_dict)
         return AgentMetadata(

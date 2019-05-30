@@ -32,7 +32,7 @@ highlight "Creating new apt source"
 echo "deb [trusted=yes] file:/dist/${DISTRIB_CODENAME} ./" | tee "/etc/apt/sources.list.d/itest-${PACKAGE_NAME}.list"
 
 apt-get update
-apt-get install -y --force-yes git make tox python3-pip python3-yaml aws-cli
+apt-get install -y --force-yes python3.7 python3-pip python3-yaml aws-cli
 apt-get install -y --force-yes  -f "${PACKAGE_NAME}=${PACKAGE_VERSION}"
 
 export ACCEPTANCE_ROOT=/itest
