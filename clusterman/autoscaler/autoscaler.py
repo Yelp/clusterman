@@ -134,7 +134,7 @@ class Autoscaler:
 
         # TODO (CLUSTERMAN-126, CLUSTERMAN-195) apps will eventually have separate namespaces from pools
         pool_namespace = POOL_NAMESPACE.format(pool=app)
-        signal_namespace = staticconf.get_string('autoscale_signal.namespace', default=app, namespace=pool_namespace)
+        signal_namespace = staticconf.read_string('autoscale_signal.namespace', default=app, namespace=pool_namespace)
 
         try:
             # see if the pool has set up a custom signal correctly; if not, fall back to the default signal
@@ -273,6 +273,10 @@ class Autoscaler:
         for resource, resource_total in cluster_total_resources._asdict().items():
             resource_request_value = resource_request.get(resource)
             if not resource_request_value:
+                continue
+
+            if resource in self.autoscaling_config.excluded_resources:
+                logger.info(f'Signal requested {resource_total} {resource} but it is excluded from scaling decisions')
                 continue
 
             if resource_total == 0:
