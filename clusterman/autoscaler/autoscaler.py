@@ -272,7 +272,7 @@ class Autoscaler:
         requested_resource_usage_pcts = {}
         for resource, resource_total in cluster_total_resources._asdict().items():
             resource_request_value = resource_request.get(resource)
-            if not resource_request_value:
+            if resource_request_value is None:
                 continue
 
             if resource in self.autoscaling_config.excluded_resources:
