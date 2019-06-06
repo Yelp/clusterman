@@ -23,5 +23,8 @@ setup(
         'console_scripts': [
             'clusterman=clusterman.run:main',
         ],
+        'static_completion': [
+            'clusterman=clusterman.args:get_parser',
+        ],
     },
 )

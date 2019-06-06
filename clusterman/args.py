@@ -30,6 +30,10 @@ def subparser(command, help, entrypoint):  # pragma: no cover
 
 def deprecate_argument(depr_arg, alt):
     class DeprecationAction(argparse.Action):
+        # Like _StoreAction
+        STATIC_COMPLETION_NARGS_OPTIONAL = False
+        STATIC_COMPLETION_NARGS = 1
+
         def __call__(self, parser, namespace, values, option_string=None):
             if option_string == depr_arg:
                 logger.warn(f' {depr_arg} is deprecated and will be removed in the future; please use {alt} instead')
@@ -146,12 +150,7 @@ def _get_validated_args(parser):
     return args
 
 
-def parse_args(description):  # pragma: no cover
-    """Set up parser for the CLI tool and any subcommands
-
-    :param description: a string descripting the tool
-    :returns: a namedtuple of the parsed command-line options with their values
-    """
+def get_parser(description=''):  # pragma: no cover
     from clusterman.cli.info import add_mesos_list_clusters_parser
     from clusterman.cli.info import add_mesos_list_pools_parser
     from clusterman.cli.manage import add_mesos_manager_parser
@@ -183,6 +182,17 @@ def parse_args(description):  # pragma: no cover
     add_mesos_list_clusters_parser(subparser)
     add_mesos_list_pools_parser(subparser)
     add_queue_parser(subparser)
+
+    return root_parser
+
+
+def parse_args(description):  # pragma: no cover
+    """Parse arguments for the CLI too and any subcommands
+
+    :param description: a string descripting the tool
+    :returns: a namedtuple of the parsed command-line options with their values
+    """
+    root_parser = get_parser(description)
 
     args = _get_validated_args(root_parser)
     return args
