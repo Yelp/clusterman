@@ -1,4 +1,4 @@
-@Library('jenkinsfile_stdlib') _
+@Library('jenkinsfile_stdlib@tzhu_debitestupload_pass_in_node_') _
 import com.yelpcorp.releng.Utils
 import com.yelpcorp.releng.EEMetrics
 
@@ -63,8 +63,8 @@ utils.handleInputRejection {
                     // This will automatically break all the steps into stages for you
                     //
                     // We do networking with docker-compose and the networks conflict so we have to do each version separately
-                    debItestUpload("services/${SERVICE_NAME}", ['xenial'])
-                    debItestUpload("services/${SERVICE_NAME}", ['bionic'])
+                    debItestUpload("services/${SERVICE_NAME}", ['xenial'], nodeDef: 'xenial')
+                    debItestUpload("services/${SERVICE_NAME}", ['bionic'], nodeDef: 'xenial')
 
                 }
 
