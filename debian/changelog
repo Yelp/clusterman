@@ -1,3 +1,9 @@
+clusterman (3.4.1) xenial bionic; urgency=low
+
+  * Build shell completiosn for cli (part 2)
+
+ -- Timothy Zhu <tzhu@yelp.com>  Mon, 10 Jun 2019 13:58:57 -0700
+
 clusterman (3.4.0) xenial bionic; urgency=low
 
   * Adding GPU resource to the autoscaler
