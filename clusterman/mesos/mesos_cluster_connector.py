@@ -10,7 +10,6 @@ import colorlog
 import staticconf
 from mypy_extensions import TypedDict
 
-from clusterman.config import POOL_NAMESPACE
 from clusterman.interfaces.cluster_connector import AgentMetadata
 from clusterman.interfaces.cluster_connector import AgentState
 from clusterman.interfaces.cluster_connector import ClusterConnector
@@ -40,10 +39,7 @@ class FrameworkState(enum.Enum):
 class MesosClusterConnector(ClusterConnector):
 
     def __init__(self, cluster: str, pool: str) -> None:
-        self.cluster = cluster
-        self.pool = pool
-        self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool))
-
+        super().__init__(cluster, pool)
         mesos_master_fqdn = staticconf.read_string(f'clusters.{self.cluster}.fqdn')
         self.non_batch_framework_prefixes = self.pool_config.read_list(
             'non_batch_framework_prefixes',

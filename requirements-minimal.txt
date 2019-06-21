@@ -5,8 +5,9 @@ cached-property
 clusterman-metrics>=2.0.1
 colorlog
 colorama
-humanize
+humanfriendly
 jsonpickle
+kubernetes
 matplotlib>=3.0.3
 mypy-extensions
 numpy>=1.16

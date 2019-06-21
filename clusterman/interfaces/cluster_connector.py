@@ -6,6 +6,7 @@ from typing import Optional
 
 import staticconf
 
+from clusterman.config import POOL_NAMESPACE
 from clusterman.util import ClustermanResources
 
 
@@ -28,7 +29,9 @@ class AgentMetadata(NamedTuple):
 class ClusterConnector(metaclass=ABCMeta):
 
     def __init__(self, cluster: str, pool: str) -> None:
-        pass
+        self.cluster = cluster
+        self.pool = pool
+        self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool))
 
     @abstractmethod
     def reload_state(self) -> None:

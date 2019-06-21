@@ -1,6 +1,7 @@
 import sys
 
-import humanize
+from humanfriendly import format_size
+from humanfriendly import format_timespan
 
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_cluster_config_directory_arg
@@ -35,7 +36,7 @@ def _write_agent_details(node_metadata: ClusterNodeMetadata) -> None:
     print(
         f'\t - {node_metadata.instance.instance_id} {node_metadata.instance.market} '
         f'({node_metadata.instance.ip_address}): {agent_aws_state}, up for '
-        f'{humanize.naturaldelta(node_metadata.instance.uptime)}'
+        f'{format_timespan(node_metadata.instance.uptime.total_seconds(), max_units=1)}'
     )
 
     agent_mesos_state = color_conditions(
@@ -75,12 +76,12 @@ def _write_agent_details(node_metadata: ClusterNodeMetadata) -> None:
 def _write_summary(manager: PoolManager) -> None:
     print('Cluster statistics:')
     total_cpus = manager.cluster_connector.get_resource_total('cpus')
-    total_mem = humanize.naturalsize(manager.cluster_connector.get_resource_total('mem') * 1000000)
-    total_disk = humanize.naturalsize(manager.cluster_connector.get_resource_total('disk') * 1000000)
+    total_mem = format_size(manager.cluster_connector.get_resource_total('mem') * 1000000)
+    total_disk = format_size(manager.cluster_connector.get_resource_total('disk') * 1000000)
     total_gpus = manager.cluster_connector.get_resource_total('gpus')
     allocated_cpus = manager.cluster_connector.get_resource_allocation('cpus')
-    allocated_mem = humanize.naturalsize(manager.cluster_connector.get_resource_allocation('mem') * 1000000)
-    allocated_disk = humanize.naturalsize(manager.cluster_connector.get_resource_allocation('disk') * 1000000)
+    allocated_mem = format_size(manager.cluster_connector.get_resource_allocation('mem') * 1000000)
+    allocated_disk = format_size(manager.cluster_connector.get_resource_allocation('disk') * 1000000)
     allocated_gpus = manager.cluster_connector.get_resource_allocation('gpus')
     print(f'\tCPU allocation: {allocated_cpus:.1f} CPUs allocated to tasks, {total_cpus:.1f} total')
     print(f'\tMemory allocation: {allocated_mem} memory allocated to tasks, {total_mem} total')
