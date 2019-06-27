@@ -30,7 +30,7 @@ def draining_client(context):
     context.termination_url = sqs.create_queue(QueueName='termination_queue')['QueueUrl']
     context.warning_url = sqs.create_queue(QueueName='warning_queue')['QueueUrl']
     with staticconf.testing.PatchConfiguration({
-        'mesos_clusters': {
+        'clusters': {
             'mesos-test': {
                 'drain_queue_url': context.drain_url,
                 'termination_queue_url': context.termination_url,

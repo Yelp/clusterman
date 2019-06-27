@@ -4,6 +4,8 @@ from abc import abstractmethod
 from typing import NamedTuple
 from typing import Optional
 
+import staticconf
+
 from clusterman.util import ClustermanResources
 
 
@@ -80,6 +82,10 @@ class ClusterConnector(metaclass=ABCMeta):
     @staticmethod
     def load(cluster: str, pool: str) -> 'ClusterConnector':
         """ Load the cluster connector for the given cluster and pool """
-        # TODO (CLUSTERMAN-377) read config and identify the type of cluster connector
-        from clusterman.mesos.mesos_cluster_connector import MesosClusterConnector
-        return MesosClusterConnector(cluster, pool)
+        cluster_manager = staticconf.read_string(f'clusters.{cluster}.cluster_manager')
+        if cluster_manager == 'mesos':
+            from clusterman.mesos.mesos_cluster_connector import MesosClusterConnector
+            return MesosClusterConnector(cluster, pool)
+        else:
+            # TODO(CLUSTERMAN-376): add support for kubernetes
+            raise NotImplementedError('Only Mesos is currently supported as a cluster manager')

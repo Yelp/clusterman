@@ -74,7 +74,7 @@ def allocated_agent_resources(agent_dict: MesosAgentDict) -> ClustermanResources
 
 def get_cluster_name_list(config_namespace=DEFAULT_NAMESPACE):
     namespace = staticconf.config.get_namespace(config_namespace)
-    return namespace.get_config_dict().get('mesos_clusters', {}).keys()
+    return namespace.get_config_dict().get('clusters', {}).keys()
 
 
 def get_pool_name_list(cluster_name):

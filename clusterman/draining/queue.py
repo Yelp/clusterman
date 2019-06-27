@@ -49,10 +49,10 @@ class DrainingClient():
     def __init__(self, cluster_name: str) -> None:
         self.client = sqs
         self.cluster = cluster_name
-        self.drain_queue_url = staticconf.read_string(f'mesos_clusters.{cluster_name}.drain_queue_url')
-        self.termination_queue_url = staticconf.read_string(f'mesos_clusters.{cluster_name}.termination_queue_url')
+        self.drain_queue_url = staticconf.read_string(f'clusters.{cluster_name}.drain_queue_url')
+        self.termination_queue_url = staticconf.read_string(f'clusters.{cluster_name}.termination_queue_url')
         self.draining_host_ttl_cache: Dict[str, arrow.Arrow] = {}
-        self.warning_queue_url = staticconf.read_string(f'mesos_clusters.{cluster_name}.warning_queue_url')
+        self.warning_queue_url = staticconf.read_string(f'clusters.{cluster_name}.warning_queue_url')
 
     def submit_instance_for_draining(self, instance: InstanceMetadata, sender: Type[AWSResourceGroup]) -> None:
         return self.client.send_message(
@@ -320,7 +320,7 @@ def host_from_instance_id(
 
 def process_queues(cluster_name: str) -> None:
     draining_client = DrainingClient(cluster_name)
-    mesos_master_fqdn = staticconf.read_string(f'mesos_clusters.{cluster_name}.fqdn')
+    mesos_master_fqdn = staticconf.read_string(f'clusters.{cluster_name}.fqdn')
     mesos_secret_path = staticconf.read_string(f'mesos.mesos_agent_secret_path', default=None)
     operator_client = operator_api(mesos_master_fqdn, mesos_secret_path)
     logger.info('Polling SQS for messages every 5s')

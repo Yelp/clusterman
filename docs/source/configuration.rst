@@ -60,9 +60,10 @@ The following is an example configuration file for the core Clusterman service a
             # How frequently the batch should run to collect metrics.
             run_interval_seconds: 60
 
-    mesos_clusters:
+    clusters:
         cluster-name:
             aws_region: us-west-2
+            cluster_manager: mesos
             fqdn: <Mesos cluster FQDN>
 
     cluster_config_directory: /nail/srv/configs/clusterman-pools/
@@ -94,7 +95,7 @@ The ``autoscaling`` section defines settings for the autoscaling behavior of Clu
 
 The ``batches`` section configures specific Clusterman batches, such as the autoscaler and metrics collection batches.
 
-The ``mesos_clusters`` section provides the location of the Mesos clusters which Clusterman knows about.
+The ``clusters`` section provides the location of the clusters which Clusterman knows about.
 
 The ``module_config`` section loads additional configuration values for Clusterman modules, such as
 ``clusterman_metrics``.

@@ -8,11 +8,12 @@ module_config:
 # ######
 # Mappings for the clusterman service that are the same for all habitats.
 #
-# NOTE: The clusterman service will map mesos_clusters.{cluster_name}.aws_region
+# NOTE: The clusterman service will map clusters.{cluster_name}.aws_region
 #   to aws.region, if the --cluster argument is passed to the service.
-mesos_clusters:
+clusters:
     docker:
         aws_region: us-west-2
+        cluster_manager: mesos
         fqdn: mesosmaster
         max_weight_to_add: 10
         max_weight_to_remove: 10
