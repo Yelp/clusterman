@@ -1,4 +1,4 @@
-@Library('jenkinsfile_stdlib') _
+@Library('jenkinsfile_stdlib@tzhu_debitestupload_pass_in_node_') _
 import com.yelpcorp.releng.Utils
 import com.yelpcorp.releng.EEMetrics
 
