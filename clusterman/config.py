@@ -32,7 +32,7 @@ def setup_config(args: argparse.Namespace) -> None:
     # we might want to be operating on a cluster in one region while running from a
     # different region.
     elif cluster:
-        aws_region = staticconf.read_string(f'mesos_clusters.{cluster}.aws_region', default=None)
+        aws_region = staticconf.read_string(f'clusters.{cluster}.aws_region', default=None)
         if pool:
             load_cluster_pool_config(cluster, pool, signals_branch_or_tag)
 

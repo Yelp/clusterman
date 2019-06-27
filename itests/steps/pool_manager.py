@@ -67,7 +67,7 @@ def mock_agents_by_ip_and_tasks(context):
         'clusterman.mesos.mesos_cluster_connector.MesosClusterConnector._get_tasks_and_frameworks',
         return_value=([], [], []),
     ), staticconf.testing.PatchConfiguration(
-        {'mesos_clusters': {'mesos-test': {'max_weight_to_remove': 1000}}},
+        {'clusters': {'mesos-test': {'max_weight_to_remove': 1000}}},
     ), mock.patch(
         'clusterman.aws.aws_resource_group.gethostbyaddr',
         return_value=('the-host', '', ''),

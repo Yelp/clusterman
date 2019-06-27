@@ -44,7 +44,7 @@ class MesosClusterConnector(ClusterConnector):
         self.pool = pool
         self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool))
 
-        mesos_master_fqdn = staticconf.read_string(f'mesos_clusters.{self.cluster}.fqdn')
+        mesos_master_fqdn = staticconf.read_string(f'clusters.{self.cluster}.fqdn')
         self.non_batch_framework_prefixes = self.pool_config.read_list(
             'non_batch_framework_prefixes',
             default=['marathon'],

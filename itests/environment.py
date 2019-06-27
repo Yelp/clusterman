@@ -52,7 +52,7 @@ def setup_configurations(context):
                 'run_interval_seconds': 120,
             },
         },
-        'mesos_clusters': {
+        'clusters': {
             'mesos-test': {
                 'fqdn': 'the.mesos.leader',
                 'aws_region': 'us-west-2',

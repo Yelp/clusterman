@@ -197,7 +197,7 @@ def sensu_checkin(
     #
     sensu_config = dict(staticconf.read_list('sensu_config', default=[{}], namespace=pool_namespace).pop())
     if not sensu_config:
-        sensu_config = dict(staticconf.read_list(f'mesos_clusters.{source}.sensu_config', default=[{}]).pop())
+        sensu_config = dict(staticconf.read_list(f'clusters.{source}.sensu_config', default=[{}]).pop())
     if not sensu_config:
         sensu_config = dict(staticconf.read_list('sensu_config').pop())
 

@@ -60,9 +60,10 @@ def main_clusterman_config():
             'sfr': 123,
         },
         'mesos_maintenance_timeout_seconds': 1,
-        'mesos_clusters': {
+        'clusters': {
             'mesos-test': {
                 'fqdn': 'the.mesos.leader',
+                'cluster_manager': 'mesos',
                 'aws_region': 'us-west-2',
                 'max_weight_to_add': 200,
                 'max_weight_to_remove': 10,

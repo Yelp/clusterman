@@ -57,9 +57,10 @@ def mock_config_namespaces():
         namespace=POOL_NAMESPACE.format(pool='pool-2'),
     ), staticconf.testing.MockConfiguration(
         {
-            'mesos_clusters': {
+            'clusters': {
                 'cluster-A': {
                     'fqdn': 'service.leader',
+                    'cluster_manager': 'mesos',
                     'aws_region': 'us-test-3',
                     'config': [{
                         'max_weight_to_add': 10,

@@ -207,11 +207,11 @@ class PoolManager:
 
         max_weight_to_add = self.pool_config.read_int(
             'scaling_limits.max_weight_to_add',
-            default=staticconf.read_int(f'mesos_clusters.{self.cluster}.max_weight_to_add'),
+            default=staticconf.read_int(f'clusters.{self.cluster}.max_weight_to_add'),
         )
         max_weight_to_remove = self.pool_config.read_int(
             'scaling_limits.max_weight_to_remove',
-            default=staticconf.read_int(f'mesos_clusters.{self.cluster}.max_weight_to_remove'),
+            default=staticconf.read_int(f'clusters.{self.cluster}.max_weight_to_remove'),
         )
 
         requested_delta = requested_target_capacity - self.target_capacity

@@ -55,7 +55,7 @@ class TestMesosPost:
 def test_get_cluster_name_list():
     with staticconf.testing.MockConfiguration(
         {
-            'mesos_clusters': {
+            'clusters': {
                 'cluster-A': {
                     'fqdn': 'service.leader',
                 },
