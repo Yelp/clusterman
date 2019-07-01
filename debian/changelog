@@ -1,3 +1,9 @@
+clusterman (3.5.2) xenial bionic; urgency=low
+
+  * Add new r5 and m5 instance types
+
+ -- Timothy Zhu <tzhu@yelp.com>  Mon, 01 Jul 2019 12:04:21 -0700
+
 clusterman (3.5.1) xenial bionic; urgency=low
 
   * Refactor expected config format to allow specification of cluster type (Mesos vs Kubernetes)
