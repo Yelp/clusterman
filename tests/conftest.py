@@ -65,8 +65,6 @@ def main_clusterman_config():
                 'fqdn': 'the.mesos.leader',
                 'cluster_manager': 'mesos',
                 'aws_region': 'us-west-2',
-                'max_weight_to_add': 200,
-                'max_weight_to_remove': 10,
                 'drain_queue_url': 'mesos-test-draining.com',
                 'termination_queue_url': 'mesos-test-terminating.com',
                 'warning_queue_url': 'mesos-test-warning.com',
@@ -109,6 +107,8 @@ def clusterman_pool_config():
         'scaling_limits': {
             'min_capacity': 3,
             'max_capacity': 345,
+            'max_weight_to_add': 200,
+            'max_weight_to_remove': 10,
         },
         'sensu_config': [
             {

@@ -15,8 +15,6 @@ clusters:
         aws_region: us-west-2
         cluster_manager: mesos
         fqdn: mesosmaster
-        max_weight_to_add: 10
-        max_weight_to_remove: 10
 
 aws:
     endpoint_url: http://moto-{svc}:5000
