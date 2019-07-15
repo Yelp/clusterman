@@ -1,3 +1,9 @@
+clusterman (3.6.0) xenial bionic; urgency=low
+
+  * remove global max_weight_to_add/remove in config files
+
+ -- David Morrison <drmorr@yelp.com>  Mon, 15 Jul 2019 15:21:47 -0700
+
 clusterman (3.5.2) xenial bionic; urgency=low
 
   * Add new r5 and m5 instance types
