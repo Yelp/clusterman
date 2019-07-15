@@ -205,14 +205,8 @@ class PoolManager:
     ) -> float:
         """ Signals can return arbitrary values, so make sure we don't add or remove too much capacity """
 
-        max_weight_to_add = self.pool_config.read_int(
-            'scaling_limits.max_weight_to_add',
-            default=staticconf.read_int(f'clusters.{self.cluster}.max_weight_to_add'),
-        )
-        max_weight_to_remove = self.pool_config.read_int(
-            'scaling_limits.max_weight_to_remove',
-            default=staticconf.read_int(f'clusters.{self.cluster}.max_weight_to_remove'),
-        )
+        max_weight_to_add = self.pool_config.read_int('scaling_limits.max_weight_to_add')
+        max_weight_to_remove = self.pool_config.read_int('scaling_limits.max_weight_to_remove')
 
         requested_delta = requested_target_capacity - self.target_capacity
         if requested_delta > 0:

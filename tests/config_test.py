@@ -62,10 +62,6 @@ def mock_config_namespaces():
                     'fqdn': 'service.leader',
                     'cluster_manager': 'mesos',
                     'aws_region': 'us-test-3',
-                    'config': [{
-                        'max_weight_to_add': 10,
-                        'max_weight_to_remove': 10,
-                    }],
                 },
             },
             'aws': {
