@@ -175,7 +175,7 @@ class Autoscaler:
         if all(requested_quantity is None for requested_quantity in resource_request.values()):
             logger.info('No data from signal, not changing capacity')
             return current_target_capacity
-        elif all(requested_quantity == 0 for requested_quantity in resource_request.values()):
+        elif all(requested_quantity in {0, None} for requested_quantity in resource_request.values()):
             return 0
         elif current_target_capacity == 0:
             logger.info(

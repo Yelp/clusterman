@@ -152,13 +152,14 @@ class TestComputeTargetCapacity:
         new_target_capacity = mock_autoscaler._compute_target_capacity({})
         assert new_target_capacity == mock_autoscaler.pool_manager.target_capacity
 
-    def test_request_zero_resources(self, mock_autoscaler):
+    @pytest.mark.parametrize('target_capacity', [0, 125])
+    def test_request_zero_resources(self, target_capacity, mock_autoscaler):
         mock_autoscaler.pool_manager.cluster_connector.get_resource_total.return_value = 10
-        mock_autoscaler.pool_manager.target_capacity = 125
-        mock_autoscaler.pool_manager.non_orphan_fulfilled_capacity = 125
+        mock_autoscaler.pool_manager.target_capacity = target_capacity
+        mock_autoscaler.pool_manager.non_orphan_fulfilled_capacity = target_capacity
 
         new_target_capacity = mock_autoscaler._compute_target_capacity(
-            {'cpus': 0, 'mem': 0, 'disk': 0, 'gpus': 0}
+            {'cpus': None, 'mem': None, 'disk': 0, 'gpus': 0}
         )
         assert new_target_capacity == 0
 
