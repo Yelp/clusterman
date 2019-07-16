@@ -26,7 +26,7 @@ def get_autoscaling_config(config_namespace: str) -> AutoscalingConfig:
 
     reader = staticconf.NamespaceReaders(config_namespace)
     return AutoscalingConfig(
-        excluded_resources=reader.read_list('excluded_resources', default=default_excluded_resources),
+        excluded_resources=reader.read_list('autoscaling.excluded_resources', default=default_excluded_resources),
         setpoint=reader.read_float('autoscaling.setpoint', default=default_setpoint),
         setpoint_margin=reader.read_float('autoscaling.setpoint_margin', default=default_setpoint_margin),
     )
