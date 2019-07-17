@@ -327,9 +327,9 @@ def host_from_instance_id(
 
 def process_queues(cluster_name: str) -> None:
     draining_client = DrainingClient(cluster_name)
-    mesos_master_fqdn = staticconf.read_string(f'clusters.{cluster_name}.fqdn')
+    mesos_master_url = staticconf.read_string(f'clusters.{cluster_name}.mesos_api_url')
     mesos_secret_path = staticconf.read_string(f'mesos.mesos_agent_secret_path', default=None)
-    operator_client = operator_api(mesos_master_fqdn, mesos_secret_path)
+    operator_client = operator_api(mesos_master_url, mesos_secret_path)
     logger.info('Polling SQS for messages every 5s')
     while True:
         draining_client.clean_processing_hosts_cache()

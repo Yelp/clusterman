@@ -13,8 +13,7 @@ module_config:
 clusters:
     docker:
         aws_region: us-west-2
-        cluster_manager: mesos
-        fqdn: mesosmaster
+        mesos_api_url: mesosmaster
 
 aws:
     endpoint_url: http://moto-{svc}:5000

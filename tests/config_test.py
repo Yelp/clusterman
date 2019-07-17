@@ -59,8 +59,7 @@ def mock_config_namespaces():
         {
             'clusters': {
                 'cluster-A': {
-                    'fqdn': 'service.leader',
-                    'cluster_manager': 'mesos',
+                    'mesos_url_api': 'service.leader',
                     'aws_region': 'us-test-3',
                 },
             },

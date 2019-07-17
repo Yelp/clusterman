@@ -57,10 +57,10 @@ def test_get_cluster_name_list():
         {
             'clusters': {
                 'cluster-A': {
-                    'fqdn': 'service.leader',
+                    'mesos_api_url': 'service.leader',
                 },
                 'cluster-B': {
-                    'fqdn': 'service.leader',
+                    'mesos_api_url': 'service.leader',
                 },
             },
         },

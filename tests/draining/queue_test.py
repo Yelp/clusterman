@@ -463,7 +463,7 @@ def test_process_queues():
     with mock.patch(
         'clusterman.draining.queue.DrainingClient', autospec=True,
     ) as mock_draining_client, staticconf.testing.PatchConfiguration(
-        {'clusters': {'westeros-prod': {'fqdn': 'westeros-prod'}}},
+        {'clusters': {'westeros-prod': {'mesos_api_url': 'westeros-prod'}}},
     ), mock.patch(
         'clusterman.draining.queue.time.sleep', autospec=True, side_effect=LoopBreak
     ):

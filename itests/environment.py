@@ -54,8 +54,7 @@ def setup_configurations(context):
         },
         'clusters': {
             'mesos-test': {
-                'fqdn': 'the.mesos.leader',
-                'cluster_manager': 'mesos',
+                'mesos_api_url': 'the.mesos.leader',
                 'aws_region': 'us-west-2',
             },
         },

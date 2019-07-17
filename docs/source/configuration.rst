@@ -63,8 +63,8 @@ The following is an example configuration file for the core Clusterman service a
     clusters:
         cluster-name:
             aws_region: us-west-2
-            cluster_manager: mesos
-            fqdn: <Mesos cluster FQDN>
+            mesos_api_url: <Mesos cluster FQDN>
+            kubeconfig_path: /path/to/kubeconfig.conf
 
     cluster_config_directory: /nail/srv/configs/clusterman-pools/
 

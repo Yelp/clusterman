@@ -85,7 +85,7 @@ class ClusterConnector(metaclass=ABCMeta):
     @staticmethod
     def load(cluster: str, pool: str) -> 'ClusterConnector':
         """ Load the cluster connector for the given cluster and pool """
-        cluster_manager = staticconf.read_string(f'clusters.{cluster}.cluster_manager')
+        cluster_manager = 'mesos'  # TODO staticconf.read_string(f'clusters.{cluster}.cluster_manager')
         if cluster_manager == 'mesos':
             from clusterman.mesos.mesos_cluster_connector import MesosClusterConnector
             return MesosClusterConnector(cluster, pool)

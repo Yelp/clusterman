@@ -40,12 +40,12 @@ class MesosClusterConnector(ClusterConnector):
 
     def __init__(self, cluster: str, pool: str) -> None:
         super().__init__(cluster, pool)
-        mesos_master_fqdn = staticconf.read_string(f'clusters.{self.cluster}.fqdn')
+        mesos_master_url = staticconf.read_string(f'clusters.{self.cluster}.mesos_api_url')
         self.non_batch_framework_prefixes = self.pool_config.read_list(
             'non_batch_framework_prefixes',
             default=['marathon'],
         )
-        self.api_endpoint = f'http://{mesos_master_fqdn}:5050/'
+        self.api_endpoint = f'http://{mesos_master_url}:5050/'
         logger.info(f'Connecting to Mesos masters at {self.api_endpoint}')
 
     def reload_state(self) -> None:
