@@ -24,6 +24,7 @@ def setup_config(args: argparse.Namespace) -> None:
     aws_region = getattr(args, 'aws_region', None)
     cluster = getattr(args, 'cluster', None)
     pool = getattr(args, 'pool', None)
+    scheduler = getattr(args, 'scheduler', None)
     if aws_region and cluster:
         raise argparse.ArgumentError(None, 'Cannot specify both cluster and aws_region')
 
@@ -34,7 +35,7 @@ def setup_config(args: argparse.Namespace) -> None:
     elif cluster:
         aws_region = staticconf.read_string(f'clusters.{cluster}.aws_region', default=None)
         if pool:
-            load_cluster_pool_config(cluster, pool, signals_branch_or_tag)
+            load_cluster_pool_config(cluster, pool, scheduler, signals_branch_or_tag)
 
     staticconf.DictConfiguration({'aws': {'region': aws_region}})
 
@@ -46,14 +47,17 @@ def setup_config(args: argparse.Namespace) -> None:
         staticconf.DictConfiguration({'autoscale_signal': {'branch_or_tag': signals_branch_or_tag}})
 
 
-def load_cluster_pool_config(cluster, pool, signals_branch_or_tag):
+def load_cluster_pool_config(cluster: str, pool: str, scheduler: str, signals_branch_or_tag: str) -> None:
     pool_namespace = POOL_NAMESPACE.format(pool=pool)
     pool_config_file = get_pool_config_path(cluster, pool)
 
     staticconf.YamlConfiguration(pool_config_file, namespace=pool_namespace)
     if signals_branch_or_tag:
         staticconf.DictConfiguration(
-            {'autoscale_signal': {'branch_or_tag': signals_branch_or_tag}},
+            {
+                'autoscale_signal': {'branch_or_tag': signals_branch_or_tag},
+                'scheduler': scheduler,
+            },
             namespace=pool_namespace,
         )
 

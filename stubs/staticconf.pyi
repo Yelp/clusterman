@@ -25,6 +25,10 @@ def read_string(config_key: str, default: Optional[str] = None, namespace: str =
     ...
 
 
+def YamlConfiguration(filename: str, namespace: str = DEFAULT_NAMESPACE) -> None:
+    ...
+
+
 def JSONConfiguration(filename: str, namespace: str = DEFAULT_NAMESPACE) -> None:
     ...
 

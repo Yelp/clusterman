@@ -85,10 +85,10 @@ class ClusterConnector(metaclass=ABCMeta):
     @staticmethod
     def load(cluster: str, pool: str) -> 'ClusterConnector':
         """ Load the cluster connector for the given cluster and pool """
-        cluster_manager = 'mesos'  # TODO staticconf.read_string(f'clusters.{cluster}.cluster_manager')
+        cluster_manager = staticconf.read_string('scheduler', namespace=POOL_NAMESPACE.format(pool=pool))
         if cluster_manager == 'mesos':
             from clusterman.mesos.mesos_cluster_connector import MesosClusterConnector
             return MesosClusterConnector(cluster, pool)
         else:
-            # TODO(CLUSTERMAN-376): add support for kubernetes
-            raise NotImplementedError('Only Mesos is currently supported as a cluster manager')
+            from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
+            return KubernetesClusterConnector(cluster, pool)

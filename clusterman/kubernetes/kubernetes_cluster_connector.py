@@ -25,7 +25,7 @@ class KubernetesClusterConnector(ClusterConnector):
 
     def __init__(self, cluster: str, pool: str) -> None:
         super().__init__(cluster, pool)
-        kubernetes.config.load_kube_config(staticconf.read_string(f'clusters.{cluster}.kube_config_path'))
+        kubernetes.config.load_kube_config(staticconf.read_string(f'clusters.{cluster}.kubeconfig_path'))
         self._core_api = kubernetes.client.CoreV1Api()
         self._safe_to_evict_annotation = staticconf.read_string(
             f'clusters.{cluster}.pod_safe_to_evict_annotation',
