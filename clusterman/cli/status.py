@@ -1,3 +1,4 @@
+import argparse
 import sys
 
 from humanfriendly import format_size
@@ -6,6 +7,7 @@ from humanfriendly import format_timespan
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_pool_arg
+from clusterman.args import add_scheduler_arg
 from clusterman.args import subparser
 from clusterman.autoscaler.pool_manager import ClusterNodeMetadata
 from clusterman.autoscaler.pool_manager import PoolManager
@@ -114,8 +116,8 @@ def print_status(manager: PoolManager, args) -> None:
     sys.stdout.write('\n')
 
 
-def main(args):  # pragma: no cover
-    manager = PoolManager(args.cluster, args.pool)
+def main(args: argparse.Namespace) -> None:  # pragma: no cover
+    manager = PoolManager(args.cluster, args.pool, args.scheduler)
     print_status(manager, args)
 
 
@@ -123,6 +125,7 @@ def main(args):  # pragma: no cover
 def add_mesos_status_parser(subparser, required_named_args, optional_named_args):  # pragma: no cover
     add_cluster_arg(required_named_args, required=True)
     add_pool_arg(required_named_args)
+    add_scheduler_arg(required_named_args)
 
     optional_named_args.add_argument(
         '--only-idle',

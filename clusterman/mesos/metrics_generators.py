@@ -36,13 +36,13 @@ class ClusterMetric(NamedTuple):
 
 
 def generate_system_metrics(manager: PoolManager) -> Generator[ClusterMetric, None, None]:
-    dimensions = {'cluster': manager.cluster, 'pool': manager.pool}
+    dimensions = {'cluster': manager.cluster, 'pool': f'{manager.pool}.{manager.scheduler}'}
     for metric_name, value_method in SYSTEM_METRICS.items():
         yield ClusterMetric(metric_name, value_method(manager), dimensions=dimensions)
 
 
 def generate_simple_metadata(manager: PoolManager) -> Generator[ClusterMetric, None, None]:
-    dimensions = {'cluster': manager.cluster, 'pool': manager.pool}
+    dimensions = {'cluster': manager.cluster, 'pool': f'{manager.pool}.{manager.scheduler}'}
     for metric_name, value_method in SIMPLE_METADATA.items():
         yield ClusterMetric(metric_name, value_method(manager), dimensions=dimensions)
 

@@ -36,7 +36,7 @@ def pool_configs():
                 'max_weight_to_remove': 10,
             },
         },
-        namespace=POOL_NAMESPACE.format(pool='bar'),
+        namespace=POOL_NAMESPACE.format(pool='bar', scheduler='mesos'),
     ):
         yield
 
@@ -65,15 +65,15 @@ def mock_autoscaler():
     ), staticconf.testing.PatchConfiguration(
         {'autoscaling': autoscaling_config_dict},
     ):
-        mock_autoscaler = Autoscaler('mesos-test', 'bar', ['bar'], monitoring_enabled=False)
+        mock_autoscaler = Autoscaler('mesos-test', 'bar', 'mesos', ['bar'], monitoring_enabled=False)
         mock_autoscaler.pool_manager.cluster_connector = mock.Mock()
 
     mock_autoscaler.pool_manager.target_capacity = 300
     mock_autoscaler.pool_manager.min_capacity = staticconf.read_int(
-        'scaling_limits.min_capacity', namespace=POOL_NAMESPACE.format(pool='bar')
+        'scaling_limits.min_capacity', namespace=POOL_NAMESPACE.format(pool='bar', scheduler='mesos')
     )
     mock_autoscaler.pool_manager.max_capacity = staticconf.read_int(
-        'scaling_limits.max_capacity', namespace=POOL_NAMESPACE.format(pool='bar')
+        'scaling_limits.max_capacity', namespace=POOL_NAMESPACE.format(pool='bar', scheduler='mesos')
     )
     mock_autoscaler.pool_manager.non_orphan_fulfilled_capacity = 0
 
@@ -87,7 +87,7 @@ def mock_autoscaler():
 
 def test_autoscaler_init_too_many_apps():
     with pytest.raises(NotImplementedError):
-        Autoscaler('mesos-test', 'bar', ['app1', 'app2'], monitoring_enabled=False)
+        Autoscaler('mesos-test', 'bar', 'mesos', ['app1', 'app2'], monitoring_enabled=False)
 
 
 @mock.patch('clusterman.autoscaler.autoscaler.Signal')

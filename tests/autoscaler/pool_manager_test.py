@@ -75,7 +75,7 @@ def mock_pool_manager(mock_resource_groups):
     ), mock.patch(
         'clusterman.autoscaler.pool_manager.ClusterConnector.load',
     ):
-        manager = PoolManager('mesos-test', 'bar')
+        manager = PoolManager('mesos-test', 'bar', 'mesos')
         manager.resource_groups = mock_resource_groups
 
         return manager
@@ -84,26 +84,28 @@ def mock_pool_manager(mock_resource_groups):
 def test_pool_manager_init(mock_pool_manager, mock_resource_groups):
     assert mock_pool_manager.cluster == 'mesos-test'
     assert mock_pool_manager.pool == 'bar'
+    assert mock_pool_manager.scheduler == 'mesos'
     with staticconf.testing.MockConfiguration(
-                {'scaling_limits':
-                    {'max_tasks_to_kill': 'inf',
-                     'min_capacity': 3,
-                     'max_capacity': 3,
-                     },
-                 },
-                namespace='bar_config',
-            ):
-        with mock.patch(
-                    'clusterman.aws.spot_fleet_resource_group.SpotFleetResourceGroup.load',
-                    return_value={},
-                ), mock.patch(
-                    'clusterman.autoscaler.pool_manager.DrainingClient', autospec=True
-                ), mock.patch(
-                    'clusterman.autoscaler.pool_manager.PoolManager.reload_state'
-                ):
-            mock_manager = PoolManager('mesos-test', 'bar')
-            mock_manager.resource_groups = mock_resource_groups
-            assert mock_manager.max_tasks_to_kill == float('inf')
+        {
+            'scaling_limits': {
+                'max_tasks_to_kill': 'inf',
+                'min_capacity': 3,
+                'max_capacity': 3,
+            },
+        },
+        namespace='bar.mesos_config',
+    ), mock.patch(
+        'clusterman.aws.spot_fleet_resource_group.SpotFleetResourceGroup.load',
+        return_value={},
+    ), mock.patch(
+        'clusterman.autoscaler.pool_manager.DrainingClient',
+        autospec=True,
+    ), mock.patch(
+        'clusterman.autoscaler.pool_manager.PoolManager.reload_state'
+    ):
+        mock_manager = PoolManager('mesos-test', 'bar', 'mesos')
+        mock_manager.resource_groups = mock_resource_groups
+        assert mock_manager.max_tasks_to_kill == float('inf')
 
 
 def test_modify_target_capacity_no_resource_groups(mock_pool_manager):
@@ -179,9 +181,9 @@ class TestReloadResourceGroups:
     def test_malformed_config(self, mock_logger, mock_pool_manager):
         with staticconf.testing.MockConfiguration(
             {'resource_groups': ['asdf']},
-            namespace='bar_config',
+            namespace='bar.mesos_config',
         ):
-            mock_pool_manager.pool_config = staticconf.NamespaceReaders('bar_config')
+            mock_pool_manager.pool_config = staticconf.NamespaceReaders('bar.mesos_config')
             mock_pool_manager._reload_resource_groups()
 
         assert not mock_pool_manager.resource_groups
@@ -190,9 +192,9 @@ class TestReloadResourceGroups:
     def test_unknown_rg_type(self, mock_logger, mock_pool_manager):
         with staticconf.testing.MockConfiguration(
             {'resource_groups': [{'fake_rg_type': 'bar'}]},
-            namespace='bar_config',
+            namespace='bar.mesos_config',
         ):
-            mock_pool_manager.pool_config = staticconf.NamespaceReaders('bar_config')
+            mock_pool_manager.pool_config = staticconf.NamespaceReaders('bar.mesos_config')
             mock_pool_manager._reload_resource_groups()
 
         assert not mock_pool_manager.resource_groups
@@ -204,7 +206,7 @@ class TestReloadResourceGroups:
             {'sfr': mock.Mock(load=mock.Mock(return_value={'rg1': mock.Mock()}))},
         ), staticconf.testing.PatchConfiguration(
             {'resource_groups': [{'sfr': {'tag': 'puppet:role::paasta'}}]},
-            namespace='bar_config',
+            namespace='bar.mesos_config',
         ):
             mock_pool_manager._reload_resource_groups()
 

@@ -8,6 +8,7 @@ import staticconf
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_pool_arg
+from clusterman.args import add_scheduler_arg
 from clusterman.args import subparser
 from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.config import POOL_NAMESPACE
@@ -19,9 +20,9 @@ LOG_TEMPLATE = f'{arrow.now()} {gethostname()} {__name__}'
 logger = colorlog.getLogger(__name__)
 
 
-def get_target_capacity_value(target_capacity, pool):
+def get_target_capacity_value(target_capacity: str, pool: str, scheduler: str) -> int:
     target_capacity = target_capacity.lower()
-    pool_namespace = POOL_NAMESPACE.format(pool=pool)
+    pool_namespace = POOL_NAMESPACE.format(pool=pool, scheduler=scheduler)
     if target_capacity == 'min':
         return staticconf.read_int('scaling_limits.min_capacity', namespace=pool_namespace)
     elif target_capacity == 'max':
@@ -31,9 +32,9 @@ def get_target_capacity_value(target_capacity, pool):
 
 
 def main(args):
-    manager = PoolManager(args.cluster, args.pool)
+    manager = PoolManager(args.cluster, args.pool, args.scheduler)
     old_target = manager.target_capacity
-    requested_target = get_target_capacity_value(args.target_capacity, args.pool)
+    requested_target = get_target_capacity_value(args.target_capacity, args.pool, args.scheduler)
     if not args.dry_run:
         if not ask_for_confirmation(
             f'Modifying target capacity from {manager.target_capacity} to {requested_target}.  Proceed? '
@@ -54,6 +55,7 @@ def main(args):
 def add_mesos_manager_parser(subparser, required_named_args, optional_named_args):  # pragma: no cover
     add_cluster_arg(required_named_args, required=True)
     add_pool_arg(required_named_args)
+    add_scheduler_arg(required_named_args)
     required_named_args.add_argument(
         '--target-capacity',
         metavar='X',

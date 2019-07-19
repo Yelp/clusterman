@@ -199,8 +199,8 @@ class Signal:
         return metrics
 
 
-def setup_signals_environment(pool: str) -> Tuple[int, int]:
-    app_namespace = POOL_NAMESPACE.format(pool=pool)
+def setup_signals_environment(pool: str, scheduler: str) -> Tuple[int, int]:
+    app_namespace = POOL_NAMESPACE.format(pool=pool, scheduler=scheduler)
     default_signal_version = staticconf.read_string('autoscale_signal.branch_or_tag')
     signal_versions = [default_signal_version]
     signal_namespaces = [staticconf.read_string('autoscaling.default_signal_role')]

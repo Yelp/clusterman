@@ -28,13 +28,14 @@ class AgentMetadata(NamedTuple):
 
 class ClusterConnector(metaclass=ABCMeta):
 
-    def __init__(self, cluster: str, pool: str) -> None:
+    def __init__(self, cluster: str, pool: str, scheduler: str) -> None:
         self.cluster = cluster
         self.pool = pool
-        self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool))
+        self.scheduler = scheduler
+        self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool, scheduler=self.scheduler))
 
     @abstractmethod
-    def reload_state(self) -> None:
+    def reload_state(self) -> None:  # pragma: no cover
         """ Refresh any state that needs to be stored at the start of an autoscaling run """
         pass
 
@@ -51,7 +52,7 @@ class ClusterConnector(metaclass=ABCMeta):
             return self._get_agent_metadata(ip_address)
 
     @abstractmethod
-    def get_resource_allocation(self, resource_name: str) -> float:
+    def get_resource_allocation(self, resource_name: str) -> float:  # pragma: no cover
         """Get the total amount of the given resource currently allocated for this pool.
 
         :param resource_name: a resource recognized by Clusterman (e.g. 'cpus', 'mem', 'disk')
@@ -60,7 +61,7 @@ class ClusterConnector(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def get_resource_total(self, resource_name: str) -> float:
+    def get_resource_total(self, resource_name: str) -> float:  # pragma: no cover
         """Get the total amount of the given resource for this pool.
 
         :param resource_name: a resource recognized by Clusterman (e.g. 'cpus', 'mem', 'disk')
@@ -79,16 +80,17 @@ class ClusterConnector(metaclass=ABCMeta):
         return used / total if total else 0
 
     @abstractmethod
-    def _get_agent_metadata(self, ip_address: str) -> AgentMetadata:
+    def _get_agent_metadata(self, ip_address: str) -> AgentMetadata:  # pragma: no cover
         pass
 
     @staticmethod
-    def load(cluster: str, pool: str) -> 'ClusterConnector':
+    def load(cluster: str, pool: str, scheduler: str) -> 'ClusterConnector':
         """ Load the cluster connector for the given cluster and pool """
-        cluster_manager = staticconf.read_string('scheduler', namespace=POOL_NAMESPACE.format(pool=pool))
-        if cluster_manager == 'mesos':
+        if scheduler == 'mesos':
             from clusterman.mesos.mesos_cluster_connector import MesosClusterConnector
             return MesosClusterConnector(cluster, pool)
-        else:
+        elif scheduler == 'kubernetes':
             from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
             return KubernetesClusterConnector(cluster, pool)
+        else:
+            raise ValueError(f'Unknown scheduler type: {scheduler}')

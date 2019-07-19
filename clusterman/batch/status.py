@@ -1,7 +1,7 @@
 import sys
 
 
-def check_status(batch_name):
+def check_status(batch_name):  # pragma: no cover
     # status written by BatchRunningSentinelMixin
     status_file = f'/tmp/{batch_name}.running'
     # pid written by yelp_batch

@@ -35,10 +35,11 @@ def mock_setup_config():
 @mock.patch('clusterman.batch.cluster_metrics_collector.PoolManager', autospec=True)
 @mock.patch('os.listdir')
 def test_configure_initial(mock_ls, mock_mesos_pool_manager, mock_client_class, batch, mock_setup_config):
-    pools = ['pool-1', 'pool-3']
-    mock_ls.return_value = [f'{p}.yaml' for p in pools]
-    with mock.patch('clusterman.batch.cluster_metrics_collector.load_cluster_pool_config'):
+    pools = ['pool-1', 'pool-3', 'pool-4']
+    mock_ls.return_value = [f'{p}.mesos' for p in pools[:2]] + [f'{p}.kubernetes' for p in pools[2:]]
+    with mock.patch('clusterman.batch.cluster_metrics_collector.load_cluster_pool_config') as mock_pool_config:
         batch.configure_initial()
+        assert mock_pool_config.call_count == 3
 
     assert batch.run_interval == 120
     assert mock_setup_config.call_count == 1
@@ -47,21 +48,26 @@ def test_configure_initial(mock_ls, mock_mesos_pool_manager, mock_client_class, 
     assert mock_client_class.call_args_list == [mock.call(region_name='us-west-2')]
     assert batch.metrics_client == mock_client_class.return_value
 
+    assert len(batch.pools['mesos']) == 2
+    assert len(batch.pools['kubernetes']) == 1
+
 
 def test_write_metrics(batch):
     batch.pool_managers = {
-        'pool_A': mock.Mock(autospec=PoolManager, pool='pool_A'),
-        'pool_B': mock.Mock(autospec=PoolManager, pool='pool_B'),
+        'pool_A.mesos': mock.Mock(autospec=PoolManager, pool='pool_A', scheduler='mesos'),
+        'pool_B.mesos': mock.Mock(autospec=PoolManager, pool='pool_B', scheduler='mesos'),
+        'pool_B.kubernetes': mock.Mock(autospec=PoolManager, pool='pool_B', scheduler='kubernetes'),
     }
-    batch.pool_managers['pool_A'].cluster_connector = mock.Mock()
-    batch.pool_managers['pool_B'].cluster_connector = mock.Mock()
+    batch.pool_managers['pool_A.mesos'].cluster_connector = mock.Mock()
+    batch.pool_managers['pool_B.mesos'].cluster_connector = mock.Mock()
+    batch.pool_managers['pool_B.kubernetes'].cluster_connector = mock.Mock()
     writer = mock.Mock()
 
     def metric_generator(manager):
         yield ClusterMetric(
             'allocated',
             manager.cluster_connector.get_resource_allocation('cpus'),
-            {'pool': manager.pool},
+            {'pool': f'{manager.pool}.{manager.scheduler}'},
         )
 
     batch.write_metrics(writer, metric_generator, pools=All)
@@ -69,12 +75,13 @@ def test_write_metrics(batch):
     for pool, manager in batch.pool_managers.items():
         assert manager.cluster_connector.get_resource_allocation.call_args_list == [mock.call('cpus')]
 
-    assert writer.send.call_count == 2
+    assert writer.send.call_count == 3
 
     metric_names = [call[0][0][0] for call in writer.send.call_args_list]
     assert sorted(metric_names) == sorted([
-        'allocated|pool=pool_A',
-        'allocated|pool=pool_B',
+        'allocated|pool=pool_A.mesos',
+        'allocated|pool=pool_B.mesos',
+        'allocated|pool=pool_B.kubernetes',
     ])
 
 
@@ -90,7 +97,7 @@ def test_run(mock_sensu, mock_running, mock_time, mock_sleep, batch):
     mock_time.side_effect = [101, 113, 148, 188]
     batch.run_interval = 10
     batch.metrics_client = mock.MagicMock(spec_set=ClustermanMetricsBotoClient)
-    batch.pools = ['pool-1', 'pool-2']
+    batch.pools = {'mesos': ['pool-1', 'pool-2']}
 
     writer_context = batch.metrics_client.get_writer.return_value
     writer = writer_context.__enter__.return_value

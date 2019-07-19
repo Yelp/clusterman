@@ -39,7 +39,7 @@ class FrameworkState(enum.Enum):
 class MesosClusterConnector(ClusterConnector):
 
     def __init__(self, cluster: str, pool: str) -> None:
-        super().__init__(cluster, pool)
+        super().__init__(cluster, pool, 'mesos')
         mesos_master_url = staticconf.read_string(f'clusters.{self.cluster}.mesos_api_url')
         self.non_batch_framework_prefixes = self.pool_config.read_list(
             'non_batch_framework_prefixes',

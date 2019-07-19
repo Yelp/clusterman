@@ -13,6 +13,7 @@ from clusterman.args import add_branch_or_tag_arg
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_pool_arg
+from clusterman.args import add_scheduler_arg
 from clusterman.args import add_start_end_args
 from clusterman.args import subparser
 from clusterman.aws.markets import get_market_resources
@@ -202,6 +203,7 @@ def add_simulate_parser(subparser, required_named_args, optional_named_args):  #
     )
     add_cluster_arg(required_named_args, required=False)
     add_pool_arg(required_named_args)
+    add_scheduler_arg(required_named_args)
     add_cluster_config_directory_arg(optional_named_args)
     add_branch_or_tag_arg(optional_named_args)
     required_named_args.add_argument(

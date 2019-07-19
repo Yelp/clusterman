@@ -22,7 +22,7 @@ from clusterman.exceptions import SignalConnectionError
 @pytest.fixture
 def mock_signal():
     with mock.patch('clusterman.autoscaler.signals.Signal._connect_to_signal_process'):
-        return Signal('foo', 'bar', 'app1', 'bar_config', mock.Mock(), 'the_signal')
+        return Signal('foo', 'bar', 'app1', 'bar.mesos_config', mock.Mock(), 'the_signal')
 
 
 def test_init(mock_signal):
@@ -35,11 +35,11 @@ def test_init(mock_signal):
 def test_no_signal_configured():
     with staticconf.testing.MockConfiguration(
         {},
-        namespace='bar_config',
+        namespace='bar.mesos_config',
     ), mock.patch(
         'clusterman.autoscaler.signals.Signal._connect_to_signal_process',
     ), pytest.raises(NoSignalConfiguredException):
-        return Signal('foo', 'bar', 'app1', 'bar_config', mock.Mock(), 'the_signal')
+        return Signal('foo', 'bar', 'app1', 'bar.mesos_config', mock.Mock(), 'the_signal')
 
 
 @pytest.mark.parametrize('conn_response', [['foo'], [ACK, 'foo']])
@@ -134,7 +134,7 @@ def test_get_metadata_metrics(mock_signal):
 
 
 def test_setup_signals_namespace():
-    fetch_num, signal_num = setup_signals_environment('bar')
+    fetch_num, signal_num = setup_signals_environment('bar', 'mesos')
     assert sorted(os.environ['CMAN_VERSIONS_TO_FETCH'].split(' ')) == ['master', 'v42']
     assert sorted(os.environ['CMAN_SIGNAL_VERSIONS'].split(' ')) == ['master', 'v42']
     assert sorted(os.environ['CMAN_SIGNAL_NAMESPACES'].split(' ')) == ['bar', 'foo']

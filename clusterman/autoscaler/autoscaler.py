@@ -35,6 +35,7 @@ class Autoscaler:
         self,
         cluster: str,
         pool: str,
+        scheduler: str,
         apps: List[str],
         pool_manager: Optional[PoolManager] = None,
         metrics_client: Optional[ClustermanMetricsBotoClient] = None,
@@ -51,6 +52,7 @@ class Autoscaler:
         """
         self.cluster = cluster
         self.pool = pool
+        self.scheduler = scheduler
         self.apps = apps
         self.monitoring_enabled = monitoring_enabled
 
@@ -69,8 +71,10 @@ class Autoscaler:
                 gauge_dimensions,
             )
 
-        self.autoscaling_config = get_autoscaling_config(POOL_NAMESPACE.format(pool=self.pool))
-        self.pool_manager = pool_manager or PoolManager(self.cluster, self.pool)
+        self.autoscaling_config = get_autoscaling_config(
+            POOL_NAMESPACE.format(pool=self.pool, scheduler=self.scheduler),
+        )
+        self.pool_manager = pool_manager or PoolManager(self.cluster, self.pool, self.scheduler)
 
         self.mesos_region = staticconf.read_string('aws.region')
         self.metrics_client = metrics_client or ClustermanMetricsBotoClient(self.mesos_region)
@@ -135,7 +139,7 @@ class Autoscaler:
         logger.info(f'Loading autoscaling signal for {app} on {self.pool} in {self.cluster}')
 
         # TODO (CLUSTERMAN-126, CLUSTERMAN-195) apps will eventually have separate namespaces from pools
-        pool_namespace = POOL_NAMESPACE.format(pool=app)
+        pool_namespace = POOL_NAMESPACE.format(pool=app, scheduler=self.scheduler)
         signal_namespace = staticconf.read_string('autoscale_signal.namespace', default=app, namespace=pool_namespace)
 
         try:
@@ -152,6 +156,7 @@ class Autoscaler:
                 status=Status.WARNING,
                 output=msg,
                 source=self.cluster,
+                scheduler=self.scheduler,
                 page=False,
                 ttl=None,
                 app=app,

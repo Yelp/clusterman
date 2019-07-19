@@ -17,19 +17,25 @@ def mock_config_files():
     with staticconf.testing.PatchConfiguration(
         {'cluster_config_directory': '/nail/whatever'}
     ), mock_open(
-        config.get_pool_config_path('cluster-A', 'pool-1'),
+        config.get_pool_config_path('cluster-A', 'pool-1', 'mesos'),
         contents=yaml.dump({
             'resource_groups': 'cluster-A',
             'other_config': 18,
         }),
     ), mock_open(
-        config.get_pool_config_path('cluster-A', 'pool-2'),
+        config.get_pool_config_path('cluster-A', 'pool-2', 'mesos'),
         contents=yaml.dump({
             'resource_groups': 'cluster-A',
             'other_config': 20,
         }),
     ), mock_open(
-        config.get_pool_config_path('cluster-B', 'pool-1'),
+        config.get_pool_config_path('cluster-A', 'pool-2', 'kubernetes'),
+        contents=yaml.dump({
+            'resource_groups': 'cluster-A',
+            'other_config': 29,
+        }),
+    ), mock_open(
+        config.get_pool_config_path('cluster-B', 'pool-1', 'mesos'),
         contents=yaml.dump({
             'resource_groups': 'cluster-B',
             'other_config': 200,
@@ -51,10 +57,10 @@ def mock_config_namespaces():
     # To avoid polluting staticconf for other tests, and clear out stuff from conftest that mocks configuration
     with staticconf.testing.MockConfiguration(
         {},
-        namespace=POOL_NAMESPACE.format(pool='pool-1'),
+        namespace=POOL_NAMESPACE.format(pool='pool-1', scheduler='mesos'),
     ), staticconf.testing.MockConfiguration(
         {},
-        namespace=POOL_NAMESPACE.format(pool='pool-2'),
+        namespace=POOL_NAMESPACE.format(pool='pool-2', scheduler='mesos'),
     ), staticconf.testing.MockConfiguration(
         {
             'clusters': {
@@ -72,30 +78,37 @@ def mock_config_namespaces():
         yield
 
 
-@pytest.mark.parametrize('cluster,pool,tag', [
-    ('cluster-A', 'pool-1', None),
-    ('cluster-A', 'pool-2', 'v52'),
-    ('cluster-A', None, None),
+@pytest.mark.parametrize('cluster,pool,scheduler,tag', [
+    ('cluster-A', 'pool-1', 'mesos', None),
+    ('cluster-A', 'pool-2', 'mesos', 'v52'),
+    ('cluster-A', 'pool-2', 'kubernetes', None),
+    ('cluster-A', None, 'mesos', None),
 ])
-@mock.patch('clusterman.config.load_cluster_pool_config', autospec=True)
-@mock.patch('clusterman.config.load_default_config')
-def test_setup_config_cluster(mock_service_load, mock_pool_load, cluster, pool, tag, mock_config_files):
+def test_setup_config_cluster(cluster, pool, scheduler, tag, mock_config_files):
     args = argparse.Namespace(
         env_config_path='/nail/etc/config.yaml',
         cluster=cluster,
         pool=pool,
+        scheduler=scheduler,
         signals_branch_or_tag=tag,
     )
-    config.setup_config(args)
+    with mock.patch(
+        'clusterman.config.load_cluster_pool_config',
+        autospec=True,
+    ) as mock_pool_load, mock.patch(
+        'clusterman.config.load_default_config',
+    ) as mock_service_load:
 
-    assert mock_service_load.call_args == mock.call('/nail/etc/config.yaml', '/nail/etc/config.yaml')
-    assert staticconf.read_string('aws.region') == 'us-test-3'
-    if pool:
-        assert mock_pool_load.call_args == mock.call(cluster, pool, tag)
-    else:
-        assert mock_pool_load.call_count == 0
-        if tag:
-            assert staticconf.read_string('autoscale_signal.branch_or_tag') == tag
+        config.setup_config(args)
+
+        assert mock_service_load.call_args == mock.call('/nail/etc/config.yaml', '/nail/etc/config.yaml')
+        assert staticconf.read_string('aws.region') == 'us-test-3'
+        if pool:
+            assert mock_pool_load.call_args == mock.call(cluster, pool, scheduler, tag)
+        else:
+            assert mock_pool_load.call_count == 0
+            if tag:
+                assert staticconf.read_string('autoscale_signal.branch_or_tag') == tag
 
 
 def test_setup_config_region_and_cluster():
@@ -121,8 +134,8 @@ def test_setup_config_region(mock_service_load, mock_config_files):
 
 @pytest.mark.parametrize('cluster,pool,pool_other_config', [('cluster-B', 'pool-1', 200)])
 def test_load_cluster_pool_config(cluster, pool, pool_other_config, mock_config_files):
-    config.load_cluster_pool_config(cluster, pool, None)
+    config.load_cluster_pool_config(cluster, pool, 'mesos', None)
 
-    pool_namespace = POOL_NAMESPACE.format(pool=pool)
+    pool_namespace = POOL_NAMESPACE.format(pool=pool, scheduler='mesos')
     assert staticconf.read_int('other_config', namespace=pool_namespace) == pool_other_config
     assert staticconf.read_string(f'resource_groups', namespace=pool_namespace) == cluster

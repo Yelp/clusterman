@@ -103,11 +103,12 @@ def setup_configurations(context):
                 {'name': 'cpus_allocated', 'type': SYSTEM_METRICS, 'minute_range': 10},
                 {'name': 'cost', 'type': APP_METRICS, 'minute_range': 30},
             ],
-        }
+        },
+        'scheduler': 'mesos',
     }
     with staticconf.testing.MockConfiguration(boto_config, namespace=CREDENTIALS_NAMESPACE), \
             staticconf.testing.MockConfiguration(main_clusterman_config), \
-            staticconf.testing.MockConfiguration(pool_config, namespace='bar_config'):
+            staticconf.testing.MockConfiguration(pool_config, namespace='bar.mesos_config'):
         yield
 
 

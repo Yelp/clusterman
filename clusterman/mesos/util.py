@@ -1,4 +1,3 @@
-import os
 import re
 from typing import Any
 from typing import Mapping
@@ -6,11 +5,8 @@ from typing import Sequence
 
 import colorlog
 import requests
-import staticconf
 from mypy_extensions import TypedDict
-from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
-from clusterman.config import get_cluster_config_directory
 from clusterman.exceptions import PoolManagerError
 from clusterman.util import ClustermanResources
 
@@ -70,19 +66,6 @@ def allocated_agent_resources(agent_dict: MesosAgentDict) -> ClustermanResources
         disk=used_resources.get('disk', 0),
         gpus=used_resources.get('gpus', 0),
     )
-
-
-def get_cluster_name_list(config_namespace=DEFAULT_NAMESPACE):
-    namespace = staticconf.config.get_namespace(config_namespace)
-    return namespace.get_config_dict().get('clusters', {}).keys()
-
-
-def get_pool_name_list(cluster_name):
-    cluster_config_directory = get_cluster_config_directory(cluster_name)
-    return [
-        f[:-5] for f in os.listdir(cluster_config_directory)
-        if f[0] != '.' and f[-5:] == '.yaml'  # skip dotfiles and only read yaml-files
-    ]
 
 
 def mesos_post(url: str, endpoint: str) -> requests.Response:

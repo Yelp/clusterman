@@ -11,7 +11,7 @@ def batch(extra_args=None, mock_sensu=True):
     with mock.patch('clusterman.batch.autoscaler.setup_config'), \
             mock.patch('clusterman.batch.autoscaler.Autoscaler', signal=mock.Mock()):
         batch = AutoscalerBatch()
-        args = ['--cluster', 'mesos-test', '--pool', 'bar'] + extra_args
+        args = ['--cluster', 'mesos-test', '--pool', 'bar', '--scheduler', 'mesos'] + extra_args
         parser = argparse.ArgumentParser()
         batch.parse_args(parser)
         batch.options = parser.parse_args(args)

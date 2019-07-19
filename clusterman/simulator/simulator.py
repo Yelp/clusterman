@@ -238,7 +238,7 @@ class Simulator:
         self.cost_per_hour.add_delta(curr_timestamp, -last_billed_price)
 
     def _make_autoscaler(self, autoscaler_config_file: str) -> None:
-        fetch_count, signal_count = setup_signals_environment(self.metadata.pool)
+        fetch_count, signal_count = setup_signals_environment(self.metadata.pool, 'mesos')
         signal_dir = os.path.join(os.path.expanduser('~'), '.cache', 'clusterman')
 
         endpoint_url = staticconf.read_string('aws.endpoint_url', '').format(svc='s3')
@@ -278,6 +278,7 @@ class Simulator:
         self.autoscaler = Autoscaler(
             self.metadata.cluster,
             self.metadata.pool,
+            'mesos',
             [self.metadata.pool],
             pool_manager=pool_manager,
             metrics_client=self.metrics_client,

@@ -125,7 +125,7 @@ def clusterman_pool_config():
             ],
         }
     }
-    with staticconf.testing.MockConfiguration(config, namespace='bar_config'):
+    with staticconf.testing.MockConfiguration(config, namespace='bar.mesos_config'):
         yield
 
 
