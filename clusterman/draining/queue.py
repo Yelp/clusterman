@@ -52,7 +52,10 @@ class DrainingClient():
         self.drain_queue_url = staticconf.read_string(f'clusters.{cluster_name}.drain_queue_url')
         self.termination_queue_url = staticconf.read_string(f'clusters.{cluster_name}.termination_queue_url')
         self.draining_host_ttl_cache: Dict[str, arrow.Arrow] = {}
-        self.warning_queue_url = staticconf.read_string(f'clusters.{cluster_name}.warning_queue_url')
+        self.warning_queue_url = staticconf.read_string(
+            f'clusters.{cluster_name}.warning_queue_url',
+            default=None,
+        )
 
     def submit_instance_for_draining(self, instance: InstanceMetadata, sender: Type[AWSResourceGroup]) -> None:
         return self.client.send_message(
@@ -132,6 +135,8 @@ class DrainingClient():
         return None
 
     def get_warned_host(self) -> Optional[Host]:
+        if self.warning_queue_url is None:
+            return None
         messages = self.client.receive_message(
             QueueUrl=self.warning_queue_url,
             MessageAttributeNames=['Sender'],
@@ -189,6 +194,8 @@ class DrainingClient():
             )
 
     def delete_warning_messages(self, hosts: Sequence[Host]) -> None:
+        if self.warning_queue_url is None:
+            return
         for host in hosts:
             self.client.delete_message(
                 QueueUrl=self.warning_queue_url,

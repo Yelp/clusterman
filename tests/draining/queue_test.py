@@ -116,6 +116,13 @@ def test_get_warned_host(mock_draining_client):
         assert mock_draining_client.client.delete_message.called
 
 
+def test_get_warned_host_no_warning_queue_url(mock_draining_client):
+    mock_draining_client.warning_queue_url = None
+    host = mock_draining_client.get_warned_host()
+    assert host is None
+    assert mock_draining_client.client.receive_message.call_count == 0
+
+
 def test_submit_host_for_termination(mock_draining_client):
     with mock.patch(
         'clusterman.draining.queue.json', autospec=True,
@@ -279,6 +286,12 @@ def test_delete_warning_message(mock_draining_client):
             ReceiptHandle=2,
         ),
     ])
+
+
+def test_delete_warning_message_no_warning_queue_url(mock_draining_client):
+    mock_draining_client.warning_queue_url = None
+    mock_draining_client.delete_warning_messages(['host'])
+    assert mock_draining_client.client.delete_message.call_count == 0
 
 
 def test_delete_terminate_message(mock_draining_client):
