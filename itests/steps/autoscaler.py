@@ -46,6 +46,19 @@ def autoscaler_patches(context):
         yield
 
 
+def mock_historical_metrics(metric_name, metric_type, time_start, time_end, extra_dimensions):
+    if metric_name == 'non_orphan_fulfilled_capacity':
+        return {'non_orphan_fulfilled_capacity': [(100, 20), (110, 25), (130, 23), (140, 0), (150, 27), (160, 0)]}
+    elif metric_name == 'cpus_total':
+        return {'cpus_total': [(100, 15), (110, 17), (130, 16), (140, 0), (150, 19), (160, 0)]}
+    elif metric_name == 'mem_total':
+        return {'mem_total': [(100, 0), (110, 0), (130, 0), (140, 0), (150, 0), (160, 0)]}
+    elif metric_name == 'disk_total':
+        return {'disk_total': [(100, 1000), (110, 1000), (130, 1000), (140, 1000), (150, 1000), (160, 1000)]}
+    elif metric_name == 'gpus_total':
+        return {'gpus_total': [(100, 1), (110, 1), (130, 1), (140, 1), (150, 1), (160, 1)]}
+
+
 @behave.given('an autoscaler object')
 def autoscaler(context):
     behave.use_fixture(autoscaler_patches, context)
@@ -69,6 +82,14 @@ def empty_pool(context):
     manager.min_capacity = 0
     manager.cluster_connector.get_resource_capacity = mock.Mock(return_value=0)
     manager.non_orphan_fulfilled_capacity = 0
+
+
+@behave.when('metrics history (?P<exists>yes|no)')
+def populate_metrics_history(context, exists):
+    if exists == 'yes':
+        context.autoscaler.metrics_client.get_metric_values.side_effect = mock_historical_metrics
+    else:
+        context.autoscaler.metrics_client.get_metric_values.side_effect = lambda name, *args, **kwargs: {name: []}
 
 
 @behave.when('the signal resource request is (?P<value>\d+ cpus|\d+ gpus|empty)')

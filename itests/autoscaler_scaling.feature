@@ -21,14 +21,16 @@ Feature: make sure the autoscaler scales to the proper amount
     Scenario Outline: make sure the autoscaler works on empty pools
        Given an autoscaler object
         When the pool is empty
+         And metrics history <exists>
          And the signal resource request is <value>
         Then the autoscaler should scale rg1 to <rg1_target> capacity
          And the autoscaler should scale rg2 to <rg2_target> capacity
 
       Examples:
-        | value     | rg1_target | rg2_target |
-        | 0 cpus    | 0          | 0          |
-        | 20 cpus   | 1          | 0          |
+        | value     | rg1_target | rg2_target | exists |
+        | 0 cpus    | 0          | 0          |     no |
+        | 20 cpus   | 1          | 0          |     no |
+        | 20 cpus   | 21         | 20         |    yes |
 
     Scenario: requesting GPUs on a pool without GPU instances is an error
         Given an autoscaler object

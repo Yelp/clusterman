@@ -1,6 +1,7 @@
 import traceback
 from typing import Dict
 from typing import List
+from typing import MutableMapping
 from typing import Optional
 from typing import Tuple
 
@@ -9,6 +10,7 @@ import colorlog
 import staticconf
 import yelp_meteorite
 from clusterman_metrics import ClustermanMetricsBotoClient
+from clusterman_metrics import METADATA
 from pysensu_yelp import Status
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
@@ -172,17 +174,49 @@ class Autoscaler:
         logger.info(f'Current cluster total resources: {cluster_total_resources}')
         logger.info(f'Current cluster allocated resources: {cluster_allocated_resources}')
 
+        # This block of code is kinda complicated logic for figuring out what happens if the cluster
+        # or the resource request is empty.  There are essentially four checks, as follows:
+        #
+        # 1. If the resource request is all 'None', this is shorthand for "don't change the cluster"
+        #
+        # 2. Otherwise if the resource request contains 0s and Nones, this is a "real" zero request,
+        #    so set the target capacity to zero
+        #
+        # 3. If we have a non-zero resource request but the cluster is empty, we need to figure out
+        #    how much to scale up by:
+        #
+        #    a. First we try to get some historical data to translate resources into weighted capacity;
+        #       for each resource type, we divide by the capacity present in the cluster at that time
+        #       and then take a max over all the resource types to see which one to use to fulfill the
+        #       request
+        #    b. If we can't find any historical data, we instead just bump the cluster by 1 so that
+        #       on the next autoscaling cycle we can figure out the resource-to-weight value; note that
+        #       this adds an extra autoscaling cycle before you can get all your resources.
+        #
+        # 4. If the resource request and the target capacity are non-zero, but the nodes haven't joined
+        #    the cluster yet, we just need to wait until they join before doing anything else.
+
         if all(requested_quantity is None for requested_quantity in resource_request.values()):
             logger.info('No data from signal, not changing capacity')
             return current_target_capacity
         elif all(requested_quantity in {0, None} for requested_quantity in resource_request.values()):
             return 0
         elif current_target_capacity == 0:
-            logger.info(
-                'Current target capacity is 0 and we received a non-zero resource request, scaling up by 1 to get '
-                'some data'
-            )
-            return 1
+            try:
+                logger.info('Current target capacity is 0 and we received a non-zero resource request')
+                logger.info('Trying to use historical data to determine weighted resource values...')
+                historical_weighted_resources = self._get_historical_weighted_resource_value()
+                max_weighted_capacity_request = max([
+                    (request or 0) / history
+                    for request, history in zip(resource_request.values(), historical_weighted_resources)
+                    if history != 0
+                ])
+                logger.info(f'Success!  Historical data is {historical_weighted_resources}')
+                logger.info(f'max_weighted_capacity_request = {max_weighted_capacity_request}')
+                return max_weighted_capacity_request / self.autoscaling_config.setpoint
+            except ValueError:
+                logger.info('No historical data found; scaling up by 1 to get some data')
+                return 1
         elif non_orphan_fulfilled_capacity == 0:
             # Entering the main body of this method with non_orphan_fulfilled_capacity = 0 guarantees that
             # new_target_capacity will be 0, which we do not want (since the resource request is non-zero)
@@ -192,6 +226,7 @@ class Autoscaler:
             )
             return current_target_capacity
 
+        # If we get here, everything is non-zero and we can use the "normal" logic to determine scaling
         most_constrained_resource, usage_pct = self._get_most_constrained_resource_for_request(
             resource_request,
             cluster_total_resources,
@@ -289,3 +324,63 @@ class Autoscaler:
             else:
                 requested_resource_usage_pcts[resource] = resource_request_value / resource_total
         return max(requested_resource_usage_pcts.items(), key=lambda x: x[1])
+
+    def _get_historical_weighted_resource_value(self) -> ClustermanResources:
+        """ Compute the weighted value of each type of resource in the cluster
+
+        returns: a ClustermanResources object with the weighted resource value, or 0 if it couldn't be determined
+        """
+        capacity_history = self._get_smoothed_non_zero_metadata(
+            'non_orphan_fulfilled_capacity',
+            time_start=arrow.now().shift(weeks=-1).timestamp,
+            time_end=arrow.now().timestamp,
+        )
+        if not capacity_history:
+            return ClustermanResources()
+        time_start, time_end, non_orphan_fulfilled_capacity = capacity_history
+
+        weighted_resource_dict: MutableMapping[str, float] = {}
+        for resource in ClustermanResources._fields:
+            resource_history = self._get_smoothed_non_zero_metadata(
+                f'{resource}_total',
+                time_start=time_start,
+                time_end=time_end,
+            )
+            if not resource_history:
+                weighted_resource_dict[resource] = 0
+            else:
+                weighted_resource_dict[resource] = resource_history[2] / non_orphan_fulfilled_capacity
+
+        return ClustermanResources(**weighted_resource_dict)
+
+    def _get_smoothed_non_zero_metadata(
+        self,
+        metric_name: str,
+        time_start: arrow.Arrow,
+        time_end: arrow.Arrow,
+        smoothing: int = 5,
+    ) -> Optional[Tuple[int, int, float]]:
+        """ Compute some smoothed-out historical metrics metadata
+
+        :param metric_name: the metadata metric to query
+        :param time_start: the beginning of the historical time window to query
+        :param time_end: the end of the historical time window to query
+        :param smoothing: take this many non-zero metric values and average them together
+        :returns: the start and end times over which the average was taken, and smoothed-out metric value during this
+            time period; or None, if no historical data exists
+        """
+        metrics = self.metrics_client.get_metric_values(
+            metric_name,
+            METADATA,
+            time_start,
+            time_end,
+            extra_dimensions={'cluster': self.cluster, 'pool': self.pool},
+        )[metric_name]
+        latest_non_zero_values = [(ts, val) for ts, val in metrics if val > 0][-smoothing:]
+        if not latest_non_zero_values:
+            return None
+        return (
+            latest_non_zero_values[0][0],
+            latest_non_zero_values[-1][0],
+            sum([val for __, val in latest_non_zero_values]) / len(latest_non_zero_values),
+        )
