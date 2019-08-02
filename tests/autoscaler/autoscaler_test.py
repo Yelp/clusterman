@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import arrow
 import mock
 import pysensu_yelp
@@ -269,6 +271,6 @@ def test_get_smoothed_non_zero_metadata_no_data(mock_autoscaler):
 
 def test_get_smoothed_non_zero_metadata_all_zero(mock_autoscaler):
     mock_autoscaler.metrics_client.get_metric_values.return_value = {
-        'some_metric': [(150, 0), (160, 0), (170, 0)],
+        'some_metric': [(Decimal('150'), Decimal('0')), (Decimal('160'), Decimal('0')), (Decimal('170'), Decimal('0'))],
     }
     assert mock_autoscaler._get_smoothed_non_zero_metadata('some_metric', 0, 200, smoothing=3) is None

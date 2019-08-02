@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import behave
 import mock
 import staticconf.testing
@@ -48,15 +50,50 @@ def autoscaler_patches(context):
 
 def mock_historical_metrics(metric_name, metric_type, time_start, time_end, extra_dimensions):
     if metric_name == 'non_orphan_fulfilled_capacity':
-        return {'non_orphan_fulfilled_capacity': [(100, 20), (110, 25), (130, 23), (140, 0), (150, 27), (160, 0)]}
+        return {'non_orphan_fulfilled_capacity': [
+            (Decimal('100'), Decimal('20')),
+            (Decimal('110'), Decimal('25')),
+            (Decimal('130'), Decimal('23')),
+            (Decimal('140'), Decimal('0')),
+            (Decimal('150'), Decimal('27')),
+            (Decimal('160'), Decimal('0')),
+        ]}
     elif metric_name == 'cpus_total':
-        return {'cpus_total': [(100, 15), (110, 17), (130, 16), (140, 0), (150, 19), (160, 0)]}
+        return {'cpus_total': [
+            (Decimal('100'), Decimal('15')),
+            (Decimal('110'), Decimal('17')),
+            (Decimal('130'), Decimal('16')),
+            (Decimal('140'), Decimal('0')),
+            (Decimal('150'), Decimal('19')),
+            (Decimal('160'), Decimal('0')),
+        ]}
     elif metric_name == 'mem_total':
-        return {'mem_total': [(100, 0), (110, 0), (130, 0), (140, 0), (150, 0), (160, 0)]}
+        return {'mem_total': [
+            (Decimal('100'), Decimal('0')),
+            (Decimal('110'), Decimal('0')),
+            (Decimal('130'), Decimal('0')),
+            (Decimal('140'), Decimal('0')),
+            (Decimal('150'), Decimal('0')),
+            (Decimal('160'), Decimal('0')),
+        ]}
     elif metric_name == 'disk_total':
-        return {'disk_total': [(100, 1000), (110, 1000), (130, 1000), (140, 1000), (150, 1000), (160, 1000)]}
+        return {'disk_total': [
+            (Decimal('100'), Decimal('1000')),
+            (Decimal('110'), Decimal('1000')),
+            (Decimal('130'), Decimal('1000')),
+            (Decimal('140'), Decimal('1000')),
+            (Decimal('150'), Decimal('1000')),
+            (Decimal('160'), Decimal('1000')),
+        ]}
     elif metric_name == 'gpus_total':
-        return {'gpus_total': [(100, 1), (110, 1), (130, 1), (140, 1), (150, 1), (160, 1)]}
+        return {'gpus_total': [
+            (Decimal('100'), Decimal('1')),
+            (Decimal('110'), Decimal('1')),
+            (Decimal('130'), Decimal('1')),
+            (Decimal('140'), Decimal('1')),
+            (Decimal('150'), Decimal('1')),
+            (Decimal('160'), Decimal('1')),
+        ]}
 
 
 @behave.given('an autoscaler object')
