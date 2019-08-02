@@ -9,6 +9,7 @@ from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.autoscaler.config import AutoscalingConfig
 from clusterman.config import POOL_NAMESPACE
 from clusterman.exceptions import NoSignalConfiguredException
+from clusterman.util import ClustermanResources
 
 
 @pytest.fixture
@@ -163,13 +164,27 @@ class TestComputeTargetCapacity:
         )
         assert new_target_capacity == 0
 
-    def test_current_target_capacity_0(self, mock_autoscaler):
+    def test_current_target_capacity_with_historical_data(self, mock_autoscaler):
         mock_autoscaler.pool_manager.cluster_connector.get_resource_total.return_value = 0
         mock_autoscaler.pool_manager.target_capacity = 0
         mock_autoscaler.pool_manager.non_orphan_fulfilled_capacity = 0
+        mock_autoscaler._get_historical_weighted_resource_value = mock.Mock(return_value=ClustermanResources(
+            cpus=2, mem=26, disk=0, gpus=0
+        ))
 
         new_target_capacity = mock_autoscaler._compute_target_capacity(
-            {'cpus': 10, 'mem': 500, 'disk': 1000, 'gpus': 0}
+            {'cpus': 7, 'mem': 400, 'disk': 70, 'gpus': 0}
+        )
+        assert new_target_capacity == pytest.approx(400 / 26 / 0.7)
+
+    def test_current_target_capacity_no_historical_data(self, mock_autoscaler):
+        mock_autoscaler.pool_manager.cluster_connector.get_resource_total.return_value = 0
+        mock_autoscaler.pool_manager.target_capacity = 0
+        mock_autoscaler.pool_manager.non_orphan_fulfilled_capacity = 0
+        mock_autoscaler._get_historical_weighted_resource_value = mock.Mock(return_value=ClustermanResources())
+
+        new_target_capacity = mock_autoscaler._compute_target_capacity(
+            {'cpus': 7, 'mem': 400, 'disk': 70, 'gpus': 0}
         )
         assert new_target_capacity == 1
 
@@ -215,3 +230,45 @@ class TestComputeTargetCapacity:
         new_target_capacity = mock_autoscaler._compute_target_capacity(resource_request)
 
         assert new_target_capacity == 0
+
+
+def test_get_historical_weighted_resource_value_no_historical_data(mock_autoscaler):
+    mock_autoscaler._get_smoothed_non_zero_metadata = mock.Mock(return_value=None)
+    assert mock_autoscaler._get_historical_weighted_resource_value() == ClustermanResources()
+
+
+def test_get_historical_weighted_resource_value(mock_autoscaler):
+    mock_autoscaler._get_smoothed_non_zero_metadata = mock.Mock(side_effect=[
+        (100, 200, 78),   # historical non_zero_fulfilled_capacity
+        (100, 200, 20),   # cpus
+        None,             # mem
+        (100, 200, 0.1),  # disk
+        (100, 200, 1),    # gpus
+    ])
+    assert mock_autoscaler._get_historical_weighted_resource_value() == ClustermanResources(
+        cpus=20 / 78,
+        mem=0,
+        disk=0.1 / 78,
+        gpus=1 / 78,
+    )
+
+
+def test_get_smoothed_non_zero_metadata(mock_autoscaler):
+    mock_autoscaler.metrics_client.get_metric_values.return_value = {
+        'some_metric': [(100, 5), (110, 7), (120, 40), (130, 23), (136, 0), (140, 41), (150, 0), (160, 0), (170, 0)],
+    }
+    assert mock_autoscaler._get_smoothed_non_zero_metadata('some_metric', 0, 200, smoothing=3) == (
+        120, 140, (40 + 23 + 41) / 3,
+    )
+
+
+def test_get_smoothed_non_zero_metadata_no_data(mock_autoscaler):
+    mock_autoscaler.metrics_client.get_metric_values.return_value = {'some_metric': []}
+    assert mock_autoscaler._get_smoothed_non_zero_metadata('some_metric', 0, 200, smoothing=3) is None
+
+
+def test_get_smoothed_non_zero_metadata_all_zero(mock_autoscaler):
+    mock_autoscaler.metrics_client.get_metric_values.return_value = {
+        'some_metric': [(150, 0), (160, 0), (170, 0)],
+    }
+    assert mock_autoscaler._get_smoothed_non_zero_metadata('some_metric', 0, 200, smoothing=3) is None
