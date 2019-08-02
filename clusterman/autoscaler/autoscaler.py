@@ -382,5 +382,5 @@ class Autoscaler:
         return (
             latest_non_zero_values[0][0],
             latest_non_zero_values[-1][0],
-            sum([val for __, val in latest_non_zero_values]) / len(latest_non_zero_values),
+            sum([float(val) for __, val in latest_non_zero_values]) / len(latest_non_zero_values),
         )
