@@ -1,3 +1,9 @@
+clusterman (3.6.2) xenial bionic; urgency=low
+
+  * make warning queue urls optional in the drainer
+
+ -- Ka Wai Wan <kawaiwan@yelp.com>  Mon, 12 Aug 2019 13:16:18 -0700
+
 clusterman (3.6.1) xenial bionic; urgency=low
 
   * fix config file bug
