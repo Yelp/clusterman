@@ -81,6 +81,7 @@ class Autoscaler:
         self.default_signal = Signal(
             self.cluster,
             self.pool,
+            self.scheduler,
             '__default__',
             DEFAULT_NAMESPACE,
             self.metrics_client,
@@ -144,7 +145,15 @@ class Autoscaler:
 
         try:
             # see if the pool has set up a custom signal correctly; if not, fall back to the default signal
-            return Signal(self.cluster, self.pool, app, pool_namespace, self.metrics_client, signal_namespace)
+            return Signal(
+                self.cluster,
+                self.pool,
+                self.scheduler,
+                app,
+                pool_namespace,
+                self.metrics_client,
+                signal_namespace,
+            )
         except NoSignalConfiguredException:
             logger.info(f'No signal configured for {app}, falling back to default')
             return self.default_signal

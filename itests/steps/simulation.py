@@ -56,7 +56,7 @@ def run_simulator(context, hours, per_second_billing):
     refund_outbid = not per_second_billing
     setup_logging()
     context.simulator = Simulator(
-        SimulationMetadata('test', 'Testing', 'test-tag'),
+        SimulationMetadata('test', 'Testing', 'mesos', 'test-tag'),
         start_time=arrow.get(0),
         end_time=arrow.get(int(hours) * 3600),
         autoscaler_config_file=None,

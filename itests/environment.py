@@ -54,7 +54,7 @@ def setup_configurations(context):
         },
         'clusters': {
             'mesos-test': {
-                'mesos_api_url': 'the.mesos.leader',
+                'mesos_master_fqdn': 'the.mesos.leader',
                 'aws_region': 'us-west-2',
             },
         },
@@ -104,7 +104,6 @@ def setup_configurations(context):
                 {'name': 'cost', 'type': APP_METRICS, 'minute_range': 30},
             ],
         },
-        'scheduler': 'mesos',
     }
     with staticconf.testing.MockConfiguration(boto_config, namespace=CREDENTIALS_NAMESPACE), \
             staticconf.testing.MockConfiguration(main_clusterman_config), \

@@ -62,7 +62,7 @@ def main_clusterman_config():
         'mesos_maintenance_timeout_seconds': 1,
         'clusters': {
             'mesos-test': {
-                'mesos_api_url': 'the.mesos.leader',
+                'mesos_master_fqdn': 'the.mesos.leader',
                 'aws_region': 'us-west-2',
                 'drain_queue_url': 'mesos-test-draining.com',
                 'termination_queue_url': 'mesos-test-terminating.com',

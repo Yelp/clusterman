@@ -238,7 +238,7 @@ class Simulator:
         self.cost_per_hour.add_delta(curr_timestamp, -last_billed_price)
 
     def _make_autoscaler(self, autoscaler_config_file: str) -> None:
-        fetch_count, signal_count = setup_signals_environment(self.metadata.pool, 'mesos')
+        fetch_count, signal_count = setup_signals_environment(self.metadata.pool, self.metadata.scheduler)
         signal_dir = os.path.join(os.path.expanduser('~'), '.cache', 'clusterman')
 
         endpoint_url = staticconf.read_string('aws.endpoint_url', '').format(svc='s3')
@@ -265,7 +265,10 @@ class Simulator:
             # metrics collector runs 1x/min, but we'll try to get five data points in case some data is missing
             self.start_time.shift(minutes=5).timestamp,
             use_cache=False,
-            extra_dimensions={'cluster': self.metadata.cluster, 'pool': self.metadata.pool},
+            extra_dimensions={
+                'cluster': self.metadata.cluster,
+                'pool': f'{self.metadata.pool}.{self.metadata.scheduler}',
+            },
         )
         # take the earliest data point available - this is a Decimal, which doesn't play nicely, so convert to an int
         with patch_join_delay():
@@ -278,7 +281,7 @@ class Simulator:
         self.autoscaler = Autoscaler(
             self.metadata.cluster,
             self.metadata.pool,
-            'mesos',
+            self.metadata.scheduler,
             [self.metadata.pool],
             pool_manager=pool_manager,
             metrics_client=self.metrics_client,

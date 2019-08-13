@@ -10,10 +10,11 @@ def patch_join_delay(mean=0, stdev=0):
 
 
 class SimulationMetadata:  # pragma: no cover
-    def __init__(self, name, cluster, pool):
+    def __init__(self, name, cluster, pool, scheduler):
         self.name = name
         self.cluster = cluster
         self.pool = pool
+        self.scheduler = scheduler
         self.sim_start = None
         self.sim_end = None
 

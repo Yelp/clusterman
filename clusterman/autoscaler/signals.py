@@ -57,6 +57,7 @@ class Signal:
         self,
         cluster: str,
         pool: str,
+        scheduler: str,
         app: str,
         config_namespace: str,
         metrics_client: ClustermanMetricsBotoClient,
@@ -81,6 +82,7 @@ class Signal:
 
         self.cluster: str = cluster
         self.pool: str = pool
+        self.scheduler: str = scheduler
         self.app: str = app
 
         self.period_minutes: int = reader.read_int('autoscale_signal.period_minutes')
@@ -179,23 +181,35 @@ class Signal:
 
             # Need to add the cluster/pool to get the right system metrics
             # TODO (CLUSTERMAN-126) this should probably be cluster/pool/app eventually
-            dims = {'cluster': self.cluster, 'pool': self.pool} if metric_dict['type'] == SYSTEM_METRICS else {}
+            # TODO (CLUSTERMAN-446) if a mesos pool and a k8s pool share the same app_name,
+            #      APP_METRICS will be used for both
+            if metric_dict['type'] == SYSTEM_METRICS:
+                dims_list = [{'cluster': self.cluster, 'pool': f'{self.pool}.{self.scheduler}'}]
+                if self.scheduler == 'mesos':  # handle old (non-scheduler-aware) metrics
+                    dims_list.insert(0, {'cluster': self.cluster, 'pool': self.pool})
+            else:
+                dims_list = [{}]
 
             # We only support regex expressions for APP_METRICS
             if 'regex' not in metric_dict:
                 metric_dict['regex'] = False
 
             start_time = end_time.shift(minutes=-metric_dict['minute_range'])
-            query_results = self.metrics_client.get_metric_values(
-                metric_dict['name'],
-                metric_dict['type'],
-                start_time.timestamp,
-                end_time.timestamp,
-                is_regex=metric_dict['regex'],
-                extra_dimensions=dims,
-                app_identifier=self.app,
-            )
-            metrics.update(query_results)
+            for dims in dims_list:
+                query_results = self.metrics_client.get_metric_values(
+                    metric_dict['name'],
+                    metric_dict['type'],
+                    start_time.timestamp,
+                    end_time.timestamp,
+                    is_regex=metric_dict['regex'],
+                    extra_dimensions=dims,
+                    app_identifier=self.app,
+                )
+                for metric_name, ts in query_results.items():
+                    metrics[metric_name].extend(ts)
+                    # safeguard; the metrics _should_ already be sorted since we inserted the old
+                    # (non-scheduler-aware) metrics before the new metrics above, so this should be fast
+                    metrics[metric_name].sort()
         return metrics
 
 

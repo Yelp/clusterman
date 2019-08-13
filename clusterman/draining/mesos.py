@@ -61,13 +61,13 @@ def load_credentials(mesos_secret_path):
     return Credentials(file=mesos_secret_path, principal=username, secret=password)
 
 
-def base_api(mesos_master_url, mesos_secret_path):
+def base_api(mesos_master_fqdn, mesos_secret_path):
     """Helper function for making all API requests
     :returns: a function that can be called to make a request
     """
 
     def execute_request(method, endpoint, timeout=(3, 1), **kwargs):
-        url = 'http://%s:%d%s' % (mesos_master_url, MESOS_MASTER_PORT, endpoint)
+        url = 'http://%s:%d%s' % (mesos_master_fqdn, MESOS_MASTER_PORT, endpoint)
         s = Session()
         s.auth = (get_principal(mesos_secret_path), get_secret(mesos_secret_path))
         req = Request(method, url, **kwargs)
@@ -84,9 +84,9 @@ def base_api(mesos_master_url, mesos_secret_path):
     return execute_request
 
 
-def operator_api(mesos_master_url, mesos_secret_path):
+def operator_api(mesos_master_fqdn, mesos_secret_path):
     def execute_operator_api_request(**kwargs):
-        base_api_client = base_api(mesos_master_url, mesos_secret_path)
+        base_api_client = base_api(mesos_master_fqdn, mesos_secret_path)
         if 'headers' in kwargs:
             kwargs['headers']['Content-Type'] = 'application/json'
         else:

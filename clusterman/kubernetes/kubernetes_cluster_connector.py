@@ -20,11 +20,12 @@ logger = colorlog.getLogger(__name__)
 
 
 class KubernetesClusterConnector(ClusterConnector):
+    SCHEDULER = 'kubernetes'
     _nodes_by_ip: Mapping[str, KubernetesNode]
     _pods_by_ip: Mapping[str, List[KubernetesPod]]
 
     def __init__(self, cluster: str, pool: str) -> None:
-        super().__init__(cluster, pool, 'kubernetes')
+        super().__init__(cluster, pool)
         kubernetes.config.load_kube_config(staticconf.read_string(f'clusters.{cluster}.kubeconfig_path'))
         self._core_api = kubernetes.client.CoreV1Api()
         self._safe_to_evict_annotation = staticconf.read_string(

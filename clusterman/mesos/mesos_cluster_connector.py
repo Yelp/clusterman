@@ -37,15 +37,16 @@ class FrameworkState(enum.Enum):
 
 
 class MesosClusterConnector(ClusterConnector):
+    SCHEDULER = 'mesos'
 
     def __init__(self, cluster: str, pool: str) -> None:
-        super().__init__(cluster, pool, 'mesos')
-        mesos_master_url = staticconf.read_string(f'clusters.{self.cluster}.mesos_api_url')
+        super().__init__(cluster, pool)
+        mesos_master_fqdn = staticconf.read_string(f'clusters.{self.cluster}.mesos_master_fqdn')
         self.non_batch_framework_prefixes = self.pool_config.read_list(
             'non_batch_framework_prefixes',
             default=['marathon'],
         )
-        self.api_endpoint = f'http://{mesos_master_url}:5050/'
+        self.api_endpoint = f'http://{mesos_master_fqdn}:5050/'
         logger.info(f'Connecting to Mesos masters at {self.api_endpoint}')
 
     def reload_state(self) -> None:

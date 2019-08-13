@@ -15,7 +15,7 @@ from clusterman.simulator.simulator import Simulator
 @pytest.fixture
 def simulator():
     return Simulator(
-        SimulationMetadata('test', 'testing', 'test-tag'),
+        SimulationMetadata('test', 'testing', 'mesos', 'test-tag'),
         arrow.get(0),
         arrow.get(3600),
         None,

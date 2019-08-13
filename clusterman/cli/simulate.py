@@ -82,7 +82,7 @@ def _populate_cluster_size_events(simulator, start_time, end_time):
         use_cache=False,
         extra_dimensions={
             'cluster': simulator.metadata.cluster,
-            'pool': simulator.metadata.pool,
+            'pool': f'{simulator.metadata.pool}.{simulator.metadata.scheduler}',
         }
     )
     for i, (timestamp, data) in enumerate(capacity_metrics['fulfilled_capacity']):
@@ -105,7 +105,7 @@ def _populate_allocated_resources(simulator, start_time, end_time):
         use_cache=False,
         extra_dimensions={
             'cluster': simulator.metadata.cluster,
-            'pool': simulator.metadata.pool,
+            'pool': f'{simulator.metadata.pool}.{simulator.metadata.scheduler}',
         }
     )
     # It's OK to just directly set up the timeseries here, instead of using events; if the autoscaler
@@ -139,7 +139,7 @@ def _populate_price_changes(simulator, start_time, end_time, discount):
 
 
 def _run_simulation(args, metrics_client):
-    metadata = SimulationMetadata(args.name, args.cluster, args.pool)
+    metadata = SimulationMetadata(args.name, args.cluster, args.pool, args.scheduler)
     simulator = Simulator(metadata, args.start_time, args.end_time, args.autoscaler_config, metrics_client)
     if simulator.autoscaler:
         _populate_autoscaling_events(simulator, args.start_time, args.end_time)

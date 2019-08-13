@@ -27,12 +27,12 @@ class AgentMetadata(NamedTuple):
 
 
 class ClusterConnector(metaclass=ABCMeta):
+    SCHEDULER: str
 
-    def __init__(self, cluster: str, pool: str, scheduler: str) -> None:
+    def __init__(self, cluster: str, pool: str) -> None:
         self.cluster = cluster
         self.pool = pool
-        self.scheduler = scheduler
-        self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool, scheduler=self.scheduler))
+        self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool, scheduler=self.SCHEDULER))
 
     @abstractmethod
     def reload_state(self) -> None:  # pragma: no cover
