@@ -18,6 +18,7 @@ clusters:
 aws:
     endpoint_url: http://moto-{svc}:5000
     access_key_file: /etc/boto_cfg/clusterman.json
+    signals_bucket: clusterman-signals
 
 batches:
     spot_prices:

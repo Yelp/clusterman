@@ -25,10 +25,10 @@ docker-venv
 .cache
 .pytest_cache/
 .mypy_cache/
-yelp_package/itest/autoscaler_config.yaml
-yelp_package/itest/autoscaler_config.tmpl
-yelp_package/itest/run_instance.py
-yelp_package/itest/trusty/*
-yelp_package/itest/xenial/*
-yelp_package/itest/bionic/*
+package/itest/autoscaler_config.yaml
+package/itest/autoscaler_config.tmpl
+package/itest/run_instance.py
+package/itest/trusty/*
+package/itest/xenial/*
+package/itest/bionic/*
 /completions/
