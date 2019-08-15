@@ -93,11 +93,11 @@ version-bump:
 	if [ $$? -eq 0 ]; then git tag "v$${PACKAGE_VERSION}"; fi
 
 dist:
-	ln -sf yelp_package/dist ./dist
+	ln -sf package/dist ./dist
 
 itest_%: dist completions
 	tox -e acceptance
-	make -C yelp_package $@
+	make -C package $@
 	./.tox/acceptance/bin/docker-compose -f acceptance/docker-compose.yaml down
 
 .PHONY:
@@ -112,7 +112,7 @@ clean:
 	-unlink dist
 	-find . -name '*.pyc' -delete
 	-find . -name '__pycache__' -delete
-	-rm -rf yelp_package/dist/*
+	-rm -rf package/dist/*
 
 clean-cache:
 	find -name '*.pyc' -delete

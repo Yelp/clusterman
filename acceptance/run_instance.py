@@ -68,7 +68,7 @@ s3.put_object(
     }).encode()
 )
 
-s3.create_bucket(Bucket='yelp-clusterman-signals')
+s3.create_bucket(Bucket='clusterman-signals')
 with open(
     '{root}/{env}/clusterman_signals_acceptance.tar.gz'.format(
         root=root,
@@ -77,7 +77,7 @@ with open(
     'rb'
 ) as f:
     s3.put_object(
-        Bucket='yelp-clusterman-signals',
+        Bucket='clusterman-signals',
         Key='{env}/clusterman_signals_acceptance.tar.gz'.format(env=os.environ['DISTRIB_CODENAME']),
         Body=f.read(),
     )
