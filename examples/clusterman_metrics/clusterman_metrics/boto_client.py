@@ -8,8 +8,8 @@ from contextlib import contextmanager
 from datetime import timedelta
 from decimal import Decimal  # noqa (only used in type-checking)
 from typing import DefaultDict
+from typing import Dict
 from typing import List
-from typing import Mapping
 from typing import MutableMapping
 from typing import Optional
 from typing import Set
@@ -177,7 +177,7 @@ class ClustermanMetricsBotoClient(object):
         is_regex: bool = False,
         check_deprecated: bool = True,
         use_cache: bool = True,
-        extra_dimensions: Optional[Mapping[str, str]] = None,
+        extra_dimensions: Optional[Dict[str, str]] = None,
         app_identifier: Optional[str] = None,
     ) -> MetricsValuesDict:
         """Returns the values over a time range for some metric.
@@ -242,9 +242,8 @@ class ClustermanMetricsBotoClient(object):
         time_start: int,
         time_end: int,
         is_regex: bool = False,
-        extra_dimensions: Optional[Mapping[str, str]] = None,
-    ):
-        # (...) -> MetricsValuesDict
+        extra_dimensions: Optional[Dict[str, str]] = None,
+    ) -> MetricsValuesDict:
         """
         Query the backend datastore to get any new metrics values
 
@@ -316,7 +315,7 @@ class ClustermanMetricsBotoClient(object):
         metric_query: str,
         time_start: int,
         time_end: int,
-        table: boto3.dynamodb.Table,
+        table: 'boto3.dynamodb.Table',
     ) -> Set[str]:
         """ Query the global secondary index for any keys matching the metric query """
         metric_keys: Set[str] = set()

@@ -16,7 +16,7 @@ def _parse_dimensions(metric_name):
     return metric_name, dict(dim_pair.split('=') for dim_pair in dims.split(',') if dim_pair)
 
 
-def generate_key_with_dimensions(metric_name: str, dimensions: Optional[str, str] = None) -> str:
+def generate_key_with_dimensions(metric_name: str, dimensions: Optional[Mapping[str, str]] = None) -> str:
     """ Helper function to generate a key used to reference metric timeseries data in DynamoDB; this key will
     be parsed by ``get_meteorite_identifiers`` to store data in SignalFX.
 

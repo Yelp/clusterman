@@ -2,7 +2,6 @@ import sys
 
 import arrow
 import mock
-import pysensu_yelp
 import pytest
 import staticconf.testing
 from colorama import Fore
@@ -17,6 +16,7 @@ from clusterman.util import get_pool_name_list
 from clusterman.util import parse_time_interval_seconds
 from clusterman.util import parse_time_string
 from clusterman.util import sensu_checkin
+from clusterman.util import Status
 
 
 @pytest.fixture(autouse=True)
@@ -113,7 +113,7 @@ class TestSensu:
                 name='my_check',
                 output=self._sensu_output('output', 'my_source'),
                 source='my_source',
-                status=pysensu_yelp.Status.OK,
+                status=Status.OK,
                 runbook='y/my-runbook',
                 team='my_team',
                 page=True,
@@ -135,7 +135,7 @@ class TestSensu:
             name='my_check',
             source='my_source',
             output=self._sensu_output('output', 'my_source', pool, app, scheduler),
-            status=pysensu_yelp.Status.OK,
+            status=Status.OK,
             runbook='y/my-runbook' if not app else 'y/their-runbook',
             team='a_different_team',
             page=True,
@@ -152,7 +152,7 @@ class TestSensu:
             name='my_check',
             output=self._sensu_output('output', 'my_source', app='non-existent'),
             source='my_source',
-            status=pysensu_yelp.Status.OK,
+            status=Status.OK,
             runbook='y/my-runbook',
             team='my_team',
             page=True,

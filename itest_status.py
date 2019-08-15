@@ -1,21 +1,26 @@
 import sys
+from subprocess import run
+
+
+def get_pid(batch_name):
+    output = run(f'ps -ef | egrep "python -m examples.batch.{batch_name}(\s+|$)"', shell=True, capture_output=True)
+
+    return output.stdout.split()[1].decode()
 
 
 def check_status(batch_name):  # pragma: no cover
     # status written by BatchRunningSentinelMixin
     status_file = f'/tmp/{batch_name}.running'
-    # pid written by yelp_batch
-    pid_file = f'/nail/run/{batch_name}.pid'
 
     try:
         with open(status_file) as f:
             status_pid = f.read()
-        with open(pid_file) as f:
-            batch_pid = f.read()
+        batch_pid = get_pid(batch_name)
     except FileNotFoundError:
         print(f'{batch_name} has not finished initialization')
         sys.exit(1)
 
+    print(f'{status_pid} ?= {batch_pid}')
     assert status_pid == batch_pid
     print(f'{batch_name} completed initialization and is running at PID {status_pid}')
 

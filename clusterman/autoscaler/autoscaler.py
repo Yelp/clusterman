@@ -11,7 +11,6 @@ import colorlog
 import staticconf
 from clusterman_metrics import ClustermanMetricsBotoClient
 from clusterman_metrics import METADATA
-from pysensu_yelp import Status
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 from clusterman.autoscaler.config import get_autoscaling_config
@@ -26,6 +25,7 @@ from clusterman.monitoring_lib import get_monitoring_client
 from clusterman.util import ClustermanResources
 from clusterman.util import get_cluster_dimensions
 from clusterman.util import sensu_checkin
+from clusterman.util import Status
 
 CLUSTERMAN_STATE_TABLE = 'clusterman_cluster_state'
 AUTOSCALER_PAUSED = 'autoscaler_paused'

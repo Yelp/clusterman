@@ -3,6 +3,7 @@ import os
 import pprint
 import time
 from datetime import datetime
+from enum import Enum
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -14,11 +15,9 @@ from typing import TypeVar
 import arrow
 import colorlog
 import parsedatetime
-import pysensu_yelp
 import staticconf
 from colorama import Fore
 from colorama import Style
-from pysensu_yelp import Status
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 from clusterman.config import get_cluster_config_directory
@@ -27,6 +26,13 @@ from clusterman.config import POOL_NAMESPACE
 
 
 logger = colorlog.getLogger(__name__)
+
+
+class Status(Enum):
+    OK = 0
+    WARNING = 1
+    CRITICAL = 2
+    UNKNOWN = 3
 
 
 class All:
@@ -188,6 +194,10 @@ def sensu_checkin(
     page: bool = True,
     **kwargs: Any,
 ) -> None:
+    try:
+        import pysensu_yelp
+    except ImportError:
+        pysensu_yelp = None
     # This function feels like a massive hack, let's revisit and see if we can make it better (CLUSTERMAN-304)
     #
     # TODO (CLUSTERMAN-126) right now there's only one app per pool so use the global pool namespace
@@ -223,13 +233,13 @@ def sensu_checkin(
         'name': check_name,
         'output': output,
         'source': source,
-        'status': status,
+        'status': status.value,
         'page': page,
     })
     # values passed in to this function override config file values (is this really correct??)
     sensu_config.update(kwargs)
 
-    if noop:
+    if noop or not pysensu_yelp:
         logger.info((
             'Would have sent this event to Sensu:\n'
             f'{pprint.pformat(sensu_config)}'

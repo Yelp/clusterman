@@ -41,16 +41,16 @@ test: clean-cache mypy
 	tox
 
 .PHONY: itest
-itest: cook-image
+itest:
 	tox -e acceptance
-	./paasta-itest-runner spot_price_collector "--aws-region=us-west-1 --disable-sensu"
-	./paasta-itest-runner cluster_metrics_collector "--cluster=docker --env-config-path acceptance/srv-configs/clusterman.yaml --cluster-config-dir acceptance/srv-configs/clusterman-clusters --disable-sensu"
-	./paasta-itest-runner autoscaler_bootstrap "--env-config-path acceptance/srv-configs/clusterman.yaml --cluster-config-dir acceptance/srv-configs/clusterman-clusters" autoscaler
+	./service-itest-runner spot_price_collector "--aws-region=us-west-1"
+	./service-itest-runner cluster_metrics_collector "--cluster=docker"
+	./service-itest-runner autoscaler_bootstrap "" autoscaler
 
 .PHONY: cook-image
 cook-image:
 	git rev-parse HEAD > version
-	docker build -t $(DOCKER_TAG) .
+	docker build -t $(DOCKER_TAG) -f Dockerfile .
 
 .PHONY: completions
 completions: virtualenv_run
@@ -117,10 +117,6 @@ clean:
 clean-cache:
 	find -name '*.pyc' -delete
 	find -name '__pycache__' -delete
-
-.PHONY:
-upgrade-requirements:
-	upgrade-requirements -i https://pypi.yelpcorp.com/simple --pip-tool pip-custom-platform --install-deps pip-custom-platform
 
 .PHONY:
 debug:
