@@ -16,7 +16,7 @@ from clusterman.exceptions import ClustermanSignalError
 
 def _check_sensu_args(call_args, *, name=None, app_name=None, status=Status.OK):
     __, args = call_args
-    signal_sensu_config = staticconf.read_list('sensu_config', default=[{}], namespace='bar_config').pop()
+    signal_sensu_config = staticconf.read_list('sensu_config', default=[{}], namespace='bar.mesos_config').pop()
     service_sensu_config = staticconf.read_list('sensu_config', default=[{}]).pop()
     if app_name:
         team = signal_sensu_config['team'] if signal_sensu_config else service_sensu_config['team']

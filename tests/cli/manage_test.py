@@ -12,26 +12,27 @@ def args():
     return Namespace(
         cluster='foo',
         pool='bar',
+        scheduler='mesos',
         target_capacity='123',
         dry_run=False,
     )
 
 
 def test_get_target_capacity_value_min():
-    assert get_target_capacity_value('mIN', 'bar') == 3
+    assert get_target_capacity_value('mIN', 'bar', 'mesos') == 3
 
 
 def test_get_target_capacity_value_max():
-    assert get_target_capacity_value('mAx', 'bar') == 345
+    assert get_target_capacity_value('mAx', 'bar', 'mesos') == 345
 
 
 def test_get_target_capacity_value_number():
-    assert get_target_capacity_value('123', 'bar') == 123
+    assert get_target_capacity_value('123', 'bar', 'mesos') == 123
 
 
 def test_get_target_capacity_value_invalid():
     with pytest.raises(ValueError):
-        get_target_capacity_value('asdf', 'bar')
+        get_target_capacity_value('asdf', 'bar', 'mesos')
 
 
 @mock.patch('clusterman.cli.manage.logger')

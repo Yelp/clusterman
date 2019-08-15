@@ -7,7 +7,7 @@ PACKAGE_VERSION ?= $(shell cd $(CURDIR)/.. && python setup.py --version)
 UID:=`id -u`
 GID:=`id -g`
 DOCKER_BUILD_RUN:=docker run -t -v $(CURDIR)/..:/src:ro -v $(CURDIR)/dist:/dist:rw
-DOCKER_ITEST_RUN:=docker run -t -v $(CURDIR)/itest:/itest:rw -v $(CURDIR)/dist:/dist:ro --net=acceptance_default \
+DOCKER_ITEST_RUN:=docker run -it -v $(CURDIR)/itest:/itest:rw -v $(CURDIR)/dist:/dist:ro --net=acceptance_default \
 	-v $(CURDIR)/../acceptance/run_instance.py:/itest/run_instance.py:ro \
 	-v $(CURDIR)/../acceptance/autoscaler_config.tmpl:/itest/autoscaler_config.tmpl:ro \
 	-v $(CURDIR)/../acceptance/srv-configs:/nail/srv/configs:ro \

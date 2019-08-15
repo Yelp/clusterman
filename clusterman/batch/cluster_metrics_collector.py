@@ -7,6 +7,7 @@ from typing import cast
 from typing import Generator
 from typing import List
 from typing import Mapping
+from typing import MutableMapping
 from typing import NamedTuple
 from typing import Type
 from typing import Union
@@ -36,8 +37,8 @@ from clusterman.mesos.metrics_generators import ClusterMetric
 from clusterman.mesos.metrics_generators import generate_framework_metadata
 from clusterman.mesos.metrics_generators import generate_simple_metadata
 from clusterman.mesos.metrics_generators import generate_system_metrics
-from clusterman.mesos.util import get_pool_name_list
 from clusterman.util import All
+from clusterman.util import get_pool_name_list
 from clusterman.util import sensu_checkin
 from clusterman.util import setup_logging
 from clusterman.util import splay_event_time
@@ -81,10 +82,15 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
 
         # Since we want to collect metrics for all the pools, we need to call setup_config
         # first to load the cluster config path, and then read all the entries in that directory
-        self.pools = get_pool_name_list(self.options.cluster)
-        for pool in self.pools:
-            self.config.watchers.append({pool: get_pool_config_path(self.options.cluster, pool)})
-            load_cluster_pool_config(self.options.cluster, pool, None)
+        self.pools: MutableMapping[str, List[str]] = {}
+        for scheduler in {'mesos', 'kubernetes'}:
+            self.pools[scheduler] = get_pool_name_list(self.options.cluster, scheduler)
+        for scheduler, pools in self.pools.items():
+            for pool in pools:
+                self.config.watchers.append({
+                    f'{pool}.{scheduler}': get_pool_config_path(self.options.cluster, pool, scheduler),
+                })
+                load_cluster_pool_config(self.options.cluster, pool, scheduler, None)
 
         self.region = staticconf.read_string('aws.region')
         self.run_interval = staticconf.read_int('batches.cluster_metrics.run_interval_seconds')
@@ -95,9 +101,10 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
     def load_pool_managers(self) -> None:
         logger.info('Reloading all PoolManagers')
         self.pool_managers: Mapping[str, PoolManager] = {}
-        for pool in self.pools:
-            logger.info(f'Loading resource groups for {pool} on {self.options.cluster}')
-            self.pool_managers[pool] = PoolManager(self.options.cluster, pool)
+        for scheduler, pools in self.pools.items():
+            for pool in pools:
+                logger.info(f'Loading resource groups for {pool}.{scheduler} on {self.options.cluster}')
+                self.pool_managers[f'{pool}.{scheduler}'] = PoolManager(self.options.cluster, pool, scheduler)
 
     @suppress_request_limit_exceeded()
     def run(self) -> None:

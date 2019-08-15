@@ -47,12 +47,14 @@ class PoolManager:
         self,
         cluster: str,
         pool: str,
+        scheduler: str,
         fetch_state: bool = True,
     ) -> None:
         self.cluster = cluster
         self.pool = pool
-        self.cluster_connector = ClusterConnector.load(self.cluster, self.pool)
-        self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool))
+        self.scheduler = scheduler
+        self.cluster_connector = ClusterConnector.load(self.cluster, self.pool, self.scheduler)
+        self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool, scheduler=self.scheduler))
 
         self.draining_enabled = self.pool_config.read_bool('draining_enabled', default=False)
         self.draining_client: Optional[DrainingClient] = DrainingClient(cluster) if self.draining_enabled else None

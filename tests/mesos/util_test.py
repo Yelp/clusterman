@@ -1,12 +1,9 @@
 import mock
 import pytest
-import staticconf
 
 from clusterman.exceptions import PoolManagerError
 from clusterman.mesos.util import agent_pid_to_ip
 from clusterman.mesos.util import allocated_agent_resources
-from clusterman.mesos.util import get_cluster_name_list
-from clusterman.mesos.util import get_pool_name_list
 from clusterman.mesos.util import mesos_post
 
 
@@ -50,30 +47,3 @@ class TestMesosPost:
                 pytest.raises(PoolManagerError):
             mock_requests.post.side_effect = Exception('something bad happened')
             wrapped_post('http://the.mesos.master/', 'an-endpoint')
-
-
-def test_get_cluster_name_list():
-    with staticconf.testing.MockConfiguration(
-        {
-            'clusters': {
-                'cluster-A': {
-                    'fqdn': 'service.leader',
-                },
-                'cluster-B': {
-                    'fqdn': 'service.leader',
-                },
-            },
-        },
-        namespace=staticconf.config.DEFAULT,
-    ):
-        assert set(get_cluster_name_list()) == {'cluster-A', 'cluster-B'}
-
-
-@mock.patch('clusterman.mesos.util.get_cluster_config_directory')
-@mock.patch('os.listdir')
-def test_get_pool_name_list(mock_listdir, mock_get_cluster_config_directory):
-    mock_get_cluster_config_directory.return_value = '/tmp/somedir/cluster-A'
-    mock_listdir.return_value = ['pool-A.yaml', 'pool-B.xml', 'pool-C.yaml', 'pool-D']
-    assert set(get_pool_name_list('cluster-A')) == {'pool-A', 'pool-C'}
-    assert mock_get_cluster_config_directory.call_args == mock.call('cluster-A')
-    assert mock_listdir.call_args == mock.call('/tmp/somedir/cluster-A')

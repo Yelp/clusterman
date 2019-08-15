@@ -1,7 +1,7 @@
 from clusterman.args import add_cluster_arg
 from clusterman.args import subparser
-from clusterman.mesos.util import get_cluster_name_list
-from clusterman.mesos.util import get_pool_name_list
+from clusterman.util import get_cluster_name_list
+from clusterman.util import get_pool_name_list
 
 
 def list_clusters(args):  # pragma: no cover

@@ -29,7 +29,7 @@ from clusterman.draining.mesos import drain
 from clusterman.draining.mesos import operator_api
 from clusterman.draining.mesos import up
 from clusterman.interfaces.resource_group import InstanceMetadata
-from clusterman.mesos.util import get_pool_name_list
+from clusterman.util import get_pool_name_list
 
 
 logger = colorlog.getLogger(__name__)
@@ -269,8 +269,8 @@ class DrainingClient():
         if host_to_process:
             logger.info(f'Processing spot warning for {host_to_process.hostname}')
             spot_fleet_resource_groups = []
-            for pool in get_pool_name_list(self.cluster):
-                pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=pool))
+            for pool in get_pool_name_list(self.cluster, 'mesos'):  # draining only supported for Mesos clusters
+                pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=pool, scheduler='mesos'))
                 for resource_group_conf in pool_config.read_list('resource_groups'):
                     spot_fleet_resource_groups.extend(list(SpotFleetResourceGroup.load(
                         cluster=self.cluster,
@@ -327,9 +327,9 @@ def host_from_instance_id(
 
 def process_queues(cluster_name: str) -> None:
     draining_client = DrainingClient(cluster_name)
-    mesos_master_fqdn = staticconf.read_string(f'clusters.{cluster_name}.fqdn')
+    mesos_master_url = staticconf.read_string(f'clusters.{cluster_name}.mesos_master_fqdn')
     mesos_secret_path = staticconf.read_string(f'mesos.mesos_agent_secret_path', default=None)
-    operator_client = operator_api(mesos_master_fqdn, mesos_secret_path)
+    operator_client = operator_api(mesos_master_url, mesos_secret_path)
     logger.info('Polling SQS for messages every 5s')
     while True:
         draining_client.clean_processing_hosts_cache()
@@ -352,8 +352,8 @@ def terminate_host(host: Host) -> None:
 
 def main(args: argparse.Namespace) -> None:
     setup_config(args)
-    for pool in get_pool_name_list(args.cluster):
-        load_cluster_pool_config(args.cluster, pool, None)
+    for pool in get_pool_name_list(args.cluster, 'mesos'):
+        load_cluster_pool_config(args.cluster, pool, 'mesos', None)  # drainer only supported for mesos
     process_queues(args.cluster)
 
 

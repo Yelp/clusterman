@@ -22,7 +22,7 @@ from clusterman.exceptions import SignalConnectionError
 @pytest.fixture
 def mock_signal():
     with mock.patch('clusterman.autoscaler.signals.Signal._connect_to_signal_process'):
-        return Signal('foo', 'bar', 'app1', 'bar_config', mock.Mock(), 'the_signal')
+        return Signal('foo', 'bar', 'mesos', 'app1', 'bar.mesos_config', mock.Mock(), 'the_signal')
 
 
 def test_init(mock_signal):
@@ -35,11 +35,11 @@ def test_init(mock_signal):
 def test_no_signal_configured():
     with staticconf.testing.MockConfiguration(
         {},
-        namespace='bar_config',
+        namespace='bar.mesos_config',
     ), mock.patch(
         'clusterman.autoscaler.signals.Signal._connect_to_signal_process',
     ), pytest.raises(NoSignalConfiguredException):
-        return Signal('foo', 'bar', 'app1', 'bar_config', mock.Mock(), 'the_signal')
+        return Signal('foo', 'bar', 'mesos', 'app1', 'bar.mesos_config', mock.Mock(), 'the_signal')
 
 
 @pytest.mark.parametrize('conn_response', [['foo'], [ACK, 'foo']])
@@ -100,6 +100,7 @@ def test_evaluate_signal_sending_message(mock_signal, signal_recv):
 def test_get_metrics(mock_signal, end_time):
     mock_signal.metrics_client.get_metric_values.side_effect = [
         {'cpus_allocated': [(1, 2), (3, 4)]},
+        {'cpus_allocated': [(5, 6), (7, 8)]},
         {'app1,cost': [(1, 2.5), (3, 4.5)]},
     ]
     metrics = mock_signal._get_metrics(end_time)
@@ -111,6 +112,15 @@ def test_get_metrics(mock_signal, end_time):
             end_time.timestamp,
             app_identifier='app1',
             extra_dimensions={'cluster': 'foo', 'pool': 'bar'},
+            is_regex=False,
+        ),
+        mock.call(
+            'cpus_allocated',
+            SYSTEM_METRICS,
+            end_time.shift(minutes=-10).timestamp,
+            end_time.timestamp,
+            app_identifier='app1',
+            extra_dimensions={'cluster': 'foo', 'pool': 'bar.mesos'},
             is_regex=False,
         ),
         mock.call(
@@ -134,7 +144,7 @@ def test_get_metadata_metrics(mock_signal):
 
 
 def test_setup_signals_namespace():
-    fetch_num, signal_num = setup_signals_environment('bar')
+    fetch_num, signal_num = setup_signals_environment('bar', 'mesos')
     assert sorted(os.environ['CMAN_VERSIONS_TO_FETCH'].split(' ')) == ['master', 'v42']
     assert sorted(os.environ['CMAN_SIGNAL_VERSIONS'].split(' ')) == ['master', 'v42']
     assert sorted(os.environ['CMAN_SIGNAL_NAMESPACES'].split(' ')) == ['bar', 'foo']

@@ -98,6 +98,16 @@ def add_pool_arg(parser):  # pragma: no cover
     )
 
 
+def add_scheduler_arg(parser):  # pragma: no cover
+    """ Add --scheduler argument to a parser """
+    parser.add_argument(
+        '--scheduler',
+        default=os.environ.get('CMAN_SCHEDULER', 'mesos'),
+        choices=['mesos', 'kubernetes'],
+        help='Type of scheduler used to manage the chosen pool',
+    )
+
+
 def add_env_config_path_arg(parser):  # pragma: no cover
     """ Add a --env-config-path argument to a parser """
     parser.add_argument(

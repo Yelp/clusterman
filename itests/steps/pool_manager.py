@@ -68,7 +68,7 @@ def mock_agents_by_ip_and_tasks(context):
         return_value=([], [], []),
     ), staticconf.testing.PatchConfiguration(
         {'scaling_limits': {'max_weight_to_remove': 1000}},
-        namespace='bar_config',
+        namespace='bar.mesos_config',
     ), mock.patch(
         'clusterman.aws.aws_resource_group.gethostbyaddr',
         return_value=('the-host', '', ''),
@@ -97,7 +97,7 @@ def make_pool_manager(context, num, rg_type):
             mock_sfr_load.return_value = mock_sfrs(int(num), context.subnet_id)
         elif context.rg_type == 'fleet':
             mock_fleet_load.return_value = mock_fleets(int(num), context.subnet_id)
-        context.pool_manager = PoolManager('mesos-test', 'bar')
+        context.pool_manager = PoolManager('mesos-test', 'bar', 'mesos')
     context.rg_ids = [i for i in context.pool_manager.resource_groups]
     context.pool_manager.max_capacity = 101
 

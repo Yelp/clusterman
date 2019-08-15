@@ -16,8 +16,13 @@ paasta local-run -s clusterman -c norcal-devc -i itest --no-healthcheck &
 CONTAINER_NAME_REGEX="(paasta-local-run-clusterman-$(whoami)|services-clusterman:paasta-$(git rev-parse HEAD))"
 while [ -z ${CONTAINER} ]; do CONTAINER=$(docker ps | egrep $CONTAINER_NAME_REGEX | cut -d' ' -f1); done
 docker network connect acceptance_default ${CONTAINER}
-docker exec --user=0 ${CONTAINER} python acceptance/run_instance.py
-docker exec ${CONTAINER} /bin/bash -c "AWS_ENDPOINT_URL_ARGS='--endpoint-url http://moto-s3:5000' python -m clusterman.batch.$BATCH start $ARGS" &
+docker exec -e ACCEPTANCE_ROOT=/code/acceptance --user=0 ${CONTAINER} python acceptance/run_instance.py
+docker exec \
+    -e CMAN_CLUSTER=docker \
+    -e CMAN_POOL=default \
+    -e CMAN_SCHEDULER=mesos \
+    -e CMAN_ARGS="--env-config-path acceptance/srv-configs/clusterman.yaml --cluster-config-dir acceptance/srv-configs/clusterman-clusters" \
+    ${CONTAINER} /bin/bash -c "AWS_ENDPOINT_URL_ARGS='--endpoint-url http://moto-s3:5000' python -m clusterman.batch.$BATCH start $ARGS" &
 count=0
 while docker exec ${CONTAINER} /bin/sh -c "python -m clusterman.batch.status $STATUS_EXECUTABLE"; [ $? -ne 0 ]; do
     count=$((count+1))

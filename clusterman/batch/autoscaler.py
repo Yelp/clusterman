@@ -10,6 +10,7 @@ from clusterman.args import add_cluster_arg
 from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_env_config_path_arg
 from clusterman.args import add_pool_arg
+from clusterman.args import add_scheduler_arg
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.batch.util import BatchLoggingMixin
@@ -64,6 +65,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
         arg_group = parser.add_argument_group('AutoscalerBatch options')
         add_cluster_arg(arg_group, required=True)
         add_pool_arg(arg_group)
+        add_scheduler_arg(arg_group)
         add_cluster_config_directory_arg(arg_group)
         add_env_config_path_arg(arg_group)
         arg_group.add_argument(
@@ -84,10 +86,12 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
         pool_manager = PoolManager(
             self.options.cluster,
             self.options.pool,
+            self.options.scheduler,
         )
         self.autoscaler = Autoscaler(
             self.options.cluster,
             self.options.pool,
+            self.options.scheduler,
             self.apps,
             monitoring_enabled=(not self.options.dry_run),
             pool_manager=pool_manager,
@@ -128,6 +132,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
         )
 
         sensu_args = dict(
+            scheduler=self.options.scheduler,
             check_every=check_every,
             source=f'{self.options.cluster}_{self.options.pool}',
             ttl=alert_delay,

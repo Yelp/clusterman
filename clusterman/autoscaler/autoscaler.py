@@ -35,6 +35,7 @@ class Autoscaler:
         self,
         cluster: str,
         pool: str,
+        scheduler: str,
         apps: List[str],
         pool_manager: Optional[PoolManager] = None,
         metrics_client: Optional[ClustermanMetricsBotoClient] = None,
@@ -51,6 +52,7 @@ class Autoscaler:
         """
         self.cluster = cluster
         self.pool = pool
+        self.scheduler = scheduler
         self.apps = apps
         self.monitoring_enabled = monitoring_enabled
 
@@ -69,14 +71,17 @@ class Autoscaler:
                 gauge_dimensions,
             )
 
-        self.autoscaling_config = get_autoscaling_config(POOL_NAMESPACE.format(pool=self.pool))
-        self.pool_manager = pool_manager or PoolManager(self.cluster, self.pool)
+        self.autoscaling_config = get_autoscaling_config(
+            POOL_NAMESPACE.format(pool=self.pool, scheduler=self.scheduler),
+        )
+        self.pool_manager = pool_manager or PoolManager(self.cluster, self.pool, self.scheduler)
 
         self.mesos_region = staticconf.read_string('aws.region')
         self.metrics_client = metrics_client or ClustermanMetricsBotoClient(self.mesos_region)
         self.default_signal = Signal(
             self.cluster,
             self.pool,
+            self.scheduler,
             '__default__',
             DEFAULT_NAMESPACE,
             self.metrics_client,
@@ -135,12 +140,20 @@ class Autoscaler:
         logger.info(f'Loading autoscaling signal for {app} on {self.pool} in {self.cluster}')
 
         # TODO (CLUSTERMAN-126, CLUSTERMAN-195) apps will eventually have separate namespaces from pools
-        pool_namespace = POOL_NAMESPACE.format(pool=app)
+        pool_namespace = POOL_NAMESPACE.format(pool=app, scheduler=self.scheduler)
         signal_namespace = staticconf.read_string('autoscale_signal.namespace', default=app, namespace=pool_namespace)
 
         try:
             # see if the pool has set up a custom signal correctly; if not, fall back to the default signal
-            return Signal(self.cluster, self.pool, app, pool_namespace, self.metrics_client, signal_namespace)
+            return Signal(
+                self.cluster,
+                self.pool,
+                self.scheduler,
+                app,
+                pool_namespace,
+                self.metrics_client,
+                signal_namespace,
+            )
         except NoSignalConfiguredException:
             logger.info(f'No signal configured for {app}, falling back to default')
             return self.default_signal
@@ -152,6 +165,7 @@ class Autoscaler:
                 status=Status.WARNING,
                 output=msg,
                 source=self.cluster,
+                scheduler=self.scheduler,
                 page=False,
                 ttl=None,
                 app=app,

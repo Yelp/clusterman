@@ -13,6 +13,7 @@ from clusterman.args import add_cluster_arg
 from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_env_config_path_arg
 from clusterman.args import add_pool_arg
+from clusterman.args import add_scheduler_arg
 from clusterman.autoscaler.signals import setup_signals_environment
 from clusterman.batch.util import BatchLoggingMixin
 from clusterman.config import get_pool_config_path
@@ -58,6 +59,7 @@ class AutoscalerBootstrapBatch(BatchDaemon, BatchLoggingMixin):
         arg_group = parser.add_argument_group('AutoscalerMonitor options')
         add_cluster_arg(arg_group)
         add_pool_arg(arg_group)
+        add_scheduler_arg(arg_group)
         add_env_config_path_arg(arg_group)
         add_cluster_config_directory_arg(arg_group)
         add_branch_or_tag_arg(arg_group)
@@ -68,12 +70,15 @@ class AutoscalerBootstrapBatch(BatchDaemon, BatchLoggingMixin):
         )
 
     @batch_configure
-    def configure_initial(self):
+    def configure_initial(self) -> None:
         setup_config(self.options)
         self.logger = logger
-        self.fetch_proc_count, self.run_proc_count = setup_signals_environment(self.options.pool)
+        self.fetch_proc_count, self.run_proc_count = setup_signals_environment(
+            self.options.pool,
+            self.options.scheduler,
+        )
         self.config.watchers.append(
-            {self.options.pool: get_pool_config_path(self.options.cluster, self.options.pool)},
+            {self.options.pool: get_pool_config_path(self.options.cluster, self.options.pool, self.options.scheduler)},
         )
 
     def _get_local_log_stream(self, clog_prefix=None):

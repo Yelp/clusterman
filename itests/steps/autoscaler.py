@@ -103,6 +103,7 @@ def autoscaler(context):
         cluster='mesos-test',
         pool='bar',
         apps=['bar'],
+        scheduler='mesos',
         metrics_client=mock.Mock(),
         monitoring_enabled=False,
     )

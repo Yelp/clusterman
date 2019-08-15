@@ -1,9 +1,11 @@
 import logging
+import os
 import pprint
 import time
 from datetime import datetime
 from typing import Any
 from typing import Callable
+from typing import List
 from typing import NamedTuple
 from typing import Optional
 from typing import TypeVar
@@ -16,7 +18,9 @@ import staticconf
 from colorama import Fore
 from colorama import Style
 from pysensu_yelp import Status
+from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
+from clusterman.config import get_cluster_config_directory
 from clusterman.config import LOG_STREAM_NAME
 from clusterman.config import POOL_NAMESPACE
 
@@ -178,6 +182,7 @@ def sensu_checkin(
     status: Status = Status.OK,
     app: Optional[str] = None,
     pool: Optional[str] = None,
+    scheduler: Optional[str] = None,
     noop: bool = False,
     page: bool = True,
     **kwargs: Any,
@@ -188,7 +193,7 @@ def sensu_checkin(
     # We assume the "pool" name and the "app" name are the same
     #
     # Use 'no-namespace' instead of None so we don't skip the per-cluster override
-    pool_namespace = POOL_NAMESPACE.format(pool=app) if app else 'no-namespace'
+    pool_namespace = POOL_NAMESPACE.format(pool=app, scheduler=scheduler) if app else 'no-namespace'
 
     # read the sensu configuration from srv-configs; signals are not required to define this, so in the case
     # that they do not define anything, we fall back to the clusterman config.  The clusterman config can override
@@ -209,7 +214,7 @@ def sensu_checkin(
     output += ''.join([
         '\n\nThis check came from:\n',
         f'- Cluster/region: {source}\n',
-        f'- Pool: {pool}\n' if pool else '',
+        f'- Pool: {pool}.{scheduler}\n' if pool else '',
         f'- App: {app}\n' if app else '',
     ])
 
@@ -251,3 +256,16 @@ def splay_event_time(frequency: int, key: str, timestamp: float = None) -> float
 
 def read_int_or_inf(reader, param):
     return float('inf') if reader.read_string(param, default=0) == 'inf' else reader.read_int(param, default=0)
+
+
+def get_pool_name_list(cluster_name: str, scheduler: str) -> List[str]:
+    cluster_config_directory = get_cluster_config_directory(cluster_name)
+    return [
+        os.path.splitext(f)[0] for f in os.listdir(cluster_config_directory)
+        if f[0] != '.' and f.endswith(scheduler)  # skip dotfiles and only read scheduler files
+    ]
+
+
+def get_cluster_name_list(config_namespace: str = DEFAULT_NAMESPACE) -> List[str]:
+    namespace = staticconf.config.get_namespace(config_namespace)
+    return namespace.get_config_dict().get('clusters', {}).keys()

@@ -4,6 +4,7 @@ import arrow
 import mock
 import pysensu_yelp
 import pytest
+import staticconf.testing
 from colorama import Fore
 from colorama import Style
 
@@ -11,6 +12,8 @@ from clusterman.util import any_of
 from clusterman.util import ask_for_choice
 from clusterman.util import ask_for_confirmation
 from clusterman.util import color_conditions
+from clusterman.util import get_cluster_name_list
+from clusterman.util import get_pool_name_list
 from clusterman.util import parse_time_interval_seconds
 from clusterman.util import parse_time_string
 from clusterman.util import sensu_checkin
@@ -85,12 +88,12 @@ def test_parse_time_interval_seconds_invalid():
 
 @mock.patch('clusterman.util.pysensu_yelp', autospec=True)
 class TestSensu:
-    def _sensu_output(self, output, source, pool=None, app=None):
+    def _sensu_output(self, output, source, pool=None, app=None, scheduler=None):
         return ''.join([
             f'{output}\n\n',
             'This check came from:\n',
             f'- Cluster/region: {source}\n',
-            f'- Pool: {pool}\n' if pool else '',
+            f'- Pool: {pool}.{scheduler}\n' if pool else '',
             f'- App: {app}\n' if app else '',
         ])
 
@@ -116,9 +119,8 @@ class TestSensu:
                 page=True,
             )
 
-    @pytest.mark.parametrize('app', [None, 'bar'])
-    @pytest.mark.parametrize('pool', [None, 'foo'])
-    def test_args_overrides_config(self, mock_sensu, app, pool):
+    @pytest.mark.parametrize('app,pool,scheduler', [(None, None, None), ('bar', 'foo', 'mesos')])
+    def test_args_overrides_config(self, mock_sensu, app, pool, scheduler):
         sensu_checkin(
             check_name='my_check',
             output='output',
@@ -126,12 +128,13 @@ class TestSensu:
             team='a_different_team',
             app=app,
             pool=pool,
+            scheduler=scheduler,
         )
 
         assert mock_sensu.send_event.call_args == mock.call(
             name='my_check',
             source='my_source',
-            output=self._sensu_output('output', 'my_source', pool, app),
+            output=self._sensu_output('output', 'my_source', pool, app, scheduler),
             status=pysensu_yelp.Status.OK,
             runbook='y/my-runbook' if not app else 'y/their-runbook',
             team='a_different_team',
@@ -154,3 +157,31 @@ class TestSensu:
             team='my_team',
             page=True,
         )
+
+
+def test_get_cluster_name_list():
+    with staticconf.testing.MockConfiguration(
+        {
+            'clusters': {
+                'cluster-A': {
+                    'mesos_api_url': 'service.leader',
+                },
+                'cluster-B': {
+                    'mesos_api_url': 'service.leader',
+                },
+            },
+        },
+        namespace=staticconf.config.DEFAULT,
+    ):
+        assert set(get_cluster_name_list()) == {'cluster-A', 'cluster-B'}
+
+
+@mock.patch('clusterman.util.get_cluster_config_directory')
+@mock.patch('os.listdir')
+def test_get_pool_name_list(mock_listdir, mock_get_cluster_config_directory):
+    mock_get_cluster_config_directory.return_value = '/tmp/somedir/cluster-A'
+    mock_listdir.return_value = ['pool-A.mesos', 'pool-B.xml', 'pool-C.mesos', 'pool-D', 'pool-F.kubernetes']
+    assert set(get_pool_name_list('cluster-A', 'mesos')) == {'pool-A', 'pool-C'}
+    assert set(get_pool_name_list('cluster-A', 'kubernetes')) == {'pool-F'}
+    assert mock_get_cluster_config_directory.call_args == mock.call('cluster-A')
+    assert mock_listdir.call_args == mock.call('/tmp/somedir/cluster-A')

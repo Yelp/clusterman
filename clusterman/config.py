@@ -1,5 +1,6 @@
 import argparse
 import os
+from typing import Optional
 
 import staticconf
 from yelp_servlib.config_util import load_default_config
@@ -7,7 +8,7 @@ from yelp_servlib.config_util import load_default_config
 CREDENTIALS_NAMESPACE = 'boto_cfg'
 DEFAULT_CLUSTER_DIRECTORY = '/nail/srv/configs/clusterman-clusters'
 LOG_STREAM_NAME = 'tmp_clusterman_autoscaler'
-POOL_NAMESPACE = '{pool}_config'
+POOL_NAMESPACE = '{pool}.{scheduler}_config'
 
 
 def setup_config(args: argparse.Namespace) -> None:
@@ -24,6 +25,7 @@ def setup_config(args: argparse.Namespace) -> None:
     aws_region = getattr(args, 'aws_region', None)
     cluster = getattr(args, 'cluster', None)
     pool = getattr(args, 'pool', None)
+    scheduler = getattr(args, 'scheduler', None)
     if aws_region and cluster:
         raise argparse.ArgumentError(None, 'Cannot specify both cluster and aws_region')
 
@@ -34,7 +36,7 @@ def setup_config(args: argparse.Namespace) -> None:
     elif cluster:
         aws_region = staticconf.read_string(f'clusters.{cluster}.aws_region', default=None)
         if pool:
-            load_cluster_pool_config(cluster, pool, signals_branch_or_tag)
+            load_cluster_pool_config(cluster, pool, scheduler, signals_branch_or_tag)
 
     staticconf.DictConfiguration({'aws': {'region': aws_region}})
 
@@ -46,9 +48,9 @@ def setup_config(args: argparse.Namespace) -> None:
         staticconf.DictConfiguration({'autoscale_signal': {'branch_or_tag': signals_branch_or_tag}})
 
 
-def load_cluster_pool_config(cluster, pool, signals_branch_or_tag):
-    pool_namespace = POOL_NAMESPACE.format(pool=pool)
-    pool_config_file = get_pool_config_path(cluster, pool)
+def load_cluster_pool_config(cluster: str, pool: str, scheduler: str, signals_branch_or_tag: Optional[str]) -> None:
+    pool_namespace = POOL_NAMESPACE.format(pool=pool, scheduler=scheduler)
+    pool_config_file = get_pool_config_path(cluster, pool, scheduler)
 
     staticconf.YamlConfiguration(pool_config_file, namespace=pool_namespace)
     if signals_branch_or_tag:
@@ -62,5 +64,5 @@ def get_cluster_config_directory(cluster):
     return os.path.join(staticconf.read_string('cluster_config_directory'), cluster)
 
 
-def get_pool_config_path(cluster, pool):
-    return os.path.join(get_cluster_config_directory(cluster), f'{pool}.yaml')
+def get_pool_config_path(cluster: str, pool: str, scheduler: str) -> str:
+    return os.path.join(get_cluster_config_directory(cluster), f'{pool}.{scheduler}')

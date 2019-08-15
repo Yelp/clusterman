@@ -62,8 +62,7 @@ def main_clusterman_config():
         'mesos_maintenance_timeout_seconds': 1,
         'clusters': {
             'mesos-test': {
-                'fqdn': 'the.mesos.leader',
-                'cluster_manager': 'mesos',
+                'mesos_master_fqdn': 'the.mesos.leader',
                 'aws_region': 'us-west-2',
                 'drain_queue_url': 'mesos-test-draining.com',
                 'termination_queue_url': 'mesos-test-terminating.com',
@@ -126,7 +125,7 @@ def clusterman_pool_config():
             ],
         }
     }
-    with staticconf.testing.MockConfiguration(config, namespace='bar_config'):
+    with staticconf.testing.MockConfiguration(config, namespace='bar.mesos_config'):
         yield
 
 
