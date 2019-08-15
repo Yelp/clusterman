@@ -1,3 +1,9 @@
+clusterman (4.0.0) xenial bionic; urgency=low
+
+  * Kubernetes support
+
+ -- David Morrison <drmorr@yelp.com>  Thu, 15 Aug 2019 08:24:28 -0700
+
 clusterman (3.6.2) xenial bionic; urgency=low
 
   * make warning queue urls optional in the drainer
