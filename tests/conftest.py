@@ -4,12 +4,12 @@ from contextlib import contextmanager
 import mock
 import pytest
 import staticconf.testing
-import yelp_meteorite
 from clusterman_metrics import APP_METRICS
 from clusterman_metrics import SYSTEM_METRICS
 
 from clusterman.config import CREDENTIALS_NAMESPACE
 from clusterman.math.piecewise import PiecewiseConstantFunction
+from clusterman.monitoring_lib import yelp_meteorite
 
 
 @contextmanager
@@ -141,8 +141,9 @@ def mock_aws_client_setup():
 
 @pytest.fixture(autouse=True)
 def block_meteorite_emission():
-    with yelp_meteorite.testcase():
-        yield
+    if yelp_meteorite:
+        with yelp_meteorite.testcase():
+            yield
 
 
 @pytest.fixture

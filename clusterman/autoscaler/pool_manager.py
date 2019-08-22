@@ -14,7 +14,6 @@ from typing import Type
 
 import colorlog
 import staticconf
-import yelp_meteorite
 
 from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.markets import InstanceMarket
@@ -29,6 +28,7 @@ from clusterman.interfaces.cluster_connector import AgentState
 from clusterman.interfaces.cluster_connector import ClusterConnector
 from clusterman.interfaces.resource_group import InstanceMetadata
 from clusterman.interfaces.resource_group import ResourceGroup
+from clusterman.monitoring_lib import get_monitoring_client
 from clusterman.util import read_int_or_inf
 
 AWS_RUNNING_STATES = ('running',)
@@ -119,7 +119,7 @@ class PoolManager:
                 )
             except ResourceGroupError:
                 logger.critical(traceback.format_exc())
-                rge_counter = yelp_meteorite.create_counter(
+                rge_counter = get_monitoring_client().create_counter(
                     SFX_RESOURCE_GROUP_MODIFICATION_FAILED_NAME,
                     {'cluster': self.cluster, 'pool': self.pool},
                 )

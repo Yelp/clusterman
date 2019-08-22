@@ -24,7 +24,7 @@ def autoscaler_patches(context):
     with staticconf.testing.PatchConfiguration(
         {'autoscaling': {'default_signal_role': 'bar'}},
     ), mock.patch(
-        'clusterman.autoscaler.autoscaler.yelp_meteorite',
+        'clusterman.autoscaler.autoscaler.get_monitoring_client',
     ), mock.patch(
         'clusterman.aws.util.SpotFleetResourceGroup.load',
         return_value={rg1.id: rg1, rg2.id: rg2},
