@@ -2,7 +2,6 @@ import behave
 import mock
 import simplejson as json
 import staticconf.testing
-import yelp_meteorite
 from clusterman_metrics import APP_METRICS
 from clusterman_metrics import SYSTEM_METRICS
 from moto import mock_autoscaling
@@ -12,6 +11,7 @@ from moto import mock_sqs
 from clusterman.aws.client import autoscaling
 from clusterman.aws.client import ec2
 from clusterman.config import CREDENTIALS_NAMESPACE
+from clusterman.monitoring_lib import yelp_meteorite
 
 _ttl_patch = mock.patch('clusterman.aws.CACHE_TTL_SECONDS', -1)
 _ttl_patch.__enter__()
@@ -21,8 +21,9 @@ BEHAVE_DEBUG_ON_ERROR = False
 
 @behave.fixture
 def patch_meteorite(context):
-    with yelp_meteorite.testcase():
-        yield
+    if yelp_meteorite:
+        with yelp_meteorite.testcase():
+            yield
 
 
 @behave.fixture

@@ -116,9 +116,9 @@ def test_modify_target_capacity_no_resource_groups(mock_pool_manager):
 
 def test_modify_target_capacity_skip_failing_group(mock_pool_manager):
     list(mock_pool_manager.resource_groups.values())[0].modify_target_capacity.side_effect = ResourceGroupError('foo')
-    with mock.patch('clusterman.autoscaler.pool_manager.yelp_meteorite') as mock_meteorite:
+    with mock.patch('clusterman.autoscaler.pool_manager.get_monitoring_client') as mock_monitoring_client:
         mock_pool_manager.modify_target_capacity(1234)
-        assert mock_meteorite.create_counter.call_count == 1
+        assert mock_monitoring_client.return_value.create_counter.call_count == 1
 
 
 @pytest.mark.parametrize('new_target,constrained_target', ((100, 90), (10, 49)))

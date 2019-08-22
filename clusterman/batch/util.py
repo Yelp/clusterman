@@ -4,8 +4,9 @@ from contextlib import contextmanager
 
 import botocore.exceptions
 import colorlog
-import yelp_meteorite
 from yelp_batch.batch import batch_context
+
+from clusterman.monitoring_lib import get_monitoring_client
 
 RLE_COUNTER_NAME = 'clusterman.request_limit_exceeded'
 logger = colorlog.getLogger(__name__)
@@ -39,7 +40,7 @@ def suppress_request_limit_exceeded():
     except botocore.exceptions.ClientError as e:
         if e.response.get('Error', {}).get('Code') == 'RequestLimitExceeded':
             logger.warning(e)
-            rle_counter = yelp_meteorite.create_counter(RLE_COUNTER_NAME)
+            rle_counter = get_monitoring_client().create_counter(RLE_COUNTER_NAME)
             rle_counter.count()
         else:
             raise

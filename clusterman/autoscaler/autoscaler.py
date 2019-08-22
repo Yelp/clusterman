@@ -1,4 +1,5 @@
 import traceback
+from typing import Any
 from typing import Dict
 from typing import List
 from typing import MutableMapping
@@ -8,7 +9,6 @@ from typing import Tuple
 import arrow
 import colorlog
 import staticconf
-import yelp_meteorite
 from clusterman_metrics import ClustermanMetricsBotoClient
 from clusterman_metrics import METADATA
 from pysensu_yelp import Status
@@ -21,6 +21,7 @@ from clusterman.autoscaler.signals import SignalResponseDict
 from clusterman.config import POOL_NAMESPACE
 from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.exceptions import ResourceRequestError
+from clusterman.monitoring_lib import get_monitoring_client
 from clusterman.util import ClustermanResources
 from clusterman.util import sensu_checkin
 
@@ -63,10 +64,11 @@ class Autoscaler:
         logger.info(f'Initializing autoscaler engine for {self.pool} in {self.cluster}...')
 
         gauge_dimensions = {'cluster': cluster, 'pool': pool}
-        self.target_capacity_gauge = yelp_meteorite.create_gauge(TARGET_CAPACITY_GAUGE_NAME, gauge_dimensions)
-        self.resource_request_gauges: Dict[str, yelp_meteorite.metrics.Gauge] = {}
+        monitoring_client = get_monitoring_client()
+        self.target_capacity_gauge = monitoring_client.create_gauge(TARGET_CAPACITY_GAUGE_NAME, gauge_dimensions)
+        self.resource_request_gauges: Dict[str, Any] = {}
         for resource in ('cpus', 'mem', 'disk'):
-            self.resource_request_gauges[resource] = yelp_meteorite.create_gauge(
+            self.resource_request_gauges[resource] = monitoring_client.create_gauge(
                 RESOURCE_GAUGE_BASE_NAME.format(resource=resource),
                 gauge_dimensions,
             )

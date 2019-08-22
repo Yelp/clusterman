@@ -5,6 +5,10 @@ from typing import Optional
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 
+def read(config_key: str, default: Optional[str] = None, namespace: str = DEFAULT_NAMESPACE) -> str:
+    ...
+
+
 def read_bool(config_key: str, default: Optional[bool] = None, namespace: str = DEFAULT_NAMESPACE) -> bool:
     ...
 

@@ -5,12 +5,12 @@ import mock
 import pysensu_yelp
 import pytest
 import staticconf
-from yelp_meteorite.metrics import Gauge
 
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.autoscaler.config import AutoscalingConfig
 from clusterman.config import POOL_NAMESPACE
 from clusterman.exceptions import NoSignalConfiguredException
+from clusterman.monitoring_lib import GaugeProtocol
 from clusterman.util import ClustermanResources
 
 
@@ -59,7 +59,7 @@ def mock_autoscaler():
         'clusterman.autoscaler.autoscaler.Autoscaler._get_signal_for_app',
         autospec=True,
     ), mock.patch(
-        'clusterman.autoscaler.autoscaler.yelp_meteorite',
+        'clusterman.autoscaler.autoscaler.get_monitoring_client',
     ), mock.patch(
         'clusterman.autoscaler.autoscaler.Signal',
     ), staticconf.testing.PatchConfiguration(
@@ -77,10 +77,12 @@ def mock_autoscaler():
     )
     mock_autoscaler.pool_manager.non_orphan_fulfilled_capacity = 0
 
-    mock_autoscaler.target_capacity_gauge = mock.Mock(spec=Gauge)
-    mock_autoscaler.non_orphan_capacity_gauge = mock.Mock(spec=Gauge)
+    mock_autoscaler.target_capacity_gauge = mock.Mock(spec=GaugeProtocol)
+    mock_autoscaler.non_orphan_capacity_gauge = mock.Mock(spec=GaugeProtocol)
     mock_autoscaler.resource_request_gauges = {
-        'mem': mock.Mock(spec=Gauge), 'cpus': mock.Mock(spec=Gauge), 'disk': mock.Mock(spec=Gauge),
+        'mem': mock.Mock(spec=GaugeProtocol),
+        'cpus': mock.Mock(spec=GaugeProtocol),
+        'disk': mock.Mock(spec=GaugeProtocol),
     }
     return mock_autoscaler
 
