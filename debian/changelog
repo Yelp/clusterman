@@ -1,3 +1,9 @@
+clusterman (4.0.1) xenial bionic; urgency=low
+
+  * fix regression in metrics collector with scheduler tag
+
+ -- David Morrison <drmorr@yelp.com>  Fri, 23 Aug 2019 15:44:37 -0700
+
 clusterman (4.0.0) xenial bionic; urgency=low
 
   * Kubernetes support
