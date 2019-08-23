@@ -23,6 +23,7 @@ from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.exceptions import ResourceRequestError
 from clusterman.monitoring_lib import get_monitoring_client
 from clusterman.util import ClustermanResources
+from clusterman.util import get_cluster_dimensions
 from clusterman.util import sensu_checkin
 
 SIGNAL_LOAD_CHECK_NAME = 'signal_configuration_failed'
@@ -390,7 +391,7 @@ class Autoscaler:
             METADATA,
             time_start,
             time_end,
-            extra_dimensions={'cluster': self.cluster, 'pool': self.pool},
+            extra_dimensions=get_cluster_dimensions(self.cluster, self.pool, self.scheduler),
         )[metric_name]
         latest_non_zero_values = [(ts, val) for ts, val in metrics if val > 0][-smoothing:]
         if not latest_non_zero_values:

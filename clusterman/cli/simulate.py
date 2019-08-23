@@ -26,6 +26,7 @@ from clusterman.simulator.io import read_object_from_compressed_json
 from clusterman.simulator.io import write_object_to_compressed_json
 from clusterman.simulator.simulator import Simulator
 from clusterman.simulator.util import SimulationMetadata
+from clusterman.util import get_cluster_dimensions
 from clusterman.util import parse_time_string
 from clusterman.util import splay_event_time
 
@@ -80,10 +81,11 @@ def _populate_cluster_size_events(simulator, start_time, end_time):
         start_time.timestamp,
         end_time.timestamp,
         use_cache=False,
-        extra_dimensions={
-            'cluster': simulator.metadata.cluster,
-            'pool': f'{simulator.metadata.pool}.{simulator.metadata.scheduler}',
-        }
+        extra_dimensions=get_cluster_dimensions(
+            simulator.metadata.cluster,
+            simulator.metadata.pool,
+            simulator.metadata.scheduler,
+        ),
     )
     for i, (timestamp, data) in enumerate(capacity_metrics['fulfilled_capacity']):
         market_data = {}
@@ -103,10 +105,11 @@ def _populate_allocated_resources(simulator, start_time, end_time):
         start_time.timestamp,
         end_time.timestamp,
         use_cache=False,
-        extra_dimensions={
-            'cluster': simulator.metadata.cluster,
-            'pool': f'{simulator.metadata.pool}.{simulator.metadata.scheduler}',
-        }
+        extra_dimensions=get_cluster_dimensions(
+            simulator.metadata.cluster,
+            simulator.metadata.pool,
+            simulator.metadata.scheduler,
+        ),
     )
     # It's OK to just directly set up the timeseries here, instead of using events; if the autoscaler
     # depends on these values it will re-read it from the metrics client anyways.
