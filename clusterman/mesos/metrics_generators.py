@@ -9,6 +9,7 @@ from typing import Union
 from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.mesos.mesos_cluster_connector import FrameworkState
 from clusterman.mesos.mesos_cluster_connector import MesosClusterConnector
+from clusterman.util import get_cluster_dimensions
 
 
 SYSTEM_METRICS = {
@@ -36,13 +37,13 @@ class ClusterMetric(NamedTuple):
 
 
 def generate_system_metrics(manager: PoolManager) -> Generator[ClusterMetric, None, None]:
-    dimensions = {'cluster': manager.cluster, 'pool': f'{manager.pool}.{manager.scheduler}'}
+    dimensions = get_cluster_dimensions(manager.cluster, manager.pool, manager.scheduler)
     for metric_name, value_method in SYSTEM_METRICS.items():
         yield ClusterMetric(metric_name, value_method(manager), dimensions=dimensions)
 
 
 def generate_simple_metadata(manager: PoolManager) -> Generator[ClusterMetric, None, None]:
-    dimensions = {'cluster': manager.cluster, 'pool': f'{manager.pool}.{manager.scheduler}'}
+    dimensions = get_cluster_dimensions(manager.cluster, manager.pool, manager.scheduler)
     for metric_name, value_method in SIMPLE_METADATA.items():
         yield ClusterMetric(metric_name, value_method(manager), dimensions=dimensions)
 

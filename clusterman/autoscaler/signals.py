@@ -28,6 +28,7 @@ from clusterman.exceptions import MetricsError
 from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.exceptions import SignalConnectionError
 from clusterman.exceptions import SignalValidationError
+from clusterman.util import get_cluster_dimensions
 
 logger = colorlog.getLogger(__name__)
 
@@ -184,9 +185,9 @@ class Signal:
             # TODO (CLUSTERMAN-446) if a mesos pool and a k8s pool share the same app_name,
             #      APP_METRICS will be used for both
             if metric_dict['type'] == SYSTEM_METRICS:
-                dims_list = [{'cluster': self.cluster, 'pool': f'{self.pool}.{self.scheduler}'}]
+                dims_list = [get_cluster_dimensions(self.cluster, self.pool, self.scheduler)]
                 if self.scheduler == 'mesos':  # handle old (non-scheduler-aware) metrics
-                    dims_list.insert(0, {'cluster': self.cluster, 'pool': self.pool})
+                    dims_list.insert(0, get_cluster_dimensions(self.cluster, self.pool, None))
             else:
                 dims_list = [{}]
 

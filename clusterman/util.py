@@ -5,6 +5,7 @@ import time
 from datetime import datetime
 from typing import Any
 from typing import Callable
+from typing import Dict
 from typing import List
 from typing import NamedTuple
 from typing import Optional
@@ -269,3 +270,10 @@ def get_pool_name_list(cluster_name: str, scheduler: str) -> List[str]:
 def get_cluster_name_list(config_namespace: str = DEFAULT_NAMESPACE) -> List[str]:
     namespace = staticconf.config.get_namespace(config_namespace)
     return namespace.get_config_dict().get('clusters', {}).keys()
+
+
+def get_cluster_dimensions(cluster: str, pool: str, scheduler: Optional[str]) -> Dict[str, str]:
+    return {
+        'cluster': cluster,
+        'pool': (f'{pool}.{scheduler}' if scheduler else pool),
+    }
