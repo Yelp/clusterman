@@ -22,7 +22,7 @@ def mock_sfr_response(mock_subnet):
             'TargetCapacity': 10,
             'LaunchSpecifications': [
                 {
-                    'ImageId': 'ami-foo',
+                    'ImageId': 'ami-785db401',  # this image is hard-coded into moto, represents ubuntu xenial
                     'SubnetId': mock_subnet['Subnet']['SubnetId'],
                     'WeightedCapacity': 2,
                     'InstanceType': 'c3.8xlarge',
@@ -38,7 +38,7 @@ def mock_sfr_response(mock_subnet):
                     }],
                 },
                 {
-                    'ImageId': 'ami-foo',
+                    'ImageId': 'ami-785db401',  # this image is hard-coded into moto, represents ubuntu xenial
                     'SubnetId': mock_subnet['Subnet']['SubnetId'],
                     'WeightedCapacity': 1,
                     'InstanceType': 'i2.4xlarge',

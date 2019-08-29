@@ -4,8 +4,6 @@ source =
     clusterman
 
 [report]
-omit =
-    clusterman/batch/*
 exclude_lines =
     # Have to re-enable the standard pragma
     \#\s*pragma: no cover

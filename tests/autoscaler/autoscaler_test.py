@@ -2,7 +2,6 @@ from decimal import Decimal
 
 import arrow
 import mock
-import pysensu_yelp
 import pytest
 import staticconf
 
@@ -98,9 +97,9 @@ def test_monitoring_enabled(mock_signal, mock_autoscaler, monitoring_enabled):
     mock_autoscaler.monitoring_enabled = monitoring_enabled
     mock_signal.side_effect = Exception('foo')
 
-    with mock.patch('pysensu_yelp.send_event'):
+    with mock.patch('clusterman.util._get_sensu') as mock_get_sensu:
         mock_autoscaler._get_signal_for_app('bar')
-        assert pysensu_yelp.send_event.call_count == (1 if monitoring_enabled else 0)
+        assert mock_get_sensu.return_value.send_event.call_count == (1 if monitoring_enabled else 0)
 
 
 @pytest.mark.parametrize('signal_response', [

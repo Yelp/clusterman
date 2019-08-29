@@ -24,6 +24,8 @@ def patch_meteorite(context):
     if yelp_meteorite:
         with yelp_meteorite.testcase():
             yield
+    else:
+        yield
 
 
 @behave.fixture

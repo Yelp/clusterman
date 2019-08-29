@@ -6,11 +6,15 @@ import pytest
 from clusterman_metrics import ClustermanMetricsBotoClient
 
 from clusterman.autoscaler.pool_manager import PoolManager
-from clusterman.batch.cluster_metrics_collector import ClusterMetricsCollector
-from clusterman.batch.cluster_metrics_collector import METRICS_TO_WRITE
 from clusterman.mesos.metrics_generators import ClusterMetric
 from clusterman.util import All
 from clusterman.util import splay_event_time
+
+try:
+    from clusterman.batch.cluster_metrics_collector import ClusterMetricsCollector
+    from clusterman.batch.cluster_metrics_collector import METRICS_TO_WRITE
+except ImportError:
+    pytest.mark.skip('Could not import the batch; are you in a Yelp-y environment?')
 
 
 @pytest.fixture

@@ -130,3 +130,7 @@ debug:
 		-e "CMAN_CLUSTER=mesosstage" \
 		-e "CMAN_POOL=default" \
 		clusterman_debug_container /bin/bash
+
+.PHONY:
+upgrade-requirements:
+	upgrade-requirements --python python3.7

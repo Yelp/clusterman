@@ -86,7 +86,7 @@ def test_parse_time_interval_seconds_invalid():
         parse_time_interval_seconds('asdf')
 
 
-@mock.patch('clusterman.util.pysensu_yelp', autospec=True)
+@mock.patch('clusterman.util._get_sensu')
 class TestSensu:
     def _sensu_output(self, output, source, pool=None, app=None, scheduler=None):
         return ''.join([
@@ -107,13 +107,13 @@ class TestSensu:
         )
 
         if noop:
-            assert mock_sensu.send_event.call_count == 0
+            assert mock_sensu.return_value.send_event.call_count == 0
         else:
-            assert mock_sensu.send_event.call_args == mock.call(
+            assert mock_sensu.return_value.send_event.call_args == mock.call(
                 name='my_check',
                 output=self._sensu_output('output', 'my_source'),
                 source='my_source',
-                status=Status.OK,
+                status=Status.OK.value,
                 runbook='y/my-runbook',
                 team='my_team',
                 page=True,
@@ -131,11 +131,11 @@ class TestSensu:
             scheduler=scheduler,
         )
 
-        assert mock_sensu.send_event.call_args == mock.call(
+        assert mock_sensu.return_value.send_event.call_args == mock.call(
             name='my_check',
             source='my_source',
             output=self._sensu_output('output', 'my_source', pool, app, scheduler),
-            status=Status.OK,
+            status=Status.OK.value,
             runbook='y/my-runbook' if not app else 'y/their-runbook',
             team='a_different_team',
             page=True,
@@ -148,11 +148,11 @@ class TestSensu:
             source='my_source',
             app='non-existent',
         )
-        assert mock_sensu.send_event.call_args == mock.call(
+        assert mock_sensu.return_value.send_event.call_args == mock.call(
             name='my_check',
             output=self._sensu_output('output', 'my_source', app='non-existent'),
             source='my_source',
-            status=Status.OK,
+            status=Status.OK.value,
             runbook='y/my-runbook',
             team='my_team',
             page=True,

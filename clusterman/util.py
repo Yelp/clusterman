@@ -181,6 +181,14 @@ def parse_time_interval_seconds(time_str):
     return (parse_result[0] - datetime.min).total_seconds()
 
 
+def _get_sensu():
+    try:
+        import pysensu_yelp
+        return pysensu_yelp
+    except ImportError:
+        return None
+
+
 def sensu_checkin(
     *,
     check_name: str,
@@ -194,10 +202,6 @@ def sensu_checkin(
     page: bool = True,
     **kwargs: Any,
 ) -> None:
-    try:
-        import pysensu_yelp
-    except ImportError:
-        pysensu_yelp = None
     # This function feels like a massive hack, let's revisit and see if we can make it better (CLUSTERMAN-304)
     #
     # TODO (CLUSTERMAN-126) right now there's only one app per pool so use the global pool namespace
@@ -239,6 +243,7 @@ def sensu_checkin(
     # values passed in to this function override config file values (is this really correct??)
     sensu_config.update(kwargs)
 
+    pysensu_yelp = _get_sensu()
     if noop or not pysensu_yelp:
         logger.info((
             'Would have sent this event to Sensu:\n'

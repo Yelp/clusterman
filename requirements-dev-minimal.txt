@@ -4,7 +4,7 @@ flake8
 ipdb
 pre-commit
 pyhamcrest
-pytest==3.5.1  # pinned because of https://github.com/spulec/moto/issues/1596
+pytest  # pinned because of https://github.com/spulec/moto/issues/1596
 requirements-tools
 mock
 moto>=1.1.24

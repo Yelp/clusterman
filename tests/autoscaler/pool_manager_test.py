@@ -230,14 +230,14 @@ class TestConstrainTargetCapacity:
         assert mock_pool_manager._constrain_target_capacity(1000, force) == (1000 if force else 249)
         mock_pool_manager.max_capacity = 97
         assert mock_pool_manager._constrain_target_capacity(1000, force) == (1000 if force else 97)
-        assert mock_logger.warn.call_count == 2
+        assert mock_logger.warning.call_count == 2
 
     def test_negative_delta(self, mock_logger, force, mock_pool_manager):
         assert mock_pool_manager._constrain_target_capacity(40, force) == 40
         assert mock_pool_manager._constrain_target_capacity(20, force) == (20 if force else 39)
         mock_pool_manager.min_capacity = 45
         assert mock_pool_manager._constrain_target_capacity(20, force) == (20 if force else 45)
-        assert mock_logger.warn.call_count == 2
+        assert mock_logger.warning.call_count == 2
 
     def test_zero_delta(self, mock_logger, force, mock_pool_manager):
         assert mock_pool_manager._constrain_target_capacity(49, force) == 49

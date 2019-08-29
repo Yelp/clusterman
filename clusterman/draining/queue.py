@@ -253,7 +253,7 @@ class DrainingClient():
                     self.submit_host_for_termination(host_to_process)
             self.delete_drain_messages([host_to_process])
         elif host_to_process:
-            logger.warn(f'Host: {host_to_process.hostname} already being processed, skipping...')
+            logger.warning(f'Host: {host_to_process.hostname} already being processed, skipping...')
             self.delete_drain_messages([host_to_process])
 
     def clean_processing_hosts_cache(self) -> None:

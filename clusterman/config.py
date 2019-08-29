@@ -13,12 +13,14 @@ POOL_NAMESPACE = '{pool}.{scheduler}_config'
 def _load_module_configs(env_config_path: str):
     staticconf.YamlConfiguration(env_config_path)
     for config in staticconf.read_list('module_config', default=[]):
-        staticconf.YamlConfiguration(config['file'], namespace=config['namespace'])
+        if 'file' in config:
+            staticconf.YamlConfiguration(config['file'], namespace=config['namespace'])
         staticconf.DictConfiguration(config.get('config', {}), namespace=config['namespace'])
         if 'initialize' in config:
             path = config['initialize'].split('.')
             function = path.pop()
             module_name = '.'.join(path)
+            print(module_name, path)
             module = __import__(module_name, globals(), locals(), [path[-1]])
             getattr(module, function)()
 

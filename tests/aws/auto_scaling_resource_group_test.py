@@ -14,7 +14,7 @@ from clusterman.aws.markets import InstanceMarket
 def mock_launch_config():
     launch_config = {
         'LaunchConfigurationName': 'fake_launch_config',
-        'ImageId': 'fake_ami',
+        'ImageId': 'ami-785db401',  # this AMI is hard-coded into moto, represents ubuntu xenial
         'InstanceType': 't2.2xlarge',
     }
     autoscaling.create_launch_configuration(**launch_config)

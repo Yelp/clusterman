@@ -7,7 +7,10 @@ import mock
 import pytest
 from clusterman_metrics import METADATA
 
-from clusterman.batch.spot_price_collector import SpotPriceCollector
+try:
+    from clusterman.batch.spot_price_collector import SpotPriceCollector
+except ImportError:
+    pytest.mark.skip('Could not import the batch; are you in a Yelp-y environment?')
 
 
 @pytest.fixture

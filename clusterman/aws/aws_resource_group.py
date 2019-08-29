@@ -38,13 +38,13 @@ def protect_unowned_instances(func):
         resource_group_instances = list(set(instance_ids) & set(self.instance_ids))
         invalid_instances = set(instance_ids) - set(self.instance_ids)
         if invalid_instances:
-            logger.warn(f'Some instances are not part of this resource group ({self.id}):\n{invalid_instances}')
+            logger.warning(f'Some instances are not part of this resource group ({self.id}):\n{invalid_instances}')
         return func(self, resource_group_instances, *args, **kwargs)
     return wrapper
 
 
 class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
-    def __init__(self, group_id: str) -> None:
+    def __init__(self, group_id: str, **kwargs: Any) -> None:
         self.group_id = group_id
 
     def get_instance_metadatas(self, state_filter: Optional[Collection[str]] = None) -> Sequence[InstanceMetadata]:
@@ -85,14 +85,16 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
         :returns: a list of terminated instance IDs
         """
         if not instance_ids:
-            logger.warn(f'No instances to terminate in {self.group_id}')
+            logger.warning(f'No instances to terminate in {self.group_id}')
             return []
 
         instance_weights = {}
         for instance in ec2_describe_instances(instance_ids):
             instance_market = get_instance_market(instance)
             if not instance_market.az:
-                logger.warn(f"Instance {instance['InstanceId']} missing AZ info, likely already terminated so skipping")
+                logger.warning(
+                    f"Instance {instance['InstanceId']} missing AZ info, likely already terminated so skipping",
+                )
                 instance_ids.remove(instance['InstanceId'])
                 continue
             instance_weights[instance['InstanceId']] = self.market_weight(get_instance_market(instance))
@@ -109,8 +111,8 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
         # request.  This is probably fine but let's log a warning just in case.
         missing_instances = set(instance_ids) - set(terminated_instance_ids)
         if missing_instances:
-            logger.warn('Some instances could not be terminated; they were probably killed previously')
-            logger.warn(f'Missing instances: {list(missing_instances)}')
+            logger.warning('Some instances could not be terminated; they were probably killed previously')
+            logger.warning(f'Missing instances: {list(missing_instances)}')
         terminated_capacity = sum(instance_weights[i] for i in instance_ids)
 
         logger.info(f'{self.id} terminated weight: {terminated_capacity}; instances: {terminated_instance_ids}')
@@ -156,7 +158,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
         pass
 
     @classmethod
-    def load(cls, cluster: str, pool: str, config: Any) -> Mapping[str, 'AWSResourceGroup']:
+    def load(cls, cluster: str, pool: str, config: Any, **kwargs: Any) -> Mapping[str, 'AWSResourceGroup']:
         """ Load a list of corresponding resource groups
 
         :param cluster: a cluster name
@@ -176,7 +178,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
             try:
                 identifier_tags = json.loads(tags[identifier_tag_label])
                 if identifier_tags['pool'] == pool and identifier_tags['paasta_cluster'] == cluster:
-                    rg = cls(rg_id)
+                    rg = cls(rg_id, **kwargs)
                     matching_resource_groups[rg_id] = rg
             except KeyError:
                 continue
