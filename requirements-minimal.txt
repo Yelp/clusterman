@@ -13,7 +13,6 @@ numpy>=1.16
 parsedatetime
 PyStaticConfiguration
 PyYAML>=5.1
-retry
 requests>=2.22.0
 retry
 signalfx

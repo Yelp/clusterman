@@ -20,7 +20,6 @@ def _load_module_configs(env_config_path: str):
             path = config['initialize'].split('.')
             function = path.pop()
             module_name = '.'.join(path)
-            print(module_name, path)
             module = __import__(module_name, globals(), locals(), [path[-1]])
             getattr(module, function)()
 

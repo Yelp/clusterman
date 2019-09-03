@@ -1,27 +1,33 @@
 # This is an example Dockerfile to run your service in PaaSTA!
 # It satisfies the PaaSTA contract.
-FROM    ubuntu:bionic
+
+FROM    docker-dev.yelpcorp.com/xenial_yelp:latest
 
 # python and uwsgi deps
 RUN     apt-get update \
         && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             awscli \
-            g++ \
             git \
             libatlas-base-dev \
+            libpython3.7 \
             libxml2 \
             libyaml-0-2 \
             make \
             openssh-client \
-            python3.7-dev \
-            python3-pip \
+            python3.7 \
+            python-pip \
             python-setuptools \
+            stdin2scribe \
+            tox \
             virtualenv \
+            zk-flock \
         && apt-get clean
 
-RUN     /usr/bin/pip3 install supervisor tox
-COPY    tox.ini requirements.txt requirements-bootstrap.txt /code/
+ENV     PIP_INDEX_URL=https://pypi.yelpcorp.com/simple
+RUN     /usr/bin/pip install supervisor
+COPY    tox.ini requirements.txt requirements-bootstrap.txt extra-requirements-yelp.txt /code/
 RUN     cd code && tox -e virtualenv_run
+RUN     cd code && virtualenv_run/bin/pip-custom-platform install -rextra-requirements-yelp.txt
 
 RUN     mkdir /home/nobody
 ENV     HOME /home/nobody
@@ -48,4 +54,4 @@ RUN     mkdir -p /nail/run && chown -R nobody /nail/run
 # For sake of security, don't run your service as a privileged user
 USER    nobody
 WORKDIR /code
-ENV     BASEPATH=/code PATH=/code/virtualenv_run/bin:$PATH DISTRIB_CODENAME=bionic
+ENV     BASEPATH=/code PATH=/code/virtualenv_run/bin:$PATH DISTRIB_CODENAME=xenial

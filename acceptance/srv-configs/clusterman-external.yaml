@@ -1,19 +1,7 @@
 ---
 module_config:
-    - namespace: clog
-      initialize: clusterman.batch.clog.initialize
-      config:
-          log_stream_name: clusterman
-      file: /nail/srv/configs/clog.yaml
     - namespace: clusterman_metrics
       file: /nail/srv/configs/clusterman_metrics.yaml
-    - namespace: yelp_batch
-      config:
-          watchers:
-              - aws_key_rotation: /etc/boto_cfg/clusterman.json
-              - clusterman_yaml: /nail/srv/configs/clusterman.yaml
-          logging:
-              console_log_level: 'CRITICAL'
 
 # ######
 # Mappings for the clusterman service that are the same for all habitats.
@@ -40,7 +28,7 @@ batches:
 autoscaling:
     default_signal_role: 'clusterman'
     setpoint: 0.7
-    target_capacity_margin: 0.05
+    setpoint_margin: 0.05
 
 autoscale_signal:
     name: ConstantSignal

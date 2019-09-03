@@ -15,42 +15,43 @@ production: export VIRTUALENV_RUN_TARGET = virtualenv_run
 .PHONY: development
 development: virtualenv_run install-hooks
 
-# `mm` will make development
-.PHONY: minimal
-minimal: development
-
 .PHONY: docs
 docs:
 	-rm -rf docs/build
 	tox -e docs
 
-.PHONY: upload_docs
-upload_docs: docs
-	tox -e upload_docs
-
-.PHONY: dev_docs
-dev_docs: docs
-	PATH=$(PWD)/virtualenv_run/bin:$(PATH) serve-dev-servicedocs
-
-.PHONY: mypy
-mypy:
-	tox -e mypy
-
 .PHONY: test
-test: clean-cache mypy
-	tox
+test: clean-cache
+	tox -e yelp
+
+.PHONY: test-external
+test-external: clean-cache
+	tox -e external
 
 .PHONY: itest
-itest:
+itest: export EXTRA_VOLUME_MOUNTS=/nail/etc/services/services.yaml:/nail/etc/services/services.yaml:ro
+itest: cook-image
 	tox -e acceptance
-	./service-itest-runner spot_price_collector "--aws-region=us-west-1"
-	./service-itest-runner cluster_metrics_collector "--cluster=docker"
-	./service-itest-runner autoscaler_bootstrap "" autoscaler
+	./service-itest-runner clusterman.batch.spot_price_collector "--aws-region=us-west-1 "
+	./service-itest-runner clusterman.batch.cluster_metrics_collector "--cluster=docker"
+	./service-itest-runner clusterman.batch.autoscaler_bootstrap "" clusterman.batch.autoscaler
+
+.PHONY: itest-external
+itest-external: cook-image-external
+	tox -e acceptance
+	./service-itest-runner examples.batch.spot_price_collector "--aws-region=us-west-1 --env-config-path=acceptance/srv-configs/clusterman-external.yaml"
+	./service-itest-runner examples.batch.cluster_metrics_collector "--cluster=docker --env-config-path=acceptance/srv-configs/clusterman-external.yaml"
+	./service-itest-runner examples.batch.autoscaler_bootstrap "--env-config-path=acceptance/srv-configs/clusterman-external.yaml" examples.batch.autoscaler
 
 .PHONY: cook-image
 cook-image:
 	git rev-parse HEAD > version
-	docker build -t $(DOCKER_TAG) -f Dockerfile .
+	docker build -t $(DOCKER_TAG) .
+
+.PHONY: cook-image-external
+cook-image-external:
+	git rev-parse HEAD > version
+	docker build -t $(DOCKER_TAG) -f Dockerfile.external .
 
 .PHONY: completions
 completions: virtualenv_run
@@ -104,19 +105,19 @@ itest_%: dist completions
 package: itest_xenial itest_bionic
 
 .PHONY:
-clean:
+clean: clean-cache
 	-docker-compose -f acceptance/docker-compose.yaml down
 	-rm -rf docs/build
 	-rm -rf virtualenv_run/
 	-rm -rf .tox
 	-unlink dist
-	-find . -name '*.pyc' -delete
-	-find . -name '__pycache__' -delete
 	-rm -rf package/dist/*
 
 clean-cache:
 	find -name '*.pyc' -delete
 	find -name '__pycache__' -delete
+	rm -rf .mypy_cache
+	rm -rf .pytest_cache
 
 .PHONY:
 debug:

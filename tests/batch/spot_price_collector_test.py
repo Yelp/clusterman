@@ -20,7 +20,6 @@ def batch():
     return batch
 
 
-@pytest.fixture
 def batch_arg_parser(batch, args=None):
     args = args or ['--aws-region', 'us-west-1']
     parser = argparse.ArgumentParser()
@@ -70,8 +69,8 @@ def test_configure_initial_default(batch, mock_client_class, mock_setup_config):
     assert batch.metrics_client == mock_client_class.return_value
 
 
-def test_configure_initial_with_options(batch, batch_arg_parser, mock_client_class, mock_setup_config):
-    batch.options = batch_arg_parser  # just to set up options object, will override
+def test_configure_initial_with_options(batch, mock_client_class, mock_setup_config):
+    batch.options = batch_arg_parser(batch)  # just to set up options object, will override
     batch.options.env_config_path = 'custom.yaml'
     batch.options.start_time = arrow.get(2017, 9, 1, 1, 1, 0)
     batch.configure_initial()

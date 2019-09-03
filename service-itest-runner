@@ -8,23 +8,27 @@ trap cleanup SIGINT
 BATCH=$1
 ARGS=$2
 STATUS_EXECUTABLE=${3:-$BATCH}
-IMAGE_NAME="clusterman-local-run-$(whoami):$(git rev-parse HEAD)"
+IMAGE_NAME="clusterman-dev-$(whoami)"
 
-docker build -t "${IMAGE_NAME}" .
+if [ "${EXTRA_VOLUME_MOUNTS}" ]; then
+    EXTRA_FLAGS="-v ${EXTRA_VOLUME_MOUNTS}"
+fi
+echo ${EXTRA_FLAGS}
+
 docker run -t -v "$(pwd)/acceptance/srv-configs:/nail/srv/configs:ro" \
-	-v "$(pwd)/acceptance/clusterman.sh:/etc/boto_cfg/clusterman.sh:ro" \
-	-v "$(pwd)/acceptance/clusterman.json:/etc/boto_cfg/clusterman.json:ro" \
-	-v "$(pwd)/acceptance/clusterman.json:/etc/boto_cfg/clusterman_metrics.json:ro" \
+    ${EXTRA_FLAGS} \
+    -v "$(pwd)/acceptance/clusterman.sh:/etc/boto_cfg/clusterman.sh:ro" \
+    -v "$(pwd)/acceptance/clusterman.json:/etc/boto_cfg/clusterman.json:ro" \
+    -v "$(pwd)/acceptance/clusterman.json:/etc/boto_cfg/clusterman_metrics.json:ro" \
     "${IMAGE_NAME}" sleep infinity &
-while [ -z ${CONTAINER} ]; do CONTAINER=$(docker ps | egrep "${IMAGE_NAME}" | cut -d' ' -f1); done
+while [ -z "${CONTAINER}" ]; do CONTAINER=$(docker ps | egrep "${IMAGE_NAME}" | cut -d' ' -f1); done
 docker network connect acceptance_default "${CONTAINER}"
 docker exec -e ACCEPTANCE_ROOT=/code/acceptance --user=0 "${CONTAINER}" python acceptance/run_instance.py
-docker exec --user=0 "${CONTAINER}" pip install -e examples/clusterman_metrics
 docker exec -t --user=0 \
     -e CMAN_CLUSTER=docker \
     -e CMAN_POOL=default \
     -e CMAN_SCHEDULER=mesos \
-    "${CONTAINER}" /bin/bash -c "AWS_ENDPOINT_URL_ARGS='--endpoint-url http://moto-s3:5000' python -m examples.batch.$BATCH $ARGS" &
+    "${CONTAINER}" /bin/bash -c "AWS_ENDPOINT_URL_ARGS='--endpoint-url http://moto-s3:5000' python -m $BATCH $ARGS" &
 
 sleep 1
 count=0

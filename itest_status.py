@@ -3,14 +3,14 @@ from subprocess import run
 
 
 def get_pid(batch_name):
-    output = run(f'ps -ef | egrep "python -m examples.batch.{batch_name}(\s+|$)"', shell=True, capture_output=True)
+    output = run(f'ps -ef | egrep "python -m {batch_name}(\s+|$)"', shell=True, capture_output=True)
 
     return output.stdout.split()[1].decode()
 
 
 def check_status(batch_name):  # pragma: no cover
     # status written by BatchRunningSentinelMixin
-    status_file = f'/tmp/{batch_name}.running'
+    status_file = f'/tmp/{batch_name.split(".")[-1]}.running'
 
     try:
         with open(status_file) as f:

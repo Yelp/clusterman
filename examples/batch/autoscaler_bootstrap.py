@@ -75,6 +75,8 @@ class AutoscalerBootstrapBatch:
     def run(self) -> None:
         env = os.environ.copy()
         args = env.get('CMAN_ARGS', '')
+        if '--env-config-path' not in args:
+            args += f' --env-config-path {self.options.env_config_path}'
         env['CMAN_ARGS'] = args
         supervisord_proc = subprocess.Popen(
             '/bin/bash -c "supervisord -c examples/supervisord.conf"',
