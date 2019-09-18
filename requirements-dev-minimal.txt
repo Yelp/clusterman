@@ -1,6 +1,5 @@
 behave>=1.2.6
 coverage
-docker-compose
 flake8
 ipdb
 pre-commit

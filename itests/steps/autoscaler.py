@@ -1,3 +1,4 @@
+import time
 from decimal import Decimal
 
 import behave
@@ -5,10 +6,15 @@ import mock
 import staticconf.testing
 from hamcrest import assert_that
 from hamcrest import contains
+from hamcrest import equal_to
+from moto import mock_dynamodb2
 
 from clusterman.autoscaler.autoscaler import Autoscaler
+from clusterman.autoscaler.autoscaler import AUTOSCALER_PAUSED
+from clusterman.autoscaler.autoscaler import CLUSTERMAN_STATE_TABLE
 from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.autoscaler.signals import ACK
+from clusterman.aws.client import dynamodb
 from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
 from itests.environment import boto_patches
 
@@ -42,7 +48,18 @@ def autoscaler_patches(context):
         'clusterman.autoscaler.signals.Signal._connect_to_signal_process',
     ), mock.patch(
         'clusterman.autoscaler.autoscaler.Signal._get_metrics',
-    ) as mock_metrics:
+    ) as mock_metrics, mock_dynamodb2():
+        dynamodb.create_table(
+            TableName=CLUSTERMAN_STATE_TABLE,
+            KeySchema=[
+                {'AttributeName': 'state', 'KeyType': 'HASH'},
+                {'AttributeName': 'entity', 'KeyType': 'SORT'},
+            ],
+            AttributeDefinitions=[
+                {'AttributeName': 'state', 'AttributeType': 'S'},
+                {'AttributeName': 'entity', 'AttributeType': 'S'},
+            ],
+        )
         mock_metrics.return_value = {}  # don't know why this is necessary but we get flaky tests if it's not set
         mock_cluster_connector.return_value.get_resource_total.side_effect = resource_totals.__getitem__
         yield
@@ -109,6 +126,18 @@ def autoscaler(context):
     )
 
 
+@behave.when('the autoscaler is paused')
+def pause_autoscaler(context):
+    dynamodb.put_item(
+        TableName=CLUSTERMAN_STATE_TABLE,
+        Item={
+            'state': {'S': AUTOSCALER_PAUSED},
+            'entity': {'S': 'mesos-test.bar.mesos'},
+            'expiration_timestamp': {'N': str(time.time() + 100000)}
+        }
+    )
+
+
 @behave.when('the pool is empty')
 def empty_pool(context):
     manager = context.autoscaler.pool_manager
@@ -158,3 +187,10 @@ def rg_capacity_change(context, rg, target):
             mock.call(int(target), terminate_excess_capacity=False, dry_run=False),
         ),
     )
+
+
+@behave.then('the autoscaler should do nothing')
+def rg_do_nothing(context):
+    groups = list(context.autoscaler.pool_manager.resource_groups.values())
+    for g in groups:
+        assert_that(g.modify_target_capacity.call_count, equal_to(0))

@@ -18,6 +18,7 @@ from clusterman.autoscaler.config import get_autoscaling_config
 from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.autoscaler.signals import Signal
 from clusterman.autoscaler.signals import SignalResponseDict
+from clusterman.aws.client import dynamodb
 from clusterman.config import POOL_NAMESPACE
 from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.exceptions import ResourceRequestError
@@ -26,6 +27,8 @@ from clusterman.util import ClustermanResources
 from clusterman.util import get_cluster_dimensions
 from clusterman.util import sensu_checkin
 
+CLUSTERMAN_STATE_TABLE = 'clusterman_cluster_state'
+AUTOSCALER_PAUSED = 'autoscaler_paused'
 SIGNAL_LOAD_CHECK_NAME = 'signal_configuration_failed'
 TARGET_CAPACITY_GAUGE_NAME = 'clusterman.autoscaler.target_capacity'
 RESOURCE_GAUGE_BASE_NAME = 'clusterman.autoscaler.requested_{resource}'
@@ -103,8 +106,12 @@ class Autoscaler:
         :param dry_run: boolean; if True, don't modify the pool size, just print what would happen
         :param timestamp: an arrow object indicating the current time
         """
+
         timestamp = timestamp or arrow.utcnow()
         logger.info(f'Autoscaling run starting at {timestamp}')
+        if self._is_paused(timestamp):
+            logger.info(f'Autoscaling is currently paused; doing nothing')
+            return
 
         try:
             signal_name = self.signal.name
@@ -128,6 +135,26 @@ class Autoscaler:
         if exception:
             logger.error(f'The client signal failed with:\n{tb}')
             raise exception
+
+    def _is_paused(self, timestamp: arrow.Arrow) -> bool:
+        response = dynamodb.get_item(
+            TableName=CLUSTERMAN_STATE_TABLE,
+            Key={
+                'state': {'S': AUTOSCALER_PAUSED},
+                'entity': {'S': f'{self.cluster}.{self.pool}.{self.scheduler}'},
+            },
+            ConsistentRead=True,
+        )
+        if 'Item' not in response:
+            return False
+
+        if (
+            'expiration_timestamp' in response['Item'] and
+            timestamp.timestamp > int(response['Item']['expiration_timestamp']['N'])
+        ):
+            return False
+
+        return True
 
     def _emit_requested_resource_metrics(self, resource_request: SignalResponseDict, dry_run: bool) -> None:
         for resource_type, resource_gauge in self.resource_request_gauges.items():

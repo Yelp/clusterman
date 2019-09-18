@@ -36,3 +36,9 @@ Feature: make sure the autoscaler scales to the proper amount
         Given an autoscaler object
          When the signal resource request is 1 gpus
          Then a ResourceRequestError is raised
+
+    Scenario: the autoscaler does nothing when it is paused
+        Given an autoscaler object
+         When the autoscaler is paused
+          And the signal resource request is 1000 cpus
+         Then the autoscaler should do nothing

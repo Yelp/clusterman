@@ -161,12 +161,14 @@ def _get_validated_args(parser):
 
 
 def get_parser(description=''):  # pragma: no cover
+    from clusterman.cli.generate_data import add_generate_data_parser
     from clusterman.cli.info import add_mesos_list_clusters_parser
     from clusterman.cli.info import add_mesos_list_pools_parser
     from clusterman.cli.manage import add_mesos_manager_parser
     from clusterman.cli.status import add_mesos_status_parser
     from clusterman.cli.simulate import add_simulate_parser
-    from clusterman.cli.generate_data import add_generate_data_parser
+    from clusterman.cli.toggle import add_cluster_disable_parser
+    from clusterman.cli.toggle import add_cluster_enable_parser
     from clusterman.draining.queue import add_queue_parser
 
     root_parser = argparse.ArgumentParser(prog='clusterman', description=description, formatter_class=help_formatter)
@@ -185,12 +187,14 @@ def get_parser(description=''):  # pragma: no cover
     subparser = root_parser.add_subparsers(help='accepted commands')
     subparser.dest = 'subcommand'
 
+    add_cluster_disable_parser(subparser)
+    add_cluster_enable_parser(subparser)
     add_generate_data_parser(subparser)
-    add_mesos_manager_parser(subparser)
-    add_simulate_parser(subparser)
-    add_mesos_status_parser(subparser)
     add_mesos_list_clusters_parser(subparser)
     add_mesos_list_pools_parser(subparser)
+    add_mesos_status_parser(subparser)
+    add_mesos_manager_parser(subparser)
+    add_simulate_parser(subparser)
     add_queue_parser(subparser)
 
     return root_parser

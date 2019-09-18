@@ -40,6 +40,11 @@ services:
     ports:
       - 5000
     command: 's3'
+  moto-dynamodb:
+    build: ./moto/
+    ports:
+      - 5000
+    command: 'dynamodb2'
 
 networks:
   default:
