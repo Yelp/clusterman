@@ -1,3 +1,9 @@
+clusterman (4.1.0) xenial bionic; urgency=low
+
+  * enable/disable command line tools
+
+ -- David Morrison <drmorr@yelp.com>  Wed, 18 Sep 2019 14:08:40 -0700
+
 clusterman (4.0.1) xenial bionic; urgency=low
 
   * fix regression in metrics collector with scheduler tag
