@@ -83,14 +83,17 @@ with open(
         Body=f.read(),
     )
 
-dynamodb.create_table(
-    TableName='clusterman_cluster_state',
-    KeySchema=[
-        {'AttributeName': 'state', 'KeyType': 'HASH'},
-        {'AttributeName': 'entity', 'KeyType': 'SORT'},
-    ],
-    AttributeDefinitions=[
-        {'AttributeName': 'state', 'AttributeType': 'S'},
-        {'AttributeName': 'entity', 'AttributeType': 'S'},
-    ],
-)
+try:
+    dynamodb.create_table(
+        TableName='clusterman_cluster_state',
+        KeySchema=[
+            {'AttributeName': 'state', 'KeyType': 'HASH'},
+            {'AttributeName': 'entity', 'KeyType': 'SORT'},
+        ],
+        AttributeDefinitions=[
+            {'AttributeName': 'state', 'AttributeType': 'S'},
+            {'AttributeName': 'entity', 'AttributeType': 'S'},
+        ],
+    )
+except dynamodb.exceptions.ResourceInUseException:
+    pass  # the table already exists
