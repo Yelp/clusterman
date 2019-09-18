@@ -34,6 +34,7 @@ def autoscaler_patches(context):
             mock.patch('clusterman.autoscaler.autoscaler.ClustermanMetricsBotoClient'), \
             mock.patch('clusterman.autoscaler.autoscaler.Signal') as signal_class, \
             mock.patch('clusterman.batch.autoscaler.setup_config'), \
+            mock.patch('clusterman.autoscaler.autoscaler.dynamodb'), \
             mock.patch('clusterman.batch.autoscaler.splay_event_time', return_value=0), \
             mock.patch('clusterman.batch.autoscaler.AutoscalerBatch.running', mock.PropertyMock(
                 side_effect=[True, False],

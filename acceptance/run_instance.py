@@ -9,6 +9,7 @@ root = os.environ['ACCEPTANCE_ROOT']
 session = boto3.session.Session('foo', 'bar', region_name='us-west-2')
 ec2 = session.client('ec2', endpoint_url='http://moto-ec2:5000')
 s3 = session.client('s3', endpoint_url='http://moto-s3:5000')
+dynamodb = session.client('dynamodb', endpoint_url='http://moto-dynamodb:5000')
 
 vpc_response = ec2.create_vpc(CidrBlock='10.0.0.0/24')
 subnet_response = ec2.create_subnet(
@@ -81,3 +82,15 @@ with open(
         Key='{env}/clusterman_signals_acceptance.tar.gz'.format(env=os.environ['DISTRIB_CODENAME']),
         Body=f.read(),
     )
+
+dynamodb.create_table(
+    TableName='clusterman_cluster_state',
+    KeySchema=[
+        {'AttributeName': 'state', 'KeyType': 'HASH'},
+        {'AttributeName': 'entity', 'KeyType': 'SORT'},
+    ],
+    AttributeDefinitions=[
+        {'AttributeName': 'state', 'AttributeType': 'S'},
+        {'AttributeName': 'entity', 'AttributeType': 'S'},
+    ],
+)

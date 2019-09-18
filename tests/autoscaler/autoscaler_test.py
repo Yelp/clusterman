@@ -123,6 +123,7 @@ def test_autoscaler_run(dry_run, mock_autoscaler, run_timestamp):
     mock_autoscaler._compute_target_capacity = mock.Mock(return_value=100)
     mock_autoscaler.signal.evaluate.side_effect = ValueError
     mock_autoscaler.default_signal.evaluate.return_value = {'cpus': 100000}
+    mock_autoscaler._is_paused = mock.Mock(return_value=False)
     with pytest.raises(ValueError):
         mock_autoscaler.run(dry_run=dry_run, timestamp=run_timestamp)
 
@@ -133,6 +134,46 @@ def test_autoscaler_run(dry_run, mock_autoscaler, run_timestamp):
     assert mock_autoscaler.resource_request_gauges['cpus'].set.call_args == mock.call(100000, {'dry_run': dry_run})
     assert mock_autoscaler.resource_request_gauges['mem'].set.call_count == 0
     assert mock_autoscaler.resource_request_gauges['disk'].set.call_count == 0
+
+
+def test_autoscaler_run_paused(mock_autoscaler, run_timestamp):
+    mock_autoscaler._compute_target_capacity = mock.Mock(return_value=100)
+    mock_autoscaler._is_paused = mock.Mock(return_value=True)
+
+    mock_autoscaler.run(timestamp=run_timestamp)
+
+    assert mock_autoscaler.signal.evaluate.call_count == 0
+    assert mock_autoscaler.target_capacity_gauge.set.call_count == 0
+    assert mock_autoscaler._compute_target_capacity.call_count == 0
+    assert mock_autoscaler.pool_manager.modify_target_capacity.call_count == 0
+
+    assert mock_autoscaler.resource_request_gauges['cpus'].set.call_count == 0
+    assert mock_autoscaler.resource_request_gauges['mem'].set.call_count == 0
+    assert mock_autoscaler.resource_request_gauges['disk'].set.call_count == 0
+
+
+def test_is_paused_no_data_for_cluster(mock_autoscaler, run_timestamp):
+    with mock.patch('clusterman.autoscaler.autoscaler.dynamodb') as mock_dynamo:
+        mock_dynamo.get_item.return_value = {'ResponseMetadata': {'foo': 'asdf'}}
+        assert not mock_autoscaler._is_paused(run_timestamp)
+
+
+@pytest.mark.parametrize('exp_timestamp', [None, '100', '400'])
+def test_is_paused_with_expiration_timestamp(exp_timestamp, mock_autoscaler, run_timestamp):
+    with mock.patch('clusterman.autoscaler.autoscaler.dynamodb') as mock_dynamo:
+        mock_dynamo.get_item.return_value = {
+            'ResponseMetadata': {'foo': 'asdf'},
+            'Item': {
+                'state': {'S': 'autoscaler_paused'},
+                'entity': {'S': 'mesos-test.bar.mesos'},
+            }
+        }
+        if exp_timestamp:
+            mock_dynamo.get_item.return_value['Item']['expiration_timestamp'] = {'N': exp_timestamp}
+        assert mock_autoscaler._is_paused(run_timestamp) == (
+            not exp_timestamp or
+            int(exp_timestamp) > run_timestamp.timestamp
+        )
 
 
 class TestComputeTargetCapacity:
