@@ -12,9 +12,10 @@ from retry import retry
 from clusterman.aws import CACHE_TTL_SECONDS
 from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.client import autoscaling
+from clusterman.aws.client import ec2
 from clusterman.aws.markets import InstanceMarket
 
-_BATCH_TERM_SIZE = 200
+_BATCH_MODIFY_SIZE = 200
 
 logger = colorlog.getLogger(__name__)
 
@@ -86,6 +87,21 @@ class AutoScalingResourceGroup(AWSResourceGroup):
             return 1
         else:
             return 0
+
+    def mark_stale(self, dry_run: bool) -> None:
+        for i in range(0, len(self.instance_ids), _BATCH_MODIFY_SIZE):
+            inst_list = self.instance_ids[i:i + _BATCH_MODIFY_SIZE]
+            logger.info(f'Setting staleness tags for {inst_list}')
+            if dry_run:
+                continue
+
+            ec2.create_tags(
+                Resources=inst_list,
+                Tags=[{
+                    'Key': 'clusterman__is_stale',
+                    'Value': 'True',
+                }],
+            )
 
     def modify_target_capacity(
         self,

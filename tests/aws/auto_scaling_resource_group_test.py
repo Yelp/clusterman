@@ -5,6 +5,7 @@ import pytest
 
 from clusterman.aws.auto_scaling_resource_group import AutoScalingResourceGroup
 from clusterman.aws.client import autoscaling
+from clusterman.aws.client import ec2
 from clusterman.aws.markets import InstanceMarket
 
 
@@ -107,6 +108,23 @@ def test_market_weight(mock_asrg, instance_type):
     market_weight = mock_asrg.market_weight(InstanceMarket(instance_type, 'us-west-2a'))
 
     assert market_weight == (1.0 if instance_type == 't2.2xlarge' else 0)
+
+
+@pytest.mark.parametrize('dry_run', [True, False])
+def test_mark_stale(mock_asrg, dry_run):
+    mock_asrg.mark_stale(dry_run)
+    for inst in mock_asrg.instance_ids:
+        tags = ec2.describe_tags(
+            Filters=[{
+                'Name': 'resource-id',
+                'Values': [inst],
+            }],
+        )
+        stale_tags = [tag for tag in tags['Tags'] if tag['Key'] == 'clusterman__is_stale']
+        if dry_run:
+            assert not stale_tags
+        else:
+            assert len(stale_tags) == 1
 
 
 def test_modify_target_capacity_up(mock_asrg):

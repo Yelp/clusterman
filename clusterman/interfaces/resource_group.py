@@ -36,15 +36,18 @@ class ResourceGroup(metaclass=ABCMeta):
     """
 
     @abstractmethod
-    def __init__(self, group_id: str) -> None:
+    def __init__(self, group_id: str) -> None:  # pragma: no cover
         pass
 
     @abstractmethod
-    def get_instance_metadatas(self, state_filter: Optional[Collection[str]] = None) -> Sequence[InstanceMetadata]:
+    def get_instance_metadatas(
+        self,
+        state_filter: Optional[Collection[str]] = None,
+    ) -> Sequence[InstanceMetadata]:  # pragma: no cover
         pass
 
     @abstractmethod
-    def market_weight(self, market: InstanceMarket) -> float:
+    def market_weight(self, market: InstanceMarket) -> float:  # pragma: no cover
         """ Return the weighted capacity assigned to a particular market by this resource group
 
         .. note:: market_weight is compared to fulfilled_capacity when scaling down a pool, so it must
@@ -55,6 +58,9 @@ class ResourceGroup(metaclass=ABCMeta):
         """
         pass
 
+    def mark_stale(self, dry_run: bool) -> None:
+        raise NotImplementedError(f'{type(self).__name__} cannot be marked stale')
+
     @abstractmethod
     def modify_target_capacity(
         self,
@@ -62,7 +68,7 @@ class ResourceGroup(metaclass=ABCMeta):
         *,
         terminate_excess_capacity: bool,
         dry_run: bool,
-    ) -> None:
+    ) -> None:  # pragma: no cover
         """ Modify the target capacity for the resource group
 
         :param target_capacity: the (weighted) new target capacity for the resource group
@@ -73,7 +79,11 @@ class ResourceGroup(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def terminate_instances_by_id(self, instance_ids: List[str], batch_size: int = 500) -> Sequence[str]:
+    def terminate_instances_by_id(
+        self,
+        instance_ids: List[str],
+        batch_size: int = 500,
+    ) -> Sequence[str]:  # pragma: no cover
         """ Terminate instances in this resource group
 
         :param instance_ids: a list of instance IDs to terminate
@@ -83,22 +93,22 @@ class ResourceGroup(metaclass=ABCMeta):
         pass
 
     @abstractproperty
-    def id(self) -> str:
+    def id(self) -> str:  # pragma: no cover
         """ A unique identifier for this ResourceGroup """
         pass
 
     @abstractproperty
-    def instance_ids(self) -> Sequence[str]:
+    def instance_ids(self) -> Sequence[str]:  # pragma: no cover
         """ The list of instance IDs belonging to this ResourceGroup """
         pass
 
     @abstractproperty
-    def market_capacities(self) -> Mapping[InstanceMarket, float]:
+    def market_capacities(self) -> Mapping[InstanceMarket, float]:  # pragma: no cover
         """ The (weighted) capacities of each market in the resource group """
         pass
 
     @abstractproperty
-    def target_capacity(self) -> float:
+    def target_capacity(self) -> float:  # pragma: no cover
         """ The target (or desired) weighted capacity for this ResourceGroup
 
         Note that the actual weighted capacity in the ResourceGroup may be smaller or larger than the
@@ -108,22 +118,22 @@ class ResourceGroup(metaclass=ABCMeta):
         pass
 
     @abstractproperty
-    def fulfilled_capacity(self) -> float:
+    def fulfilled_capacity(self) -> float:  # pragma: no cover
         """ The actual weighted capacity for this ResourceGroup """
         pass
 
     @abstractproperty
-    def status(self) -> str:
+    def status(self) -> str:  # pragma: no cover
         """ The status of the ResourceGroup (e.g., running, modifying, terminated, etc.) """
         pass
 
     @abstractproperty
-    def is_stale(self) -> bool:
+    def is_stale(self) -> bool:  # pragma: no cover
         """Whether this ResourceGroup is stale."""
         pass
 
     @abstractclassmethod
-    def load(cls, cluster: str, pool: str, config: Any) -> Mapping[str, 'ResourceGroup']:
+    def load(cls, cluster: str, pool: str, config: Any) -> Mapping[str, 'ResourceGroup']:  # pragma: no cover
         """ Load a list of corresponding resource groups
 
         :param cluster: a cluster name
