@@ -93,24 +93,32 @@ def prune_excess_fulfilled_capacity(context, target):
 
 
 @behave.then('(?P<num>\d+) instances? should be killed')
-def check_no_instances_killed(context, num):
-    assert_that(
-        len(context.original_agents) - len(context.pool_manager.get_node_metadatas()),
-        equal_to(int(num)),
-    )
+def check_n_instances_killed(context, num):
+    running_instances = [
+        i
+        for reservation in ec2.describe_instances()['Reservations']
+        for i in reservation['Instances']
+        if i['State']['Name'] == 'running'
+    ]
+    context.killed_nodes = [
+        n
+        for n in context.original_agents
+        if n.instance.instance_id not in [i['InstanceId'] for i in running_instances]
+    ]
+    assert_that(len(context.killed_nodes), equal_to(int(num)))
 
 
 @behave.then('the killed instances are from resource group (?P<rg_index>\d+)')
 def check_killed_instance_group(context, rg_index):
-    killed_nodes = [
-        n.instance.group_id
-        for n in context.original_agents
-        if n.instance.instance_id not in [
-            m.instance.instance_id
-            for m in context.pool_manager.get_node_metadatas()
-        ]
-    ]
     assert_that(
-        killed_nodes,
+        [n.instance.group_id for n in context.killed_nodes],
         only_contains(context.rg_ids[int(rg_index) - 1]),
+    )
+
+
+@behave.then('the killed instances should be stale')
+def check_killed_instances_stale(context):
+    assert_that(
+        [n.instance.is_stale for n in context.killed_nodes],
+        only_contains(True)
     )

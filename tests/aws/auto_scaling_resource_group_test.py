@@ -4,6 +4,7 @@ import mock
 import pytest
 
 from clusterman.aws.auto_scaling_resource_group import AutoScalingResourceGroup
+from clusterman.aws.auto_scaling_resource_group import CLUSTERMAN_STALE_TAG
 from clusterman.aws.client import autoscaling
 from clusterman.aws.client import ec2
 from clusterman.aws.markets import InstanceMarket
@@ -120,47 +121,50 @@ def test_mark_stale(mock_asrg, dry_run):
                 'Values': [inst],
             }],
         )
-        stale_tags = [tag for tag in tags['Tags'] if tag['Key'] == 'clusterman__is_stale']
+        stale_tags = [tag for tag in tags['Tags'] if tag['Key'] == CLUSTERMAN_STALE_TAG]
         if dry_run:
             assert not stale_tags
         else:
             assert len(stale_tags) == 1
 
 
-def test_modify_target_capacity_up(mock_asrg):
+@pytest.mark.parametrize('stale_instances', [0, 7])
+def test_modify_target_capacity_up(mock_asrg, stale_instances):
     new_desired_capacity = mock_asrg.target_capacity + 5
+    with mock.patch(
+        'clusterman.aws.auto_scaling_resource_group.AutoScalingResourceGroup.stale_instance_ids',
+        mock.PropertyMock(return_value=mock_asrg.instance_ids[:stale_instances])
+    ):
 
-    mock_asrg.modify_target_capacity(
-        new_desired_capacity,
-        terminate_excess_capacity=False,
-        dry_run=False,
-        honor_cooldown=False,
-    )
+        mock_asrg.modify_target_capacity(
+            new_desired_capacity,
+            dry_run=False,
+            honor_cooldown=False,
+        )
 
-    assert mock_asrg.target_capacity == new_desired_capacity
-    assert mock_asrg.fulfilled_capacity == new_desired_capacity
+        assert mock_asrg.target_capacity == new_desired_capacity
+        assert mock_asrg.fulfilled_capacity == new_desired_capacity + stale_instances
 
 
-@pytest.mark.parametrize('terminate_excess_capacity', [True, False])
-def test_modify_target_capacity_down(
-    mock_asrg,
-    terminate_excess_capacity,
-):
-    old_desired_capacity = mock_asrg.target_capacity
-    new_desired_capacity = old_desired_capacity - 5
+@pytest.mark.parametrize('stale_instances', [0, 7])
+def test_modify_target_capacity_down(mock_asrg, stale_instances):
+    old_target_capacity = mock_asrg.target_capacity
+    new_target_capacity = old_target_capacity - 5
 
-    mock_asrg.modify_target_capacity(
-        new_desired_capacity,
-        terminate_excess_capacity=terminate_excess_capacity,
-        dry_run=False,
-        honor_cooldown=False,
-    )
+    with mock.patch(
+        'clusterman.aws.auto_scaling_resource_group.AutoScalingResourceGroup.stale_instance_ids',
+        mock.PropertyMock(return_value=mock_asrg.instance_ids[:stale_instances])
+    ):
+        mock_asrg.modify_target_capacity(
+            new_target_capacity,
+            dry_run=False,
+            honor_cooldown=False,
+        )
 
-    assert mock_asrg.target_capacity == new_desired_capacity
-    if terminate_excess_capacity:
-        assert mock_asrg.fulfilled_capacity == new_desired_capacity
-    else:
-        assert mock_asrg.fulfilled_capacity == old_desired_capacity
+        assert mock_asrg.target_capacity == new_target_capacity
+        # because some instances are stale, we might have to _increase_ our "real" target capacity
+        # even if we're decreasing our _requested_ target capacity
+        assert mock_asrg.fulfilled_capacity == max(old_target_capacity, new_target_capacity + stale_instances)
 
 
 @pytest.mark.parametrize('new_desired_capacity', [0, 100])
@@ -171,7 +175,6 @@ def test_modify_target_capacity_min_max(
 ):
     mock_asrg.modify_target_capacity(
         new_desired_capacity,
-        terminate_excess_capacity=False,
         dry_run=False,
         honor_cooldown=False,
     )
@@ -180,6 +183,25 @@ def test_modify_target_capacity_min_max(
         assert mock_asrg.target_capacity == mock_asg_config['MinSize']
     elif new_desired_capacity > mock_asg_config['MaxSize']:
         assert mock_asrg.target_capacity == mock_asg_config['MaxSize']
+
+
+@pytest.mark.parametrize('stale_instances', [0, 1, 10])
+def test_status(mock_asrg, stale_instances):
+    is_stale = stale_instances == 10
+    with mock.patch(
+        'clusterman.aws.auto_scaling_resource_group.AutoScalingResourceGroup.is_stale',
+        new_callable=mock.PropertyMock(return_value=is_stale)
+    ), mock.patch(
+        'clusterman.aws.auto_scaling_resource_group.AutoScalingResourceGroup.stale_instance_ids',
+        new_callable=mock.PropertyMock(return_value=mock_asrg.instance_ids[:stale_instances])
+    ):
+        status = mock_asrg.status
+        if stale_instances == 0:
+            assert status == 'active'
+        elif stale_instances == 1:
+            assert status == 'rolling'
+        else:
+            assert status == 'stale'
 
 
 def test_get_asg_tags(mock_asrg, mock_asg_config):

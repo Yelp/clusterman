@@ -50,7 +50,6 @@ class SpotFleetResourceGroup(AWSResourceGroup):
         self,
         target_capacity: float,
         *,
-        terminate_excess_capacity: bool = False,
         dry_run: bool = False,
     ) -> None:
         if self.is_stale:
@@ -59,7 +58,7 @@ class SpotFleetResourceGroup(AWSResourceGroup):
         kwargs = {
             'SpotFleetRequestId': self.group_id,
             'TargetCapacity': int(target_capacity),
-            'ExcessCapacityTerminationPolicy': 'Default' if terminate_excess_capacity else 'NoTermination'
+            'ExcessCapacityTerminationPolicy': 'NoTermination',
         }
         logger.info(f'Modifying spot fleet request with arguments: {kwargs}')
         if dry_run:

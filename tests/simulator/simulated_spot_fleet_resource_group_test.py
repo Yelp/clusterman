@@ -147,20 +147,14 @@ def test_terminate_instance(spot_fleet, test_instances_by_market):
 def test_modify_target_capacity(dry_run, spot_fleet):
     spot_fleet.modify_target_capacity(10, dry_run=dry_run)
     capacity = spot_fleet.target_capacity
-    set1 = set(spot_fleet.instances)
     spot_fleet.modify_target_capacity(capacity * 2, dry_run=dry_run)
-    set2 = set(spot_fleet.instances)
-    # Because of FIFO strategy, this should remove all instances in set1
+    set1 = set(spot_fleet.instances)
     spot_fleet.modify_target_capacity(
         spot_fleet.target_capacity - capacity,
-        terminate_excess_capacity=True,
         dry_run=dry_run
     )
     set3 = set(spot_fleet.instances)
-    if not dry_run:
-        assert set3 == (set2 - set1)
-    else:
-        assert set3 == set1
+    assert set3 == set1
 
 
 def test_downsize_capacity_by_small_weight(spot_fleet):
@@ -174,9 +168,9 @@ def test_downsize_capacity_by_small_weight(spot_fleet):
         instance.join_time = instance.start_time
     spot_fleet.__target_capacity = 12
     # This should remove the last instance to meet capacity requirements
-    spot_fleet.modify_target_capacity(11, terminate_excess_capacity=True)
+    spot_fleet.modify_target_capacity(11)
     assert spot_fleet.target_capacity == 11
-    assert spot_fleet.market_size(MARKETS[0]) == 0
+    assert spot_fleet.market_size(MARKETS[0]) == 1
 
 
 @pytest.mark.parametrize('target_capacity', [5, 10, 30, 50, 100])

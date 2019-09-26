@@ -16,6 +16,7 @@ from clusterman.aws.client import ec2
 from clusterman.aws.markets import InstanceMarket
 
 _BATCH_MODIFY_SIZE = 200
+CLUSTERMAN_STALE_TAG = 'clusterman:is_stale'
 
 logger = colorlog.getLogger(__name__)
 
@@ -98,7 +99,7 @@ class AutoScalingResourceGroup(AWSResourceGroup):
             ec2.create_tags(
                 Resources=inst_list,
                 Tags=[{
-                    'Key': 'clusterman__is_stale',
+                    'Key': CLUSTERMAN_STALE_TAG,
                     'Value': 'True',
                 }],
             )
@@ -107,7 +108,6 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         self,
         target_capacity: float,
         *,
-        terminate_excess_capacity: bool = False,
         dry_run: bool = False,
         honor_cooldown: bool = False,
     ) -> None:
@@ -117,8 +117,6 @@ class AutoScalingResourceGroup(AWSResourceGroup):
             Must be such that the desired capacity is between the minimum and
             maximum capacities of the ASGs. The desired capacity will be rounded
             to the minimum or maximum otherwise, whichever is closer.
-        :param terminate_excess_capacity: Boolean indicating whether or not to
-            terminate excess instances in the event of a scale down
         :param dry_run: Boolean indicating whether or not to take action or just
             log
         :param honor_cooldown: Boolean for whether or not to wait for a period
@@ -126,6 +124,13 @@ class AutoScalingResourceGroup(AWSResourceGroup):
             activity has completed before initiating this one. Defaults to False,
             which is the AWS default for manual scaling activities.
         """
+        # We pretend like stale instances aren't in the ASG, but actually they are so
+        # we have to double-count them in the target capacity computation
+        #
+        # N.B. If and when we start using multiple instance types in one ASG, and AWS
+        # allows us to weight them differently, this calculation will need to change
+        target_capacity += len(self.stale_instance_ids)
+
         # Round target_cpacity to min or max if necessary
         max_size = self._group_config['MaxSize']
         min_size = self._group_config['MinSize']
@@ -154,16 +159,23 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         if dry_run:
             return
 
-        target_diff = self.target_capacity - target_capacity
-        if target_diff > 0 and terminate_excess_capacity:
-            # clusterman-managed ASGS are assumed to be protected, so we need to
-            # remove that protection on some if we want to terminate
-            autoscaling.set_instance_protection(
-                InstanceIds=self.instance_ids[:int(target_diff)],
-                AutoScalingGroupName=self.id,
-                ProtectedFromScaleIn=False,
-            )
         autoscaling.set_desired_capacity(**kwargs)
+
+    @timed_cached_property(ttl=CACHE_TTL_SECONDS)
+    def stale_instance_ids(self):
+        response = ec2.describe_tags(
+            Filters=[
+                {
+                    'Name': 'key',
+                    'Values': [CLUSTERMAN_STALE_TAG],
+                },
+                {
+                    'Name': 'value',
+                    'Values': ['True'],
+                },
+            ]
+        )
+        return [item['ResourceId'] for item in response.get('Tags', []) if item['ResourceId'] in self.instance_ids]
 
     @timed_cached_property(ttl=CACHE_TTL_SECONDS)
     def instance_ids(self) -> Sequence[str]:
@@ -186,23 +198,32 @@ class AutoScalingResourceGroup(AWSResourceGroup):
     def status(self) -> str:
         """ The status of the ASG
 
-        An ASG either exists or it doesn't. Thus, if we can query its status,
-        it is active.
+        If all the instances are stale, then the ASG is 'stale'; otherwise, if only some instances
+        are stale, it is 'rolling', and otherwise it is 'active'.
         """
-        return 'active'
+        if self.is_stale:
+            return 'stale'
+        elif len(self.stale_instance_ids) > 0:
+            return 'rolling'
+        else:
+            return 'active'
 
     @property
     def is_stale(self) -> bool:
         """ Whether or not the ASG is stale
 
-        An ASG either exists or it doesn't. Thus, the concept of staleness
-        doesn't exist.
+        An ASG is stale iff all the instances in the ASG are stale
         """
-        return False
+        return self.stale_instance_ids == self.instance_ids
 
     @property
     def _target_capacity(self) -> float:
-        return self._group_config['DesiredCapacity']
+        # We pretend like stale instances aren't in the ASG, but actually they are so
+        # we have to remove them manually from the existing target capacity
+        #
+        # N.B. If and when we start using multiple instance types in one ASG, and AWS
+        # allows us to weight them differently, this calculation will need to change
+        return self._group_config['DesiredCapacity'] - len(self.stale_instance_ids)
 
     @classmethod
     def _get_resource_group_tags(cls) -> Mapping[str, Mapping[str, str]]:

@@ -126,7 +126,6 @@ class PoolManager:
             try:
                 self.resource_groups[group_id].modify_target_capacity(
                     target,
-                    terminate_excess_capacity=False,
                     dry_run=dry_run,
                 )
             except ResourceGroupError:
@@ -435,7 +434,7 @@ class PoolManager:
             return (
                 0 if node_metadata.agent.state == AgentState.ORPHANED else 1,
                 0 if node_metadata.agent.state == AgentState.IDLE else 1,
-                0 if node_metadata.instance.is_resource_group_stale else 1,
+                0 if node_metadata.instance.is_stale else 1,
                 node_metadata.agent.batch_task_count,
                 node_metadata.agent.task_count,
             )

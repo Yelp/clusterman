@@ -94,3 +94,16 @@ Feature: make sure the MesosPoolManager is requesting the right capacities
          Then the first resource group's capacity should not change
           And the remaining resource groups should have evenly-balanced capacity
           And the log should contain "resource group is broken"
+
+    Scenario Outline: An ASG is marked stale
+        Given a pool manager with 1 asg resource group
+         When we request 10 capacity
+          And we mark resource group 1 as stale
+          And we request <capacity> capacity
+         # the stale instances should get replaced on the next call
+         Then resource group 1 should have <instance_count> instances
+
+      Examples:
+        | capacity | instance_count |
+        | 10       | 20             |
+        | 5        | 15             |

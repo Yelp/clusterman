@@ -24,6 +24,7 @@ class _InstanceMarket(NamedTuple):
 class MarketDict(TypedDict):
     InstanceType: str
     SubnetId: str
+    Placement: Mapping
 
 
 class InstanceMarket(_InstanceMarket):
@@ -199,19 +200,22 @@ def get_market_resources(market: InstanceMarket) -> InstanceResources:
 
 
 def get_market(instance_type: str, subnet_id: Optional[str]) -> InstanceMarket:
+    az: Optional[str]
     if subnet_id is not None:
         az = subnet_to_az(subnet_id)
     else:
-        # `ignore` is a workaround for mypy insisting that `az` is `str` and not `Optional[str]`
-        az = None  # type: ignore
+        az = None
     return InstanceMarket(instance_type, az)
 
 
 def get_instance_market(aws_instance_object: MarketDict) -> InstanceMarket:
-    return get_market(
-        aws_instance_object['InstanceType'],
-        aws_instance_object.get('SubnetId'),
-    )
+    instance_type = aws_instance_object['InstanceType']
+    subnet_id = aws_instance_object.get('SubnetId')
+    if subnet_id:
+        return get_market(instance_type, subnet_id)
+    else:
+        az = aws_instance_object.get('Placement', {}).get('AvailabilityZone')
+        return InstanceMarket(instance_type, az)
 
 
 @lru_cache(maxsize=32)

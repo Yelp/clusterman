@@ -35,7 +35,7 @@ def _make_metadata(
             hostname='host1',
             instance_id=instance_id,
             ip_address='1.2.3.4',
-            is_resource_group_stale=is_stale,
+            is_stale=is_stale,
             market='market-1',
             state='running',
             uptime=1000,

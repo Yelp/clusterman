@@ -20,7 +20,7 @@ class InstanceMetadata(NamedTuple):
     hostname: Optional[str]
     instance_id: str
     ip_address: Optional[str]
-    is_resource_group_stale: bool
+    is_stale: bool
     market: InstanceMarket
     state: str
     uptime: arrow.Arrow
@@ -66,14 +66,11 @@ class ResourceGroup(metaclass=ABCMeta):
         self,
         target_capacity: float,
         *,
-        terminate_excess_capacity: bool,
         dry_run: bool,
     ) -> None:  # pragma: no cover
         """ Modify the target capacity for the resource group
 
         :param target_capacity: the (weighted) new target capacity for the resource group
-        :param terminate_excess_capacity: boolean indicating whether to terminate instances if the
-            new target capacity is less than the current capacity
         :param dry_run: boolean indicating whether to take action or just write to stdout
         """
         pass
@@ -91,6 +88,10 @@ class ResourceGroup(metaclass=ABCMeta):
         :returns: a list of terminated instance IDs
         """
         pass
+
+    @property
+    def stale_instance_ids(self):
+        return self.instance_ids if self.is_stale else []
 
     @abstractproperty
     def id(self) -> str:  # pragma: no cover

@@ -137,6 +137,14 @@ def broken_resource_group(context, rgid):
     rg.modify_target_capacity = mock.Mock(side_effect=ResourceGroupError('resource group is broken'))
 
 
+@behave.given('we mark resource group (?P<rgid>\d+) as stale')
+@behave.when('we mark resource group (?P<rgid>\d+) as stale')
+def stale_resource_group(context, rgid):
+    rg = list(context.pool_manager.resource_groups.values())[0]
+    rg.mark_stale(False)
+    context.stale_instances = rg.instance_ids
+
+
 @behave.then('the resource groups should be at minimum capacity')
 def check_at_min_capacity(context):
     for rg in context.pool_manager.resource_groups.values():
@@ -178,3 +186,11 @@ def check_target_capacity(context, remaining):
             close_to(desired_capacity, 1.0),
         )
     assert_that(target_capacity, equal_to(context.pool_manager.target_capacity))
+
+
+@behave.then('resource group (?P<rgid>\d+) should have (?P<capacity>\d+) instances')
+def target_capacity_equals(context, rgid, capacity):
+    assert_that(
+        len(context.pool_manager.resource_groups[context.rg_ids[int(rgid) - 1]].instance_ids),
+        equal_to(int(capacity)),
+    )
