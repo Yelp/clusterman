@@ -26,6 +26,10 @@ class MockResourceGroup(AWSResourceGroup):
         return [i['InstanceId'] for i in self.instances]
 
     @property
+    def stale_instance_ids(self):
+        return []
+
+    @property
     def fulfilled_capacity(self):
         return 5
 
@@ -107,6 +111,7 @@ def mock_describe_instances_with_missing_subnet(orig):
         ret = orig(InstanceIds=InstanceIds)
         for i in ret['Reservations'][0]['Instances']:
             i.pop('SubnetId')
+            i.pop('Placement')
         return ret
     return describe_instances_with_missing_subnet
 
@@ -188,7 +193,7 @@ def test_get_node_metadatas(mock_resource_group):
         assert instance_metadata.group_id == mock_resource_group.id
         assert instance_metadata.hostname == f'host{i}'
         assert instance_metadata.instance_id == mock_resource_group.instances[i]['InstanceId']
-        assert not instance_metadata.is_resource_group_stale
+        assert not instance_metadata.is_stale
         assert instance_metadata.ip_address == ips[i]
         assert instance_metadata.market.instance == 'c3.4xlarge'
         assert instance_metadata.state == 'running'

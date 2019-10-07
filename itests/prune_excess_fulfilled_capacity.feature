@@ -59,3 +59,13 @@ Feature: make sure we're pruning the right instances on scale-down
           And resource group 1 is stale
          When we prune excess fulfilled capacity to 9
          Then 0 instances should be killed
+
+    Scenario: kill stale instances in an ASG
+        Given a pool manager with 1 asg resource group
+          And the fulfilled capacity of resource group 1 is 10
+          And we mark resource group 1 as stale
+          And the fulfilled capacity of resource group 1 is 15
+          And the non-orphaned fulfilled capacity is 15
+         When we prune excess fulfilled capacity to 10
+         Then 5 instances should be killed
+          And the killed instances should be stale

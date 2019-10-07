@@ -68,33 +68,17 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, AWSResourceGroup):
     def market_weight(self, market):
         return self._instance_types[market].weight
 
-    def modify_target_capacity(self, target_capacity, *, terminate_excess_capacity=False, dry_run=False):
+    def modify_target_capacity(self, target_capacity, *, dry_run=False):
         """ Modify the requested capacity for a particular spot fleet
 
         :param target_capacity: desired capacity after this operation
-        :param terminate_excess_capacity: indicate if we should kill instances to meet target capacity
         """
         if dry_run:
             return
 
         curr_capacity = self.fulfilled_capacity
         self.__target_capacity = target_capacity
-        if curr_capacity > target_capacity and terminate_excess_capacity is True:
-            # Since AWS doesn't allow the user to specify which instances are shut down,
-            # we terminate instances one by one (in order of launch time) until the target capacity is reached
-            sequence = sorted([instance for instance in self.instances.values()], key=lambda i: i.start_time)
-            removed_ids = []
-            adjusted_capacity = curr_capacity - target_capacity
-            for instance in sequence:
-                weight = self._instance_types[instance.market].weight
-                if weight > adjusted_capacity:
-                    continue
-                adjusted_capacity -= weight
-                removed_ids.append(instance.id)
-                if adjusted_capacity <= 0:
-                    break
-            self.terminate_instances_by_id(removed_ids)
-        elif curr_capacity < target_capacity:
+        if curr_capacity < target_capacity:
             self._increase_capacity_to_target(target_capacity)
 
     def terminate_instances_by_id(self, ids, batch_size=-1):

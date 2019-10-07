@@ -34,7 +34,6 @@ class EC2FleetResourceGroup(AWSResourceGroup):
         self,
         target_capacity: float,
         *,
-        terminate_excess_capacity: bool = False,
         dry_run: bool = False,
     ) -> None:
         if self.is_stale:
@@ -46,7 +45,7 @@ class EC2FleetResourceGroup(AWSResourceGroup):
             'TargetCapacitySpecification': {
                 'TotalTargetCapacity': int(target_capacity),
             },
-            'ExcessCapacityTerminationPolicy': 'termination' if terminate_excess_capacity else 'no-termination',
+            'ExcessCapacityTerminationPolicy': 'no-termination',
         }
         logger.info(f'Modifying spot fleet request with arguments: {kwargs}')
         if dry_run:

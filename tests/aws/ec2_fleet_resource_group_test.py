@@ -108,18 +108,17 @@ def test_modify_target_capacity_stale(mock_ec2_fleet_resource_group):
         assert mock_ec2_fleet_resource_group.target_capacity == 0
 
 
-@pytest.mark.parametrize('terminate', [True, False])
-def test_modify_target_capacity(mock_ec2_fleet_resource_group, terminate):
+def test_modify_target_capacity(mock_ec2_fleet_resource_group):
     with mock.patch(
         'clusterman.aws.ec2_fleet_resource_group.ec2.modify_fleet',
     ) as mock_modify:
-        mock_ec2_fleet_resource_group.modify_target_capacity(20, terminate_excess_capacity=terminate)
+        mock_ec2_fleet_resource_group.modify_target_capacity(20)
         assert mock_modify.call_args == mock.call(
             FleetId=MOCK_FLEET_ID,
             TargetCapacitySpecification={
                 'TotalTargetCapacity': 20,
             },
-            ExcessCapacityTerminationPolicy='termination' if terminate else 'no-termination',
+            ExcessCapacityTerminationPolicy='no-termination',
         )
 
 

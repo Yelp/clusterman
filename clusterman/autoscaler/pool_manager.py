@@ -78,6 +78,18 @@ class PoolManager:
         logger.info('Recalculating non-orphan fulfilled capacity')
         self.non_orphan_fulfilled_capacity = self._calculate_non_orphan_fulfilled_capacity()
 
+    def mark_stale(self, dry_run: bool) -> None:
+        if dry_run:
+            logger.warn('Running in "dry-run" mode; cluster state will not be modified')
+
+        for group_id, group in self.resource_groups.items():
+            logger.info(f'Marking {group_id} as stale!')
+            try:
+                group.mark_stale(dry_run)
+            except NotImplementedError as e:
+                logger.warn(f'Skipping {group_id} because of error:')
+                logger.warn(str(e))
+
     def modify_target_capacity(
         self,
         new_target_capacity: float,
@@ -114,7 +126,6 @@ class PoolManager:
             try:
                 self.resource_groups[group_id].modify_target_capacity(
                     target,
-                    terminate_excess_capacity=False,
                     dry_run=dry_run,
                 )
             except ResourceGroupError:
@@ -423,7 +434,7 @@ class PoolManager:
             return (
                 0 if node_metadata.agent.state == AgentState.ORPHANED else 1,
                 0 if node_metadata.agent.state == AgentState.IDLE else 1,
-                0 if node_metadata.instance.is_resource_group_stale else 1,
+                0 if node_metadata.instance.is_stale else 1,
                 node_metadata.agent.batch_task_count,
                 node_metadata.agent.task_count,
             )

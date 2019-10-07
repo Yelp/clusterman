@@ -54,7 +54,7 @@ class SimulatedPoolManager(PoolManager):
                         hostname=f'{instance.id}.com',
                         instance_id=instance.id,
                         ip_address=instance.ip_address,
-                        is_resource_group_stale=group.is_stale,
+                        is_stale=group.is_stale,
                         market=instance.market,
                         state='running',
                         uptime=(self.simulator.current_time - instance.start_time),

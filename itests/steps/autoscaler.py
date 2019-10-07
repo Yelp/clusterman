@@ -183,8 +183,8 @@ def rg_capacity_change(context, rg, target):
     assert_that(
         groups[int(rg) - 1].modify_target_capacity.call_args_list,
         contains(
-            mock.call(int(target), terminate_excess_capacity=False, dry_run=False),
-            mock.call(int(target), terminate_excess_capacity=False, dry_run=False),
+            mock.call(int(target), dry_run=False),
+            mock.call(int(target), dry_run=False),
         ),
     )
 

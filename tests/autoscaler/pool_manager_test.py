@@ -35,7 +35,7 @@ def _make_metadata(
             hostname='host1',
             instance_id=instance_id,
             ip_address='1.2.3.4',
-            is_resource_group_stale=is_stale,
+            is_stale=is_stale,
             market='market-1',
             state='running',
             uptime=1000,
@@ -57,6 +57,7 @@ def mock_resource_groups():
             market_weight=mock.Mock(return_value=1.0),
             terminate_instances_by_id=mock.Mock(return_value=[]),
             spec=AWSResourceGroup,
+            mark_stale=mock.Mock(side_effect=NotImplementedError),
         )
         for i in range(7)
     }
@@ -106,6 +107,13 @@ def test_pool_manager_init(mock_pool_manager, mock_resource_groups):
         mock_manager = PoolManager('mesos-test', 'bar', 'mesos')
         mock_manager.resource_groups = mock_resource_groups
         assert mock_manager.max_tasks_to_kill == float('inf')
+
+
+def test_mark_stale(mock_pool_manager, caplog):
+    mock_pool_manager.mark_stale(False)
+    for r in caplog.records:
+        if r.message:
+            assert 'Skipping' in r.message
 
 
 def test_modify_target_capacity_no_resource_groups(mock_pool_manager):
