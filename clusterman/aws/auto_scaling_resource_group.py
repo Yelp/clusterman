@@ -201,9 +201,7 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         If all the instances are stale, then the ASG is 'stale'; otherwise, if only some instances
         are stale, it is 'rolling', and otherwise it is 'active'.
         """
-        if self.is_stale:
-            return 'stale'
-        elif len(self.stale_instance_ids) > 0:
+        if len(self.stale_instance_ids) > 0:
             return 'rolling'
         else:
             return 'active'
@@ -212,9 +210,11 @@ class AutoScalingResourceGroup(AWSResourceGroup):
     def is_stale(self) -> bool:
         """ Whether or not the ASG is stale
 
-        An ASG is stale iff all the instances in the ASG are stale
+        An ASG is never stale; even if all the instances in it are stale, that means we still
+        want Clusterman to track the existence of this specific ASG and replace the instances in it.
+        Staleness by definition means the resource group should go away after we clean it up.
         """
-        return self.stale_instance_ids == self.instance_ids
+        return False
 
     @property
     def _target_capacity(self) -> float:

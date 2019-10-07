@@ -198,10 +198,8 @@ def test_status(mock_asrg, stale_instances):
         status = mock_asrg.status
         if stale_instances == 0:
             assert status == 'active'
-        elif stale_instances == 1:
+        elif stale_instances > 0:
             assert status == 'rolling'
-        else:
-            assert status == 'stale'
 
 
 def test_get_asg_tags(mock_asrg, mock_asg_config):
