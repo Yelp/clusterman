@@ -215,6 +215,7 @@ class Autoscaler:
         cluster_allocated_resources = self._get_cluster_allocated_resources()
         non_orphan_fulfilled_capacity = self.pool_manager.non_orphan_fulfilled_capacity
         logger.info(f'Currently at target_capacity of {current_target_capacity}')
+        logger.info(f'Currently non-orphan fulfilled capacity is {non_orphan_fulfilled_capacity}')
         logger.info(f'Current cluster total resources: {cluster_total_resources}')
         logger.info(f'Current cluster allocated resources: {cluster_allocated_resources}')
 
@@ -303,19 +304,23 @@ class Autoscaler:
         # amount.  Tada!
         new_target_capacity = non_orphan_fulfilled_capacity * scale_factor
 
-        # If the percentage requested differs by more than the allowable margin from the setpoint,
-        # we scale up/down to reach the setpoint.  We want to use target_capacity here instead of
+        # If the percentage change between current target capacity and the new target capacity is more than the
+        # allowable margin we scale up/down to reach the setpoint. We want to use target_capacity here instead of
         # get_resource_total to protect against short-term fluctuations in the cluster.
-        setpoint_distance = abs(new_target_capacity - current_target_capacity) / current_target_capacity
-        logger.info(f'Distance from setpoint of {self.autoscaling_config.setpoint}: {setpoint_distance}')
-        margin = self.autoscaling_config.setpoint_margin
-        if setpoint_distance >= margin:
+        target_capacity_percentage_change = abs(new_target_capacity - current_target_capacity) / current_target_capacity
+        logger.info(
+            f'Percentage change between current target capacity {current_target_capacity}, and new target capacity '
+            f'{new_target_capacity}, is {target_capacity_percentage_change}'
+        )
+        margin = self.autoscaling_config.target_capacity_margin
+        if target_capacity_percentage_change >= margin:
             logger.info(
-                f'Setpoint distance is greater than setpoint margin ({margin}). Scaling to {new_target_capacity}.'
+                f'Percentage change between current and new target capacities is greater than margin ({margin}). '
+                f'Scaling to {new_target_capacity}.'
             )
         else:
             logger.info(
-                f'We are within our setpoint margin ({margin}). Not changing target capacity.'
+                f'We are within our target capacity margin ({margin}). Not changing target capacity.'
             )
             new_target_capacity = current_target_capacity
 

@@ -41,7 +41,7 @@ def setup_configurations(context):
         },
         'autoscaling': {
             'setpoint': 0.7,
-            'setpoint_margin': 0.1,
+            'target_capacity_margin': 0.1,
             'default_signal_role': 'foo',
         },
         'batches': {

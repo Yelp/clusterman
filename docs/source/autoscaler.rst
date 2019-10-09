@@ -10,18 +10,24 @@ resources and the current number of resources available for the pool determines 
 
 Scaling Logic
 -------------
-Clusterman tries to maintain a certain level of resource utilization, called the setpoint.
-It uses the value of signals as the measure of utilization. If current utilization is more than the setpoint margin
-away from the setpoint, then it will add or remove enough resources so that utilization will become the setpoint.
-(The setpoint margin prevents it from scaling too frequently in response to small changes.)
+Clusterman tries to maintain a certain level of resource utilization, called the setpoint. It uses the value of signals
+as the measure of utilization. If current utilization differs from the setpoint, Clusterman calculates a new desired
+target capacity for the cluster that will keep utilization at the setpoint.
 
-The setpoint and margin are configured under ``autoscaling`` in :ref:`service_configuration`.
+Clusterman calculates the percentage difference between this desired target capacity and the current target capacity.
+If this value is greater than the target capacity margin, then it will add or remove resources to bring the cluster to
+the desired target capacity. This prevents Clusterman from scaling too frequently in response to small changes.
+
+The setpoint and target capacity margin are configured under ``autoscaling`` in :ref:`service_configuration`.
 There are also some absolute limits on scaling, e.g. the maximum units that can be added or removed at a time.
 These are configured under ``scaling_limits`` in :ref:`pool_configuration`.
 
-For example, suppose the setpoint is 0.8 and the setpoint margin is 0.1. If the total number of CPUs is 100, and
-the signalled number of CPUs is 96, the current level of utilization is 0.96, beyond the :math:`0.7-0.9` range
-allowed by the setpoint.  Then, Clusterman will add 20 CPUs, because :math:`96/(100+20) = 0.8`.
+For example, suppose the setpoint is 0.8 and the target capacity margin is 0.1. If the total number of CPUs is 100, and
+the signalled number of CPUs is 96, the current level of utilization is :math:`96/100=0.96`, which is different from
+the setpoint. Then suppose currently both target capacity and actual capacity are 100.0, the desired target capacity
+is calculated as :math:`100.0 * 0.96 / 0.8 = 120.0`, the target capacity percentage change is
+:math:`(120.0 - 100.0)/100.0 = 0.2`, exceeding target capacity margin. So clusterman would scale the pool to a target
+capacity of 120.0.
 
 .. _draining_logic:
 

@@ -10,7 +10,7 @@ logger = colorlog.getLogger(__name__)
 class AutoscalingConfig(NamedTuple):
     excluded_resources: List[str]
     setpoint: float
-    setpoint_margin: float
+    target_capacity_margin: float
 
 
 def get_autoscaling_config(config_namespace: str) -> AutoscalingConfig:
@@ -22,11 +22,14 @@ def get_autoscaling_config(config_namespace: str) -> AutoscalingConfig:
     """
     default_excluded_resources = staticconf.read_list('autoscaling.excluded_resources', default=[])
     default_setpoint = staticconf.read_float('autoscaling.setpoint')
-    default_setpoint_margin = staticconf.read_float('autoscaling.setpoint_margin')
+    default_target_capacity_margin = staticconf.read_float('autoscaling.target_capacity_margin')
 
     reader = staticconf.NamespaceReaders(config_namespace)
     return AutoscalingConfig(
         excluded_resources=reader.read_list('autoscaling.excluded_resources', default=default_excluded_resources),
         setpoint=reader.read_float('autoscaling.setpoint', default=default_setpoint),
-        setpoint_margin=reader.read_float('autoscaling.setpoint_margin', default=default_setpoint_margin),
+        target_capacity_margin=reader.read_float(
+            'autoscaling.target_capacity_margin',
+            default=default_target_capacity_margin,
+        ),
     )

@@ -30,7 +30,7 @@ batches:
 autoscaling:
     default_signal_role: 'clusterman'
     setpoint: 0.7
-    setpoint_margin: 0.05
+    target_capacity_margin: 0.05
 
 autoscale_signal:
     name: ConstantSignal
