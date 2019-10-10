@@ -41,8 +41,9 @@ The following is an example configuration file for the core Clusterman service a
         # Percentage utilization that Clusterman will try to maintain.
         setpoint: 0.7
 
-        # Clusterman will only scale if utilization is beyond this margin from the setpoint.
-        setpoint_margin: 0.1
+        # Clusterman will only scale if percentage change of current and new target capacities  is
+        # beyond this margin.
+        target_capacity_margin: 0.1
 
     # How long to wait for an agent to "drain" before terminating it
     drain_termination_timeout_seconds:

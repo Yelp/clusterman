@@ -7,7 +7,7 @@ from clusterman.autoscaler.config import get_autoscaling_config
 def test_get_autoscaling_config():
     default_autoscaling_values = {
         'setpoint': 0.7,
-        'setpoint_margin': 0.1,
+        'target_capacity_margin': 0.1,
         'excluded_resources': ['gpus']
     }
     pool_autoscaling_values = {

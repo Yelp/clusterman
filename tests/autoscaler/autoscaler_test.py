@@ -46,7 +46,7 @@ def mock_autoscaler():
     autoscaling_config_dict = {
         'default_signal_role': 'clusterman',
         'setpoint': 0.7,
-        'setpoint_margin': 0.1,
+        'target_capacity_margin': 0.1,
     }
 
     with mock.patch(
