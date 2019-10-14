@@ -62,7 +62,8 @@ class KubernetesClusterConnector(ClusterConnector):
         )
 
     def _get_nodes_by_ip(self) -> Mapping[str, KubernetesNode]:
-        pool_label_selector = self.pool_config.read_string('pool_label_key') + '=' + self.pool
+        pool_label_selector = self.pool_config.read_string('pool_label_key', default='clusterman.com/pool') \
+            + '=' + self.pool
         pool_nodes = self._core_api.list_node(label_selector=pool_label_selector).items
         return {
             get_node_ip(node): node
