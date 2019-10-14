@@ -20,7 +20,6 @@ def check_status(batch_name):  # pragma: no cover
         print(f'{batch_name} has not finished initialization')
         sys.exit(1)
 
-    print(f'{status_pid} ?= {batch_pid}')
     assert status_pid == batch_pid
     print(f'{batch_name} completed initialization and is running at PID {status_pid}')
 

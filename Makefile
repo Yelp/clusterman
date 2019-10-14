@@ -26,7 +26,7 @@ test: clean-cache
 
 .PHONY: test-external
 test-external: clean-cache
-	tox -e external
+	tox -e external -- --tags=-yelp
 
 .PHONY: itest
 itest: export EXTRA_VOLUME_MOUNTS=/nail/etc/services/services.yaml:/nail/etc/services/services.yaml:ro

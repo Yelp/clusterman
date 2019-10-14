@@ -28,6 +28,8 @@ from clusterman.config import POOL_NAMESPACE
 logger = colorlog.getLogger(__name__)
 
 
+# These should stay in sync with
+# https://github.com/Yelp/pysensu-yelp/blob/master/pysensu_yelp/__init__.py#L122
 class Status(Enum):
     OK = 0
     WARNING = 1

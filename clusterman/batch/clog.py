@@ -6,7 +6,7 @@ import staticconf
 
 
 namespace = 'clog'
-clog_namespace = staticconf.NamespaceGetters(namespace)
+clog_namespace = staticconf.NamespaceGetters(namespace)  # type: ignore
 DETAILED_FORMAT = '\t'.join(
     [
         '%(asctime)s',
