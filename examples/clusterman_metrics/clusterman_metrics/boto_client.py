@@ -220,7 +220,6 @@ class ClustermanMetricsBotoClient(object):
                 time_start,
                 time_end,
                 is_regex,
-                check_deprecated,
                 extra_dimensions,
             )
 

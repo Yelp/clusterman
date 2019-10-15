@@ -54,11 +54,9 @@ cook-image-external:
 	docker build -t $(DOCKER_TAG) -f Dockerfile.external .
 
 .PHONY: completions
-completions: virtualenv_run
+completions:
 	mkdir -p completions
-	virtualenv_run/bin/static_completion clusterman bash --write-vendor-directory $@
-	virtualenv_run/bin/static_completion clusterman zsh --write-vendor-directory $@
-	virtualenv_run/bin/static_completion clusterman fish --write-vendor-directory $@
+	tox -e completions
 
 .PHONY: install-hooks
 install-hooks: virtualenv_run
@@ -101,8 +99,16 @@ itest_%: dist completions
 	make -C package $@
 	./.tox/acceptance/bin/docker-compose -f acceptance/docker-compose.yaml down
 
+itest_%-external: dist
+	tox -e acceptance
+	make -C package $@
+	./.tox/acceptance/bin/docker-compose -f acceptance/docker-compose.yaml down
+
 .PHONY:
 package: itest_xenial itest_bionic
+
+.PHONY:
+package-external: itest_xenial-external itest_bionic-external
 
 .PHONY:
 clean: clean-cache
