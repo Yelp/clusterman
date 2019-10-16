@@ -1,3 +1,9 @@
+clusterman (4.3.0) xenial bionic; urgency=low
+
+  * works in non-Yelpy environment
+
+ -- David Morrison <drmorr@yelp.com>  Wed, 16 Oct 2019 13:08:12 -0700
+
 clusterman (4.2.0) xenial bionic; urgency=low
 
   * Rolling ASGs
