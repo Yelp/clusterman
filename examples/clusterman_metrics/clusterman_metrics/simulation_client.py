@@ -60,7 +60,6 @@ class ClustermanMetricsSimulationClient(ClustermanMetricsBotoClient):
         """
         super(ClustermanMetricsSimulationClient, self).__init__(
             *args,
-            meteorite_enabled=False,
             **kwargs
         )
         _validate_metrics_object(generated_metrics)

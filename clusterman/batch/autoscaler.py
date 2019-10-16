@@ -1,7 +1,6 @@
 import time
 
 import colorlog
-from pysensu_yelp import Status
 from yelp_batch.batch import batch_command_line_arguments
 from yelp_batch.batch import batch_configure
 from yelp_batch.batch_daemon import BatchDaemon
@@ -23,6 +22,7 @@ from clusterman.util import get_autoscaler_scribe_stream
 from clusterman.util import sensu_checkin
 from clusterman.util import setup_logging
 from clusterman.util import splay_event_time
+from clusterman.util import Status
 
 logger = colorlog.getLogger(__name__)
 colorlog.getLogger('clusterman_metrics')  # This just adds a handler to the clusterman_metrics logger

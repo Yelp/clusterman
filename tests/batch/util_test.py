@@ -2,7 +2,10 @@ import mock
 import pytest
 from botocore.exceptions import ClientError
 
-from clusterman.batch.util import suppress_request_limit_exceeded
+try:
+    from clusterman.batch.util import suppress_request_limit_exceeded
+except ImportError:
+    pytest.mark.skip('Could not import the batch; are you in a Yelp-y environment?')
 
 
 @mock.patch('clusterman.batch.util.get_monitoring_client')

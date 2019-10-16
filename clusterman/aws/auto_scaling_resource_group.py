@@ -70,7 +70,7 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         try:
             return response['LaunchConfigurations'][0]
         except IndexError as e:
-            logger.warn(f'Could not get launch config for ASG {self.group_id}: {launch_config_name}')
+            logger.warning(f'Could not get launch config for ASG {self.group_id}: {launch_config_name}')
             del self.__dict__['_group_config']  # invalidate cache
             raise e
 
@@ -135,13 +135,13 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         max_size = self._group_config['MaxSize']
         min_size = self._group_config['MinSize']
         if target_capacity > max_size:
-            logger.warn(
+            logger.warning(
                 f'New target_capacity={target_capacity} exceeds ASG MaxSize={max_size}, '
                 'setting to max instead'
             )
             target_capacity = max_size
         elif target_capacity < min_size:
-            logger.warn(
+            logger.warning(
                 f'New target_capacity={target_capacity} falls below ASG MinSize={min_size}, '
                 'setting to min instead'
             )

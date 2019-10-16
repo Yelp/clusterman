@@ -144,6 +144,8 @@ def block_meteorite_emission():
     if yelp_meteorite:
         with yelp_meteorite.testcase():
             yield
+    else:
+        yield
 
 
 @pytest.fixture

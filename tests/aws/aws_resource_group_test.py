@@ -5,17 +5,17 @@ import simplejson as json
 from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.client import ec2
 from clusterman.aws.markets import InstanceMarket
-from tests.aws.conftest import mock_subnet
 
 
 class MockResourceGroup(AWSResourceGroup):
-    def __init__(self, group_id):
+    def __init__(self, group_id, subnet):
         super().__init__(group_id)
         self.instances = ec2.run_instances(
             InstanceType='c3.4xlarge',
             MinCount=5,
             MaxCount=5,
-            SubnetId=mock_subnet()['Subnet']['SubnetId'],
+            SubnetId=subnet['Subnet']['SubnetId'],
+            ImageId='ami-785db401',  # this AMI is hard-coded into moto, represents ubuntu xenial
         )['Instances']
 
     def modify_target_capacity(self):
@@ -82,20 +82,21 @@ class MockResourceGroup(AWSResourceGroup):
 
 
 @pytest.fixture
-def mock_resource_group():
-    yield MockResourceGroup.load(
+def mock_resource_groups(mock_subnet):
+    return MockResourceGroup.load(
         cluster='westeros-prod',
         pool='default',
         config={'tag': 'puppet:role::paasta'},
-    )['sfr-123']
-
-
-def test_load_resource_groups_from_tags():
-    mock_resource_groups = MockResourceGroup.load(
-        cluster='westeros-prod',
-        pool='default',
-        config={'tag': 'puppet:role::paasta'},
+        subnet=mock_subnet,
     )
+
+
+@pytest.fixture
+def mock_resource_group(mock_resource_groups):
+    return mock_resource_groups['sfr-123']
+
+
+def test_load_resource_groups_from_tags(mock_resource_groups):
     assert len(mock_resource_groups) == 1
     assert list(mock_resource_groups) == ['sfr-123']
 
@@ -125,8 +126,8 @@ def test_terminate_instance_missing_subnet(mock_logger, mock_resource_group):
     ):
         assert not mock_resource_group.terminate_instances_by_id(mock_resource_group.instance_ids)
 
-    assert mock_logger.warn.call_count == 5
-    for msg in mock_logger.warn.call_args_list:
+    assert mock_logger.warning.call_count == 5
+    for msg in mock_logger.warning.call_args_list:
         assert 'missing AZ info' in msg[0][0]
 
 
@@ -154,14 +155,14 @@ def test_terminate_some_instances_missing(mock_logger, mock_resource_group):
         )
 
         assert len(instances) == 3
-        assert mock_logger.warn.call_count == 2
+        assert mock_logger.warning.call_count == 2
 
 
 @mock.patch('clusterman.aws.aws_resource_group.logger')
 def test_terminate_no_instances_by_id(mock_logger, mock_resource_group):
     terminated_ids = mock_resource_group.terminate_instances_by_id([])
     assert not terminated_ids
-    assert mock_logger.warn.call_count == 1
+    assert mock_logger.warning.call_count == 1
 
 
 def test_protect_unowned_instances(mock_resource_group):

@@ -96,12 +96,12 @@ def test_setup_config_cluster(cluster, pool, scheduler, tag, mock_config_files):
         'clusterman.config.load_cluster_pool_config',
         autospec=True,
     ) as mock_pool_load, mock.patch(
-        'clusterman.config.load_default_config',
-    ) as mock_service_load:
+        'clusterman.config._load_module_configs',
+    ) as mock_load_module_configs:
 
         config.setup_config(args)
 
-        assert mock_service_load.call_args == mock.call('/nail/etc/config.yaml', '/nail/etc/config.yaml')
+        assert mock_load_module_configs.call_args == mock.call('/nail/etc/config.yaml')
         assert staticconf.read_string('aws.region') == 'us-test-3'
         if pool:
             assert mock_pool_load.call_args == mock.call(cluster, pool, scheduler, tag)
@@ -117,19 +117,19 @@ def test_setup_config_region_and_cluster():
         cluster='foo',
         aws_region='bar',
     )
-    with mock.patch('clusterman.config.load_default_config'), pytest.raises(argparse.ArgumentError):
+    with mock.patch('clusterman.config._load_module_configs'), pytest.raises(argparse.ArgumentError):
         config.setup_config(args)
 
 
-@mock.patch('clusterman.config.load_default_config')
-def test_setup_config_region(mock_service_load, mock_config_files):
+@mock.patch('clusterman.config._load_module_configs')
+def test_setup_config_region(mock_load_module_configs, mock_config_files):
     args = argparse.Namespace(
         env_config_path='/nail/etc/config.yaml',
         aws_region='fake-region-A',
     )
     config.setup_config(args)
     assert staticconf.read_string('aws.region') == 'fake-region-A'
-    assert mock_service_load.call_args == mock.call('/nail/etc/config.yaml', '/nail/etc/config.yaml')
+    assert mock_load_module_configs.call_args == mock.call('/nail/etc/config.yaml')
 
 
 @pytest.mark.parametrize('cluster,pool,pool_other_config', [('cluster-B', 'pool-1', 200)])

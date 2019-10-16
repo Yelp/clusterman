@@ -3,7 +3,6 @@ import os
 from typing import Optional
 
 import staticconf
-from yelp_servlib.config_util import load_default_config
 
 CREDENTIALS_NAMESPACE = 'boto_cfg'
 DEFAULT_CLUSTER_DIRECTORY = '/nail/srv/configs/clusterman-clusters'
@@ -11,12 +10,26 @@ LOG_STREAM_NAME = 'tmp_clusterman_autoscaler'
 POOL_NAMESPACE = '{pool}.{scheduler}_config'
 
 
+def _load_module_configs(env_config_path: str):
+    staticconf.YamlConfiguration(env_config_path)
+    for config in staticconf.read_list('module_config', default=[]):
+        if 'file' in config:
+            staticconf.YamlConfiguration(config['file'], namespace=config['namespace'])
+        staticconf.DictConfiguration(config.get('config', {}), namespace=config['namespace'])
+        if 'initialize' in config:
+            path = config['initialize'].split('.')
+            function = path.pop()
+            module_name = '.'.join(path)
+            module = __import__(module_name, globals(), locals(), [path[-1]])
+            getattr(module, function)()
+
+
 def setup_config(args: argparse.Namespace) -> None:
     # load_default_config merges the 'module_config' key from the first file
     # and the 'module_env_config' key from the second file to configure packages.
     # This allows us to configure packages differently in different hiera envs by
     # changing 'module_env_config'. We use the same file for both keys.
-    load_default_config(args.env_config_path, args.env_config_path)
+    _load_module_configs(args.env_config_path)
 
     signals_branch_or_tag = getattr(args, 'signals_branch_or_tag', None)
     cluster_config_directory = getattr(args, 'cluster_config_directory', None) or DEFAULT_CLUSTER_DIRECTORY

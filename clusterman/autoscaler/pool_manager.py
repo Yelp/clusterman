@@ -114,7 +114,7 @@ class PoolManager:
            capacity will be slightly above the target capacity)
         """
         if dry_run:
-            logger.warn('Running in "dry-run" mode; cluster state will not be modified')
+            logger.warning('Running in "dry-run" mode; cluster state will not be modified')
         if not self.resource_groups:
             raise PoolManagerError('No resource groups available')
 
@@ -233,13 +233,13 @@ class PoolManager:
         if requested_delta != delta:
             if force:
                 forced_target_capacity = self.target_capacity + requested_delta
-                logger.warn(
+                logger.warning(
                     f'Forcing target capacity to {forced_target_capacity} even though '
                     f'scaling limits would restrict to {constrained_target_capacity}.'
                 )
                 return forced_target_capacity
             else:
-                logger.warn(
+                logger.warning(
                     f'Requested target capacity {requested_target_capacity}; '
                     f'restricting to {constrained_target_capacity} due to scaling limits.'
                 )

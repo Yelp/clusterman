@@ -19,7 +19,14 @@ DOCKER_WORKDIR:=mkdir -p /work && cd /src && cp -vP --parents $(VERSIONED_FILES)
 
 itest_%: package_% dist/%/Packages.gz
 	$(DOCKER_ITEST_RUN) \
+		-v /nail/etc/services/services.yaml:/nail/etc/services/services.yaml:ro \
 		-v $(CURDIR)/../acceptance/$*/clusterman_signals_acceptance.tar.gz:/itest/$*/clusterman_signals_acceptance.tar.gz \
+		ubuntu:$* /itest/ubuntu.sh $(SYSTEM_PKG_NAME) $(PACKAGE_VERSION)
+
+itest_%-external: package_%_external dist/%/Packages.gz
+	$(DOCKER_ITEST_RUN) \
+		-v $(CURDIR)/../acceptance/$*/clusterman_signals_acceptance.tar.gz:/itest/$*/clusterman_signals_acceptance.tar.gz \
+		-v $(CURDIR)/../acceptance/srv-configs/clusterman-external.yaml:/nail/srv/configs/clusterman.yaml:ro \
 		ubuntu:$* /itest/ubuntu.sh $(SYSTEM_PKG_NAME) $(PACKAGE_VERSION)
 
 dist/%/Packages.gz:
@@ -29,11 +36,21 @@ dist/%/Packages.gz:
 
 package_%: build_%_docker
 	mkdir -p $(CURDIR)/dist/$*
-	$(DOCKER_BUILD_RUN) $(SYSTEM_PKG_NAME)_$*_container /bin/bash -c "\
-	    $(DOCKER_WORKDIR) \
-	    && dpkg-buildpackage -d \
-	    && mv ../*.deb /dist/$*/$(SYSTEM_PKG_NAME)_$(PACKAGE_VERSION)_amd64.deb \
-	    && chown $(UID):$(GID) /dist/$*/*.deb"
+	$(DOCKER_BUILD_RUN) \
+		$(SYSTEM_PKG_NAME)_$*_container /bin/bash -c "\
+		$(DOCKER_WORKDIR) && cat extra-requirements-yelp.txt >> requirements.txt \
+		&& dpkg-buildpackage -d \
+		&& mv ../*.deb /dist/$*/$(SYSTEM_PKG_NAME)_$(PACKAGE_VERSION)_amd64.deb \
+		&& chown $(UID):$(GID) /dist/$*/*.deb"
+
+package_%_external: build_%_docker
+	mkdir -p $(CURDIR)/dist/$*
+	$(DOCKER_BUILD_RUN) \
+		$(SYSTEM_PKG_NAME)_$*_container /bin/bash -c "\
+		$(DOCKER_WORKDIR) && echo \"file:///work/examples/clusterman_metrics\" >> requirements.txt \
+		&& dpkg-buildpackage -d -Rdebian/rules.external \
+		&& mv ../*.deb /dist/$*/$(SYSTEM_PKG_NAME)_$(PACKAGE_VERSION)_amd64.deb \
+		&& chown $(UID):$(GID) /dist/$*/*.deb"
 
 build_%_docker:
 	mkdir -p dist

@@ -1,1 +1,25 @@
----
+clog_enable_file_logging: false
+localS3: true
+metrics_sample_rate: 1000
+monk_audit_interval_s: 10
+monk_audit_whitelist:
+- tmp_monkheartbeat
+- tmp_kafka_consumer_monitoring
+monk_disable: false
+monk_stream_prefix: _clog.
+monk_timeout_ms: 300
+preferred_backend: monk
+scribe_disable: false
+scribe_errors_to_syslog: true
+scribe_host: 169.254.255.254
+scribe_net_reader:
+  host: scribe.local.yelpcorp.com
+  port: 3538
+scribe_port: 1463
+scribe_retry_interval: 10
+scribe_tail_services:
+- host: scribekafkaservices-elb-uswest1devc.dev.yelpcorp.com
+  port: 3535
+syslog_host_address: 169.254.255.254
+use_kafka: true
+use_schematizer: true

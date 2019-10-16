@@ -1,3 +1,4 @@
+from typing import Any
 from typing import Mapping
 from typing import Sequence
 
@@ -121,6 +122,7 @@ class SpotFleetResourceGroup(AWSResourceGroup):
         cluster: str,
         pool: str,
         config: SpotFleetResourceGroupConfig,
+        **kwargs: Any,
     ) -> Mapping[str, AWSResourceGroup]:
         """ Loads a list of spot fleets in the given cluster and pool
 

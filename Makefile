@@ -15,49 +15,48 @@ production: export VIRTUALENV_RUN_TARGET = virtualenv_run
 .PHONY: development
 development: virtualenv_run install-hooks
 
-# `mm` will make development
-.PHONY: minimal
-minimal: development
-
 .PHONY: docs
 docs:
 	-rm -rf docs/build
 	tox -e docs
 
-.PHONY: upload_docs
-upload_docs: docs
-	tox -e upload_docs
-
-.PHONY: dev_docs
-dev_docs: docs
-	PATH=$(PWD)/virtualenv_run/bin:$(PATH) serve-dev-servicedocs
-
-.PHONY: mypy
-mypy:
-	tox -e mypy
-
 .PHONY: test
-test: clean-cache mypy
-	tox
+test: clean-cache
+	tox -e yelp
+
+.PHONY: test-external
+test-external: clean-cache
+	tox -e external -- --tags=-yelp
 
 .PHONY: itest
+itest: export EXTRA_VOLUME_MOUNTS=/nail/etc/services/services.yaml:/nail/etc/services/services.yaml:ro
 itest: cook-image
 	tox -e acceptance
-	./paasta-itest-runner spot_price_collector "--aws-region=us-west-1 --disable-sensu"
-	./paasta-itest-runner cluster_metrics_collector "--cluster=docker --env-config-path acceptance/srv-configs/clusterman.yaml --cluster-config-dir acceptance/srv-configs/clusterman-clusters --disable-sensu"
-	./paasta-itest-runner autoscaler_bootstrap "--env-config-path acceptance/srv-configs/clusterman.yaml --cluster-config-dir acceptance/srv-configs/clusterman-clusters" autoscaler
+	./service-itest-runner clusterman.batch.spot_price_collector "--aws-region=us-west-1 "
+	./service-itest-runner clusterman.batch.cluster_metrics_collector "--cluster=docker"
+	./service-itest-runner clusterman.batch.autoscaler_bootstrap "" clusterman.batch.autoscaler
+
+.PHONY: itest-external
+itest-external: cook-image-external
+	tox -e acceptance
+	./service-itest-runner examples.batch.spot_price_collector "--aws-region=us-west-1 --env-config-path=acceptance/srv-configs/clusterman-external.yaml"
+	./service-itest-runner examples.batch.cluster_metrics_collector "--cluster=docker --env-config-path=acceptance/srv-configs/clusterman-external.yaml"
+	./service-itest-runner examples.batch.autoscaler_bootstrap "--env-config-path=acceptance/srv-configs/clusterman-external.yaml" examples.batch.autoscaler
 
 .PHONY: cook-image
 cook-image:
 	git rev-parse HEAD > version
 	docker build -t $(DOCKER_TAG) .
 
+.PHONY: cook-image-external
+cook-image-external:
+	git rev-parse HEAD > version
+	docker build -t $(DOCKER_TAG) -f Dockerfile.external .
+
 .PHONY: completions
-completions: virtualenv_run
+completions:
 	mkdir -p completions
-	virtualenv_run/bin/static_completion clusterman bash --write-vendor-directory $@
-	virtualenv_run/bin/static_completion clusterman zsh --write-vendor-directory $@
-	virtualenv_run/bin/static_completion clusterman fish --write-vendor-directory $@
+	tox -e completions
 
 .PHONY: install-hooks
 install-hooks: virtualenv_run
@@ -100,27 +99,31 @@ itest_%: dist completions
 	make -C package $@
 	./.tox/acceptance/bin/docker-compose -f acceptance/docker-compose.yaml down
 
+itest_%-external: dist
+	tox -e acceptance
+	make -C package $@
+	./.tox/acceptance/bin/docker-compose -f acceptance/docker-compose.yaml down
+
 .PHONY:
 package: itest_xenial itest_bionic
 
 .PHONY:
-clean:
+package-external: itest_xenial-external itest_bionic-external
+
+.PHONY:
+clean: clean-cache
 	-docker-compose -f acceptance/docker-compose.yaml down
 	-rm -rf docs/build
 	-rm -rf virtualenv_run/
 	-rm -rf .tox
 	-unlink dist
-	-find . -name '*.pyc' -delete
-	-find . -name '__pycache__' -delete
 	-rm -rf package/dist/*
 
 clean-cache:
 	find -name '*.pyc' -delete
 	find -name '__pycache__' -delete
-
-.PHONY:
-upgrade-requirements:
-	upgrade-requirements -i https://pypi.yelpcorp.com/simple --pip-tool pip-custom-platform --install-deps pip-custom-platform
+	rm -rf .mypy_cache
+	rm -rf .pytest_cache
 
 .PHONY:
 debug:
@@ -134,3 +137,7 @@ debug:
 		-e "CMAN_CLUSTER=mesosstage" \
 		-e "CMAN_POOL=default" \
 		clusterman_debug_container /bin/bash
+
+.PHONY:
+upgrade-requirements:
+	upgrade-requirements --python python3.7

@@ -3,10 +3,12 @@ import argparse
 import mock
 import pytest
 
-from clusterman.batch.autoscaler import AutoscalerBatch
+try:
+    from clusterman.batch.autoscaler import AutoscalerBatch
+except ImportError:
+    pytest.mark.skip('Could not import the batch; are you in a Yelp-y environment?')
 
 
-@pytest.fixture
 def batch(extra_args=None, mock_sensu=True):
     with mock.patch('clusterman.batch.autoscaler.setup_config'), \
             mock.patch('clusterman.batch.autoscaler.Autoscaler', signal=mock.Mock()):
