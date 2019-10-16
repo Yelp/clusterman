@@ -81,6 +81,8 @@ class KubernetesClusterConnector(ClusterConnector):
     def _count_batch_tasks(self, node_ip: str) -> int:
         count = 0
         for pod in self._pods_by_ip[node_ip]:
+            if pod.metadata.annotations is None:
+                continue
             for annotation, value in pod.metadata.annotations.items():
                 if annotation == self._safe_to_evict_annotation:
                     count += (not strtobool(value))  # if it's safe to evict, it's NOT a batch task
