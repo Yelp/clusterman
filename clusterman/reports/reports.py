@@ -58,43 +58,49 @@ def _get_error_threshold_function(error_threshold, simulator):
         return lambda x, y: False
 
     reverse = False
-    if error_threshold[0] in ('-', '+'):
-        reverse = error_threshold[0] == '-'
+    if error_threshold[0] in ("-", "+"):
+        reverse = error_threshold[0] == "-"
         error_threshold = error_threshold[1:]
     try:
         constant = float(error_threshold)
         return lambda x, y: ((y > constant) if not reverse else (y < constant))
     except ValueError:
         piecewise = getattr(simulator, error_threshold)
-        return lambda x, y: ((y > piecewise.call(x)) if not reverse else (y < piecewise.call(x)))
+        return lambda x, y: (
+            (y > piecewise.call(x)) if not reverse else (y < piecewise.call(x))
+        )
 
 
 def _make_report_title(fig, report, sim_metadata, months):
-    report_title = f'{report.title} '
+    report_title = f"{report.title} "
     if len(months) > 1:
-        report_title += 'from {start} to {end}'.format(
-            start=months[0][0].format('MMMM YYYY'),
-            end=months[-1][0].format('MMMM YYYY'),
+        report_title += "from {start} to {end}".format(
+            start=months[0][0].format("MMMM YYYY"),
+            end=months[-1][0].format("MMMM YYYY"),
         )
     else:
-        report_title += 'for {month}'.format(month=months[0][0].format('MMMM YYYY'))
+        report_title += "for {month}".format(month=months[0][0].format("MMMM YYYY"))
     title = fig.suptitle(report_title, fontsize=14)
     y_axis_points = AXIS_DIMENSION_INCHES[1] * FIGURE_DPI * len(months)
     subtitle_abs_y = y_axis_points * title.get_position()[1] - SUBTITLE_SPACING
     subtitle_rel_y = subtitle_abs_y / y_axis_points
     fig.text(
-        0.5, subtitle_rel_y,
-        f'{sim_metadata.name}\nCluster: {sim_metadata.cluster}; Pool: {sim_metadata.pool}',
-        va='top', ha='center',
+        0.5,
+        subtitle_rel_y,
+        f"{sim_metadata.name}\nCluster: {sim_metadata.cluster}; Pool: {sim_metadata.pool}",
+        va="top",
+        ha="center",
         fontsize=6,
     )
 
 
 def _make_heatmap_legend_marker(color, label):
     return Line2D(
-        [0, 1], [0, 0],  # These don't matter
-        marker='o', markerfacecolor=color,
-        color='white',  # The line is white so it doesn't appear in the legend box, just the marker
+        [0, 1],
+        [0, 0],  # These don't matter
+        marker="o",
+        markerfacecolor=color,
+        color="white",  # The line is white so it doesn't appear in the legend box, just the marker
         label=label,
     )
 
@@ -102,18 +108,36 @@ def _make_heatmap_legend_marker(color, label):
 def _make_legend(fig, heatmap_range, has_errors, legend_formatter):
     cmap = get_cmap(COLORMAP)
     low, high = cmap(0.0), cmap(1.0)
-    low_marker = _make_heatmap_legend_marker(low, 'min (p5): ' + legend_formatter(heatmap_range[0]))
-    high_marker = _make_heatmap_legend_marker(high, 'max (p95): ' + legend_formatter(heatmap_range[1]))
+    low_marker = _make_heatmap_legend_marker(
+        low, "min (p5): " + legend_formatter(heatmap_range[0])
+    )
+    high_marker = _make_heatmap_legend_marker(
+        high, "max (p95): " + legend_formatter(heatmap_range[1])
+    )
     handles = [low_marker, high_marker]
     if has_errors:
-        error_marker = _make_heatmap_legend_marker(ERROR_COLOR, 'exceeds threshold')
+        error_marker = _make_heatmap_legend_marker(ERROR_COLOR, "exceeds threshold")
         handles.append(error_marker)
-    fig.legend(handles=handles, loc='upper left', fontsize=6)
+    fig.legend(handles=handles, loc="upper left", fontsize=6)
 
-    trend_line = Line2D([0, 1], [0, 0], color=TREND_LINE_COLOR, label='average')
-    bestfit_line = Line2D([0, 1], [0, 0], color='black', dashes=(1, 1), linewidth=0.75, label='best fit line')
-    trend_patch = Patch(color=TREND_RANGE_COLOR, alpha=TREND_RANGE_ALPHA, label='interquartile range', linewidth=0)
-    fig.legend(handles=[trend_line, bestfit_line, trend_patch], loc='upper right', fontsize=6)
+    trend_line = Line2D([0, 1], [0, 0], color=TREND_LINE_COLOR, label="average")
+    bestfit_line = Line2D(
+        [0, 1],
+        [0, 0],
+        color="black",
+        dashes=(1, 1),
+        linewidth=0.75,
+        label="best fit line",
+    )
+    trend_patch = Patch(
+        color=TREND_RANGE_COLOR,
+        alpha=TREND_RANGE_ALPHA,
+        label="interquartile range",
+        linewidth=0,
+    )
+    fig.legend(
+        handles=[trend_line, bestfit_line, trend_patch], loc="upper right", fontsize=6
+    )
 
 
 def _make_axis_titles(report, report_data, months):
@@ -121,11 +145,15 @@ def _make_axis_titles(report, report_data, months):
     for mstart, mend in months:
         mstart_ind = report_data.bisect(mstart)
         mend_ind = report_data.bisect(mend)
-        titles[mstart] = report.plot_title_formatter(report_data.values()[mstart_ind:mend_ind])
+        titles[mstart] = report.plot_title_formatter(
+            report_data.values()[mstart_ind:mend_ind]
+        )
     return titles
 
 
-def make_report(name, simulator, start_time, end_time, output_prefix='', tz='US/Pacific'):
+def make_report(
+    name, simulator, start_time, end_time, output_prefix="", tz="US/Pacific"
+):
     """ Create a report for a clusterman simulation run
 
     The layout for this report is a set of rows (one for each month in the time range)
@@ -139,7 +167,7 @@ def make_report(name, simulator, start_time, end_time, output_prefix='', tz='US/
     :param tz: a timezone string or object to interpret the chart data in
     """
     begin = arrow.now()
-    print(f'Generating {name} report...')
+    print(f"Generating {name} report...")
     report = REPORT_TYPES[name]
     report_data = simulator.get_data(name, start_time, end_time, timedelta(seconds=60))
 
@@ -148,17 +176,32 @@ def make_report(name, simulator, start_time, end_time, output_prefix='', tz='US/
     local_start = start_time.to(tz)
     local_end = end_time.to(tz)
 
-    months = arrow.Arrow.span_range('month', local_start, local_end)
-    fig = Figure(figsize=(AXIS_DIMENSION_INCHES[0], AXIS_DIMENSION_INCHES[1] * len(months)))
+    months = arrow.Arrow.span_range("month", local_start, local_end)
+    fig = Figure(
+        figsize=(AXIS_DIMENSION_INCHES[0], AXIS_DIMENSION_INCHES[1] * len(months))
+    )
     _make_report_title(fig, report, simulator.metadata, months)
 
-    error_threshold_fn = _get_error_threshold_function(report.error_threshold, simulator)
+    error_threshold_fn = _get_error_threshold_function(
+        report.error_threshold, simulator
+    )
 
-    heatmap_data, error_data, *heatmap_range = transform_heatmap_data(report_data, error_threshold_fn, months, tz)
-    trend_data, *trend_range = transform_trend_data(report_data, months, report.trend_rollup)
+    heatmap_data, error_data, *heatmap_range = transform_heatmap_data(
+        report_data, error_threshold_fn, months, tz
+    )
+    trend_data, *trend_range = transform_trend_data(
+        report_data, months, report.trend_rollup
+    )
 
-    heatmap = PlotStruct(heatmap_data, error_data, heatmap_range, _make_axis_titles(report, report_data, months))
-    trend = PlotStruct(trend_data, None, trend_range, report.trend_label, report.trend_axis_formatter)
+    heatmap = PlotStruct(
+        heatmap_data,
+        error_data,
+        heatmap_range,
+        _make_axis_titles(report, report_data, months),
+    )
+    trend = PlotStruct(
+        trend_data, None, trend_range, report.trend_label, report.trend_axis_formatter
+    )
 
     generate_heatmap_trend_grid(fig, heatmap, trend, months, tz)
     # This ugly bit of code is just checking every month of error data (things that exceeded their threshold);
@@ -167,8 +210,8 @@ def make_report(name, simulator, start_time, end_time, output_prefix='', tz='US/
     _make_legend(fig, heatmap_range, has_errors, report.legend_formatter)
 
     if output_prefix:
-        output_prefix += '_'
-    output_file = f'{output_prefix}{name}.png'
+        output_prefix += "_"
+    output_file = f"{output_prefix}{name}.png"
     processing_time = (arrow.now() - begin).total_seconds()
     fig.savefig(output_file, dpi=FIGURE_DPI)
-    print(f'Done!  Report saved as {output_file} ({processing_time}s)')
+    print(f"Done!  Report saved as {output_file} ({processing_time}s)")

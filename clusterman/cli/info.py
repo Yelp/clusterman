@@ -18,20 +18,24 @@ from clusterman.util import get_pool_name_list
 
 
 def list_clusters(args):  # pragma: no cover
-    print('\n'.join(get_cluster_name_list()))
+    print("\n".join(get_cluster_name_list()))
 
 
-@subparser('list-clusters', 'list available clusters', list_clusters)
-def add_mesos_list_clusters_parser(subparser, required_named_args, optional_named_args):  # pragma: no cover
+@subparser("list-clusters", "list available clusters", list_clusters)
+def add_mesos_list_clusters_parser(
+    subparser, required_named_args, optional_named_args
+):  # pragma: no cover
     pass
 
 
 def list_pools(args):  # pragma: no cover
-    for scheduler in ['mesos', 'kubernetes']:
-        print(f'\n{scheduler.capitalize()} pools\n--------------------')
-        print('\n'.join(get_pool_name_list(args.cluster, scheduler)))
+    for scheduler in ["mesos", "kubernetes"]:
+        print(f"\n{scheduler.capitalize()} pools\n--------------------")
+        print("\n".join(get_pool_name_list(args.cluster, scheduler)))
 
 
-@subparser('list-pools', 'list available pools in a cluster', list_pools)
-def add_mesos_list_pools_parser(subparser, required_named_args, optional_named_args):  # pragma: no cover
+@subparser("list-pools", "list available pools in a cluster", list_pools)
+def add_mesos_list_pools_parser(
+    subparser, required_named_args, optional_named_args
+):  # pragma: no cover
     add_cluster_arg(required_named_args, required=True)

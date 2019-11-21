@@ -27,7 +27,7 @@ def transform_heatmap_data(data, error_threshold_fn, months, tz):
     """
     data_by_month = {}
     error_data_by_month = {}
-    min_val, max_val = float('inf'), float('-inf')
+    min_val, max_val = float("inf"), float("-inf")
     for mstart, mend in months:
         mstart_index = data.bisect_left(mstart)
         mend_index = data.bisect_right(mend)
@@ -47,7 +47,9 @@ def transform_heatmap_data(data, error_threshold_fn, months, tz):
                 edates.append(date), etimes.append(time), evals.append(v)
             else:
                 mdates.append(date), mtimes.append(time), mvals.append(v)
-        p5, p95 = np.percentile([data.values()[i] for i in range(mstart_index, mend_index)], [5, 95])
+        p5, p95 = np.percentile(
+            [data.values()[i] for i in range(mstart_index, mend_index)], [5, 95]
+        )
         min_val = min(min_val, p5)
         max_val = max(max_val, p95)
         data_by_month[mstart] = (mdates, mtimes, mvals)
@@ -70,16 +72,21 @@ def transform_trend_data(data, months, trend_rollup):
         (the min/max values sets the range for the trend plot)
     """
     data_by_month = {}
-    min_val, max_val = 0, 0  # min_val sets the minimum y-value of the plot axis, which should always be 0 or less
+    min_val, max_val = (
+        0,
+        0,
+    )  # min_val sets the minimum y-value of the plot axis, which should always be 0 or less
     for mstart, mend in months:
         aggregated_daily_data = []
 
         # For each day in the month aggregate the data according to the chosen method
-        for dstart, dend in arrow.Arrow.span_range('day', mstart, mend):
+        for dstart, dend in arrow.Arrow.span_range("day", mstart, mend):
             dstart_index = data.bisect_left(dstart)
             dend_index = data.bisect_right(dend)
             day_slice = data.values()[dstart_index:dend_index]
-            if not day_slice:  # if there's no data for a given day, np.percentile will fail
+            if (
+                not day_slice
+            ):  # if there's no data for a given day, np.percentile will fail
                 continue
 
             q1, q2, q3 = trend_rollup(day_slice)

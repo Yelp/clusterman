@@ -66,53 +66,54 @@ def agent_pid_to_ip(agent_pid: str) -> str:
     :param: agent pid (this is in the format 'slave(1)@10.40.31.172:5051')
     :returns: ip address
     """
-    m = re.match(r'.+?@([\d\.]+):\d+', agent_pid)
+    m = re.match(r".+?@([\d\.]+):\d+", agent_pid)
     assert m
     return m.group(1)
 
 
 def allocated_agent_resources(agent_dict: MesosAgentDict) -> ClustermanResources:
-    used_resources = agent_dict.get('used_resources', {})
+    used_resources = agent_dict.get("used_resources", {})
     return ClustermanResources(
-        cpus=used_resources.get('cpus', 0),
-        mem=used_resources.get('mem', 0),
-        disk=used_resources.get('disk', 0),
-        gpus=used_resources.get('gpus', 0),
+        cpus=used_resources.get("cpus", 0),
+        mem=used_resources.get("mem", 0),
+        disk=used_resources.get("disk", 0),
+        gpus=used_resources.get("gpus", 0),
     )
 
 
 def mesos_post(url: str, endpoint: str) -> requests.Response:
-    master_url = url if endpoint == 'redirect' else mesos_post(url, 'redirect').url + '/'
+    master_url = (
+        url if endpoint == "redirect" else mesos_post(url, "redirect").url + "/"
+    )
     request_url = master_url + endpoint
     response = None
     try:
-        response = requests.post(
-            request_url,
-            headers={'user-agent': 'clusterman'},
-        )
+        response = requests.post(request_url, headers={"user-agent": "clusterman"},)
         response.raise_for_status()
     except Exception as e:  # there's no one exception class to check for problems with the request :(
         log_message = (
-            f'Mesos is unreachable:\n\n'
-            f'{str(e)}\n'
-            f'Querying Mesos URL: {request_url}\n'
+            f"Mesos is unreachable:\n\n"
+            f"{str(e)}\n"
+            f"Querying Mesos URL: {request_url}\n"
         )
         if response is not None:
             log_message += (
-                f'Response Code: {response.status_code}\n'
-                f'Response Text: {response.text}\n'
+                f"Response Code: {response.status_code}\n"
+                f"Response Text: {response.text}\n"
             )
         logger.critical(log_message)
-        raise PoolManagerError(f'Mesos master unreachable: check the logs for details') from e
+        raise PoolManagerError(
+            f"Mesos master unreachable: check the logs for details"
+        ) from e
 
     return response
 
 
 def total_agent_resources(agent: MesosAgentDict) -> ClustermanResources:
-    resources = agent.get('resources', {})
+    resources = agent.get("resources", {})
     return ClustermanResources(
-        cpus=resources.get('cpus', 0),
-        mem=resources.get('mem', 0),
-        disk=resources.get('disk', 0),
-        gpus=resources.get('gpus', 0),
+        cpus=resources.get("cpus", 0),
+        mem=resources.get("mem", 0),
+        disk=resources.get("disk", 0),
+        gpus=resources.get("gpus", 0),
     )

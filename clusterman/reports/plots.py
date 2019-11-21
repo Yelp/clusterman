@@ -38,7 +38,9 @@ TICK_SIZE = 8
 PADDING = 5
 
 
-PlotStruct = namedtuple('PlotStruct', ['data', 'error_data', 'range_', 'labels', 'ytick_formatter'])
+PlotStruct = namedtuple(
+    "PlotStruct", ["data", "error_data", "range_", "labels", "ytick_formatter"]
+)
 # ytick_formatter defaults to the identity function
 PlotStruct.__new__.__defaults__ = (lambda x: x,)  # type: ignore
 
@@ -58,8 +60,10 @@ def generate_heatmap_trend_grid(fig, heatmap, trend, months, tz):
             mstart,
             mend,
             tz=tz,
-            show_ylabel=(len(months) > 1),  # print a y-axis label only when the report covers multiple months
-            **dict(zip(('vmin', 'vmax'), heatmap.range_)),
+            show_ylabel=(
+                len(months) > 1
+            ),  # print a y-axis label only when the report covers multiple months
+            **dict(zip(("vmin", "vmax"), heatmap.range_)),
         )
         heatmap_ax.xaxis.set_visible(False)
         heatmap_ax.set_title(heatmap.labels[mstart], fontsize=REPORT_TITLE_SIZE)
@@ -83,37 +87,29 @@ def generate_heatmap_trend_grid(fig, heatmap, trend, months, tz):
 
 def _plot_heatmap(ax, x, y, z, ex, ey, ez, mstart, mend, tz, show_ylabel, **kwargs):
     ax.scatter(  # plot the "valid" points
-        x, y,
-        c=z,
-        alpha=0.5,
-        linewidths=0,
-        s=3,
-        cmap=COLORMAP,
-        **kwargs,
+        x, y, c=z, alpha=0.5, linewidths=0, s=3, cmap=COLORMAP, **kwargs,
     )
     ax.scatter(  # plot the "invalid" (i.e., above/below the threshold) points
-        ex, ey,
-        c=ERROR_COLOR,
-        alpha=0.5,
-        linewidths=0,
-        s=3,
-        **kwargs,
+        ex, ey, c=ERROR_COLOR, alpha=0.5, linewidths=0, s=3, **kwargs,
     )
     # Global plot settings
-    ax.patch.set_facecolor('black')
+    ax.patch.set_facecolor("black")
 
     # x-axis settings
-    ax.set_xlim(arrow.get(0).replace(tzinfo=tz).datetime, arrow.get(0).replace(tzinfo=tz).ceil('day').datetime)
-    ax.xaxis.set_major_formatter(DateFormatter('%H:%M', tz=tz))
+    ax.set_xlim(
+        arrow.get(0).replace(tzinfo=tz).datetime,
+        arrow.get(0).replace(tzinfo=tz).ceil("day").datetime,
+    )
+    ax.xaxis.set_major_formatter(DateFormatter("%H:%M", tz=tz))
     ax.xaxis.set_tick_params(labelsize=TICK_SIZE)
 
     # y-axis settings
     ax.set_ylim(mstart.shift(days=-1).datetime, mend.datetime)
-    ax.yaxis.set_major_formatter(DateFormatter('%m-%d', tz=tz))
-    ax.yaxis.set_tick_params(direction='out', labelsize=TICK_SIZE)
-    ax.yaxis.set_ticks([r.datetime for r in arrow.Arrow.range('week', mstart, mend)])
+    ax.yaxis.set_major_formatter(DateFormatter("%m-%d", tz=tz))
+    ax.yaxis.set_tick_params(direction="out", labelsize=TICK_SIZE)
+    ax.yaxis.set_ticks([r.datetime for r in arrow.Arrow.range("week", mstart, mend)])
     if show_ylabel:
-        ax.set_ylabel(mstart.format('MMMM'), fontsize=PLOT_TITLE_SIZE, labelpad=PADDING)
+        ax.set_ylabel(mstart.format("MMMM"), fontsize=PLOT_TITLE_SIZE, labelpad=PADDING)
 
 
 def _plot_trend(ax, x, q1, y, q3, xlim, ylim, ylabel, ytick_formatter):
@@ -123,26 +119,35 @@ def _plot_trend(ax, x, q1, y, q3, xlim, ylim, ylabel, ytick_formatter):
 
     # plot the data, the trendlines, and the interquartile range (if given)
     ax.plot(x, y, color=TREND_LINE_COLOR)
-    ax.plot(x, fit_fn(x), '--k', dashes=(1, 1), linewidth=0.75)
+    ax.plot(x, fit_fn(x), "--k", dashes=(1, 1), linewidth=0.75)
     if all(q1) and all(q3):
-        ax.fill_between(x, q1, q3, facecolor=TREND_RANGE_COLOR, alpha=TREND_RANGE_ALPHA, linewidths=0)
+        ax.fill_between(
+            x,
+            q1,
+            q3,
+            facecolor=TREND_RANGE_COLOR,
+            alpha=TREND_RANGE_ALPHA,
+            linewidths=0,
+        )
 
     # x-axis settings
     ax.set_xlim(*xlim)
-    ax.spines['top'].set_visible(False)
-    ax.xaxis.set_ticks_position('bottom')
+    ax.spines["top"].set_visible(False)
+    ax.xaxis.set_ticks_position("bottom")
     ax.xaxis.set_tick_params(labelsize=TICK_SIZE)
-    ax.set_xlabel('Day of month', fontsize=AXIS_TITLE_SIZE)
+    ax.set_xlabel("Day of month", fontsize=AXIS_TITLE_SIZE)
 
     # y-axis settings
     ax.set_ylim(*ylim)
-    ax.spines['right'].set_visible(False)
-    ax.yaxis.set_ticks_position('left')
+    ax.spines["right"].set_visible(False)
+    ax.yaxis.set_ticks_position("left")
     ax.yaxis.set_tick_params(labelsize=TICK_SIZE)
 
-    trend_yaxis_major_formatter, yaxis_magnitude = _trend_yaxis_major_formatter(ylim[-1], ytick_formatter)
+    trend_yaxis_major_formatter, yaxis_magnitude = _trend_yaxis_major_formatter(
+        ylim[-1], ytick_formatter
+    )
     if yaxis_magnitude:
-        ylabel += f'\n({yaxis_magnitude})'
+        ylabel += f"\n({yaxis_magnitude})"
     ax.set_ylabel(ylabel, fontsize=AXIS_TITLE_SIZE)
     ax.yaxis.set_major_formatter(FuncFormatter(trend_yaxis_major_formatter))
 
@@ -153,7 +158,7 @@ def _trend_yaxis_major_formatter(max_ylim, ytick_formatter):
     def format_large_trend_numbers(x, pos):
         if ylim_magnitude == 0:
             return ytick_formatter(x)
-        threshold = 1000**ylim_magnitude
+        threshold = 1000 ** ylim_magnitude
         q, r = divmod(x, threshold)
         return ytick_formatter(int(q) if q != 0 or r == 0 else r / threshold)
 

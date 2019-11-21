@@ -40,36 +40,40 @@ class AutoscalerBootstrapException(Exception):
 
 
 logger = colorlog.getLogger(__name__)
-SUPERVISORD_ADDR = 'http://localhost:9001/RPC2'
-SUPERVISORD_RUNNING_STATES = ('STARTING', 'RUNNING')
+SUPERVISORD_ADDR = "http://localhost:9001/RPC2"
+SUPERVISORD_RUNNING_STATES = ("STARTING", "RUNNING")
 
 
 def wait_for_process(
     rpc: xmlrpc.client.ServerProxy,
     process_name: str,
     num_procs: int = 1,
-    terminal_state: str = 'RUNNING',
+    terminal_state: str = "RUNNING",
 ) -> None:
-    logger.info(f'waiting for {process_name} to start')
+    logger.info(f"waiting for {process_name} to start")
     while True:
         states = [
-            rpc.supervisor.getProcessInfo(f'{process_name}:{process_name}_{i}')['statename']
+            rpc.supervisor.getProcessInfo(f"{process_name}:{process_name}_{i}")[
+                "statename"
+            ]
             for i in range(num_procs)
         ]
 
-        if any(state == 'FATAL' for state in states):
-            raise AutoscalerBootstrapException(f'Process {process_name} could not start; aborting')
+        if any(state == "FATAL" for state in states):
+            raise AutoscalerBootstrapException(
+                f"Process {process_name} could not start; aborting"
+            )
         elif all(state == terminal_state for state in states):
             break
         time.sleep(1)
 
 
 class AutoscalerBootstrapBatch(BatchDaemon, BatchLoggingMixin):
-    notify_emails = ['distsys-compute@yelp.com']
+    notify_emails = ["distsys-compute@yelp.com"]
 
     @batch_command_line_arguments
     def parse_args(self, parser):
-        arg_group = parser.add_argument_group('AutoscalerMonitor options')
+        arg_group = parser.add_argument_group("AutoscalerMonitor options")
         add_cluster_arg(arg_group)
         add_pool_arg(arg_group)
         add_scheduler_arg(arg_group)
@@ -77,9 +81,9 @@ class AutoscalerBootstrapBatch(BatchDaemon, BatchLoggingMixin):
         add_cluster_config_directory_arg(arg_group)
         add_branch_or_tag_arg(arg_group)
         arg_group.add_argument(
-            '--signal-root-directory',
-            default='/code/signals',
-            help='location of signal artifacts',
+            "--signal-root-directory",
+            default="/code/signals",
+            help="location of signal artifacts",
         )
 
     @batch_configure
@@ -87,11 +91,14 @@ class AutoscalerBootstrapBatch(BatchDaemon, BatchLoggingMixin):
         setup_config(self.options)
         self.logger = logger
         self.fetch_proc_count, self.run_proc_count = setup_signals_environment(
-            self.options.pool,
-            self.options.scheduler,
+            self.options.pool, self.options.scheduler,
         )
         self.config.watchers.append(
-            {self.options.pool: get_pool_config_path(self.options.cluster, self.options.pool, self.options.scheduler)},
+            {
+                self.options.pool: get_pool_config_path(
+                    self.options.cluster, self.options.pool, self.options.scheduler
+                )
+            },
         )
 
     def _get_local_log_stream(self, clog_prefix=None):
@@ -100,8 +107,8 @@ class AutoscalerBootstrapBatch(BatchDaemon, BatchLoggingMixin):
 
     def run(self):
         env = os.environ.copy()
-        args = env.get('CMAN_ARGS', '')
-        env['CMAN_ARGS'] = args
+        args = env.get("CMAN_ARGS", "")
+        env["CMAN_ARGS"] = args
         supervisord_proc = subprocess.Popen(
             '/bin/bash -c "supervisord -c clusterman/supervisord/supervisord.conf | '
             f'tee >(stdin2scribe {self._get_local_log_stream()})"',
@@ -112,14 +119,20 @@ class AutoscalerBootstrapBatch(BatchDaemon, BatchLoggingMixin):
         with xmlrpc.client.ServerProxy(SUPERVISORD_ADDR) as rpc:
             skip_supervisord_cleanup = False
             try:
-                wait_for_process(rpc, 'fetch_signals', num_procs=self.fetch_proc_count, terminal_state='EXITED')
-                rpc.supervisor.startProcessGroup('run_signals')
-                wait_for_process(rpc, 'run_signals', num_procs=self.run_proc_count)
-                rpc.supervisor.startProcess('autoscaler')
+                wait_for_process(
+                    rpc,
+                    "fetch_signals",
+                    num_procs=self.fetch_proc_count,
+                    terminal_state="EXITED",
+                )
+                rpc.supervisor.startProcessGroup("run_signals")
+                wait_for_process(rpc, "run_signals", num_procs=self.run_proc_count)
+                rpc.supervisor.startProcess("autoscaler")
 
                 while (
-                    self.running and
-                    rpc.supervisor.getProcessInfo('autoscaler')['statename'] in SUPERVISORD_RUNNING_STATES
+                    self.running
+                    and rpc.supervisor.getProcessInfo("autoscaler")["statename"]
+                    in SUPERVISORD_RUNNING_STATES
                 ):
                     time.sleep(5)
             except KeyboardInterrupt:
@@ -130,10 +143,10 @@ class AutoscalerBootstrapBatch(BatchDaemon, BatchLoggingMixin):
                 if not skip_supervisord_cleanup:
                     rpc.supervisor.shutdown()
 
-        logger.info('Shutting down...')
+        logger.info("Shutting down...")
         supervisord_proc.wait()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     setup_logging()
     AutoscalerBootstrapBatch().start()

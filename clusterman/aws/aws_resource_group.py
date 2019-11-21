@@ -51,8 +51,11 @@ def protect_unowned_instances(func):
         resource_group_instances = list(set(instance_ids) & set(self.instance_ids))
         invalid_instances = set(instance_ids) - set(self.instance_ids)
         if invalid_instances:
-            logger.warning(f'Some instances are not part of this resource group ({self.id}):\n{invalid_instances}')
+            logger.warning(
+                f"Some instances are not part of this resource group ({self.id}):\n{invalid_instances}"
+            )
         return func(self, resource_group_instances, *args, **kwargs)
+
     return wrapper
 
 
@@ -60,26 +63,28 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
     def __init__(self, group_id: str, **kwargs: Any) -> None:
         self.group_id = group_id
 
-    def get_instance_metadatas(self, state_filter: Optional[Collection[str]] = None) -> Sequence[InstanceMetadata]:
+    def get_instance_metadatas(
+        self, state_filter: Optional[Collection[str]] = None
+    ) -> Sequence[InstanceMetadata]:
         instance_metadatas = []
         for instance_dict in ec2_describe_instances(instance_ids=self.instance_ids):
-            aws_state = instance_dict['State']['Name']
+            aws_state = instance_dict["State"]["Name"]
             if state_filter and aws_state not in state_filter:
                 continue
 
             instance_market = get_instance_market(instance_dict)
-            instance_ip = instance_dict.get('PrivateIpAddress')
+            instance_ip = instance_dict.get("PrivateIpAddress")
             hostname = gethostbyaddr(instance_ip)[0] if instance_ip else None
 
             metadata = InstanceMetadata(
                 group_id=self.id,
                 hostname=hostname,
-                instance_id=instance_dict['InstanceId'],
+                instance_id=instance_dict["InstanceId"],
                 ip_address=instance_ip,
-                is_stale=(instance_dict['InstanceId'] in self.stale_instance_ids),
+                is_stale=(instance_dict["InstanceId"] in self.stale_instance_ids),
                 market=instance_market,
                 state=aws_state,
-                uptime=(arrow.now() - arrow.get(instance_dict['LaunchTime'])),
+                uptime=(arrow.now() - arrow.get(instance_dict["LaunchTime"])),
                 weight=self.market_weight(instance_market),
             )
             instance_metadatas.append(metadata)
@@ -90,7 +95,9 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
         return 1
 
     @protect_unowned_instances
-    def terminate_instances_by_id(self, instance_ids: List[str], batch_size: int = 500) -> Sequence[str]:
+    def terminate_instances_by_id(
+        self, instance_ids: List[str], batch_size: int = 500
+    ) -> Sequence[str]:
         """ Terminate instances in this resource group
 
         :param instance_ids: a list of instance IDs to terminate
@@ -98,7 +105,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
         :returns: a list of terminated instance IDs
         """
         if not instance_ids:
-            logger.warning(f'No instances to terminate in {self.group_id}')
+            logger.warning(f"No instances to terminate in {self.group_id}")
             return []
 
         instance_weights = {}
@@ -108,27 +115,40 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
                 logger.warning(
                     f"Instance {instance['InstanceId']} missing AZ info, likely already terminated so skipping",
                 )
-                instance_ids.remove(instance['InstanceId'])
+                instance_ids.remove(instance["InstanceId"])
                 continue
-            instance_weights[instance['InstanceId']] = self.market_weight(get_instance_market(instance))
+            instance_weights[instance["InstanceId"]] = self.market_weight(
+                get_instance_market(instance)
+            )
 
         # AWS API recommends not terminating more than 1000 instances at a time, and to
         # terminate larger numbers in batches
         terminated_instance_ids = []
         for batch in range(0, len(instance_ids), batch_size):
-            response = ec2.terminate_instances(InstanceIds=instance_ids[batch:batch + batch_size])
-            terminated_instance_ids.extend([instance['InstanceId'] for instance in response['TerminatingInstances']])
+            response = ec2.terminate_instances(
+                InstanceIds=instance_ids[batch : batch + batch_size]
+            )
+            terminated_instance_ids.extend(
+                [
+                    instance["InstanceId"]
+                    for instance in response["TerminatingInstances"]
+                ]
+            )
 
         # It's possible that not every instance is terminated.  The most likely cause for this
         # is that AWS terminated the instance in between getting its status and the terminate_instances
         # request.  This is probably fine but let's log a warning just in case.
         missing_instances = set(instance_ids) - set(terminated_instance_ids)
         if missing_instances:
-            logger.warning('Some instances could not be terminated; they were probably killed previously')
-            logger.warning(f'Missing instances: {list(missing_instances)}')
+            logger.warning(
+                "Some instances could not be terminated; they were probably killed previously"
+            )
+            logger.warning(f"Missing instances: {list(missing_instances)}")
         terminated_capacity = sum(instance_weights[i] for i in instance_ids)
 
-        logger.info(f'{self.id} terminated weight: {terminated_capacity}; instances: {terminated_instance_ids}')
+        logger.info(
+            f"{self.id} terminated weight: {terminated_capacity}; instances: {terminated_instance_ids}"
+        )
         return terminated_instance_ids
 
     @property
@@ -171,7 +191,9 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
         pass
 
     @classmethod
-    def load(cls, cluster: str, pool: str, config: Any, **kwargs: Any) -> Mapping[str, 'AWSResourceGroup']:
+    def load(
+        cls, cluster: str, pool: str, config: Any, **kwargs: Any
+    ) -> Mapping[str, "AWSResourceGroup"]:
         """ Load a list of corresponding resource groups
 
         :param cluster: a cluster name
@@ -183,14 +205,17 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
         matching_resource_groups = {}
 
         try:
-            identifier_tag_label = config['tag']
+            identifier_tag_label = config["tag"]
         except KeyError:
             return {}
 
         for rg_id, tags in resource_group_tags.items():
             try:
                 identifier_tags = json.loads(tags[identifier_tag_label])
-                if identifier_tags['pool'] == pool and identifier_tags['paasta_cluster'] == cluster:
+                if (
+                    identifier_tags["pool"] == pool
+                    and identifier_tags["paasta_cluster"] == cluster
+                ):
                     rg = cls(rg_id, **kwargs)
                     matching_resource_groups[rg_id] = rg
             except KeyError:
@@ -198,5 +223,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
         return matching_resource_groups
 
     @classmethod
-    def _get_resource_group_tags(cls) -> Mapping[str, Mapping[str, str]]:  # pragma: no cover
+    def _get_resource_group_tags(
+        cls,
+    ) -> Mapping[str, Mapping[str, str]]:  # pragma: no cover
         return {}

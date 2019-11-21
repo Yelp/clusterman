@@ -33,21 +33,23 @@ logger = colorlog.getLogger(__name__)
 
 
 class KubernetesClusterConnector(ClusterConnector):
-    SCHEDULER = 'kubernetes'
+    SCHEDULER = "kubernetes"
     _nodes_by_ip: Mapping[str, KubernetesNode]
     _pods_by_ip: Mapping[str, List[KubernetesPod]]
 
     def __init__(self, cluster: str, pool: str) -> None:
         super().__init__(cluster, pool)
-        kubernetes.config.load_kube_config(staticconf.read_string(f'clusters.{cluster}.kubeconfig_path'))
+        kubernetes.config.load_kube_config(
+            staticconf.read_string(f"clusters.{cluster}.kubeconfig_path")
+        )
         self._core_api = kubernetes.client.CoreV1Api()
         self._safe_to_evict_annotation = staticconf.read_string(
-            f'clusters.{cluster}.pod_safe_to_evict_annotation',
-            default='cluster-autoscaler.kubernetes.io/safe-to-evict',
+            f"clusters.{cluster}.pod_safe_to_evict_annotation",
+            default="cluster-autoscaler.kubernetes.io/safe-to-evict",
         )
 
     def reload_state(self) -> None:
-        logger.info('Reloading nodes')
+        logger.info("Reloading nodes")
         self._nodes_by_ip = self._get_nodes_by_ip()
         self._pods_by_ip = self._get_pods_by_ip()
 
@@ -71,25 +73,32 @@ class KubernetesClusterConnector(ClusterConnector):
             agent_id=node.metadata.name,
             allocated_resources=allocated_node_resources(self._pods_by_ip[node_ip]),
             batch_task_count=self._count_batch_tasks(node_ip),
-            state=(AgentState.RUNNING if self._pods_by_ip[node_ip] else AgentState.IDLE),
+            state=(
+                AgentState.RUNNING if self._pods_by_ip[node_ip] else AgentState.IDLE
+            ),
             task_count=len(self._pods_by_ip[node_ip]),
             total_resources=total_node_resources(node),
         )
 
     def _get_nodes_by_ip(self) -> Mapping[str, KubernetesNode]:
-        pool_label_selector = self.pool_config.read_string('pool_label_key', default='clusterman.com/pool') \
-            + '=' + self.pool
+        pool_label_selector = (
+            self.pool_config.read_string(
+                "pool_label_key", default="clusterman.com/pool"
+            )
+            + "="
+            + self.pool
+        )
         pool_nodes = self._core_api.list_node(label_selector=pool_label_selector).items
-        return {
-            get_node_ip(node): node
-            for node in pool_nodes
-        }
+        return {get_node_ip(node): node for node in pool_nodes}
 
     def _get_pods_by_ip(self) -> Mapping[str, List[KubernetesPod]]:
         all_pods = self._core_api.list_pod_for_all_namespaces().items
         pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
         for pod in all_pods:
-            if pod.status.phase == 'Running' and pod.status.host_ip in self._nodes_by_ip:
+            if (
+                pod.status.phase == "Running"
+                and pod.status.host_ip in self._nodes_by_ip
+            ):
                 pods_by_ip[pod.status.host_ip].append(pod)
         return pods_by_ip
 
@@ -100,6 +109,8 @@ class KubernetesClusterConnector(ClusterConnector):
                 continue
             for annotation, value in pod.metadata.annotations.items():
                 if annotation == self._safe_to_evict_annotation:
-                    count += (not strtobool(value))  # if it's safe to evict, it's NOT a batch task
+                    count += not strtobool(
+                        value
+                    )  # if it's safe to evict, it's NOT a batch task
                     break
         return count

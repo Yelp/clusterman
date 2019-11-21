@@ -29,16 +29,13 @@ from clusterman.aws.client import ec2
 from clusterman.aws.markets import InstanceMarket
 
 _BATCH_MODIFY_SIZE = 200
-CLUSTERMAN_STALE_TAG = 'clusterman:is_stale'
+CLUSTERMAN_STALE_TAG = "clusterman:is_stale"
 
 logger = colorlog.getLogger(__name__)
 
 
 AutoScalingResourceGroupConfig = TypedDict(
-    'AutoScalingResourceGroupConfig',
-    {
-        'tag': str,
-    }
+    "AutoScalingResourceGroupConfig", {"tag": str,}
 )
 
 
@@ -65,7 +62,7 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         response = autoscaling.describe_auto_scaling_groups(
             AutoScalingGroupNames=[self.group_id],
         )
-        return response['AutoScalingGroups'][0]
+        return response["AutoScalingGroups"][0]
 
     @timed_cached_property(ttl=CACHE_TTL_SECONDS)
     @retry(exceptions=IndexError, tries=3, delay=1)
@@ -76,15 +73,17 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         request limits.
         """
         group_config = self._group_config
-        launch_config_name = group_config['LaunchConfigurationName']
+        launch_config_name = group_config["LaunchConfigurationName"]
         response = autoscaling.describe_launch_configurations(
             LaunchConfigurationNames=[launch_config_name],
         )
         try:
-            return response['LaunchConfigurations'][0]
+            return response["LaunchConfigurations"][0]
         except IndexError as e:
-            logger.warning(f'Could not get launch config for ASG {self.group_id}: {launch_config_name}')
-            del self.__dict__['_group_config']  # invalidate cache
+            logger.warning(
+                f"Could not get launch config for ASG {self.group_id}: {launch_config_name}"
+            )
+            del self.__dict__["_group_config"]  # invalidate cache
             raise e
 
     def market_weight(self, market: InstanceMarket) -> float:
@@ -96,10 +95,10 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         :param market: The market for which we want the weight for
         :returns: The weight of a given market
         """
-        if market.az in self._group_config['AvailabilityZones']:
-            if market.instance != self._launch_config['InstanceType']:
+        if market.az in self._group_config["AvailabilityZones"]:
+            if market.instance != self._launch_config["InstanceType"]:
                 logger.warning(
-                    f'Instance type {market.instance} is different from launch '
+                    f"Instance type {market.instance} is different from launch "
                     f'config instance type: {self._launch_config["InstanceType"]}'
                 )
             return 1
@@ -108,17 +107,14 @@ class AutoScalingResourceGroup(AWSResourceGroup):
 
     def mark_stale(self, dry_run: bool) -> None:
         for i in range(0, len(self.instance_ids), _BATCH_MODIFY_SIZE):
-            inst_list = self.instance_ids[i:i + _BATCH_MODIFY_SIZE]
-            logger.info(f'Setting staleness tags for {inst_list}')
+            inst_list = self.instance_ids[i : i + _BATCH_MODIFY_SIZE]
+            logger.info(f"Setting staleness tags for {inst_list}")
             if dry_run:
                 continue
 
             ec2.create_tags(
                 Resources=inst_list,
-                Tags=[{
-                    'Key': CLUSTERMAN_STALE_TAG,
-                    'Value': 'True',
-                }],
+                Tags=[{"Key": CLUSTERMAN_STALE_TAG, "Value": "True",}],
             )
 
     def modify_target_capacity(
@@ -149,18 +145,18 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         target_capacity += len(self.stale_instance_ids)
 
         # Round target_cpacity to min or max if necessary
-        max_size = self._group_config['MaxSize']
-        min_size = self._group_config['MinSize']
+        max_size = self._group_config["MaxSize"]
+        min_size = self._group_config["MinSize"]
         if target_capacity > max_size:
             logger.warning(
-                f'New target_capacity={target_capacity} exceeds ASG MaxSize={max_size}, '
-                'setting to max instead'
+                f"New target_capacity={target_capacity} exceeds ASG MaxSize={max_size}, "
+                "setting to max instead"
             )
             target_capacity = max_size
         elif target_capacity < min_size:
             logger.warning(
-                f'New target_capacity={target_capacity} falls below ASG MinSize={min_size}, '
-                'setting to min instead'
+                f"New target_capacity={target_capacity} falls below ASG MinSize={min_size}, "
+                "setting to min instead"
             )
             target_capacity = min_size
 
@@ -170,8 +166,8 @@ class AutoScalingResourceGroup(AWSResourceGroup):
             HonorCooldown=honor_cooldown,
         )
         logger.info(
-            'Setting target capacity for ASG with arguments:\n'
-            f'{pprint.pformat(kwargs)}'
+            "Setting target capacity for ASG with arguments:\n"
+            f"{pprint.pformat(kwargs)}"
         )
         if dry_run:
             return
@@ -182,17 +178,15 @@ class AutoScalingResourceGroup(AWSResourceGroup):
     def stale_instance_ids(self):
         response = ec2.describe_tags(
             Filters=[
-                {
-                    'Name': 'key',
-                    'Values': [CLUSTERMAN_STALE_TAG],
-                },
-                {
-                    'Name': 'value',
-                    'Values': ['True'],
-                },
+                {"Name": "key", "Values": [CLUSTERMAN_STALE_TAG],},
+                {"Name": "value", "Values": ["True"],},
             ]
         )
-        return [item['ResourceId'] for item in response.get('Tags', []) if item['ResourceId'] in self.instance_ids]
+        return [
+            item["ResourceId"]
+            for item in response.get("Tags", [])
+            if item["ResourceId"] in self.instance_ids
+        ]
 
     @timed_cached_property(ttl=CACHE_TTL_SECONDS)
     def instance_ids(self) -> Sequence[str]:
@@ -202,14 +196,14 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         request limits.
         """
         return [
-            inst['InstanceId']
-            for inst in self._group_config['Instances']
+            inst["InstanceId"]
+            for inst in self._group_config["Instances"]
             if inst is not None
         ]
 
     @property
     def fulfilled_capacity(self) -> float:
-        return len(self._group_config['Instances'])
+        return len(self._group_config["Instances"])
 
     @property
     def status(self) -> str:
@@ -219,9 +213,9 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         are stale, it is 'rolling', and otherwise it is 'active'.
         """
         if len(self.stale_instance_ids) > 0:
-            return 'rolling'
+            return "rolling"
         else:
-            return 'active'
+            return "active"
 
     @property
     def is_stale(self) -> bool:
@@ -240,14 +234,16 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         #
         # N.B. If and when we start using multiple instance types in one ASG, and AWS
         # allows us to weight them differently, this calculation will need to change
-        return self._group_config['DesiredCapacity'] - len(self.stale_instance_ids)
+        return self._group_config["DesiredCapacity"] - len(self.stale_instance_ids)
 
     @classmethod
     def _get_resource_group_tags(cls) -> Mapping[str, Mapping[str, str]]:
         """ Retrieves the tags for each ASG """
         asg_id_to_tags = {}
-        for page in autoscaling.get_paginator('describe_auto_scaling_groups').paginate():
-            for asg in page['AutoScalingGroups']:
-                tags_dict = {tag['Key']: tag['Value'] for tag in asg['Tags']}
-                asg_id_to_tags[asg['AutoScalingGroupName']] = tags_dict
+        for page in autoscaling.get_paginator(
+            "describe_auto_scaling_groups"
+        ).paginate():
+            for asg in page["AutoScalingGroups"]:
+                tags_dict = {tag["Key"]: tag["Value"] for tag in asg["Tags"]}
+                asg_id_to_tags[asg["AutoScalingGroupName"]] = tags_dict
         return asg_id_to_tags

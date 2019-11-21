@@ -33,6 +33,7 @@ def mock_open(filename, contents=None):
     It is licensed under a Creative Commons Attribution 3.0 license
     (http://creativecommons.org/licenses/by/3.0/)
     """
+
     def mock_file(*args, **kwargs):
         if args[0] == filename:
             return io.StringIO(contents)
@@ -41,7 +42,8 @@ def mock_open(filename, contents=None):
             open_file = open(*args, **kwargs)
             mocked_file.start()
             return open_file
-    mocked_file = mock.patch('builtins.open', mock_file)
+
+    mocked_file = mock.patch("builtins.open", mock_file)
     mocked_file.start()
     yield
     mocked_file.stop()
@@ -50,49 +52,40 @@ def mock_open(filename, contents=None):
 @pytest.fixture(autouse=True)
 def main_clusterman_config():
     config = {
-        'aws': {
-            'access_key_file': '/etc/secrets',
-            'region': 'us-west-2',
-            'signals_bucket': 'the_bucket',
+        "aws": {
+            "access_key_file": "/etc/secrets",
+            "region": "us-west-2",
+            "signals_bucket": "the_bucket",
         },
-        'autoscaling': {
-            'setpoint': 0.7,
-            'target_capacity_margin': 0.1,
-            'default_signal_role': 'foo',
+        "autoscaling": {
+            "setpoint": 0.7,
+            "target_capacity_margin": 0.1,
+            "default_signal_role": "foo",
         },
-        'batches': {
-            'spot_prices': {
-                'run_interval_seconds': 120,
-                'dedupe_interval_seconds': 60,
+        "batches": {
+            "spot_prices": {
+                "run_interval_seconds": 120,
+                "dedupe_interval_seconds": 60,
             },
-            'cluster_metrics': {
-                'run_interval_seconds': 120,
-            },
+            "cluster_metrics": {"run_interval_seconds": 120,},
         },
-        'drain_termination_timeout_seconds': {
-            'sfr': 123,
-        },
-        'mesos_maintenance_timeout_seconds': 1,
-        'clusters': {
-            'mesos-test': {
-                'mesos_master_fqdn': 'the.mesos.leader',
-                'aws_region': 'us-west-2',
-                'drain_queue_url': 'mesos-test-draining.com',
-                'termination_queue_url': 'mesos-test-terminating.com',
-                'warning_queue_url': 'mesos-test-warning.com',
+        "drain_termination_timeout_seconds": {"sfr": 123,},
+        "mesos_maintenance_timeout_seconds": 1,
+        "clusters": {
+            "mesos-test": {
+                "mesos_master_fqdn": "the.mesos.leader",
+                "aws_region": "us-west-2",
+                "drain_queue_url": "mesos-test-draining.com",
+                "termination_queue_url": "mesos-test-terminating.com",
+                "warning_queue_url": "mesos-test-warning.com",
             },
         },
-        'sensu_config': [
-            {
-                'team': 'my_team',
-                'runbook': 'y/my-runbook',
-            }
-        ],
-        'autoscale_signal': {
-            'name': 'DefaultSignal',
-            'branch_or_tag': 'master',
-            'period_minutes': 10,
-        }
+        "sensu_config": [{"team": "my_team", "runbook": "y/my-runbook",}],
+        "autoscale_signal": {
+            "name": "DefaultSignal",
+            "branch_or_tag": "master",
+            "period_minutes": 10,
+        },
     }
 
     with staticconf.testing.MockConfiguration(config):
@@ -102,51 +95,36 @@ def main_clusterman_config():
 @pytest.fixture(autouse=True)
 def clusterman_pool_config():
     config = {
-        'resource_groups': [
-            {
-                'sfr': {
-                    's3': {
-                        'bucket': 'fake-bucket',
-                        'prefix': 'none',
-                    }
-                },
-            }, {
-                'asg': {
-                    'tag': 'puppet:role::paasta',
-                },
-            },
+        "resource_groups": [
+            {"sfr": {"s3": {"bucket": "fake-bucket", "prefix": "none",}},},
+            {"asg": {"tag": "puppet:role::paasta",},},
         ],
-        'scaling_limits': {
-            'min_capacity': 3,
-            'max_capacity': 345,
-            'max_weight_to_add': 200,
-            'max_weight_to_remove': 10,
+        "scaling_limits": {
+            "min_capacity": 3,
+            "max_capacity": 345,
+            "max_weight_to_add": 200,
+            "max_weight_to_remove": 10,
         },
-        'sensu_config': [
-            {
-                'team': 'other-team',
-                'runbook': 'y/their-runbook',
-            }
-        ],
-        'autoscale_signal': {
-            'name': 'BarSignal3',
-            'branch_or_tag': 'v42',
-            'period_minutes': 7,
-            'required_metrics': [
-                {'name': 'cpus_allocated', 'type': SYSTEM_METRICS, 'minute_range': 10},
-                {'name': 'cost', 'type': APP_METRICS, 'minute_range': 30},
+        "sensu_config": [{"team": "other-team", "runbook": "y/their-runbook",}],
+        "autoscale_signal": {
+            "name": "BarSignal3",
+            "branch_or_tag": "v42",
+            "period_minutes": 7,
+            "required_metrics": [
+                {"name": "cpus_allocated", "type": SYSTEM_METRICS, "minute_range": 10},
+                {"name": "cost", "type": APP_METRICS, "minute_range": 30},
             ],
-        }
+        },
     }
-    with staticconf.testing.MockConfiguration(config, namespace='bar.mesos_config'):
+    with staticconf.testing.MockConfiguration(config, namespace="bar.mesos_config"):
         yield
 
 
 @pytest.fixture(autouse=True)
 def mock_aws_client_setup():
     config = {
-        'accessKeyId': 'foo',
-        'secretAccessKey': 'bar',
+        "accessKeyId": "foo",
+        "secretAccessKey": "bar",
     }
     with staticconf.testing.MockConfiguration(config, namespace=CREDENTIALS_NAMESPACE):
         yield

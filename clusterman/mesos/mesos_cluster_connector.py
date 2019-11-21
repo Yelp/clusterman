@@ -45,32 +45,37 @@ class TaskCount(TypedDict):
 
 
 class FrameworkState(enum.Enum):
-    RUNNING = 'frameworks'
-    COMPLETED = 'completed_frameworks'
+    RUNNING = "frameworks"
+    COMPLETED = "completed_frameworks"
 
 
 class MesosClusterConnector(ClusterConnector):
-    SCHEDULER = 'mesos'
+    SCHEDULER = "mesos"
 
     def __init__(self, cluster: str, pool: str) -> None:
         super().__init__(cluster, pool)
-        mesos_master_fqdn = staticconf.read_string(f'clusters.{self.cluster}.mesos_master_fqdn')
-        self.non_batch_framework_prefixes = self.pool_config.read_list(
-            'non_batch_framework_prefixes',
-            default=['marathon'],
+        mesos_master_fqdn = staticconf.read_string(
+            f"clusters.{self.cluster}.mesos_master_fqdn"
         )
-        self.api_endpoint = f'http://{mesos_master_fqdn}:5050/'
-        logger.info(f'Connecting to Mesos masters at {self.api_endpoint}')
+        self.non_batch_framework_prefixes = self.pool_config.read_list(
+            "non_batch_framework_prefixes", default=["marathon"],
+        )
+        self.api_endpoint = f"http://{mesos_master_fqdn}:5050/"
+        logger.info(f"Connecting to Mesos masters at {self.api_endpoint}")
 
     def reload_state(self) -> None:
 
         # Note that order matters here: we can't map tasks to agents until we've calculated
         # all of the tasks and agents
-        logger.info('Reloading agents')
+        logger.info("Reloading agents")
         self._agents_by_ip = self._get_agents_by_ip()
 
-        logger.info('Reloading frameworks and tasks')
-        self._tasks, self._frameworks, self._completed_frameworks = self._get_tasks_and_frameworks()
+        logger.info("Reloading frameworks and tasks")
+        (
+            self._tasks,
+            self._frameworks,
+            self._completed_frameworks,
+        ) = self._get_tasks_and_frameworks()
         self._task_count_per_agent = self._count_tasks_per_agent()
 
     def get_resource_allocation(self, resource_name: str) -> float:
@@ -85,9 +90,12 @@ class MesosClusterConnector(ClusterConnector):
             for agent in self._agents_by_ip.values()
         )
 
-    def get_framework_list(self, framework_state: FrameworkState) -> Sequence[MesosFrameworkDict]:
+    def get_framework_list(
+        self, framework_state: FrameworkState
+    ) -> Sequence[MesosFrameworkDict]:
         return [
-            framework for framework in (
+            framework
+            for framework in (
                 self._frameworks.values()
                 if framework_state == FrameworkState.RUNNING
                 else self._completed_frameworks.values()
@@ -101,11 +109,13 @@ class MesosClusterConnector(ClusterConnector):
 
         allocated_resources = allocated_agent_resources(agent_dict)
         return AgentMetadata(
-            agent_id=agent_dict['id'],
+            agent_id=agent_dict["id"],
             allocated_resources=allocated_agent_resources(agent_dict),
-            batch_task_count=self._task_count_per_agent[agent_dict['id']]['batch_tasks'],
+            batch_task_count=self._task_count_per_agent[agent_dict["id"]][
+                "batch_tasks"
+            ],
             state=(AgentState.RUNNING if any(allocated_resources) else AgentState.IDLE),
-            task_count=self._task_count_per_agent[agent_dict['id']]['all_tasks'],
+            task_count=self._task_count_per_agent[agent_dict["id"]]["all_tasks"],
             total_resources=total_agent_resources(agent_dict),
         )
 
@@ -116,42 +126,51 @@ class MesosClusterConnector(ClusterConnector):
         )
 
         for task in self._tasks:
-            if task['state'] == 'TASK_RUNNING':
-                instance_id_to_task_count[task['slave_id']]['all_tasks'] += 1
-                framework_name = self._frameworks[task['framework_id']]['name']
+            if task["state"] == "TASK_RUNNING":
+                instance_id_to_task_count[task["slave_id"]]["all_tasks"] += 1
+                framework_name = self._frameworks[task["framework_id"]]["name"]
                 if self._is_batch_framework(framework_name):
-                    instance_id_to_task_count[task['slave_id']]['batch_tasks'] += 1
+                    instance_id_to_task_count[task["slave_id"]]["batch_tasks"] += 1
         return instance_id_to_task_count
 
     def _get_agents_by_ip(self) -> Mapping[str, MesosAgentDict]:
-        response: MesosAgents = mesos_post(self.api_endpoint, 'slaves').json()
+        response: MesosAgents = mesos_post(self.api_endpoint, "slaves").json()
         return {
-            agent_pid_to_ip(agent_dict['pid']): agent_dict
-            for agent_dict in response['slaves']
-            if agent_dict.get('attributes', {}).get('pool', 'default') == self.pool
+            agent_pid_to_ip(agent_dict["pid"]): agent_dict
+            for agent_dict in response["slaves"]
+            if agent_dict.get("attributes", {}).get("pool", "default") == self.pool
         }
 
     def _get_tasks_and_frameworks(
-        self
-    ) -> Tuple[Sequence[MesosTaskDict], Mapping[str, MesosFrameworkDict], Mapping[str, MesosFrameworkDict]]:
+        self,
+    ) -> Tuple[
+        Sequence[MesosTaskDict],
+        Mapping[str, MesosFrameworkDict],
+        Mapping[str, MesosFrameworkDict],
+    ]:
 
-        response: MesosFrameworks = mesos_post(self.api_endpoint, 'master/frameworks').json()
+        response: MesosFrameworks = mesos_post(
+            self.api_endpoint, "master/frameworks"
+        ).json()
         running_frameworks = {
-            framework['id']: framework
-            for framework in response['frameworks']
+            framework["id"]: framework for framework in response["frameworks"]
         }
         completed_frameworks = {
-            framework['id']: framework
-            for framework in response['completed_frameworks']
+            framework["id"]: framework for framework in response["completed_frameworks"]
         }
 
         tasks: List[MesosTaskDict] = []
         for framework in running_frameworks.values():
-            tasks.extend(framework['tasks'])
+            tasks.extend(framework["tasks"])
 
         return tasks, running_frameworks, completed_frameworks
 
     def _is_batch_framework(self, framework_name: str) -> bool:
         """If the framework matches any of the prefixes in self.non_batch_framework_prefixes
         this will return False, otherwise we assume the task to be a batch task"""
-        return not any([framework_name.startswith(prefix) for prefix in self.non_batch_framework_prefixes])
+        return not any(
+            [
+                framework_name.startswith(prefix)
+                for prefix in self.non_batch_framework_prefixes
+            ]
+        )

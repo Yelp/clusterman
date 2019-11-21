@@ -19,6 +19,7 @@ from clusterman.simulator.util import patch_join_delay
 
 class Event(object):
     """ Base event class; does nothing """
+
     id = itertools.count()
 
     def __init__(self, time, msg=None):
@@ -33,10 +34,13 @@ class Event(object):
 
     def __lt__(self, other):
         """ Sort order is based on time, then priority """
-        return (self.time, EVENT_PRIORITIES[self.__class__]) < (other.time, EVENT_PRIORITIES[other.__class__])
+        return (self.time, EVENT_PRIORITIES[self.__class__]) < (
+            other.time,
+            EVENT_PRIORITIES[other.__class__],
+        )
 
     def __str__(self):
-        return f'=== Event {self.id} -- {self.time}\t[{self.msg}]'
+        return f"=== Event {self.id} -- {self.time}\t[{self.msg}]"
 
     def handle(self, simulator):
         """ Subclasses can override this for more complex behaviour
@@ -69,7 +73,9 @@ class ModifyClusterSizeEvent(Event):
 
     def handle(self, simulator):
         aws_cluster = simulator.aws_clusters[0]
-        added_instances, removed_instances = aws_cluster.modify_size(self.instance_types)
+        added_instances, removed_instances = aws_cluster.modify_size(
+            self.instance_types
+        )
         with (ExitStack() if self.use_join_delay else patch_join_delay()):
             for instance in added_instances:
                 simulator.add_instance(instance)
@@ -78,7 +84,9 @@ class ModifyClusterSizeEvent(Event):
             simulator.remove_instance(instance)
 
     def __str__(self):
-        return super().__str__() + ' new size: ' + str(sum(self.instance_types.values()))
+        return (
+            super().__str__() + " new size: " + str(sum(self.instance_types.values()))
+        )
 
 
 class InstancePriceChangeEvent(Event):

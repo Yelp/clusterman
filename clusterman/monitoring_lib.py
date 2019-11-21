@@ -31,38 +31,53 @@ logger = colorlog.getLogger(__name__)
 
 
 class CounterProtocol(Protocol):
-    def count(self, *args: Any, **kwargs: Any) -> None: ...
+    def count(self, *args: Any, **kwargs: Any) -> None:
+        ...
 
 
 class GaugeProtocol(Protocol):
-    def set(self, value: Union[int, float], *args: Any, **kwargs: Any) -> None: ...
+    def set(self, value: Union[int, float], *args: Any, **kwargs: Any) -> None:
+        ...
 
 
 class TimerProtocol(Protocol):
-    def start(self, *args: Any, **kwargs: Any) -> None: ...
-    def stop(self, *args: Any, **kwargs: Any) -> None: ...
+    def start(self, *args: Any, **kwargs: Any) -> None:
+        ...
+
+    def stop(self, *args: Any, **kwargs: Any) -> None:
+        ...
 
 
 class MonitoringClient(metaclass=ABCMeta):
     @staticmethod
     @abstractmethod
-    def create_counter(name: str, *args: Any, **kwargs: Any) -> CounterProtocol:  # pragma: no cover
+    def create_counter(
+        name: str, *args: Any, **kwargs: Any
+    ) -> CounterProtocol:  # pragma: no cover
         pass
 
     @staticmethod
     @abstractmethod
-    def create_gauge(name: str, *args: Any, **kwargs: Any) -> GaugeProtocol:  # pragma: no cover
+    def create_gauge(
+        name: str, *args: Any, **kwargs: Any
+    ) -> GaugeProtocol:  # pragma: no cover
         pass
 
     @staticmethod
     @abstractmethod
-    def create_timer(name: str, *args: Any, **kwargs: Any) -> TimerProtocol:  # pragma: no cover
+    def create_timer(
+        name: str, *args: Any, **kwargs: Any
+    ) -> TimerProtocol:  # pragma: no cover
         pass
 
 
 def get_monitoring_client() -> Type[MonitoringClient]:
-    default_monitoring_client = 'SignalFXMonitoringClient' if yelp_meteorite else 'LogMonitoringClient'
-    client_class = staticconf.read('monitoring_client', default=default_monitoring_client)
+    default_monitoring_client = (
+        "SignalFXMonitoringClient" if yelp_meteorite else "LogMonitoringClient"
+    )
+    client_class = staticconf.read(
+        "monitoring_client", default=default_monitoring_client
+    )
     return _clients[client_class]
 
 
@@ -87,7 +102,7 @@ class LogCounter(GaugeProtocol):
 
     def count(self, *args: Any, **kwargs: Any) -> None:
         self.counter += 1
-        logger.debug(f'counter {self.name} incremented to {self.counter}')
+        logger.debug(f"counter {self.name} incremented to {self.counter}")
 
 
 class LogGauge(GaugeProtocol):
@@ -95,7 +110,7 @@ class LogGauge(GaugeProtocol):
         self.name = name
 
     def set(self, value: Union[int, float], *args: Any, **kwargs: Any) -> None:
-        logger.debug(f'gauge {self.name} set to {value}')
+        logger.debug(f"gauge {self.name} set to {value}")
 
 
 class LogTimer(TimerProtocol):
@@ -103,10 +118,10 @@ class LogTimer(TimerProtocol):
         self.name = name
 
     def start(self, *args: Any, **kwargs: Any) -> None:
-        logger.debug('timer {} start at {}'.format(self.name, time.time()))
+        logger.debug("timer {} start at {}".format(self.name, time.time()))
 
     def stop(self, *args: Any, **kwargs: Any) -> None:
-        logger.debug('timer {} stop at {}'.format(self.name, time.time()))
+        logger.debug("timer {} stop at {}".format(self.name, time.time()))
 
 
 class LogMonitoringClient(MonitoringClient):
@@ -124,6 +139,6 @@ class LogMonitoringClient(MonitoringClient):
 
 
 _clients = {
-    'SignalFXMonitoringClient': SignalFXMonitoringClient,
-    'LogMonitoringClient': LogMonitoringClient,
+    "SignalFXMonitoringClient": SignalFXMonitoringClient,
+    "LogMonitoringClient": LogMonitoringClient,
 }

@@ -20,7 +20,7 @@ from clusterman.aws.markets import get_market_resources
 
 class Instance:
     id = itertools.count()
-    ip = ip_address('10.0.0.1')
+    ip = ip_address("10.0.0.1")
 
     def __init__(self, market, start_time, bid_price=None, join_time=None):
         self.id = next(Instance.id)
@@ -57,16 +57,23 @@ class SimulatedAWSCluster:
         :returns: a tuple (added_instances, removed_instances)
         """
         added_instances, removed_instances = [], []
-        instances_by_market.update({
-            market_to_empty: 0
-            for market_to_empty in set(self.instance_ids_by_market) - set(instances_by_market)
-        })
+        instances_by_market.update(
+            {
+                market_to_empty: 0
+                for market_to_empty in set(self.instance_ids_by_market)
+                - set(instances_by_market)
+            }
+        )
         for market, num in instances_by_market.items():
             delta = int(num - self.market_size(market))
 
             if delta > 0:
-                instances = [Instance(market, self.simulator.current_time) for i in range(delta)]
-                self.instance_ids_by_market[market].extend([instance.id for instance in instances])
+                instances = [
+                    Instance(market, self.simulator.current_time) for i in range(delta)
+                ]
+                self.instance_ids_by_market[market].extend(
+                    [instance.id for instance in instances]
+                )
                 added_instances.extend(instances)
 
             if delta < 0:

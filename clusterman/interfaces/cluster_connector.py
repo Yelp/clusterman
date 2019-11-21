@@ -24,14 +24,14 @@ from clusterman.util import ClustermanResources
 
 
 class AgentState(enum.Enum):
-    IDLE = 'idle'
-    ORPHANED = 'orphaned'
-    RUNNING = 'running'
-    UNKNOWN = 'unknown'
+    IDLE = "idle"
+    ORPHANED = "orphaned"
+    RUNNING = "running"
+    UNKNOWN = "unknown"
 
 
 class AgentMetadata(NamedTuple):
-    agent_id: str = ''
+    agent_id: str = ""
     allocated_resources: ClustermanResources = ClustermanResources()
     batch_task_count: int = 0
     state: AgentState = AgentState.UNKNOWN
@@ -45,7 +45,9 @@ class ClusterConnector(metaclass=ABCMeta):
     def __init__(self, cluster: str, pool: str) -> None:
         self.cluster = cluster
         self.pool = pool
-        self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool, scheduler=self.SCHEDULER))
+        self.pool_config = staticconf.NamespaceReaders(
+            POOL_NAMESPACE.format(pool=self.pool, scheduler=self.SCHEDULER)
+        )
 
     @abstractmethod
     def reload_state(self) -> None:  # pragma: no cover
@@ -96,13 +98,17 @@ class ClusterConnector(metaclass=ABCMeta):
         pass
 
     @staticmethod
-    def load(cluster: str, pool: str, scheduler: str) -> 'ClusterConnector':
+    def load(cluster: str, pool: str, scheduler: str) -> "ClusterConnector":
         """ Load the cluster connector for the given cluster and pool """
-        if scheduler == 'mesos':
+        if scheduler == "mesos":
             from clusterman.mesos.mesos_cluster_connector import MesosClusterConnector
+
             return MesosClusterConnector(cluster, pool)
-        elif scheduler == 'kubernetes':
-            from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
+        elif scheduler == "kubernetes":
+            from clusterman.kubernetes.kubernetes_cluster_connector import (
+                KubernetesClusterConnector,
+            )
+
             return KubernetesClusterConnector(cluster, pool)
         else:
-            raise ValueError(f'Unknown scheduler type: {scheduler}')
+            raise ValueError(f"Unknown scheduler type: {scheduler}")

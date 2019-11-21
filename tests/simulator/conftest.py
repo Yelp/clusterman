@@ -22,9 +22,9 @@ from clusterman.simulator.simulator import Simulator
 
 @pytest.fixture
 def simulator():
-    with mock.patch('clusterman.simulator.simulator.PiecewiseConstantFunction'):
+    with mock.patch("clusterman.simulator.simulator.PiecewiseConstantFunction"):
         return Simulator(
-            SimulationMetadata('test', 'testing', 'mesos', 'test-tag'),
+            SimulationMetadata("test", "testing", "mesos", "test-tag"),
             arrow.get(0),
             arrow.get(3600),
             None,
@@ -34,8 +34,7 @@ def simulator():
 
 @pytest.fixture(autouse=True)
 def sim_params():
-    with staticconf.testing.PatchConfiguration({
-        'join_delay_mean_seconds': 0,
-        'join_delay_stdev_seconds': 0,
-    }):
+    with staticconf.testing.PatchConfiguration(
+        {"join_delay_mean_seconds": 0, "join_delay_stdev_seconds": 0,}
+    ):
         yield

@@ -22,14 +22,19 @@ from clusterman_metrics.util.constants import CLUSTERMAN_NAME
 def _parse_dimensions(metric_name):
     """ Parse out existing dimensions from the metric name """
     try:
-        metric_name, dims = metric_name.split('|', 1)
+        metric_name, dims = metric_name.split("|", 1)
     except ValueError:
-        dims = ''
+        dims = ""
 
-    return metric_name, dict(dim_pair.split('=') for dim_pair in dims.split(',') if dim_pair)
+    return (
+        metric_name,
+        dict(dim_pair.split("=") for dim_pair in dims.split(",") if dim_pair),
+    )
 
 
-def generate_key_with_dimensions(metric_name: str, dimensions: Optional[Mapping[str, str]] = None) -> str:
+def generate_key_with_dimensions(
+    metric_name: str, dimensions: Optional[Mapping[str, str]] = None
+) -> str:
     """ Helper function to generate a key used to reference metric timeseries data in DynamoDB; this key will
     be parsed by ``get_meteorite_identifiers`` to store data in SignalFX.
 
@@ -47,15 +52,16 @@ def generate_key_with_dimensions(metric_name: str, dimensions: Optional[Mapping[
 
     dimension_parts = []
     for key, value in sorted(new_dimensions.items()):
-        dimension_parts.append('{key}={value}'.format(key=key, value=value))
+        dimension_parts.append("{key}={value}".format(key=key, value=value))
 
-    return '{metric_name}|{dim_string}'.format(
-        metric_name=metric_name,
-        dim_string=','.join(dimension_parts),
+    return "{metric_name}|{dim_string}".format(
+        metric_name=metric_name, dim_string=",".join(dimension_parts),
     )
 
 
-def get_meteorite_identifiers(metric_type: str, metric_key: str) -> Tuple[str, Optional[Mapping[str, str]]]:
+def get_meteorite_identifiers(
+    metric_type: str, metric_key: str
+) -> Tuple[str, Optional[Mapping[str, str]]]:
     """
     Given the primary key for a timeseries in the datastore and its Clusterman metric type, return the metric name and
     dimensions for that timeseries in meteorite.
@@ -71,9 +77,9 @@ def get_meteorite_identifiers(metric_type: str, metric_key: str) -> Tuple[str, O
 
     if metric_type == APP_METRICS:
         # Namespace app metrics by the app identifier.
-        name_parts.extend(metric_name.split(',', 1))
+        name_parts.extend(metric_name.split(",", 1))
     else:
         name_parts.append(metric_name)
 
-    meteorite_name = '.'.join(name_parts)
+    meteorite_name = ".".join(name_parts)
     return meteorite_name, dimensions
