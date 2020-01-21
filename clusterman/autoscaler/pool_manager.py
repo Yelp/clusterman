@@ -100,8 +100,8 @@ class PoolManager:
             try:
                 group.mark_stale(dry_run)
             except NotImplementedError as e:
-                logger.warn(f'Skipping {group_id} because of error:')
-                logger.warn(str(e))
+                logger.warning(f'Skipping {group_id} because of error:')
+                logger.warning(str(e))
 
     def modify_target_capacity(
         self,

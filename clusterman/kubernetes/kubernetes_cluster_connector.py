@@ -15,6 +15,7 @@ from collections import defaultdict
 from distutils.util import strtobool
 from typing import List
 from typing import Mapping
+from typing import Optional
 
 import colorlog
 import kubernetes
@@ -37,7 +38,7 @@ class KubernetesClusterConnector(ClusterConnector):
     _nodes_by_ip: Mapping[str, KubernetesNode]
     _pods_by_ip: Mapping[str, List[KubernetesPod]]
 
-    def __init__(self, cluster: str, pool: str) -> None:
+    def __init__(self, cluster: str, pool: Optional[str]) -> None:
         super().__init__(cluster, pool)
         self.kubeconfig_path = f'clusters.{cluster}.kubeconfig_path'
         kubernetes.config.load_kube_config(staticconf.read_string(f'clusters.{cluster}.kubeconfig_path'))
@@ -50,7 +51,6 @@ class KubernetesClusterConnector(ClusterConnector):
     def reload_state(self) -> None:
         logger.info('Reloading nodes')
         kubernetes.config.load_kube_config(staticconf.read_string(f'{self.kubeconfig_path}'))
-        self._pods = self._get_all_pods()
         self._nodes_by_ip = self._get_nodes_by_ip()
         self._pods_by_ip = self._get_pods_by_ip()
 
@@ -66,21 +66,24 @@ class KubernetesClusterConnector(ClusterConnector):
             for node in self._nodes_by_ip.values()
         )
 
-    def get_unschedulable_pods(self) -> int:
-        unschedulable_pods = []
-        for pod in self._get_pending_pods():
-            is_unschedulable = False
-            for condition in pod.status.conditions:
-                if condition.reason == 'Unschedulable':
-                    is_unschedulable = True
-            if is_unschedulable:
-                unschedulable_pods.append(pod)
-        return len(unschedulable_pods)
+    def set_node_unschedulable(self, node_ip: str):
+        agent_metadata = self._get_agent_metadata(node_ip)
+        self._core_api.patch_node(
+            name=agent_metadata.agent_id,
+            body={'spec': {'unschedulable': True}}
+        )
 
-    def _get_pending_pods(self) -> List[KubernetesPod]:
-        pool_label_key = self.pool_config.read_string('pool_label_key', default='clusterman.com/pool')
-        node_selector = {pool_label_key: self.pool}
-        return [pod for pod in self._pods if pod.spec.node_selector == node_selector and pod.status.phase == 'Pending']
+    def evict_pods_on_node(self, node_ip: str):
+        pods = self._pods_by_ip[node_ip]
+        for pod in pods:
+            try:
+                self._core_api.create_namespaced_pod_eviction(
+                    name=pod.metadata.name,
+                    namespace=pod.metadata.namespace,
+                    body=kubernetes.client.V1beta1Eviction()
+                )
+            except Exception as e:
+                logger.warning(f'error when evict pod: {e}')
 
     def _get_agent_metadata(self, node_ip: str) -> AgentMetadata:
         node = self._nodes_by_ip.get(node_ip)
@@ -96,25 +99,24 @@ class KubernetesClusterConnector(ClusterConnector):
         )
 
     def _get_nodes_by_ip(self) -> Mapping[str, KubernetesNode]:
-        pool_label_selector = self.pool_config.read_string('pool_label_key', default='clusterman.com/pool') \
-            + '=' + self.pool
-        pool_nodes = self._core_api.list_node(label_selector=pool_label_selector).items
+        if self.pool is not None:
+            pool_label_selector = self.pool_config.read_string('pool_label_key', default='clusterman.com/pool') \
+                + '=' + self.pool
+            pool_nodes = self._core_api.list_node(label_selector=pool_label_selector).items
+        else:
+            pool_nodes = self._core_api.list_node().items
         return {
             get_node_ip(node): node
             for node in pool_nodes
         }
 
     def _get_pods_by_ip(self) -> Mapping[str, List[KubernetesPod]]:
-        all_pods = self._pods
+        all_pods = self._core_api.list_pod_for_all_namespaces().items
         pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
         for pod in all_pods:
             if pod.status.phase == 'Running' and pod.status.host_ip in self._nodes_by_ip:
                 pods_by_ip[pod.status.host_ip].append(pod)
         return pods_by_ip
-
-    def _get_all_pods(self):
-        all_pods = self._core_api.list_pod_for_all_namespaces().items
-        return all_pods
 
     def _count_batch_tasks(self, node_ip: str) -> int:
         count = 0

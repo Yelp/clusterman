@@ -117,11 +117,3 @@ def test_allocation(mock_cluster_connector):
 
 def test_total_cpus(mock_cluster_connector):
     assert mock_cluster_connector.get_resource_total('cpus') == 12
-
-
-def test_get_pending_pods(mock_cluster_connector):
-    assert len(mock_cluster_connector._get_pending_pods()) == 1
-
-
-def test_get_unschedulable_pods(mock_cluster_connector):
-    assert mock_cluster_connector.get_unschedulable_pods() == 1

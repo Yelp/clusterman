@@ -37,11 +37,13 @@ from clusterman.aws.util import RESOURCE_GROUPS_REV
 from clusterman.config import load_cluster_pool_config
 from clusterman.config import POOL_NAMESPACE
 from clusterman.config import setup_config
+from clusterman.draining.kubernetes import kube_drain
 from clusterman.draining.mesos import down
 from clusterman.draining.mesos import drain
 from clusterman.draining.mesos import operator_api
 from clusterman.draining.mesos import up
 from clusterman.interfaces.resource_group import InstanceMetadata
+from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
 from clusterman.util import get_pool_name_list
 
 
@@ -227,6 +229,7 @@ class DrainingClient():
     def process_termination_queue(
         self,
         mesos_operator_client: Callable[..., Callable[[str], Callable[..., None]]],
+        kube_operator_client: KubernetesClusterConnector,
     ) -> None:
         host_to_terminate = self.get_host_to_terminate()
         if host_to_terminate:
@@ -251,6 +254,7 @@ class DrainingClient():
     def process_drain_queue(
         self,
         mesos_operator_client: Callable[..., Callable[[str], Callable[..., None]]],
+        kube_operator_client: KubernetesClusterConnector,
     ) -> None:
         host_to_process = self.get_host_to_drain()
         if host_to_process and host_to_process.instance_id not in self.draining_host_ttl_cache:
@@ -271,6 +275,7 @@ class DrainingClient():
                     self.submit_host_for_termination(host_to_process)
             elif host_to_process.scheduler == 'kubernetes':
                 logger.info(f'Kubernetes host to drain and submit for termination: {host_to_process}')
+                kube_drain(kube_operator_client, host_to_process)
                 self.submit_host_for_termination(host_to_process, delay=0)
             else:
                 logger.info(f'Host to submit for termination immediately: {host_to_process}')
@@ -359,16 +364,19 @@ def process_queues(cluster_name: str) -> None:
     draining_client = DrainingClient(cluster_name)
     mesos_master_url = staticconf.read_string(f'clusters.{cluster_name}.mesos_master_fqdn')
     mesos_secret_path = staticconf.read_string(f'mesos.mesos_agent_secret_path', default=None)
-    operator_client = operator_api(mesos_master_url, mesos_secret_path)
+    mesos_operator_client = operator_api(mesos_master_url, mesos_secret_path)
+    kube_operator_client = KubernetesClusterConnector(cluster_name, None)
     logger.info('Polling SQS for messages every 5s')
     while True:
         draining_client.clean_processing_hosts_cache()
         draining_client.process_warning_queue()
         draining_client.process_drain_queue(
-            mesos_operator_client=operator_client,
+            mesos_operator_client=mesos_operator_client,
+            kube_operator_client=kube_operator_client,
         )
         draining_client.process_termination_queue(
-            mesos_operator_client=operator_client,
+            mesos_operator_client=mesos_operator_client,
+            kube_operator_client=kube_operator_client,
         )
         time.sleep(5)
 
@@ -383,7 +391,9 @@ def terminate_host(host: Host) -> None:
 def main(args: argparse.Namespace) -> None:
     setup_config(args)
     for pool in get_pool_name_list(args.cluster, 'mesos'):
-        load_cluster_pool_config(args.cluster, pool, 'mesos', None)  # drainer only supported for mesos
+        load_cluster_pool_config(args.cluster, pool, 'mesos', None)
+    for pool in get_pool_name_list(args.cluster, 'kubernetes'):
+        load_cluster_pool_config(args.cluster, pool, 'kubernetes', None)
     process_queues(args.cluster)
 
 
