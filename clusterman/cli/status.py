@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
+import signal
 import sys
 
 from humanfriendly import format_size
@@ -129,9 +130,18 @@ def print_status(manager: PoolManager, args) -> None:
     sys.stdout.write('\n')
 
 
-def main(args: argparse.Namespace) -> None:  # pragma: no cover
-    manager = PoolManager(args.cluster, args.pool, args.scheduler)
-    print_status(manager, args)
+def main(args: argparse.Namespace):  # pragma: no cover
+    # Time out after 10s. Only works *nix
+    def timeout_handler(signum, frame):
+        raise Exception("Command timed out. Please ssh to 'adhoc-prod' if you set --cluster to prod.")
+    signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(10)
+
+    try:
+        manager = PoolManager(args.cluster, args.pool, args.scheduler)
+        print_status(manager, args)
+    except Exception as e:
+        print(e)
 
 
 @subparser('status', 'check the status of a cluster', main)
