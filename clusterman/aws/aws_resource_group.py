@@ -195,6 +195,11 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
                     matching_resource_groups[rg_id] = rg
             except KeyError:
                 continue
+            except Exception as e:
+                logger.error(
+                    f'Failed to parse the identifier tags on {rg_id}, continuing anyway: {e}.\nThe tags were: {tags}'
+                )
+                continue
         return matching_resource_groups
 
     @classmethod
