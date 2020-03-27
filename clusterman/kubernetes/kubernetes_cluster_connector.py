@@ -91,10 +91,11 @@ class KubernetesClusterConnector(ClusterConnector):
             agent_metadata = self._get_agent_metadata(node_ip)
             self._core_api.patch_node(
                 name=agent_metadata.agent_id,
-                body={'spec': {'unschedulable': True}}
+                body=KubernetesNode(spec=kubernetes.client.V1NodeSpec(unschedulable=True))
             )
         except Exception as e:
             logger.warning(f'error when unscheduling pod: {e}')
+        logger.info(f'Unscheduling node {node_ip} was successful.')
 
     def evict_pods_on_node(self, node_ip: str):
         pods = self._pods_by_ip[node_ip]
@@ -106,15 +107,18 @@ class KubernetesClusterConnector(ClusterConnector):
                     body=kubernetes.client.V1beta1Eviction()
                 )
             except Exception as e:
-                logger.warning(f'error when evict pod: {e}')
+                logger.warning(f'error when evicting pod: {e}')
+        logger.info(f'All pods from node {node_ip} were evicted successfully.')
 
     def delete_node(self, node_ip: str):
-        agent_metadata = self._get_agent_metadata(node_ip)
-        self._core_api.delete_node(
-            name=agent_metadata.agent_id,
-            grace_period_seconds=0,
-            body=kubernetes.client.V1DeleteOptions()
-        )
+        try:
+            agent_metadata = self._get_agent_metadata(node_ip)
+            self._core_api.delete_node(
+                name=agent_metadata.agent_id
+            )
+        except Exception as e:
+            logger.warning(f'error when deleting node: {e}')
+        logger.info(f'Deleting node {node_ip} was successful.')
 
     def _get_agent_metadata(self, node_ip: str) -> AgentMetadata:
         node = self._nodes_by_ip.get(node_ip)
