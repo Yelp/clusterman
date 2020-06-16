@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
+import glob
 import os
 from typing import Optional
 
 import staticconf
+from colorama import Fore
+from colorama import Style
 
 CREDENTIALS_NAMESPACE = 'boto_cfg'
 DEFAULT_CLUSTER_DIRECTORY = '/nail/srv/configs/clusterman-clusters'
@@ -76,7 +79,7 @@ def setup_config(args: argparse.Namespace) -> None:
 
 def load_cluster_pool_config(cluster: str, pool: str, scheduler: str, signals_branch_or_tag: Optional[str]) -> None:
     pool_namespace = POOL_NAMESPACE.format(pool=pool, scheduler=scheduler)
-    pool_config_file = get_pool_config_path(cluster, pool, scheduler)
+    pool_config_file = get_pool_config_path_if_exists(cluster, pool, scheduler)
 
     staticconf.YamlConfiguration(pool_config_file, namespace=pool_namespace)
     if signals_branch_or_tag:
@@ -84,6 +87,32 @@ def load_cluster_pool_config(cluster: str, pool: str, scheduler: str, signals_br
             {'autoscale_signal': {'branch_or_tag': signals_branch_or_tag}},
             namespace=pool_namespace,
         )
+
+
+def get_pool_config_path_if_exists(cluster, pool, scheduler):
+    """Checks that a config file for a pool scheduled by a specific scheduler
+    exists in a cluster. If it does, return the path for the file. If not,
+    exit.
+    """
+    pool_config_file = get_pool_config_path(cluster, pool, scheduler)
+    if os.path.exists(pool_config_file):
+        return pool_config_file
+    else:
+        cluster_dir = get_cluster_config_directory(cluster)
+        if os.path.exists(cluster_dir):
+            other_sched_files = glob.glob(os.path.join(cluster_dir, f'{pool}.*'))
+            if len(other_sched_files) > 0:
+                schedulers = [os.path.splitext(f)[1][1:] for f in other_sched_files]
+                msg = (
+                    f"Pool '{pool}' is scheduled in cluster '{cluster}' by {schedulers}, "
+                    f"not '{scheduler}'"
+                )
+            else:
+                msg = f"Pool '{pool}' does not exist in cluster '{cluster}'"
+        else:
+            msg = f"Cluster '{cluster}' does not exist"
+        print(Fore.RED + msg + Style.RESET_ALL)
+        raise SystemExit
 
 
 def get_cluster_config_directory(cluster):

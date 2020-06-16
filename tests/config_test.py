@@ -13,6 +13,7 @@
 # limitations under the License.
 import argparse
 import json
+import os
 
 import mock
 import pytest
@@ -22,32 +23,33 @@ import yaml
 
 import clusterman.config as config
 from clusterman.config import POOL_NAMESPACE
+from tests.conftest import mock_file
 from tests.conftest import mock_open
 
 
 @pytest.fixture
-def mock_config_files():
+def mock_config_files(tmpdir):
     with staticconf.testing.PatchConfiguration(
-        {'cluster_config_directory': '/nail/whatever'}
-    ), mock_open(
+        {'cluster_config_directory': str(tmpdir)}
+    ), mock_file(
         config.get_pool_config_path('cluster-A', 'pool-1', 'mesos'),
         contents=yaml.dump({
             'resource_groups': 'cluster-A',
             'other_config': 18,
         }),
-    ), mock_open(
+    ), mock_file(
         config.get_pool_config_path('cluster-A', 'pool-2', 'mesos'),
         contents=yaml.dump({
             'resource_groups': 'cluster-A',
             'other_config': 20,
         }),
-    ), mock_open(
+    ), mock_file(
         config.get_pool_config_path('cluster-A', 'pool-2', 'kubernetes'),
         contents=yaml.dump({
             'resource_groups': 'cluster-A',
             'other_config': 29,
         }),
-    ), mock_open(
+    ), mock_file(
         config.get_pool_config_path('cluster-B', 'pool-1', 'mesos'),
         contents=yaml.dump({
             'resource_groups': 'cluster-B',
@@ -145,6 +147,7 @@ def test_setup_config_region(mock_load_module_configs, mock_config_files):
     assert mock_load_module_configs.call_args == mock.call('/nail/etc/config.yaml')
 
 
+@mock.patch('clusterman.config.get_pool_config_path_if_exists', config.get_pool_config_path)
 @pytest.mark.parametrize('cluster,pool,pool_other_config', [('cluster-B', 'pool-1', 200)])
 def test_load_cluster_pool_config(cluster, pool, pool_other_config, mock_config_files):
     config.load_cluster_pool_config(cluster, pool, 'mesos', None)
@@ -152,3 +155,29 @@ def test_load_cluster_pool_config(cluster, pool, pool_other_config, mock_config_
     pool_namespace = POOL_NAMESPACE.format(pool=pool, scheduler='mesos')
     assert staticconf.read_int('other_config', namespace=pool_namespace) == pool_other_config
     assert staticconf.read_string('resource_groups', namespace=pool_namespace) == cluster
+
+
+def test_get_pool_name_list_cluster_exists_pass(tmpdir, mock_config_files):
+    path = config.get_pool_config_path_if_exists('cluster-B', 'pool-1', 'mesos')
+    assert path == os.path.join(str(tmpdir), 'cluster-B', 'pool-1.mesos')
+
+
+@pytest.mark.parametrize(
+    'cluster,pool,scheduler,output',
+    [
+        ('bad-cluster', 'pool-1', 'mesos', "Cluster 'bad-cluster' does not exist"),
+        ('cluster-B', 'bad-pool', 'mesos', "Pool 'bad-pool' does not exist in cluster 'cluster-B'"),
+        (
+            'cluster-B', 'pool-1', 'bad-sched',
+            "Pool 'pool-1' is scheduled in cluster 'cluster-B' by ['mesos'], not 'bad-sched'",
+        ),
+    ],
+)
+def test_get_pool_name_list_cluster_exists_fail(
+    mock_config_files, capsys, cluster, pool, scheduler, output,
+):
+    with pytest.raises(SystemExit):
+        config.get_pool_config_path_if_exists(cluster, pool, scheduler)
+
+    captured = capsys.readouterr()
+    assert output in captured.out

@@ -64,6 +64,14 @@ class ClustermanResources(NamedTuple):
     gpus: float = 0
 
 
+class ClusterNotFoundError(Exception):
+    def __init__(self, cluster):
+        self.cluster = cluster
+
+    def __str__(self):
+        return f"Cluster '{self.cluster}' does not exist"
+
+
 def setup_logging(log_level_str: str = 'info') -> None:
     EVENT_LOG_LEVEL = 25
     logging.addLevelName(EVENT_LOG_LEVEL, 'EVENT')
@@ -296,6 +304,8 @@ def read_int_or_inf(reader, param):
 
 def get_pool_name_list(cluster_name: str, scheduler: str) -> List[str]:
     cluster_config_directory = get_cluster_config_directory(cluster_name)
+    if not os.path.exists(cluster_config_directory):
+        raise ClusterNotFoundError(cluster_name)
     return [
         os.path.splitext(f)[0] for f in os.listdir(cluster_config_directory)
         if f[0] != '.' and f.endswith(scheduler)  # skip dotfiles and only read scheduler files

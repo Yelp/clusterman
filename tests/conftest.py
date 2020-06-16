@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import io
+import os
 from contextlib import contextmanager
 
 import mock
@@ -45,6 +46,15 @@ def mock_open(filename, contents=None):
     mocked_file.start()
     yield
     mocked_file.stop()
+
+
+@contextmanager
+def mock_file(filename, contents=''):
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    with open(filename, 'w') as fp:
+        fp.write(contents)
+    yield
+    os.remove(filename)
 
 
 @pytest.fixture(autouse=True)
