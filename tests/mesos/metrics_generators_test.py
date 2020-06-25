@@ -65,6 +65,8 @@ def test_generate_simple_metadata(mock_pool_manager):
 
     mock_pool_manager.non_orphan_fulfilled_capacity = 12
 
+    mock_pool_manager.fulfilled_capacity = 12
+
     expected_metrics = [
         ClusterMetric(metric_name='cpus_total', value=20, dimensions={'cluster': 'mesos-test', 'pool': 'bar.mesos'}),
         ClusterMetric(metric_name='mem_total', value=2000, dimensions={'cluster': 'mesos-test', 'pool': 'bar.mesos'}),
@@ -83,6 +85,11 @@ def test_generate_simple_metadata(mock_pool_manager):
         ClusterMetric(
             metric_name='non_orphan_fulfilled_capacity',
             value=12,
+            dimensions={'cluster': 'mesos-test', 'pool': 'bar.mesos'},
+        ),
+        ClusterMetric(
+            metric_name='orphan_pct',
+            value=0,
             dimensions={'cluster': 'mesos-test', 'pool': 'bar.mesos'},
         ),
     ]

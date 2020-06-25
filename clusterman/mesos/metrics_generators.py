@@ -40,6 +40,9 @@ SIMPLE_METADATA = {
     'fulfilled_capacity': lambda manager: {str(market): value for market,
                                            value in manager.get_market_capacities().items()},
     'non_orphan_fulfilled_capacity': lambda manager: manager.non_orphan_fulfilled_capacity,
+    'orphan_pct':
+        lambda manager: 0 if manager.fulfilled_capacity == 0
+        else (1 - manager.non_orphan_fulfilled_capacity / manager.fulfilled_capacity) * 100,
 }
 KUBERNETES_METRICS = {
     'unschedulable_pods': lambda manager: len(manager.cluster_connector.get_unschedulable_pods()),
