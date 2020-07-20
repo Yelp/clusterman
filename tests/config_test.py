@@ -162,6 +162,7 @@ def test_get_pool_name_list_cluster_exists_pass(tmpdir, mock_config_files):
     assert path == os.path.join(str(tmpdir), 'cluster-B', 'pool-1.mesos')
 
 
+@mock.patch('clusterman.config.logger')
 @pytest.mark.parametrize(
     'cluster,pool,scheduler,output',
     [
@@ -174,10 +175,9 @@ def test_get_pool_name_list_cluster_exists_pass(tmpdir, mock_config_files):
     ],
 )
 def test_get_pool_name_list_cluster_exists_fail(
-    mock_config_files, capsys, cluster, pool, scheduler, output,
+    mock_logger, mock_config_files, cluster, pool, scheduler, output,
 ):
     with pytest.raises(SystemExit):
         config.get_pool_config_path_if_exists(cluster, pool, scheduler)
 
-    captured = capsys.readouterr()
-    assert output in captured.out
+    assert mock.call(output) == mock_logger.error.call_args

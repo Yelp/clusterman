@@ -14,16 +14,18 @@
 import argparse
 import glob
 import os
+import sys
 from typing import Optional
 
+import colorlog
 import staticconf
-from colorama import Fore
-from colorama import Style
 
 CREDENTIALS_NAMESPACE = 'boto_cfg'
 DEFAULT_CLUSTER_DIRECTORY = '/nail/srv/configs/clusterman-clusters'
 LOG_STREAM_NAME = 'tmp_clusterman_autoscaler'
 POOL_NAMESPACE = '{pool}.{scheduler}_config'
+
+logger = colorlog.getLogger(__name__)
 
 
 def _load_module_configs(env_config_path: str):
@@ -111,8 +113,8 @@ def get_pool_config_path_if_exists(cluster, pool, scheduler):
                 msg = f"Pool '{pool}' does not exist in cluster '{cluster}'"
         else:
             msg = f"Cluster '{cluster}' does not exist"
-        print(Fore.RED + msg + Style.RESET_ALL)
-        raise SystemExit
+        logger.error(msg)
+        sys.exit(1)
 
 
 def get_cluster_config_directory(cluster):

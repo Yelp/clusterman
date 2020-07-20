@@ -64,3 +64,11 @@ class SimulationError(ClustermanException):
 
 class AllResourceGroupsAreStaleError(Exception):
     pass
+
+
+class ClusterNotFoundError(Exception):
+    def __init__(self, cluster):
+        self.cluster = cluster
+
+    def __str__(self):
+        return f"Cluster '{self.cluster}' does not exist"

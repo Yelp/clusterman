@@ -41,9 +41,9 @@ from clusterman.draining.mesos import down
 from clusterman.draining.mesos import drain
 from clusterman.draining.mesos import operator_api
 from clusterman.draining.mesos import up
+from clusterman.exceptions import ClusterNotFoundError
 from clusterman.interfaces.resource_group import InstanceMetadata
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
-from clusterman.util import ClusterNotFoundError
 from clusterman.util import get_pool_name_list
 
 
@@ -407,8 +407,8 @@ def main(args: argparse.Namespace) -> None:
         for pool in get_pool_name_list(args.cluster, 'kubernetes'):
             load_cluster_pool_config(args.cluster, pool, 'kubernetes', None)
     except ClusterNotFoundError as e:
-        logger.error(e)
-        raise SystemExit
+        logger.exception(e)
+        raise
     process_queues(args.cluster)
 
 

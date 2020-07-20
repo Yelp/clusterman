@@ -54,8 +54,14 @@ def mock_setup_config():
 def test_configure_initial(mock_ls, mock_mesos_pool_manager, mock_client_class, batch, mock_setup_config):
     pools = ['pool-1', 'pool-3', 'pool-4']
     mock_ls.return_value = [f'{p}.mesos' for p in pools[:2]] + [f'{p}.kubernetes' for p in pools[2:]]
-    with mock.patch('clusterman.batch.cluster_metrics_collector.load_cluster_pool_config') as mock_pool_config:
+    with mock.patch(
+        'clusterman.batch.cluster_metrics_collector.load_cluster_pool_config',
+    ) as mock_pool_config, mock.patch(
+        'clusterman.batch.cluster_metrics_collector.get_pool_name_list',
+        side_effect=[pools[:2], [pools[2]]],
+    ) as mock_get_pool_name_list:
         batch.configure_initial()
+        assert mock_get_pool_name_list.call_count == 2
         assert mock_pool_config.call_count == 3
 
     assert batch.run_interval == 120

@@ -20,11 +20,11 @@ import staticconf.testing
 from colorama import Fore
 from colorama import Style
 
+from clusterman.exceptions import ClusterNotFoundError
 from clusterman.util import any_of
 from clusterman.util import ask_for_choice
 from clusterman.util import ask_for_confirmation
 from clusterman.util import autoscaling_is_paused
-from clusterman.util import ClusterNotFoundError
 from clusterman.util import color_conditions
 from clusterman.util import get_cluster_name_list
 from clusterman.util import get_pool_name_list

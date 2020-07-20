@@ -37,6 +37,7 @@ from clusterman.aws.client import dynamodb
 from clusterman.config import get_cluster_config_directory
 from clusterman.config import LOG_STREAM_NAME
 from clusterman.config import POOL_NAMESPACE
+from clusterman.exceptions import ClusterNotFoundError
 
 
 logger = colorlog.getLogger(__name__)
@@ -62,14 +63,6 @@ class ClustermanResources(NamedTuple):
     mem: float = 0
     disk: float = 0
     gpus: float = 0
-
-
-class ClusterNotFoundError(Exception):
-    def __init__(self, cluster):
-        self.cluster = cluster
-
-    def __str__(self):
-        return f"Cluster '{self.cluster}' does not exist"
 
 
 def setup_logging(log_level_str: str = 'info') -> None:
