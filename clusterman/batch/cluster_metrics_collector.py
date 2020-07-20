@@ -46,6 +46,7 @@ from clusterman.batch.util import suppress_request_limit_exceeded
 from clusterman.config import get_pool_config_path
 from clusterman.config import load_cluster_pool_config
 from clusterman.config import setup_config
+from clusterman.exceptions import ClusterNotFoundError
 from clusterman.mesos.metrics_generators import ClusterMetric
 from clusterman.mesos.metrics_generators import generate_framework_metadata
 from clusterman.mesos.metrics_generators import generate_kubernetes_metrics
@@ -99,7 +100,11 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
         # first to load the cluster config path, and then read all the entries in that directory
         self.pools: MutableMapping[str, List[str]] = {}
         for scheduler in {'mesos', 'kubernetes'}:
-            self.pools[scheduler] = get_pool_name_list(self.options.cluster, scheduler)
+            try:
+                self.pools[scheduler] = get_pool_name_list(self.options.cluster, scheduler)
+            except ClusterNotFoundError as e:
+                logger.error(e)
+                raise
         for scheduler, pools in self.pools.items():
             for pool in pools:
                 watcher_config = {

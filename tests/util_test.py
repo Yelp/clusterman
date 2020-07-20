@@ -20,6 +20,7 @@ import staticconf.testing
 from colorama import Fore
 from colorama import Style
 
+from clusterman.exceptions import ClusterNotFoundError
 from clusterman.util import any_of
 from clusterman.util import ask_for_choice
 from clusterman.util import ask_for_confirmation
@@ -191,14 +192,22 @@ def test_get_cluster_name_list():
 
 
 @mock.patch('clusterman.util.get_cluster_config_directory')
+@mock.patch('os.path.exists', mock.Mock(return_value=True))
 @mock.patch('os.listdir')
-def test_get_pool_name_list(mock_listdir, mock_get_cluster_config_directory):
+def test_get_pool_name_list_cluster_exists(mock_listdir, mock_get_cluster_config_directory):
     mock_get_cluster_config_directory.return_value = '/tmp/somedir/cluster-A'
     mock_listdir.return_value = ['pool-A.mesos', 'pool-B.xml', 'pool-C.mesos', 'pool-D', 'pool-F.kubernetes']
     assert set(get_pool_name_list('cluster-A', 'mesos')) == {'pool-A', 'pool-C'}
     assert set(get_pool_name_list('cluster-A', 'kubernetes')) == {'pool-F'}
     assert mock_get_cluster_config_directory.call_args == mock.call('cluster-A')
     assert mock_listdir.call_args == mock.call('/tmp/somedir/cluster-A')
+
+
+@mock.patch('clusterman.util.get_cluster_config_directory', mock.Mock(return_value='/tmp/somedir/cluster-A'))
+@mock.patch('os.path.exists', mock.Mock(return_value=False))
+def test_get_cluster_name_list_cluster_dne():
+    with pytest.raises(ClusterNotFoundError):
+        get_pool_name_list('cluster-A', 'mesos')
 
 
 def test_is_paused_no_data_for_cluster():

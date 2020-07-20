@@ -37,6 +37,7 @@ from clusterman.aws.client import dynamodb
 from clusterman.config import get_cluster_config_directory
 from clusterman.config import LOG_STREAM_NAME
 from clusterman.config import POOL_NAMESPACE
+from clusterman.exceptions import ClusterNotFoundError
 
 
 logger = colorlog.getLogger(__name__)
@@ -296,6 +297,8 @@ def read_int_or_inf(reader, param):
 
 def get_pool_name_list(cluster_name: str, scheduler: str) -> List[str]:
     cluster_config_directory = get_cluster_config_directory(cluster_name)
+    if not os.path.exists(cluster_config_directory):
+        raise ClusterNotFoundError(cluster_name)
     return [
         os.path.splitext(f)[0] for f in os.listdir(cluster_config_directory)
         if f[0] != '.' and f.endswith(scheduler)  # skip dotfiles and only read scheduler files
