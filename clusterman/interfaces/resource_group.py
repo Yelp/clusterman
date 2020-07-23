@@ -26,6 +26,7 @@ from typing import Sequence
 import arrow
 
 from clusterman.aws.markets import InstanceMarket
+from clusterman.util import ClustermanResources
 
 
 class InstanceMetadata(NamedTuple):
@@ -37,7 +38,7 @@ class InstanceMetadata(NamedTuple):
     market: InstanceMarket
     state: str
     uptime: arrow.Arrow
-    weight: float
+    resources: ClustermanResources
 
 
 class ResourceGroup(metaclass=ABCMeta):
@@ -60,7 +61,7 @@ class ResourceGroup(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def market_weight(self, market: InstanceMarket) -> float:  # pragma: no cover
+    def market_weight(self, market: InstanceMarket) -> ClustermanResources:  # pragma: no cover
         """ Return the weighted capacity assigned to a particular market by this resource group
 
         .. note:: market_weight is compared to fulfilled_capacity when scaling down a pool, so it must
@@ -77,7 +78,7 @@ class ResourceGroup(metaclass=ABCMeta):
     @abstractmethod
     def modify_target_capacity(
         self,
-        target_capacity: float,
+        target_capacity: ClustermanResources,
         *,
         dry_run: bool,
     ) -> None:  # pragma: no cover
@@ -89,12 +90,12 @@ class ResourceGroup(metaclass=ABCMeta):
         pass
 
     @property
-    def min_capacity(self) -> float:
+    def min_capacity(self) -> ClustermanResources:
         """The lowest value that will be respected by modify_target_capacity."""
         return 0
 
     @property
-    def max_capacity(self) -> float:
+    def max_capacity(self) -> ClustermanResources:
         """The highest value that will be respected by modify_target_capacity."""
         return float('inf')
 
@@ -127,12 +128,12 @@ class ResourceGroup(metaclass=ABCMeta):
         pass
 
     @abstractproperty
-    def market_capacities(self) -> Mapping[InstanceMarket, float]:  # pragma: no cover
+    def market_capacities(self) -> Mapping[InstanceMarket, ClustermanResources]:  # pragma: no cover
         """ The (weighted) capacities of each market in the resource group """
         pass
 
     @abstractproperty
-    def target_capacity(self) -> float:  # pragma: no cover
+    def target_capacity(self) -> ClustermanResources:  # pragma: no cover
         """ The target (or desired) weighted capacity for this ResourceGroup
 
         Note that the actual weighted capacity in the ResourceGroup may be smaller or larger than the
@@ -142,7 +143,7 @@ class ResourceGroup(metaclass=ABCMeta):
         pass
 
     @abstractproperty
-    def fulfilled_capacity(self) -> float:  # pragma: no cover
+    def fulfilled_capacity(self) -> ClustermanResources:  # pragma: no cover
         """ The actual weighted capacity for this ResourceGroup """
         pass
 

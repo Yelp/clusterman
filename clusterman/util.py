@@ -21,9 +21,10 @@ from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
-from typing import NamedTuple
 from typing import Optional
 from typing import TypeVar
+from typing import Union
+from typing import overload
 
 import arrow
 import colorlog
@@ -57,11 +58,138 @@ class All:
     pass
 
 
-class ClustermanResources(NamedTuple):
+class ClustermanResources:
     cpus: float = 0
     mem: float = 0
     disk: float = 0
     gpus: float = 0
+
+    def __init__(
+        self,
+        cpus: float = 0,
+        mem: float = 0,
+        disk: float = 0,
+        gpus: float = 0,
+    ):
+        self.cpus = cpus
+        self.mem = mem
+        self.disk = disk
+        self.gpus = gpus
+
+    def __iter__(self):
+        return iter((self.cpus, self.mem, self.disk, self.gpus))
+
+    def __add__(self, other: 'ClustermanResources') -> 'ClustermanResources':
+        return ClustermanResources(
+            cpus=self.cpus + other.cpus,
+            mem=self.mem + other.mem,
+            disk=self.disk + other.disk,
+            gpus=self.gpus + other.gpus,
+        )
+
+    def __sub__(self, other: 'ClustermanResources') -> 'ClustermanResources':
+        return ClustermanResources(
+            cpus=self.cpus - other.cpus,
+            mem=self.mem - other.mem,
+            disk=self.disk - other.disk,
+            gpus=self.gpus - other.gpus,
+        )
+
+    def __mul__(self, other: Union[float, int]) -> 'ClustermanResources':
+        if isinstance(other, (float, int)):
+            return ClustermanResources(
+                cpus=self.cpus * other,
+                mem=self.mem * other,
+                disk=self.disk * other,
+                gpus=self.gpus * other,
+            )
+        else:
+            raise TypeError(f"ClustermanResources cannot be multiplied by {type(other)}")
+
+    def __rmul__(self, other: Union[float, int]) -> 'ClustermanResources':
+        return self * other
+
+    def __truediv__(self, other: Union[float, int]) -> 'ClustermanResources':
+        if isinstance(other, (float, int)):
+            return ClustermanResources(
+                cpus=self.cpus / other,
+                mem=self.mem / other,
+                disk=self.disk / other,
+                gpus=self.gpus / other,
+            )
+        else:
+            raise TypeError(f"ClustermanResources cannot be divided by {type(other)}")
+
+
+    # def __lt__(self, other: 'ClustermanResources'):
+    #     return all([
+    #         self.cpus < other.cpus,
+    #         self.mem < other.mem,
+    #         self.disk < other.disk,
+    #         self.gpus < other.gpus,
+    #     ])
+
+    # def __le__(self, other: 'ClustermanResources'):
+    #     return all([
+    #         self.cpus <= other.cpus,
+    #         self.mem <= other.mem,
+    #         self.disk <= other.disk,
+    #         self.gpus <= other.gpus,
+    #     ])
+
+    # def __gt__(self, other: 'ClustermanResources'):
+    #     return all([
+    #         self.cpus > other.cpus,
+    #         self.mem > other.mem,
+    #         self.disk > other.disk,
+    #         self.gpus > other.gpus,
+    #     ])
+
+    # def __ge__(self, other: 'ClustermanResources'):
+    #     return all([
+    #         self.cpus >= other.cpus,
+    #         self.mem >= other.mem,
+    #         self.disk >= other.disk,
+    #         self.gpus >= other.gpus,
+    #     ])
+
+    def any_lt(self, other: 'ClustermanResources') -> bool:
+        return any([a < b for (a, b) in zip(self, other)])
+
+    def any_gt(self, other: 'ClustermanResources') -> bool:
+        return any([a > b for (a, b) in zip(self, other)])
+
+    def any_le(self, other: 'ClustermanResources') -> bool:
+        return any([a <= b for (a, b) in zip(self, other)])
+
+    def any_ge(self, other: 'ClustermanResources') -> bool:
+        return any([a >= b for (a, b) in zip(self, other)])
+
+    def all_lt(self, other: 'ClustermanResources') -> bool:
+        return all([a < b for (a, b) in zip(self, other)])
+
+    def all_gt(self, other: 'ClustermanResources') -> bool:
+        return all([a > b for (a, b) in zip(self, other)])
+
+    def all_le(self, other: 'ClustermanResources') -> bool:
+        return all([a <= b for (a, b) in zip(self, other)])
+
+    def all_ge(self, other: 'ClustermanResources') -> bool:
+        return all([a >= b for (a, b) in zip(self, other)])
+
+    def clamp(
+        self,
+        lower_bound: 'ClustermanResources' = None,
+        upper_bound: 'ClustermanResources' = None,
+    ) -> "ClustermanResources":
+        if lower_bound is None:
+            lower_bound = ClustermanResources(float("-inf"), float("-inf"), float("-inf"), float("-inf"))
+        if upper_bound is None:
+            upper_bound = ClustermanResources(float("inf"), float("inf"), float("inf"), float("inf"))
+
+        return ClustermanResources(
+            *(min(max(lo, x), hi) for (lo, x, hi) in zip(lower_bound, self, upper_bound)),
+        )
 
 
 def setup_logging(log_level_str: str = 'info') -> None:
