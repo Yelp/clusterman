@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import math
 import traceback
 from collections import defaultdict
 from typing import cast
@@ -25,6 +24,7 @@ from typing import Optional
 from typing import Sequence
 from typing import Tuple
 from typing import Type
+from typing import Iterator
 
 import colorlog
 import staticconf
@@ -405,30 +405,39 @@ class PoolManager:
         for stale_group in stale_groups:
             targets[stale_group.id] = ClustermanResources()
 
-        def is_constrained(group):
-            if coeff > 0:
-                return targets[group.id] + coeff > group.max_capacity
-            else:
-                return targets[group.id] + coeff < group.min_capacity
-
         # when coeff is positive, if any resource is under our target, we need to keep scaling.
         # when coeff is negative, if any resource is under our target, we can stop scaling.
-        def keep_scaling():
+        def keep_scaling() -> bool:
             if coeff > 0:
-                return sum(targets.values()).any_le(new_target_capacity)
+                return sum(targets.values(), ClustermanResources()).any_le(new_target_capacity)
             else:
-                return not sum(targets.values()).any_le(new_target_capacity)
+                return not sum(targets.values(), ClustermanResources()).any_le(new_target_capacity)
 
-        def valid_options():
+        def valid_options() -> Iterator[Tuple[str, ClustermanResources]]:
             """generate the actions we can take without violating constraints, e.g. launch c5.12xlarge in group A,
             launch m5.9xlarge in group B."""
+
+            for group in non_stale_groups:
+                if coeff > 0:
+                    options = group.scale_up_options()
+                    group_constraint = group.max_capacity.all_ge
+                else:
+                    options = group.scale_down_options()
+                    group_constraint = group.min_capacity.all_le
+
+                for option in options:
+                    if group_constraint(targets[group.id] + option):
+                        yield (group.id, option)
+
             raise NotImplementedError()
 
-        def heuristic(option):
-            return math.rand()
+        def heuristic(option: Tuple[str, ClustermanResources]) -> float:
+            # TODO: something better.
+            return 0
 
-        def apply_option(option):
-            raise NotImplementedError()
+        def apply_option(option: Tuple[str, ClustermanResources]) -> None:
+            group_id, delta = option
+            targets[group_id] += delta
 
         while keep_scaling():
             # List options that don't violate constraints.
@@ -505,9 +514,12 @@ class PoolManager:
 
     def _calculate_non_orphan_fulfilled_capacity(self) -> ClustermanResources:
         return sum(
-            node_metadata.instance.resources
-            for node_metadata in self.get_node_metadatas(AWS_RUNNING_STATES)
-            if node_metadata.agent.state not in (AgentState.ORPHANED, AgentState.UNKNOWN)
+            (
+                node_metadata.instance.resources
+                for node_metadata in self.get_node_metadatas(AWS_RUNNING_STATES)
+                if node_metadata.agent.state not in (AgentState.ORPHANED, AgentState.UNKNOWN)
+            ),
+            ClustermanResources()
         )
 
     @property
@@ -518,7 +530,7 @@ class PoolManager:
         non_stale_groups = [group for group in self.resource_groups.values() if not group.is_stale]
         if not non_stale_groups:
             raise AllResourceGroupsAreStaleError()
-        return sum(group.target_capacity for group in non_stale_groups)
+        return sum((group.target_capacity for group in non_stale_groups), ClustermanResources())
 
     @property
     def fulfilled_capacity(self) -> ClustermanResources:
@@ -527,4 +539,4 @@ class PoolManager:
         and state of AWS at the time.  In general, once the cluster has reached equilibrium, the fulfilled capacity will
         be greater than or equal to the target capacity.
         """
-        return sum(group.fulfilled_capacity for group in self.resource_groups.values())
+        return sum((group.fulfilled_capacity for group in self.resource_groups.values()), ClustermanResources())
