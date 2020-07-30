@@ -32,6 +32,7 @@ import parsedatetime
 import staticconf
 from colorama import Fore
 from colorama import Style
+from mypy_extensions import TypedDict
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 from clusterman.aws.client import dynamodb
@@ -58,11 +59,20 @@ class All:
     pass
 
 
+class ClustermanResourcesDict(TypedDict):
+    cpus: float
+    mem: float
+    disk: float
+    gpus: float
+
+
 class ClustermanResources:
     cpus: float = 0
     mem: float = 0
     disk: float = 0
     gpus: float = 0
+
+    _fields = ('cpus', 'mem', 'disk', 'gpus')
 
     def __init__(
         self,
@@ -75,6 +85,14 @@ class ClustermanResources:
         self.mem = mem
         self.disk = disk
         self.gpus = gpus
+
+    def _asdict(self) -> ClustermanResourcesDict:
+        return {
+            'cpus': self.cpus,
+            'mem': self.mem,
+            'disk': self.disk,
+            'gpus': self.gpus,
+        }
 
     def __iter__(self):
         return iter((self.cpus, self.mem, self.disk, self.gpus))
@@ -109,7 +127,7 @@ class ClustermanResources:
     def __rmul__(self, other: Union[float, int]) -> 'ClustermanResources':
         return self * other
 
-    def __truediv__(self, other: Union[float, int]) -> 'ClustermanResources':
+    def __truediv__(self, other: Union['ClustermanResources', float, int]) -> 'ClustermanResources':
         if isinstance(other, (float, int)):
             return ClustermanResources(
                 cpus=self.cpus / other,
@@ -118,8 +136,12 @@ class ClustermanResources:
                 gpus=self.gpus / other,
             )
         else:
-            raise TypeError(f"ClustermanResources cannot be divided by {type(other)}")
-
+            return ClustermanResources(
+                cpus=self.cpus / other.cpus,
+                mem=self.mem / other.mem,
+                disk=self.disk / other.disk,
+                gpus=self.gpus / other.gpus,
+            )
 
     # def __lt__(self, other: 'ClustermanResources'):
     #     return all([
@@ -153,29 +175,53 @@ class ClustermanResources:
     #         self.gpus >= other.gpus,
     #     ])
 
-    def any_lt(self, other: 'ClustermanResources') -> bool:
-        return any([a < b for (a, b) in zip(self, other)])
+    def any_lt(self, other: Union['ClustermanResources', float, int]) -> bool:
+        if isinstance(other, (int, float)):
+            return any([a < other for a in self])
+        else:
+            return any([a < b for (a, b) in zip(self, other)])
 
-    def any_gt(self, other: 'ClustermanResources') -> bool:
-        return any([a > b for (a, b) in zip(self, other)])
+    def any_gt(self, other: Union['ClustermanResources', float, int]) -> bool:
+        if isinstance(other, (int, float)):
+            return any([a > other for a in self])
+        else:
+            return any([a > b for (a, b) in zip(self, other)])
 
-    def any_le(self, other: 'ClustermanResources') -> bool:
-        return any([a <= b for (a, b) in zip(self, other)])
+    def any_le(self, other: Union['ClustermanResources', float, int]) -> bool:
+        if isinstance(other, (int, float)):
+            return any([a <= other for a in self])
+        else:
+            return any([a <= b for (a, b) in zip(self, other)])
 
-    def any_ge(self, other: 'ClustermanResources') -> bool:
-        return any([a >= b for (a, b) in zip(self, other)])
+    def any_ge(self, other: Union['ClustermanResources', float, int]) -> bool:
+        if isinstance(other, (int, float)):
+            return any([a >= other for a in self])
+        else:
+            return any([a >= b for (a, b) in zip(self, other)])
 
-    def all_lt(self, other: 'ClustermanResources') -> bool:
-        return all([a < b for (a, b) in zip(self, other)])
+    def all_lt(self, other: Union['ClustermanResources', float, int]) -> bool:
+        if isinstance(other, (int, float)):
+            return all([a < other for a in self])
+        else:
+            return all([a < b for (a, b) in zip(self, other)])
 
-    def all_gt(self, other: 'ClustermanResources') -> bool:
-        return all([a > b for (a, b) in zip(self, other)])
+    def all_gt(self, other: Union['ClustermanResources', float, int]) -> bool:
+        if isinstance(other, (int, float)):
+            return all([a > other for a in self])
+        else:
+            return all([a > b for (a, b) in zip(self, other)])
 
-    def all_le(self, other: 'ClustermanResources') -> bool:
-        return all([a <= b for (a, b) in zip(self, other)])
+    def all_le(self, other: Union['ClustermanResources', float, int]) -> bool:
+        if isinstance(other, (int, float)):
+            return all([a <= other for a in self])
+        else:
+            return all([a <= b for (a, b) in zip(self, other)])
 
-    def all_ge(self, other: 'ClustermanResources') -> bool:
-        return all([a >= b for (a, b) in zip(self, other)])
+    def all_ge(self, other: Union['ClustermanResources', float, int]) -> bool:
+        if isinstance(other, (int, float)):
+            return all([a >= other for a in self])
+        else:
+            return all([a >= b for (a, b) in zip(self, other)])
 
     def clamp(
         self,

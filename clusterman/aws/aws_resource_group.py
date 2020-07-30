@@ -31,8 +31,10 @@ from clusterman.aws import CACHE_TTL_SECONDS
 from clusterman.aws.client import ec2
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.markets import get_instance_market
+from clusterman.aws.markets import get_market_resources
 from clusterman.aws.markets import InstanceMarket
 from clusterman.interfaces.resource_group import InstanceMetadata
+from clusterman.interfaces.resource_group import ClustermanResources
 from clusterman.interfaces.resource_group import ResourceGroup
 
 
@@ -80,14 +82,25 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
                 market=instance_market,
                 state=aws_state,
                 uptime=(arrow.now() - arrow.get(instance_dict['LaunchTime'])),
-                weight=self.market_weight(instance_market),
+                resources=self.get_instance_resources(instance_dict),
             )
             instance_metadatas.append(metadata)
         return instance_metadatas
 
-    def market_weight(self, market: InstanceMarket) -> float:
-        # some types of resource groups don't understand weights, so default to 1 for every market
-        return 1
+    def get_instance_resources(self, instance_dict) -> ClustermanResources:
+        base_resources = get_market_resources(get_instance_market(instance_dict))
+
+        return ClustermanResources(
+            cpus=base_resources.cpus,
+            mem=base_resources.mem,
+            disk=self.get_ebs_volume_size(instance_dict) if base_resources.disk is None else base_resources.disk,
+            gpus=base_resources.gpus,
+        )
+
+    def get_ebs_volume_size(self, instance_dict) -> float:
+        raise NotImplementedError()  # TODO: implement.
+        # instance_dict["BlockDeviceMappings"] doesn't have sizes; we'll need to look up individual block devices?
+        # maybe there's a way to look this up in the LaunchTemplate / LaunchConfiguration?
 
     @protect_unowned_instances
     def terminate_instances_by_id(self, instance_ids: List[str], batch_size: int = 500) -> Sequence[str]:
@@ -137,15 +150,15 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
         return self.group_id
 
     @property
-    def market_capacities(self) -> Mapping[InstanceMarket, float]:
+    def market_capacities(self) -> Mapping[InstanceMarket, ClustermanResources]:
         return {
-            market: len(instances) * self.market_weight(market)
+            market: sum([self.get_instance_resources(instance) for instance in instances], ClustermanResources())
             for market, instances in self._instances_by_market.items()
             if market.az
         }
 
     @property
-    def target_capacity(self) -> float:
+    def target_capacity(self) -> ClustermanResources:
         """ The target (or desired) weighted capacity for this AWSResourceGroup
 
         Note that the actual weighted capacity in the AWSResourceGroup may be smaller or larger than the
@@ -155,7 +168,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
         if self.is_stale:
             # If we're in cancelled, cancelled_running, or cancelled_terminated, then no more instances will be
             # launched. This is effectively a target_capacity of 0, so let's just pretend like it is.
-            return 0
+            return ClustermanResources()
         return self._target_capacity
 
     @timed_cached_property(ttl=CACHE_TTL_SECONDS)
@@ -167,7 +180,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
         return instance_dict
 
     @abstractproperty
-    def _target_capacity(self):  # pragma: no cover
+    def _target_capacity(self) -> ClustermanResources:  # pragma: no cover
         pass
 
     @classmethod

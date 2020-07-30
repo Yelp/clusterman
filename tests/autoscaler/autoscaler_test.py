@@ -273,27 +273,6 @@ class TestComputeTargetCapacity:
         assert new_target_capacity == 0
 
 
-def test_get_historical_weighted_resource_value_no_historical_data(mock_autoscaler):
-    mock_autoscaler._get_smoothed_non_zero_metadata = mock.Mock(return_value=None)
-    assert mock_autoscaler._get_historical_weighted_resource_value() == ClustermanResources()
-
-
-def test_get_historical_weighted_resource_value(mock_autoscaler):
-    mock_autoscaler._get_smoothed_non_zero_metadata = mock.Mock(side_effect=[
-        (100, 200, 78),   # historical non_zero_fulfilled_capacity
-        (100, 200, 20),   # cpus
-        None,             # mem
-        (100, 200, 0.1),  # disk
-        (100, 200, 1),    # gpus
-    ])
-    assert mock_autoscaler._get_historical_weighted_resource_value() == ClustermanResources(
-        cpus=20 / 78,
-        mem=0,
-        disk=0.1 / 78,
-        gpus=1 / 78,
-    )
-
-
 def test_get_smoothed_non_zero_metadata(mock_autoscaler):
     mock_autoscaler.metrics_client.get_metric_values.return_value = {
         'some_metric': [(100, 5), (110, 7), (120, 40), (130, 23), (136, 0), (140, 41), (150, 0), (160, 0), (170, 0)],

@@ -93,12 +93,17 @@ class ResourceGroup(metaclass=ABCMeta):
     @property
     def min_capacity(self) -> ClustermanResources:
         """The lowest value that will be respected by modify_target_capacity."""
-        return 0
+        return ClustermanResources()
 
     @property
     def max_capacity(self) -> ClustermanResources:
         """The highest value that will be respected by modify_target_capacity."""
-        return float('inf')
+        return ClustermanResources(
+            cpus=float('inf'),
+            mem=float('inf'),
+            disk=float('inf'),
+            gpus=float('inf'),
+        )
 
     @abstractmethod
     def terminate_instances_by_id(
