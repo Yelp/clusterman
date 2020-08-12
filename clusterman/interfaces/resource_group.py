@@ -23,6 +23,7 @@ from typing import NamedTuple
 from typing import Optional
 from typing import Sequence
 from typing import Iterator
+from typing import Tuple
 
 import arrow
 
@@ -79,13 +80,17 @@ class ResourceGroup(metaclass=ABCMeta):
     @abstractmethod
     def modify_target_capacity(
         self,
-        target_capacity: ClustermanResources,
+        actions: Collection[ClustermanResources],
         *,
         dry_run: bool,
     ) -> None:  # pragma: no cover
         """ Modify the target capacity for the resource group
 
-        :param target_capacity: the (weighted) new target capacity for the resource group
+        :param actions: A collection of ClustermanResources vectors, representing the way in which to scale up or down.
+                        ClustermanResources objects with positive values represent scale-up events, whereas
+                        ClustermanResources objects with negative values represent scale-down events. Importantly,
+                        this method should NOT immediately terminate instances according to negative-valued actions, and
+                        instead should wait for the caller to call terminate_instances_by_id.
         :param dry_run: boolean indicating whether to take action or just write to stdout
         """
         pass

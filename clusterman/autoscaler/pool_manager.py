@@ -158,14 +158,14 @@ class PoolManager:
         orig_target_capacity = self.target_capacity
         new_target_capacity = self._constrain_target_capacity(new_target_capacity, force)
 
-        res_group_targets = self._compute_new_resource_group_targets(new_target_capacity)
-        for group_id, target in res_group_targets.items():
-            if self.resource_groups[group_id].target_capacity == target:
+        res_group_actions = self._compute_new_resource_group_actions(new_target_capacity)
+        for group_id, actions in res_group_actions.items():
+            if actions == []:
                 continue
 
             try:
                 self.resource_groups[group_id].modify_target_capacity(
-                    target,
+                    actions,
                     dry_run=dry_run,
                 )
             except ResourceGroupError:
@@ -178,7 +178,7 @@ class PoolManager:
                 continue
 
         if prune:
-            self.prune_excess_fulfilled_capacity(new_target_capacity, res_group_targets, dry_run)
+            self.prune_excess_fulfilled_capacity(new_target_capacity, res_group_actions, dry_run)
         logger.info(f'Target capacity for {self.pool} changed from {orig_target_capacity} to {new_target_capacity}')
         return new_target_capacity
 
@@ -387,11 +387,15 @@ class PoolManager:
 
         return marked_nodes
 
-    def _compute_new_resource_group_targets(self, new_target_capacity: ClustermanResources) -> Mapping[str, ClustermanResources]:
+    def _compute_new_resource_group_actions(self, new_target_capacity: ClustermanResources) -> Mapping[str, List[ClustermanResources]]:
         """ Compute a balanced distribution of target capacities for the resource groups in the cluster
 
         :param new_target_capacity: the desired new target capacity that needs to be distributed
-        :returns: A list of target_capacity values, sorted in order of resource groups
+        :returns: A dict of resource group ID to a list of actions to take, in the form of ClustermanResources vectors:
+                  Positive vectors represent launching boxes, and are chosen from the collection returned by
+                  scale_up_options().
+                  Negative vectors represent terminating boxes, and are chosen from the collection returned by
+                  scale_down_options().
         """
 
         stale_groups = [group for group in self.resource_groups.values() if group.is_stale]
@@ -400,10 +404,12 @@ class PoolManager:
         # If we're scaling down the logic is identical but reversed, so we multiply everything by -1
         coeff = -1 if new_target_capacity.all_lt(self.target_capacity) else 1
         targets: Dict[str, ClustermanResources] = {g.id: g.target_capacity for g in non_stale_groups}
+        actions: Dict[str, List[ClustermanResources]] = {g.id: [] for g in non_stale_groups}
 
         # For stale groups, we set target_capacity to 0. This is a noop on SpotFleetResourceGroup.
         for stale_group in stale_groups:
             targets[stale_group.id] = ClustermanResources()
+            actions[stale_group.id] = []
 
         # when coeff is positive, if any resource is under our target, we need to keep scaling.
         # when coeff is negative, if any resource is under our target, we can stop scaling.
@@ -438,6 +444,7 @@ class PoolManager:
         def apply_option(option: Tuple[str, ClustermanResources]) -> None:
             group_id, delta = option
             targets[group_id] += delta
+            actions[group_id].append(delta)
 
         while keep_scaling():
             # List options that don't violate constraints.
@@ -459,7 +466,7 @@ class PoolManager:
 
             apply_option(option)
 
-        return targets
+        return actions
 
     def get_market_capacities(
         self,

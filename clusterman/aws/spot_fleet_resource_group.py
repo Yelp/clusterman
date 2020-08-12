@@ -14,6 +14,10 @@
 from typing import Any
 from typing import Mapping
 from typing import Sequence
+from typing import Collection
+from typing import Dict
+from typing import cast
+from functools import lru_cache
 
 import botocore
 import colorlog
@@ -27,7 +31,10 @@ from clusterman.aws.client import ec2
 from clusterman.aws.client import s3
 from clusterman.aws.markets import get_instance_market
 from clusterman.aws.markets import InstanceMarket
+from clusterman.aws.markets import get_market_resources
 from clusterman.exceptions import ResourceGroupError
+from clusterman.util import ClustermanResources
+
 
 logger = colorlog.getLogger(__name__)
 _CANCELLED_STATES = ('cancelled', 'cancelled_terminating')
@@ -57,12 +64,12 @@ class SpotFleetResourceGroup(AWSResourceGroup):
         # Can't change WeightedCapacity of SFRs, so cache them here for frequent access
         self._market_weights = self._generate_market_weights()
 
-    def market_weight(self, market: InstanceMarket) -> float:
-        return self._market_weights.get(market, 1)
+    def market_weight(self, market: InstanceMarket) -> ClustermanResources:
+        return self._market_weights[market]
 
     def modify_target_capacity(
         self,
-        target_capacity: float,
+        actions: Collection[ClustermanResources],
         *,
         dry_run: bool = False,
     ) -> None:
@@ -71,7 +78,7 @@ class SpotFleetResourceGroup(AWSResourceGroup):
             return
         kwargs = {
             'SpotFleetRequestId': self.group_id,
-            'TargetCapacity': int(target_capacity),
+            'TargetCapacity': sum((self.resources_to_weight(a) for a in actions), self.target_capacity_weight),
             'ExcessCapacityTerminationPolicy': 'NoTermination',
         }
         logger.info(f'Modifying spot fleet request with arguments: {kwargs}')
@@ -86,8 +93,18 @@ class SpotFleetResourceGroup(AWSResourceGroup):
         if not response['Return']:
             raise ResourceGroupError('Could not change size of spot fleet')
 
-    @timed_cached_property(ttl=CACHE_TTL_SECONDS)
+    def resources_to_weight(self, resources: ClustermanResources) -> float:
+        raise NotImplementedError()
+
     def instance_ids(self) -> Sequence[str]:
+        """ Responses from this API call are cached to prevent hitting any AWS request limits """
+        return [
+            instance['InstanceId']
+            for instance in self._instances
+        ]
+
+    @timed_cached_property(ttl=CACHE_TTL_SECONDS)
+    def _instances(self) -> Sequence[Dict]:
         """ Responses from this API call are cached to prevent hitting any AWS request limits """
         return [
             instance['InstanceId']
@@ -97,8 +114,15 @@ class SpotFleetResourceGroup(AWSResourceGroup):
         ]
 
     @property
-    def fulfilled_capacity(self) -> float:
-        return self._configuration['SpotFleetRequestConfig']['FulfilledCapacity']
+    def fulfilled_capacity(self) -> ClustermanResources:
+        return sum(
+            self.get_resources_for_instances(instance['InstanceId'] for instance in self._instances),
+            ClustermanResources(),
+        )
+
+    @lru_cache(maxsize=2**20)
+    def get_resources_for_instances(self, instance_ids: Collection[str]) -> Dict[str, ClustermanResources]:
+        return "TODO"
 
     @property
     def status(self) -> str:
@@ -113,11 +137,24 @@ class SpotFleetResourceGroup(AWSResourceGroup):
                 return True
             raise e
 
-    def _generate_market_weights(self) -> Mapping[InstanceMarket, float]:
+    def _generate_market_weights(self) -> Mapping[InstanceMarket, ClustermanResources]:
         return {
-            get_instance_market(spec): spec['WeightedCapacity']
+            get_instance_market(spec): cast(float, spec['WeightedCapacity'])
             for spec in self._configuration['SpotFleetRequestConfig']['LaunchSpecifications']
         }
+
+    def _launch_spec_or_instance_to_resources(self, spec) -> ClustermanResources:
+        market_resources = get_market_resources(get_instance_market(spec['InstanceType']))
+
+        def ebs_disk():
+            return spec['BlockDeviceMapping'][0]['Ebs']['VolumeSize']
+
+        return ClustermanResources(
+            cpus=market_resources.cpus,
+            mem=market_resources.mem,
+            disk=market_resources.disk if market_resources.disk is not None else ebs_disk(),
+            gpus=market_resources.gpus,
+        )
 
     @timed_cached_property(ttl=CACHE_TTL_SECONDS)
     def _configuration(self):
@@ -126,8 +163,14 @@ class SpotFleetResourceGroup(AWSResourceGroup):
         return fleet_configuration['SpotFleetRequestConfigs'][0]
 
     @property
-    def _target_capacity(self) -> float:
+    def target_capacity_weight(self):
         return self._configuration['SpotFleetRequestConfig']['TargetCapacity']
+
+    @property
+    def _target_capacity(self) -> ClustermanResources:
+        # TODO: this needs to be based on actually running instances _plus_ an estimate of the resources that'll be
+        # launced to fulfill the remaining weight. Unsure whether it should be based on mean, min, or max resource/weight
+        return "IMPLEMENT ME"
 
     @classmethod
     def load(
