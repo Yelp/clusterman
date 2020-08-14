@@ -30,11 +30,12 @@ from cached_property import timed_cached_property
 from clusterman.aws import CACHE_TTL_SECONDS
 from clusterman.aws.client import ec2
 from clusterman.aws.client import ec2_describe_instances
+from clusterman.aws.client import InstanceDict
 from clusterman.aws.markets import get_instance_market
 from clusterman.aws.markets import get_market_resources
 from clusterman.aws.markets import InstanceMarket
-from clusterman.interfaces.resource_group import InstanceMetadata
 from clusterman.interfaces.resource_group import ClustermanResources
+from clusterman.interfaces.resource_group import InstanceMetadata
 from clusterman.interfaces.resource_group import ResourceGroup
 
 
@@ -114,7 +115,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
             logger.warning(f'No instances to terminate in {self.group_id}')
             return []
 
-        instance_weights = {}
+        instance_resources = {}
         for instance in ec2_describe_instances(instance_ids):
             instance_market = get_instance_market(instance)
             if not instance_market.az:
@@ -123,7 +124,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
                 )
                 instance_ids.remove(instance['InstanceId'])
                 continue
-            instance_weights[instance['InstanceId']] = self.market_weight(get_instance_market(instance))
+            instance_resources[instance['InstanceId']] = self.resources_for_instance(instance)
 
         # AWS API recommends not terminating more than 1000 instances at a time, and to
         # terminate larger numbers in batches
@@ -139,10 +140,23 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
         if missing_instances:
             logger.warning('Some instances could not be terminated; they were probably killed previously')
             logger.warning(f'Missing instances: {list(missing_instances)}')
-        terminated_capacity = sum(instance_weights[i] for i in instance_ids)
+        terminated_capacity = sum((instance_resources[i] for i in instance_ids), ClustermanResources())
 
         logger.info(f'{self.id} terminated weight: {terminated_capacity}; instances: {terminated_instance_ids}')
         return terminated_instance_ids
+
+    def resources_for_instance(self, instance: InstanceDict) -> ClustermanResources:
+        market_resources = get_market_resources(get_instance_market(instance))
+
+        def ebs_disk():
+            return instance['BlockDeviceMapping'][0]['Ebs']['VolumeSize']
+
+        return ClustermanResources(
+            cpus=market_resources.cpus,
+            mem=market_resources.mem,
+            disk=market_resources.disk if market_resources.disk is not None else ebs_disk(),
+            gpus=market_resources.gpus,
+        )
 
     @property
     def id(self) -> str:

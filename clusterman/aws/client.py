@@ -45,17 +45,23 @@ InstanceStateDict = TypedDict(
     },
 )
 
-InstanceDict = TypedDict(
-    'InstanceDict',
-    {
-        'InstanceId': str,
-        'InstanceType': str,
-        'PrivateIpAddress': str,
-        'State': InstanceStateDict,
-        'LaunchTime': str,
-        'Tags': Sequence[Mapping[str, str]],
-    },
-)
+
+class MarketDict(TypedDict):
+    InstanceType: str
+    SubnetId: str
+    Placement: Mapping
+
+
+class InstanceDict(MarketDict):
+    InstanceId: str
+    PrivateIpAddress: str
+    State: InstanceStateDict
+    LaunchTime: str
+    Tags: Sequence[Mapping[str, str]]
+
+
+class LaunchSpecificationDict(MarketDict):
+    ...
 
 
 def _init_session():
