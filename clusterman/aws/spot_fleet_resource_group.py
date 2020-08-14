@@ -75,6 +75,9 @@ class SpotFleetResourceGroup(AWSResourceGroup):
         *,
         dry_run: bool = False,
     ) -> None:
+        """Ideally this method would launch exactly the instances specified by actions, but unlike ASGs, SFRs don't have
+        any way to do that. The best we can do is to convert the actions to a weight, and ask the SFR to scale up by
+        that much weight."""
         if self.is_stale:
             logger.info(f'Not modifying spot fleet request since it is in state {self.status}')
             return
@@ -96,7 +99,14 @@ class SpotFleetResourceGroup(AWSResourceGroup):
             raise ResourceGroupError('Could not change size of spot fleet')
 
     def resources_to_weight(self, resources: ClustermanResources) -> float:
-        raise NotImplementedError()
+        for spec in self._configuration['SpotFleetRequestConfig']['LaunchSpecifications']:
+            if self._resources_for_spec(spec) == resources:
+                return spec['WeightedCapacity']
+
+        logger.warning(
+            f'Could not match {resources} to any of our LaunchSpecifications, estimating weight based on averages.'
+        )
+        return min(resources / self._estimate_capacity_per_weight)
 
     def instance_ids(self) -> Sequence[str]:
         """ Responses from this API call are cached to prevent hitting any AWS request limits """
