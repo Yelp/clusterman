@@ -142,7 +142,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
             logger.warning(f'Missing instances: {list(missing_instances)}')
         terminated_capacity = sum((instance_resources[i] for i in instance_ids), ClustermanResources())
 
-        logger.info(f'{self.id} terminated weight: {terminated_capacity}; instances: {terminated_instance_ids}')
+        logger.info(f'{self.id} terminated capacity: {terminated_capacity}; instances: {terminated_instance_ids}')
         return terminated_instance_ids
 
     def resources_for_instance(self, instance: InstanceDict) -> ClustermanResources:

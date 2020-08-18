@@ -61,7 +61,7 @@ class InstanceDict(MarketDict):
 
 
 class LaunchSpecificationDict(MarketDict):
-    ...
+    WeightedCapacity: float
 
 
 def _init_session():

@@ -13,6 +13,7 @@
 # limitations under the License.
 import pprint
 from typing import Any
+from typing import Collection
 from typing import Dict
 from typing import Mapping
 from typing import Sequence
@@ -27,6 +28,7 @@ from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.client import autoscaling
 from clusterman.aws.client import ec2
 from clusterman.aws.markets import InstanceMarket
+from clusterman.util import ClustermanResources
 
 _BATCH_MODIFY_SIZE = 200
 CLUSTERMAN_STALE_TAG = 'clusterman:is_stale'
@@ -87,23 +89,23 @@ class AutoScalingResourceGroup(AWSResourceGroup):
             del self.__dict__['_group_config']  # invalidate cache
             raise e
 
-    def market_weight(self, market: InstanceMarket) -> float:
-        """ Returns the weight of a given market
+    # def market_weight(self, market: InstanceMarket) -> ClustermanResources:
+    #     """ Returns the weight of a given market
 
-        ASGs can be defined with different instance weights. If we can find
-        the weight for a given instance type, we return it. Otherwise we
-        default to 1.
+    #     ASGs can be defined with different instance weights. If we can find
+    #     the weight for a given instance type, we return it. Otherwise we
+    #     default to 1.
 
-        :param market: The market for which we want the weight for
-        :returns: The weight of a given market
-        """
-        if market.az in self._group_config['AvailabilityZones']:
-            for instance in self._group_config.get('Instances', []):
-                if market.instance == instance.get('InstanceType'):
-                    return int(instance.get('WeightedCapacity', '1'))
-            return 1
-        else:
-            return 0
+    #     :param market: The market for which we want the weight for
+    #     :returns: The weight of a given market
+    #     """
+    #     if market.az in self._group_config['AvailabilityZones']:
+    #         for instance in self._group_config.get('Instances', []):
+    #             if market.instance == instance.get('InstanceType'):
+    #                 return int(instance.get('WeightedCapacity', '1'))
+    #         return 1
+    #     else:
+    #         return 0
 
     def mark_stale(self, dry_run: bool) -> None:
         for i in range(0, len(self.instance_ids), _BATCH_MODIFY_SIZE):
@@ -122,17 +124,19 @@ class AutoScalingResourceGroup(AWSResourceGroup):
 
     def modify_target_capacity(
         self,
-        target_capacity: float,
+        actions: Collection[ClustermanResources],
         *,
         dry_run: bool = False,
         honor_cooldown: bool = False,
     ) -> None:
         """ Modify the desired capacity for the ASG.
 
-        :param target_capacity: The new desired number of instances in th ASG.
-            Must be such that the desired capacity is between the minimum and
-            maximum capacities of the ASGs. The desired capacity will be rounded
-            to the minimum or maximum otherwise, whichever is closer.
+        :param actions: A collection of ClustermanResources vectors, representing the way in which to scale up or down.
+                        ClustermanResources objects with positive values represent scale-up events, whereas
+                        ClustermanResources objects with negative values represent scale-down events.
+                        Currently, this method simply converts these actions to corresponding weights and sums them --
+                        AWS will likely end up launching instances that are different than those specified in actions.
+
         :param dry_run: Boolean indicating whether or not to take action or just
             log
         :param honor_cooldown: Boolean for whether or not to wait for a period
@@ -142,21 +146,21 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         """
         # We pretend like stale instances aren't in the ASG, but actually they are so
         # we have to double-count them in the target capacity computation
-        target_capacity += self._stale_capacity
+        target_capacity = self._stale_capacity + sum((self.resources_to_weight(a) for a in actions), self.target_capacity_weight)
 
         # Round target_cpacity to min or max if necessary
-        if target_capacity > self.max_capacity:
+        if target_capacity > self.max_capacity_weight:
             logger.warning(
-                f'New target_capacity={target_capacity} exceeds ASG MaxSize={self.max_capacity}, '
+                f'New target_capacity={target_capacity} exceeds ASG MaxSize={self.max_capacity_weight}, '
                 'setting to max instead'
             )
-            target_capacity = self.max_capacity
-        elif target_capacity < self.min_capacity:
+            target_capacity = self.max_capacity_weight
+        elif target_capacity < self.min_capacity_weight:
             logger.warning(
-                f'New target_capacity={target_capacity} falls below ASG MinSize={self.min_capacity}, '
+                f'New target_capacity={target_capacity} falls below ASG MinSize={self.min_capacity_weight}, '
                 'setting to min instead'
             )
-            target_capacity = self.min_capacity
+            target_capacity = self.min_capacity_weight
 
         kwargs = dict(
             AutoScalingGroupName=self.group_id,
@@ -173,11 +177,11 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         autoscaling.set_desired_capacity(**kwargs)
 
     @property
-    def min_capacity(self) -> int:
+    def min_capacity_weight(self) -> int:
         return self._group_config['MinSize']
 
     @property
-    def max_capacity(self) -> int:
+    def max_capacity_weight(self) -> int:
         return self._group_config['MaxSize']
 
     @timed_cached_property(ttl=CACHE_TTL_SECONDS)
@@ -241,7 +245,7 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         return False
 
     @property
-    def _target_capacity(self) -> float:
+    def target_capacity_weight(self) -> float:
         # We pretend like stale instances aren't in the ASG, but actually they are so
         # we have to remove them manually from the existing target capacity
         return self._group_config['DesiredCapacity'] - self._stale_capacity
