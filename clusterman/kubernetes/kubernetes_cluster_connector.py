@@ -180,11 +180,15 @@ class KubernetesClusterConnector(ClusterConnector):
         return AgentMetadata(
             agent_id=node.metadata.name,
             allocated_resources=allocated_node_resources(self._pods_by_ip[node_ip]),
-            is_safe_to_kill=self._is_node_safe_to_kill(node_ip),
             batch_task_count=self._count_batch_tasks(node_ip),
+            is_safe_to_kill=self._is_node_safe_to_kill(node_ip),
+            labels=node.metadata.labels,
+            max_tasks=int(node.status.allocatable['pods']),
             state=(AgentState.RUNNING if self._pods_by_ip[node_ip] else AgentState.IDLE),
+            taints=node.spec.taints,
             task_count=len(self._pods_by_ip[node_ip]),
             total_resources=total_node_resources(node),
+            unschedulable=strtobool(node.spec.unschedulable),
         )
 
     def _is_node_safe_to_kill(self, node_ip: str) -> bool:

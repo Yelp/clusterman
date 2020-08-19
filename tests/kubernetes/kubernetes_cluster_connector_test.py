@@ -15,171 +15,15 @@ from copy import deepcopy
 
 import mock
 import pytest
-from kubernetes.client import V1Container
+from kubernetes.client import V1NodeSpec
 from kubernetes.client import V1NodeStatus
 from kubernetes.client import V1ObjectMeta
-from kubernetes.client import V1Pod
-from kubernetes.client import V1PodCondition
-from kubernetes.client import V1PodSpec
-from kubernetes.client import V1PodStatus
-from kubernetes.client import V1ResourceRequirements
-from kubernetes.client.models.v1_affinity import V1Affinity
 from kubernetes.client.models.v1_node import V1Node as KubernetesNode
-from kubernetes.client.models.v1_node_affinity import V1NodeAffinity
-from kubernetes.client.models.v1_node_selector import V1NodeSelector
 from kubernetes.client.models.v1_node_selector_requirement import V1NodeSelectorRequirement
 from kubernetes.client.models.v1_node_selector_term import V1NodeSelectorTerm
-from kubernetes.client.models.v1_preferred_scheduling_term import V1PreferredSchedulingTerm
 
 from clusterman.interfaces.types import AgentState
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
-
-
-@pytest.fixture
-def pod1():
-    return V1Pod(
-        metadata=V1ObjectMeta(name='pod1'),
-        status=V1PodStatus(phase='Running'),
-        spec=V1PodSpec(containers=[
-               V1Container(
-                    name='container1',
-                    resources=V1ResourceRequirements(requests={'cpu': '1.5'})
-                )
-            ]
-        )
-    )
-
-
-@pytest.fixture
-def pod2():
-    return V1Pod(
-        metadata=V1ObjectMeta(name='pod2', annotations={'clusterman.com/safe_to_evict': 'false'}),
-        status=V1PodStatus(phase='Running'),
-        spec=V1PodSpec(containers=[
-               V1Container(
-                    name='container1',
-                    resources=V1ResourceRequirements(requests={'cpu': '1.5'})
-                )
-            ]
-        )
-    )
-
-
-@pytest.fixture
-def pod3():
-    return V1Pod(
-        metadata=V1ObjectMeta(name='pod3', annotations=dict()),
-        status=V1PodStatus(
-            phase='Pending',
-            conditions=[
-                V1PodCondition(status='False', type='PodScheduled', reason='Unschedulable')
-            ]
-        ),
-        spec=V1PodSpec(
-            containers=[
-                V1Container(
-                    name='container2',
-                    resources=V1ResourceRequirements(requests={'cpu': '1.5'})
-                )
-            ],
-            node_selector={'clusterman.com/pool': 'bar'}
-        )
-    )
-
-
-@pytest.fixture
-def pod5():
-    return V1Pod(
-        metadata=V1ObjectMeta(name='pod5', annotations=dict()),
-        status=V1PodStatus(
-            phase='Pending',
-            conditions=None,
-        ),
-        spec=V1PodSpec(
-            containers=[
-                V1Container(
-                    name='container2',
-                    resources=V1ResourceRequirements(requests={'cpu': '1.5'})
-                )
-            ],
-            node_selector={'clusterman.com/pool': 'bar'}
-        )
-    )
-
-
-@pytest.fixture
-def pod6():
-    return V1Pod(
-        spec=V1PodSpec(
-            containers=[
-                V1Container(
-                    name='container',
-                    resources=V1ResourceRequirements(requests={'cpu': '1.5'})
-                )
-            ],
-            affinity=V1Affinity(
-                node_affinity=V1NodeAffinity(
-                    required_during_scheduling_ignored_during_execution=V1NodeSelector(
-                        node_selector_terms=[
-                            V1NodeSelectorTerm(
-                                match_expressions=[
-                                    V1NodeSelectorRequirement(
-                                        key='clusterman.com/pool',
-                                        operator='In',
-                                        values=['bar']
-                                    )
-                                ]
-                            )
-                        ]
-                    )
-                )
-            )
-        )
-    )
-
-
-@pytest.fixture
-def pod7():
-    return V1Pod(
-        spec=V1PodSpec(
-            containers=[
-                V1Container(
-                    name='container',
-                    resources=V1ResourceRequirements(requests={'cpu': '1.5'})
-                )
-            ],
-            affinity=V1Affinity(
-                node_affinity=V1NodeAffinity(
-                    required_during_scheduling_ignored_during_execution=V1NodeSelector(
-                        node_selector_terms=[
-                            V1NodeSelectorTerm(
-                                match_expressions=[
-                                    V1NodeSelectorRequirement(
-                                        key='clusterman.com/scheduler',
-                                        operator='Exists'
-                                    )
-                                ]
-                            )
-                        ]
-                    ),
-                    preferred_during_scheduling_ignored_during_execution=[
-                        V1PreferredSchedulingTerm(
-                            weight=10,
-                            preference=V1NodeSelectorTerm(
-                                match_expressions=[
-                                    V1NodeSelectorRequirement(
-                                        key='clusterman.com/pool',
-                                        operator='In',
-                                        values=['bar']
-                                    )
-                                ]
-                            )
-                        )
-                    ]
-                )
-            )
-        )
-    )
 
 
 @pytest.fixture
@@ -189,17 +33,19 @@ def mock_cluster_connector(pod1, pod2, pod3, pod5):
         mock_cluster_connector = KubernetesClusterConnector('kubernetes-test', 'bar')
         mock_cluster_connector._nodes_by_ip = {
             '10.10.10.1': KubernetesNode(
-                metadata=V1ObjectMeta(name='node1'),
+                metadata=V1ObjectMeta(name='node1', labels={'clusterman.com/node': 'foo'}),
+                spec=V1NodeSpec(unschedulable='false'),
                 status=V1NodeStatus(
-                    allocatable={'cpu': '4', 'gpu': 2},
-                    capacity={'cpu': '4', 'gpu': '2'}
+                    allocatable={'cpu': '4', 'gpu': '2', 'pods': '1234'},
+                    capacity={'cpu': '4', 'gpu': '2', 'pods': '1234'}
                 )
             ),
             '10.10.10.2': KubernetesNode(
-                metadata=V1ObjectMeta(name='node2'),
+                metadata=V1ObjectMeta(name='node2', labels={'clusterman.com/node': 'foo'}),
+                spec=V1NodeSpec(unschedulable='false'),
                 status=V1NodeStatus(
-                    allocatable={'cpu': '6.5'},
-                    capacity={'cpu': '8'}
+                    allocatable={'cpu': '6.5', 'pods': '1234'},
+                    capacity={'cpu': '8', 'pods': '1234'}
                 )
             )
         }

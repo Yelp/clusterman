@@ -18,6 +18,7 @@ from typing import List
 from humanfriendly import parse_size
 from kubernetes.client.models.v1_node import V1Node as KubernetesNode
 from kubernetes.client.models.v1_pod import V1Pod as KubernetesPod
+from kubernetes.client.models.v1_taint import V1Taint
 
 from clusterman.util import ClustermanResources
 
@@ -102,3 +103,37 @@ def total_pod_resources(pod: KubernetesPod) -> ClustermanResources:
         disk=sum(ResourceParser.disk(c.resources.requests) for c in pod.spec.containers),
         gpus=sum(ResourceParser.gpus(c.resources.requests) for c in pod.spec.containers),
     )
+
+
+def is_node_tolerable(pod: KubernetesPod, taints: List[V1Taint]) -> bool:
+    """ Implement logic to see if a pod matches the taints on a particular node
+
+    The logic here is a bit complex, the full documentation is here:
+    https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/#concepts
+
+    :param pod: a pod-spec we want to see if matches
+    :param taints: the list of node taints we want to compare against
+    :returns: true if the pod matches all the taints, false otherwise
+    """
+    unmatched_taints = []
+    for taint in taints:
+        match = False
+        for toleration in (pod.spec.tolerations or []):
+            # no toleration key means it matches all taints
+            if not toleration.key or toleration.key == taint.key:
+                # no operator means it defaults to 'Equal'
+                if not toleration.operator or toleration.operator == 'Equal':
+                    if toleration.value == taint.value and (not toleration.effect or toleration.effect == taint.effect):
+                        match = True
+                        break
+                else:  # operator is 'Exists'
+                    match = True
+                    break
+        if not match:
+            unmatched_taints.append(taint)
+
+    for taint in unmatched_taints:
+        if taint.effect in ('NoSchedule', 'NoExecute'):
+            return False
+
+    return True

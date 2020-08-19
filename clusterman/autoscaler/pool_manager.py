@@ -35,12 +35,14 @@ from clusterman.aws.util import RESOURCE_GROUPS
 from clusterman.config import POOL_NAMESPACE
 from clusterman.draining.queue import DrainingClient
 from clusterman.exceptions import AllResourceGroupsAreStaleError
+from clusterman.exceptions import ClustermanException
 from clusterman.exceptions import PoolManagerError
 from clusterman.exceptions import ResourceGroupError
 from clusterman.interfaces.cluster_connector import ClusterConnector
 from clusterman.interfaces.resource_group import ResourceGroup
 from clusterman.interfaces.types import AgentState
 from clusterman.interfaces.types import ClusterNodeMetadata
+from clusterman.kubernetes.util import is_node_tolerable
 from clusterman.kubernetes.util import total_pod_resources
 from clusterman.monitoring_lib import get_monitoring_client
 from clusterman.util import read_int_or_inf
@@ -49,6 +51,11 @@ AWS_RUNNING_STATES = ('running',)
 MIN_CAPACITY_PER_GROUP = 1
 SFX_RESOURCE_GROUP_MODIFICATION_FAILED_NAME = 'clusterman.resource_group_modification_failed'
 logger = colorlog.getLogger(__name__)
+
+
+# Just using this for flow control because exceptions aren't exceptional in Python :(
+class _FilterException(ClustermanException):
+    pass
 
 
 class PoolManager:
@@ -206,27 +213,6 @@ class PoolManager:
             for instance_metadata in group.get_instance_metadatas(state_filter)
         ]
 
-    def _filter_scale_up_options_for_pod(
-        self,
-        pod: KubernetesPod,
-        scale_up_options: Mapping[str, List[ClusterNodeMetadata]],
-    ) -> Mapping[str, List[ClusterNodeMetadata]]:
-        filtered_options: Mapping[str, List[ClusterNodeMetadata]] = defaultdict(list)
-        for group_id, options in scale_up_options.items():
-            for option in options:
-                reason = ''
-                if total_pod_resources(pod) > option.agent.allocated_resources:
-                    reason = 'insufficient resources'
-
-                if reason:
-                    logger.debug(
-                        'Skipping option {option.instance.market} for {pod.metadata.name}: {reason}'
-                    )
-                    continue
-                filtered_options[group_id].append(option)
-
-        return filtered_options
-
     def _reload_resource_groups(self) -> None:
         resource_groups: MutableMapping[str, ResourceGroup] = {}
         for resource_group_conf in self.pool_config.read_list('resource_groups'):
@@ -246,6 +232,44 @@ class PoolManager:
             ))
         self.resource_groups = resource_groups
         logger.info(f'Loaded resource groups: {list(resource_groups)}')
+
+    def _filter_scale_up_options_for_pod(
+        self,
+        pod: KubernetesPod,
+        scale_up_options: Mapping[str, List[ClusterNodeMetadata]],
+    ) -> Mapping[str, List[ClusterNodeMetadata]]:
+        filtered_options: Mapping[str, List[ClusterNodeMetadata]] = defaultdict(list)
+        for group_id, options in scale_up_options.items():
+            for option in options:
+                try:
+                    if option.agent.unschedulable:
+                        raise _FilterException('node is not schedulable')
+
+                    if total_pod_resources(pod) > option.agent.allocated_resources:
+                        raise _FilterException('insufficient resources')
+
+                    if option.agent.max_tasks and option.agent.task_count >= option.agent.max_tasks:
+                        raise _FilterException('node running max tasks')
+
+                    for key, value in (pod.spec.node_selector or {}).items():
+                        if option.agent.labels.get(key) != value:
+                            raise _FilterException('mismatched node selector')
+
+                    if not is_node_tolerable(pod, option.agent.taints):
+                        raise _FilterException('node has un-matched taints')
+
+                except _FilterException as e:
+                    logger.debug(
+                        f'Skipping option {option.instance.instance_id} ({option.instance.market}) '
+                        f'for {pod.metadata.name}: {str(e)}'
+                    )
+                    continue
+
+                filtered_options[group_id].append(option)
+
+        if not filtered_options:
+            logger.warning(f'No options found for {pod.metadata.name}; this pod will not be schedulable')
+        return filtered_options
 
     def _constrain_target_capacity(
         self,

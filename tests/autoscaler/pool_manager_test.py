@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
+
 import mock
 import pytest
 import staticconf
@@ -25,6 +27,7 @@ from clusterman.exceptions import ResourceGroupError
 from clusterman.interfaces.types import AgentMetadata
 from clusterman.interfaces.types import AgentState
 from clusterman.interfaces.types import InstanceMetadata
+from clusterman.util import ClustermanResources
 
 
 def _make_metadata(
@@ -237,6 +240,93 @@ class TestReloadResourceGroups:
 
         assert len(mock_pool_manager.resource_groups) == 1
         assert 'rg1' in mock_pool_manager.resource_groups
+
+
+class TestFilterScaleUpOptionsForPod:
+    @pytest.fixture(autouse=True)
+    def capture_logging(self, caplog):
+        caplog.set_level(logging.DEBUG)
+
+    def test_filter_scale_up_options_for_pod_no_options(self, mock_pool_manager, pod1):
+        assert mock_pool_manager._filter_scale_up_options_for_pod(pod1, {}) == {}
+
+    def test_filter_scale_up_options(self, mock_pool_manager, pod1):
+        options = {
+            'rg1': [ClusterNodeMetadata(
+                agent=AgentMetadata(
+                    allocated_resources=ClustermanResources(cpus=20, mem=1000, disk=1000, gpus=0),
+                ),
+                instance=mock.Mock(),
+            )]
+        }
+        assert mock_pool_manager._filter_scale_up_options_for_pod(pod1, options) == options
+
+    def test_filter_scale_up_options_unschedulable(self, mock_pool_manager, pod1, caplog):
+        options = {
+            'rg1': [ClusterNodeMetadata(
+                agent=AgentMetadata(
+                    allocated_resources=ClustermanResources(),
+                    unschedulable=True,
+                ),
+                instance=mock.Mock(),
+            )]
+        }
+        assert mock_pool_manager._filter_scale_up_options_for_pod(pod1, options) == {}
+        assert 'node is not schedulable' in caplog.text
+
+    def test_filter_scale_up_options_insufficient_resources(self, mock_pool_manager, pod1, caplog):
+        options = {
+            'rg1': [ClusterNodeMetadata(
+                agent=AgentMetadata(
+                    allocated_resources=ClustermanResources(),
+                ),
+                instance=mock.Mock(),
+            )]
+        }
+        assert mock_pool_manager._filter_scale_up_options_for_pod(pod1, options) == {}
+        assert 'insufficient resources' in caplog.text
+
+    def test_filter_scale_up_options_max_tasks(self, mock_pool_manager, pod1, caplog):
+        options = {
+            'rg1': [ClusterNodeMetadata(
+                agent=AgentMetadata(
+                    allocated_resources=ClustermanResources(cpus=20, mem=1000, disk=1000, gpus=0),
+                    max_tasks=10,
+                    task_count=10,
+                ),
+                instance=mock.Mock(),
+            )]
+        }
+        assert mock_pool_manager._filter_scale_up_options_for_pod(pod1, options) == {}
+        assert 'node running max tasks' in caplog.text
+
+    @pytest.mark.parametrize('node_labels', [{}, {'clusterman.com/pool': 'regular_pool'}])
+    def test_filter_scale_up_options_no_node_selector(self, mock_pool_manager, pod1, node_labels, caplog):
+        pod1.spec.node_selector = {'clusterman.com/pool': 'special_pool'}
+        options = {
+            'rg1': [ClusterNodeMetadata(
+                agent=AgentMetadata(
+                    allocated_resources=ClustermanResources(cpus=20, mem=1000, disk=1000, gpus=0),
+                    labels=node_labels,
+                ),
+                instance=mock.Mock(),
+            )]
+        }
+        assert mock_pool_manager._filter_scale_up_options_for_pod(pod1, options) == {}
+        assert 'mismatched node selector' in caplog.text
+
+    def test_filter_scale_up_options_node_not_tolerable(self, mock_pool_manager, pod1, caplog):
+        options = {
+            'rg1': [ClusterNodeMetadata(
+                agent=AgentMetadata(
+                    allocated_resources=ClustermanResources(cpus=20, mem=1000, disk=1000, gpus=0),
+                ),
+                instance=mock.Mock(),
+            )]
+        }
+        with mock.patch('clusterman.autoscaler.pool_manager.is_node_tolerable', return_value=False):
+            assert mock_pool_manager._filter_scale_up_options_for_pod(pod1, options) == {}
+        assert 'node has un-matched taints' in caplog.text
 
 
 @mock.patch('clusterman.autoscaler.pool_manager.logger')
