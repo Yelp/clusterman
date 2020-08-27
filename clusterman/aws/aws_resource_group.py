@@ -17,6 +17,8 @@ from collections import defaultdict
 from socket import gethostbyaddr
 from typing import Any
 from typing import Collection
+from typing import Dict
+from typing import Iterable
 from typing import List
 from typing import Mapping
 from typing import Optional
@@ -62,6 +64,7 @@ def protect_unowned_instances(func):
 class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
     def __init__(self, group_id: str, **kwargs: Any) -> None:
         self.group_id = group_id
+        self._describe_instances_cache: Dict[str, InstanceDict] = {}
 
     def get_instance_metadatas(self, state_filter: Optional[Collection[str]] = None) -> Sequence[InstanceMetadata]:
         instance_metadatas = []
@@ -83,7 +86,6 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
                 market=instance_market,
                 state=aws_state,
                 uptime=(arrow.now() - arrow.get(instance_dict['LaunchTime'])),
-                resources=self.get_instance_resources(instance_dict),
             )
             instance_metadatas.append(metadata)
         return instance_metadatas
@@ -124,7 +126,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
                 )
                 instance_ids.remove(instance['InstanceId'])
                 continue
-            instance_resources[instance['InstanceId']] = self.resources_for_instance(instance)
+            instance_resources[instance['InstanceId']] = self.get_instance_resources(instance)
 
         # AWS API recommends not terminating more than 1000 instances at a time, and to
         # terminate larger numbers in batches
@@ -144,19 +146,6 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
 
         logger.info(f'{self.id} terminated capacity: {terminated_capacity}; instances: {terminated_instance_ids}')
         return terminated_instance_ids
-
-    def resources_for_instance(self, instance: InstanceDict) -> ClustermanResources:
-        market_resources = get_market_resources(get_instance_market(instance))
-
-        def ebs_disk():
-            return instance['BlockDeviceMapping'][0]['Ebs']['VolumeSize']
-
-        return ClustermanResources(
-            cpus=market_resources.cpus,
-            mem=market_resources.mem,
-            disk=market_resources.disk if market_resources.disk is not None else ebs_disk(),
-            gpus=market_resources.gpus,
-        )
 
     @property
     def id(self) -> str:
@@ -216,14 +205,35 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
 
         for rg_id, tags in resource_group_tags.items():
             try:
-                identifier_tags = json.loads(tags[identifier_tag_label])
-                if identifier_tags['pool'] == pool and identifier_tags['paasta_cluster'] == cluster:
-                    rg = cls(rg_id, **kwargs)
-                    matching_resource_groups[rg_id] = rg
-            except KeyError:
+                tag_json = tags.get(identifier_tag_label)
+                # Not every ASG/SFR/etc will have the right tags, because they belong to someone else
+                if tag_json:
+                    identifier_tags = json.loads(tag_json)
+                    if identifier_tags['pool'] == pool and identifier_tags['paasta_cluster'] == cluster:
+                        rg = cls(rg_id, **kwargs)
+                        matching_resource_groups[rg_id] = rg
+            except Exception:
+                logger.exception(f'Could not load resource group {rg_id}; skipping...')
                 continue
         return matching_resource_groups
 
     @classmethod
     def _get_resource_group_tags(cls) -> Mapping[str, Mapping[str, str]]:  # pragma: no cover
         return {}
+
+    def cached_describe_instances(self, instance_ids: Iterable[str]) -> Dict[str, InstanceDict]:
+        to_fetch = []
+        ret = {}
+        for instance_id in instance_ids:
+            try:
+                ret[instance_id] = self._describe_instances_cache[instance_id]
+            except KeyError:
+                to_fetch.append(instance_id)
+                pass
+
+        if to_fetch:
+            fetched = {i['InstanceId']: i for i in ec2_describe_instances(to_fetch)}
+            self._describe_instances_cache.update(fetched)
+            ret.update(fetched)
+
+        return ret

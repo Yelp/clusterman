@@ -20,26 +20,24 @@ from typing import Collection
 from typing import Iterable
 from typing import List
 from typing import Mapping
-from typing import NamedTuple
 from typing import Optional
 from typing import Sequence
 
-import arrow
-
 from clusterman.aws.markets import InstanceMarket
+from clusterman.interfaces.types import ClusterNodeMetadata
+from clusterman.interfaces.types import InstanceMetadata
 from clusterman.util import ClustermanResources
 
 
-class InstanceMetadata(NamedTuple):
-    group_id: str
-    hostname: Optional[str]
-    instance_id: str
-    ip_address: Optional[str]
-    is_stale: bool
-    market: InstanceMarket
-    state: str
-    uptime: arrow.Arrow
-    resources: ClustermanResources
+class ResourceGroupActions:
+    to_launch: List[ClusterNodeMetadata]
+    to_terminate: List[ClusterNodeMetadata]
+    target_capacity: ClustermanResources
+
+    def __init__(self, to_launch, to_terminate, target_capacity):
+        self.to_launch = to_launch
+        self.to_terminate = to_terminate
+        self.target_capacity = target_capacity
 
 
 class ResourceGroup(metaclass=ABCMeta):
@@ -62,7 +60,7 @@ class ResourceGroup(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def market_weight(self, market: InstanceMarket) -> ClustermanResources:  # pragma: no cover
+    def market_weight(self, market: InstanceMarket) -> float:  # pragma: no cover
         """ Return the weighted capacity assigned to a particular market by this resource group
 
         .. note:: market_weight is compared to fulfilled_capacity when scaling down a pool, so it must
@@ -79,17 +77,15 @@ class ResourceGroup(metaclass=ABCMeta):
     @abstractmethod
     def modify_target_capacity(
         self,
-        actions: Collection[ClustermanResources],
+        actions: ResourceGroupActions,
         *,
         dry_run: bool,
     ) -> None:  # pragma: no cover
         """ Modify the target capacity for the resource group
 
-        :param actions: A collection of ClustermanResources vectors, representing the way in which to scale up or down.
-                        ClustermanResources objects with positive values represent scale-up events, whereas
-                        ClustermanResources objects with negative values represent scale-down events. Importantly,
-                        this method should NOT immediately terminate instances according to negative-valued actions, and
-                        instead should wait for the caller to call terminate_instances_by_id.
+        :param actions: A ResourceGroupActions object, representing the types of instances to launch and terminate, and
+                        the total target capacity. Importantly, Importantly, this method should NOT immediately
+                        terminate instances, and instead should wait for the caller to call terminate_instances_by_id.
         :param dry_run: boolean indicating whether to take action or just write to stdout
         """
         pass
@@ -179,16 +175,9 @@ class ResourceGroup(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def scale_up_options(self) -> Iterable[ClustermanResources]:
+    def scale_up_options(self) -> Iterable[ClusterNodeMetadata]:
         """ Generate each of the options for scaling up this resource group. For a spot fleet, this would be one
         ClustermanResources for each instance type. For a non-spot ASG, this would be a single ClustermanResources that
         represents the instance type the ASG is configured to run.
-        """
-        pass
-
-    @abstractmethod
-    def scale_down_options(self) -> Iterable[ClustermanResources]:
-        """ Generate each of the options for scaling down this resource group, i.e. the list of instance types currently
-        running in this resource group.
         """
         pass

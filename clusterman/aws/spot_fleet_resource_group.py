@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import Any
-from typing import Collection
+from typing import cast
 from typing import Dict
 from typing import Iterable
 from typing import Mapping
@@ -27,13 +27,16 @@ from mypy_extensions import TypedDict
 from clusterman.aws import CACHE_TTL_SECONDS
 from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.client import ec2
-from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.client import LaunchSpecificationDict
 from clusterman.aws.client import s3
 from clusterman.aws.markets import get_instance_market
 from clusterman.aws.markets import get_market_resources
 from clusterman.aws.markets import InstanceMarket
 from clusterman.exceptions import ResourceGroupError
+from clusterman.interfaces.resource_group import ResourceGroupActions
+from clusterman.interfaces.types import AgentMetadata
+from clusterman.interfaces.types import ClusterNodeMetadata
+from clusterman.interfaces.types import InstanceMetadata
 from clusterman.util import ClustermanResources
 
 
@@ -64,14 +67,13 @@ class SpotFleetResourceGroup(AWSResourceGroup):
 
         # Can't change WeightedCapacity of SFRs, so cache them here for frequent access
         self._market_weights = self._generate_market_weights()
-        self._resources_for_instance_cache: Dict[str, ClustermanResources] = {}
 
-    def market_weight(self, market: InstanceMarket) -> ClustermanResources:
+    def market_weight(self, market: InstanceMarket) -> float:
         return self._market_weights[market]
 
     def modify_target_capacity(
         self,
-        actions: Collection[ClustermanResources],
+        actions: ResourceGroupActions,
         *,
         dry_run: bool = False,
     ) -> None:
@@ -81,9 +83,14 @@ class SpotFleetResourceGroup(AWSResourceGroup):
         if self.is_stale:
             logger.info(f'Not modifying spot fleet request since it is in state {self.status}')
             return
+
+        target_capacity = self.target_capacity_weight
+        target_capacity += sum(self.market_weight(cnm.instance.market) for cnm in actions.to_launch)
+        target_capacity -= sum(self.market_weight(cnm.instance.market) for cnm in actions.to_terminate)
+
         kwargs = {
             'SpotFleetRequestId': self.group_id,
-            'TargetCapacity': sum((self.resources_to_weight(a) for a in actions), self.target_capacity_weight),
+            'TargetCapacity': target_capacity,
             'ExcessCapacityTerminationPolicy': 'NoTermination',
         }
         logger.info(f'Modifying spot fleet request with arguments: {kwargs}')
@@ -127,6 +134,7 @@ class SpotFleetResourceGroup(AWSResourceGroup):
 
     @property
     def fulfilled_capacity(self) -> ClustermanResources:
+        # TODO: determine whether all of self._instances count as "fulfilled".
         return sum(
             self.get_resources_for_instances(instance['InstanceId'] for instance in self._instances).values(),
             ClustermanResources(),
@@ -137,21 +145,10 @@ class SpotFleetResourceGroup(AWSResourceGroup):
         return self._configuration['SpotFleetRequestConfig']['FulfilledCapacity']
 
     def get_resources_for_instances(self, instance_ids: Iterable[str]) -> Dict[str, ClustermanResources]:
-        to_fetch = []
-        ret = {}
-        for instance_id in instance_ids:
-            try:
-                ret[instance_id] = self._resources_for_instance_cache[instance_id]
-            except KeyError:
-                to_fetch.append(instance_id)
-                pass
-
-        if to_fetch:
-            fetched = {i['InstanceId']: self.resources_for_instance(i) for i in ec2_describe_instances(to_fetch)}
-            self._resources_for_instance_cache.update(fetched)
-            ret.update(fetched)
-
-        return ret
+        return {
+            iid: self.get_instance_resources(inst)
+            for iid, inst in self.cached_describe_instances(instance_ids).items()
+        }
 
     @property
     def status(self) -> str:
@@ -166,9 +163,9 @@ class SpotFleetResourceGroup(AWSResourceGroup):
                 return True
             raise e
 
-    def _generate_market_weights(self) -> Mapping[InstanceMarket, ClustermanResources]:
+    def _generate_market_weights(self) -> Mapping[InstanceMarket, float]:
         return {
-            get_instance_market(spec): self._resources_for_spec(spec)
+            get_instance_market(spec): cast(float, spec['WeightedCapacity'])
             for spec in self._configuration['SpotFleetRequestConfig']['LaunchSpecifications']
         }
 
@@ -266,21 +263,21 @@ class SpotFleetResourceGroup(AWSResourceGroup):
             sfr_id_to_tags[sfr_config['SpotFleetRequestId']] = tags_dict
         return sfr_id_to_tags
 
-    def scale_up_options(self) -> Iterable[ClustermanResources]:
+    def _node_metadata_for_spec(self, spec: LaunchSpecificationDict) -> ClusterNodeMetadata:
+        return ClusterNodeMetadata(
+            agent=AgentMetadata(total_resources=ClustermanResources.from_instance_type(spec['InstanceType'])),
+            instance=InstanceMetadata(market=get_instance_market(spec)),
+        )
+
+    def scale_up_options(self) -> Iterable[ClusterNodeMetadata]:
         """ Generate each of the options for scaling up this resource group. For a spot fleet, this would be one
         ClustermanResources for each instance type. For a non-spot ASG, this would be a single ClustermanResources that
         represents the instance type the ASG is configured to run.
         """
         return (
-            self._resources_for_spec(spec)
+            self._node_metadata_for_spec(spec)
             for spec in self._configuration['SpotFleetRequestConfig']['LaunchSpecifications']
         )
-
-    def scale_down_options(self) -> Iterable[ClustermanResources]:
-        """ Generate each of the options for scaling down this resource group, i.e. the list of instance types currently
-        running in this resource group.
-        """
-        return self.get_resources_for_instances(instance['InstanceId'] for instance in self._instances).values()
 
 
 def load_spot_fleets_from_s3(bucket: str, prefix: str, pool: str = None) -> Mapping[str, SpotFleetResourceGroup]:

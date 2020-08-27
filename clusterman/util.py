@@ -24,7 +24,6 @@ from typing import List
 from typing import Optional
 from typing import TypeVar
 from typing import Union
-from typing import overload
 
 import arrow
 import colorlog
@@ -33,9 +32,11 @@ import staticconf
 from colorama import Fore
 from colorama import Style
 from mypy_extensions import TypedDict
+from namedtuple import NamedTuple
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 from clusterman.aws.client import dynamodb
+from clusterman.aws.markets import EC2_INSTANCE_TYPES
 from clusterman.config import get_cluster_config_directory
 from clusterman.config import LOG_STREAM_NAME
 from clusterman.config import POOL_NAMESPACE
@@ -44,6 +45,7 @@ from clusterman.config import POOL_NAMESPACE
 logger = colorlog.getLogger(__name__)
 CLUSTERMAN_STATE_TABLE = 'clusterman_cluster_state'
 AUTOSCALER_PAUSED = 'autoscaler_paused'
+DEFAULT_VOLUME_SIZE_GB = 300
 
 
 # These should stay in sync with
@@ -122,7 +124,7 @@ class ClustermanResources:
                 gpus=self.gpus * other,
             )
         else:
-            raise TypeError(f"ClustermanResources cannot be multiplied by {type(other)}")
+            raise TypeError(f'ClustermanResources cannot be multiplied by {type(other)}')
 
     def __rmul__(self, other: Union[float, int]) -> 'ClustermanResources':
         return self * other
@@ -227,15 +229,51 @@ class ClustermanResources:
         self,
         lower_bound: 'ClustermanResources' = None,
         upper_bound: 'ClustermanResources' = None,
-    ) -> "ClustermanResources":
+    ) -> 'ClustermanResources':
         if lower_bound is None:
-            lower_bound = ClustermanResources(float("-inf"), float("-inf"), float("-inf"), float("-inf"))
+            lower_bound = ClustermanResources(float('-inf'), float('-inf'), float('-inf'), float('-inf'))
         if upper_bound is None:
-            upper_bound = ClustermanResources(float("inf"), float("inf"), float("inf"), float("inf"))
+            upper_bound = ClustermanResources(float('inf'), float('inf'), float('inf'), float('inf'))
 
         return ClustermanResources(
             *(min(max(lo, x), hi) for (lo, x, hi) in zip(lower_bound, self, upper_bound)),
         )
+
+    @staticmethod
+    def from_instance_type(instance_type: str) -> 'ClustermanResources':
+        resources = EC2_INSTANCE_TYPES[instance_type]
+        return ClustermanResources(
+            cpus=resources.cpus,
+            mem=resources.mem * 1024,  # AWS metadata for RAM is in GB
+            disk=(resources.disk or DEFAULT_VOLUME_SIZE_GB) * 1024,  # AWS metadata for disk is in GB
+            gpus=resources.gpus,
+        )
+
+
+class SignalResourceRequest(NamedTuple):
+    cpus: Optional[float] = None
+    mem: Optional[float] = None
+    disk: Optional[float] = None
+    gpus: Optional[float] = None
+
+    def __add__(self, other) -> 'SignalResourceRequest':
+        return SignalResourceRequest(
+            cpus=add_maybe_none(self.cpus, other.cpus),
+            mem=add_maybe_none(self.mem, other.mem),
+            disk=add_maybe_none(self.disk, other.disk),
+            gpus=add_maybe_none(self.gpus, other.gpus),
+        )
+
+
+def add_maybe_none(f1: Optional[float], f2: Optional[float]) -> Optional[float]:
+    if f1 is None and f2 is None:
+        return None
+    elif f1 is None:
+        return f2
+    elif f2 is None:
+        return f1
+    else:
+        return f1 + f2
 
 
 def setup_logging(log_level_str: str = 'info') -> None:

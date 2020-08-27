@@ -15,7 +15,6 @@ import traceback
 from typing import Any
 from typing import Dict
 from typing import List
-from typing import MutableMapping
 from typing import Optional
 from typing import Tuple
 
@@ -30,16 +29,16 @@ from clusterman.autoscaler.config import get_autoscaling_config
 from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.config import POOL_NAMESPACE
 from clusterman.exceptions import NoSignalConfiguredException
-from clusterman.exceptions import ResourceRequestError
 from clusterman.interfaces.signal import Signal
+from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
 from clusterman.monitoring_lib import get_monitoring_client
 from clusterman.signals.external_signal import ExternalSignal
-from clusterman.signals.external_signal import SignalResponseDict
 from clusterman.signals.pending_pods_signal import PendingPodsSignal
 from clusterman.util import autoscaling_is_paused
 from clusterman.util import ClustermanResources
 from clusterman.util import get_cluster_dimensions
 from clusterman.util import sensu_checkin
+from clusterman.util import SignalResourceRequest
 from clusterman.util import Status
 
 SIGNAL_LOAD_CHECK_NAME = 'signal_configuration_failed'
@@ -89,7 +88,7 @@ class Autoscaler:
                 gauge_dimensions,
             )
         self.resource_request_gauges: Dict[str, Any] = {}
-        for resource in ('cpus', 'mem', 'disk'):
+        for resource in SignalResourceRequest._fields:
             self.resource_request_gauges[resource] = monitoring_client.create_gauge(
                 RESOURCE_GAUGE_BASE_NAME.format(resource=resource),
                 gauge_dimensions,
@@ -104,6 +103,8 @@ class Autoscaler:
         self.metrics_client = metrics_client or ClustermanMetricsBotoClient(self.mesos_region)
         self.default_signal: Signal
         if staticconf.read_bool('autoscale_signal.internal', default=False):
+            # we should never get here unless we're on Kubernetes; this assert makes mypy happy
+            assert isinstance(self.pool_manager.cluster_connector, KubernetesClusterConnector)
             self.default_signal = PendingPodsSignal(
                 self.cluster,
                 self.pool,
@@ -111,6 +112,7 @@ class Autoscaler:
                 '__default__',
                 DEFAULT_NAMESPACE,
                 self.metrics_client,
+                self.pool_manager.cluster_connector,
             )
         else:
             self.default_signal = ExternalSignal(
@@ -170,10 +172,10 @@ class Autoscaler:
             logger.error(f'The client signal failed with:\n{tb}')
             raise exception
 
-    def _emit_requested_resource_metrics(self, resource_request: SignalResponseDict, dry_run: bool) -> None:
+    def _emit_requested_resource_metrics(self, resource_request: SignalResourceRequest, dry_run: bool) -> None:
         for resource_type, resource_gauge in self.resource_request_gauges.items():
-            if resource_type in resource_request and resource_request[resource_type] is not None:
-                resource_gauge.set(resource_request[resource_type], {'dry_run': dry_run})
+            if getattr(resource_request, resource_type) is not None:
+                resource_gauge.set(getattr(resource_request, resource_type), {'dry_run': dry_run})
 
     def _get_signal_for_app(self, app: str) -> Signal:
         """Load the signal object to use for autoscaling for a particular app
@@ -189,6 +191,8 @@ class Autoscaler:
         try:
             # see if the pool has set up a custom signal correctly; if not, fall back to the default signal
             if staticconf.read_bool('autoscale_signal.internal', default=False, namespace=pool_namespace):
+                # we should never get here unless we're on Kubernetes; this assert makes mypy happy
+                assert isinstance(self.pool_manager.cluster_connector, KubernetesClusterConnector)
                 return PendingPodsSignal(
                     self.cluster,
                     self.pool,
@@ -196,6 +200,7 @@ class Autoscaler:
                     app,
                     pool_namespace,
                     self.metrics_client,
+                    self.pool_manager.cluster_connector,
                 )
             return ExternalSignal(
                 self.cluster,
@@ -230,7 +235,7 @@ class Autoscaler:
             )
             return self.default_signal
 
-    def _compute_target_capacity(self, resource_request: SignalResponseDict) -> ClustermanResources:
+    def _compute_target_capacity(self, resource_request: SignalResourceRequest) -> ClustermanResources:
         """ Compare signal to the resources allocated and compute appropriate capacity change.
 
         :param resource_request: a resource_request object from the signal evaluation
@@ -258,10 +263,10 @@ class Autoscaler:
         # 4. If the resource request and the target capacity are non-zero, but the nodes haven't joined
         #    the cluster yet, we just need to wait until they join before doing anything else.
 
-        if all(requested_quantity is None for requested_quantity in resource_request.values()):
+        if all(requested_quantity is None for requested_quantity in resource_request):
             logger.info('No data from signal, not changing capacity')
             return current_target_capacity
-        elif all(requested_quantity in {0, None} for requested_quantity in resource_request.values()):
+        elif all(requested_quantity in {0, None} for requested_quantity in resource_request):
             return ClustermanResources()
         elif non_orphan_fulfilled_capacity == ClustermanResources():
             # Entering the main body of this method with non_orphan_fulfilled_capacity = 0 guarantees that
@@ -273,7 +278,8 @@ class Autoscaler:
             return current_target_capacity
 
         new_target_capacity = ClustermanResources(**{
-            resource: (0 if value is None else value) for (resource, value) in resource_request.items()  # XXX: is 0 the right value to replace None?
+            # XXX: is 0 the right value to replace None?
+            resource: (0 if value is None else value) for (resource, value) in resource_request.items()
         }) / self.autoscaling_config.setpoint
 
         # If the percentage change between current target capacity and the new target capacity is more than the

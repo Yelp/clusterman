@@ -78,7 +78,7 @@ def mock_agents_by_ip_and_tasks(context):
         yield
 
 
-@behave.given('a pool manager with (?P<num>\d+) (?P<rg_type>asg|sfr|fleet) resource groups?')
+@behave.given('a pool manager with (?P<num>\d+) (?P<rg_type>asg|sfr) resource groups?')
 def make_pool_manager(context, num, rg_type):
     behave.use_fixture(boto_patches, context)
     behave.use_fixture(mock_agents_by_ip_and_tasks, context)

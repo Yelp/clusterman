@@ -16,15 +16,14 @@ from collections import defaultdict
 from typing import cast
 from typing import Collection
 from typing import Dict
+from typing import Iterator
 from typing import List
 from typing import Mapping
 from typing import MutableMapping
-from typing import NamedTuple
 from typing import Optional
 from typing import Sequence
 from typing import Tuple
 from typing import Type
-from typing import Iterator
 
 import colorlog
 import staticconf
@@ -37,23 +36,18 @@ from clusterman.draining.queue import DrainingClient
 from clusterman.exceptions import AllResourceGroupsAreStaleError
 from clusterman.exceptions import PoolManagerError
 from clusterman.exceptions import ResourceGroupError
-from clusterman.interfaces.cluster_connector import AgentMetadata
-from clusterman.interfaces.cluster_connector import AgentState
 from clusterman.interfaces.cluster_connector import ClusterConnector
-from clusterman.interfaces.resource_group import InstanceMetadata
 from clusterman.interfaces.resource_group import ResourceGroup
+from clusterman.interfaces.resource_group import ResourceGroupActions
+from clusterman.interfaces.types import AgentState
+from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.monitoring_lib import get_monitoring_client
-from clusterman.util import read_int_or_inf
 from clusterman.util import ClustermanResources
+from clusterman.util import read_int_or_inf
 
 AWS_RUNNING_STATES = ('running',)
 SFX_RESOURCE_GROUP_MODIFICATION_FAILED_NAME = 'clusterman.resource_group_modification_failed'
 logger = colorlog.getLogger(__name__)
-
-
-class ClusterNodeMetadata(NamedTuple):
-    agent: AgentMetadata
-    instance: InstanceMetadata
 
 
 class PoolManager:
@@ -160,7 +154,7 @@ class PoolManager:
 
         res_group_actions = self._compute_new_resource_group_actions(new_target_capacity)
         for group_id, actions in res_group_actions.items():
-            if actions == []:
+            if actions.to_launch == [] and actions.to_terminate == []:
                 continue
 
             try:
@@ -178,7 +172,11 @@ class PoolManager:
                 continue
 
         if prune:
-            self.prune_excess_fulfilled_capacity(new_target_capacity, res_group_actions, dry_run)
+            self.prune_excess_fulfilled_capacity(
+                new_target_capacity,
+                {g: a.target_capacity for g, a in res_group_actions.items()},
+                dry_run,
+            )
         logger.info(f'Target capacity for {self.pool} changed from {orig_target_capacity} to {new_target_capacity}')
         return new_target_capacity
 
@@ -341,7 +339,7 @@ class PoolManager:
 
             instance_id = node_metadata.instance.instance_id
             group_id = node_metadata.instance.group_id
-            instance_resources = node_metadata.instance.resources
+            instance_resources = node_metadata.agent.total_resources
 
             new_group_capacity = rem_group_capacities[group_id] - instance_resources
             if (instance_resources + removed_resources).any_gt(self.max_capacity_to_remove):  # case 0
@@ -387,15 +385,18 @@ class PoolManager:
 
         return marked_nodes
 
-    def _compute_new_resource_group_actions(self, new_target_capacity: ClustermanResources) -> Mapping[str, List[ClustermanResources]]:
+    def _compute_new_resource_group_actions(self, new_target_capacity: ClustermanResources) -> Mapping[
+        str,
+        ResourceGroupActions,
+    ]:
         """ Compute a balanced distribution of target capacities for the resource groups in the cluster
 
         :param new_target_capacity: the desired new target capacity that needs to be distributed
-        :returns: A dict of resource group ID to a list of actions to take, in the form of ClustermanResources vectors:
-                  Positive vectors represent launching boxes, and are chosen from the collection returned by
-                  scale_up_options().
-                  Negative vectors represent terminating boxes, and are chosen from the collection returned by
-                  scale_down_options().
+        :returns: A dict of resource group ID to a tuple of:
+                  - a list of ClusterNodeMetadata to launch, chosen from the collection returned by
+                  group.scale_up_options() for each resource group.
+                  - a list of ClusterNodeMetadata to terminate, chosen from the collection returned by
+                  self.get_node_metadatas().
         """
 
         stale_groups = [group for group in self.resource_groups.values() if group.is_stale]
@@ -403,48 +404,52 @@ class PoolManager:
 
         # If we're scaling down the logic is identical but reversed, so we multiply everything by -1
         coeff = -1 if new_target_capacity.all_lt(self.target_capacity) else 1
-        targets: Dict[str, ClustermanResources] = {g.id: g.target_capacity for g in non_stale_groups}
-        actions: Dict[str, List[ClustermanResources]] = {g.id: [] for g in non_stale_groups}
+        actions: Dict[str, ResourceGroupActions] = {
+            g.id: ResourceGroupActions([], [], g.target_capacity) for g in non_stale_groups
+        }
 
         # For stale groups, we set target_capacity to 0. This is a noop on SpotFleetResourceGroup.
         for stale_group in stale_groups:
-            targets[stale_group.id] = ClustermanResources()
-            actions[stale_group.id] = []
+            actions[stale_group.id] = ResourceGroupActions([], [], ClustermanResources())
 
         # when coeff is positive, if any resource is under our target, we need to keep scaling.
         # when coeff is negative, if any resource is under our target, we can stop scaling.
         def keep_scaling() -> bool:
+            total_target_capacity = sum([a.target_capacity for a in actions.values()], ClustermanResources())
+            under = total_target_capacity.any_le(new_target_capacity)
             if coeff > 0:
-                return sum(targets.values(), ClustermanResources()).any_le(new_target_capacity)
+                return under
             else:
-                return not sum(targets.values(), ClustermanResources()).any_le(new_target_capacity)
+                return not under
 
-        def valid_options() -> Iterator[Tuple[str, ClustermanResources]]:
+        def valid_options() -> Iterator[Tuple[str, ClusterNodeMetadata]]:
             """generate the actions we can take without violating constraints, e.g. launch c5.12xlarge in group A,
             launch m5.9xlarge in group B."""
 
-            for group in non_stale_groups:
-                if coeff > 0:
-                    options = group.scale_up_options()
-                    group_constraint = group.max_capacity.all_ge
-                else:
-                    options = group.scale_down_options()
-                    group_constraint = group.min_capacity.all_le
+            if coeff > 0:
+                for group in non_stale_groups:
+                    for option in group.scale_up_options():
+                        if group.max_capacity.all_ge(actions[group.id].target_capacity + option.agent.total_resources):
+                            yield (group.id, option)
+            else:
+                for option in self.get_node_metadatas():
+                    group_id = option.instance.group_id
+                    group = self.resource_groups[group_id]
+                    if group.min_capacity.all_le(actions[group.id].target_capacity + option.agent.total_resources):
+                        yield (group_id, option)
 
-                for option in options:
-                    if group_constraint(targets[group.id] + option):
-                        yield (group.id, option)
-
-            raise NotImplementedError()
-
-        def heuristic(option: Tuple[str, ClustermanResources]) -> float:
+        def heuristic(option: Tuple[str, ClusterNodeMetadata]) -> float:
             # TODO: something better.
             return 0
 
-        def apply_option(option: Tuple[str, ClustermanResources]) -> None:
-            group_id, delta = option
-            targets[group_id] += delta
-            actions[group_id].append(delta)
+        def apply_option(option: Tuple[str, ClusterNodeMetadata]) -> None:
+            group_id, metadata = option
+            delta = metadata.agent.total_resources
+            actions[group_id].target_capacity += delta
+            if coeff > 0:
+                actions[group_id].to_launch.append(metadata)
+            else:
+                actions[group_id].to_terminate.append(metadata)
 
         while keep_scaling():
             # List options that don't violate constraints.
@@ -460,7 +465,8 @@ class PoolManager:
             except ValueError:
                 logger.warning(' '.join([
                     'All resource groups are stale or constrained.',
-                    f'The closest we could get to {new_target_capacity} is {sum(targets.values())}',
+                    f'The closest we could get to {new_target_capacity} is',
+                    f'{sum([a.target_capacity for a in actions.values()], ClustermanResources())}',
                 ]))
                 break
 
@@ -522,7 +528,7 @@ class PoolManager:
     def _calculate_non_orphan_fulfilled_capacity(self) -> ClustermanResources:
         return sum(
             (
-                node_metadata.instance.resources
+                node_metadata.agent.total_resources
                 for node_metadata in self.get_node_metadatas(AWS_RUNNING_STATES)
                 if node_metadata.agent.state not in (AgentState.ORPHANED, AgentState.UNKNOWN)
             ),

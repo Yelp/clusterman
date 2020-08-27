@@ -12,36 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pprint
-from typing import Any
-from typing import Collection
-from typing import Dict
+from typing import Iterable
+from typing import List
 from typing import Mapping
+from typing import Optional
 from typing import Sequence
+from typing import Tuple
 
 import colorlog
-from cached_property import timed_cached_property
-from mypy_extensions import TypedDict
-from retry import retry
 
-from clusterman.aws import CACHE_TTL_SECONDS
 from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.client import autoscaling
 from clusterman.aws.client import ec2
 from clusterman.aws.markets import InstanceMarket
+from clusterman.aws.response_types import AutoScalingGroupConfig
+from clusterman.aws.response_types import InstanceOverrideConfig
+from clusterman.aws.response_types import LaunchTemplateConfig
+from clusterman.exceptions import NoLaunchTemplateConfiguredError
+from clusterman.interfaces.resource_group import ResourceGroupActions
+from clusterman.interfaces.types import AgentMetadata
+from clusterman.interfaces.types import ClusterNodeMetadata
+from clusterman.interfaces.types import InstanceMetadata
 from clusterman.util import ClustermanResources
 
 _BATCH_MODIFY_SIZE = 200
 CLUSTERMAN_STALE_TAG = 'clusterman:is_stale'
 
 logger = colorlog.getLogger(__name__)
-
-
-AutoScalingResourceGroupConfig = TypedDict(
-    'AutoScalingResourceGroupConfig',
-    {
-        'tag': str,
-    }
-)
 
 
 class AutoScalingResourceGroup(AWSResourceGroup):
@@ -57,55 +54,32 @@ class AutoScalingResourceGroup(AWSResourceGroup):
     AutoScalingResourceGroup will assume that instances are indeed protected.
     """
 
-    @timed_cached_property(ttl=CACHE_TTL_SECONDS)
-    def _group_config(self) -> Dict[str, Any]:
-        """ Retrieve our ASG's configuration from AWS.
+    def __init__(self, group_id: str) -> None:
+        super().__init__(group_id)
 
-        .. note:: Response from this API call are cached to prevent hitting any AWS
-        request limits.
+        # Resource Groups are reloaded on every autoscaling run, so we just query
+        # AWS data once and store them so we don't run into AWS request limits
+        self._group_config = self._get_auto_scaling_group_config()
+        self._launch_template_config, self._launch_template_overrides = self._get_launch_template_and_overrides()
+        self._stale_instance_ids = self._get_stale_instance_ids()
+
+    def market_weight(self, market: InstanceMarket) -> float:
+        """ Returns the weight of a given market
+
+        ASGs can be defined with different instance weights. If we can find
+        the weight for a given instance type, we return it. Otherwise we
+        default to 1.
+
+        :param market: The market for which we want the weight for
+        :returns: The weight of a given market
         """
-        response = autoscaling.describe_auto_scaling_groups(
-            AutoScalingGroupNames=[self.group_id],
-        )
-        return response['AutoScalingGroups'][0]
-
-    @timed_cached_property(ttl=CACHE_TTL_SECONDS)
-    @retry(exceptions=IndexError, tries=3, delay=1)
-    def _launch_config(self) -> Dict[str, Any]:
-        """ Retrieve our ASG's launch configuration from AWS
-
-        .. note:: Response from this API call are cached to prevent hitting any AWS
-        request limits.
-        """
-        group_config = self._group_config
-        launch_config_name = group_config['LaunchConfigurationName']
-        response = autoscaling.describe_launch_configurations(
-            LaunchConfigurationNames=[launch_config_name],
-        )
-        try:
-            return response['LaunchConfigurations'][0]
-        except IndexError as e:
-            logger.warning(f'Could not get launch config for ASG {self.group_id}: {launch_config_name}')
-            del self.__dict__['_group_config']  # invalidate cache
-            raise e
-
-    # def market_weight(self, market: InstanceMarket) -> ClustermanResources:
-    #     """ Returns the weight of a given market
-
-    #     ASGs can be defined with different instance weights. If we can find
-    #     the weight for a given instance type, we return it. Otherwise we
-    #     default to 1.
-
-    #     :param market: The market for which we want the weight for
-    #     :returns: The weight of a given market
-    #     """
-    #     if market.az in self._group_config['AvailabilityZones']:
-    #         for instance in self._group_config.get('Instances', []):
-    #             if market.instance == instance.get('InstanceType'):
-    #                 return int(instance.get('WeightedCapacity', '1'))
-    #         return 1
-    #     else:
-    #         return 0
+        if market.az in self._group_config['AvailabilityZones']:
+            for instance in self._group_config.get('Instances', []):
+                if market.instance == instance.get('InstanceType'):
+                    return int(instance.get('WeightedCapacity', '1'))
+            return 1
+        else:
+            return 0
 
     def mark_stale(self, dry_run: bool) -> None:
         for i in range(0, len(self.instance_ids), _BATCH_MODIFY_SIZE):
@@ -124,7 +98,7 @@ class AutoScalingResourceGroup(AWSResourceGroup):
 
     def modify_target_capacity(
         self,
-        actions: Collection[ClustermanResources],
+        actions: ResourceGroupActions,
         *,
         dry_run: bool = False,
         honor_cooldown: bool = False,
@@ -146,7 +120,10 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         """
         # We pretend like stale instances aren't in the ASG, but actually they are so
         # we have to double-count them in the target capacity computation
-        target_capacity = self._stale_capacity + sum((self.resources_to_weight(a) for a in actions), self.target_capacity_weight)
+
+        target_capacity = self.target_capacity_weight
+        target_capacity += sum(self.market_weight(cnm.instance.market) for cnm in actions.to_launch)
+        target_capacity -= sum(self.market_weight(cnm.instance.market) for cnm in actions.to_terminate)
 
         # Round target_cpacity to min or max if necessary
         if target_capacity > self.max_capacity_weight:
@@ -184,8 +161,55 @@ class AutoScalingResourceGroup(AWSResourceGroup):
     def max_capacity_weight(self) -> int:
         return self._group_config['MaxSize']
 
-    @timed_cached_property(ttl=CACHE_TTL_SECONDS)
-    def stale_instance_ids(self):
+    def scale_up_options(self) -> Iterable[ClusterNodeMetadata]:
+        if not self._launch_template_config:
+            raise NoLaunchTemplateConfiguredError(
+                f'ASG {self.id} has no launch template associated with it; unable to generate scaling options',
+            )
+        # Either there is a list of LaunchTemplate overrides, or this ASG uses a single instance type
+        options: List[ClusterNodeMetadata] = []
+        for override in self._launch_template_overrides:
+            options.extend(self._get_options_for_instance_type(
+                override['InstanceType'],
+                float(override['WeightedCapacity']),
+            ))
+
+        # If no overrides were specified, we just use the "default" instance type here
+        if not options:
+            options.extend(self._get_options_for_instance_type(
+                self._launch_template_config['LaunchTemplateData']['InstanceType'],
+            ))
+
+        return options
+
+    def _get_auto_scaling_group_config(self) -> AutoScalingGroupConfig:
+        response = autoscaling.describe_auto_scaling_groups(
+            AutoScalingGroupNames=[self.group_id],
+        )
+        return response['AutoScalingGroups'][0]
+
+    def _get_launch_template_and_overrides(self) -> Tuple[Optional[LaunchTemplateConfig], List[InstanceOverrideConfig]]:
+        if 'LaunchTemplate' in self._group_config:
+            template = self._group_config['LaunchTemplate']
+            overrides: List[InstanceOverrideConfig] = []
+        elif 'MixedInstancesPolicy' in self._group_config:
+            policy = self._group_config['MixedInstancesPolicy']
+            template = policy['LaunchTemplate']['LaunchTemplateSpecification']
+            overrides = policy['LaunchTemplate']['Overrides']
+        else:
+            logger.warn(f'ASG {self.id} is not using LaunchTemplates, it will be unable to do smart scheduling')
+            return None, []
+
+        launch_template_name = template['LaunchTemplateName']
+        launch_template_version = template['Version']
+
+        response = ec2.describe_launch_template_versions(
+            LaunchTemplateName=launch_template_name,
+            Versions=[launch_template_version],
+        )
+        return response['LaunchTemplateVersions'][0], overrides
+
+    def _get_stale_instance_ids(self) -> List[str]:
         response = ec2.describe_tags(
             Filters=[
                 {
@@ -200,13 +224,27 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         )
         return [item['ResourceId'] for item in response.get('Tags', []) if item['ResourceId'] in self.instance_ids]
 
-    @timed_cached_property(ttl=CACHE_TTL_SECONDS)
-    def instance_ids(self) -> Sequence[str]:
-        """ Returns a list of instance IDs belonging to this ASG.
+    def _get_options_for_instance_type(
+        self,
+        instance_type: str,
+        weight: Optional[float] = None,
+    ) -> List[ClusterNodeMetadata]:
+        """ Generate a list of possible ClusterNode types that could be added to this ASG,
+        given a particular instance type """
 
-        Note: Response from this API call are cached to prevent hitting any AWS
-        request limits.
-        """
+        options = []
+        az_options = self._group_config['AvailabilityZones']
+        for az in az_options:
+            instance_market = InstanceMarket(instance_type, az)
+            weight = weight or self.market_weight(instance_market)
+            options.append(ClusterNodeMetadata(
+                agent=AgentMetadata(total_resources=ClustermanResources.from_instance_type(instance_type)),
+                instance=InstanceMetadata(market=instance_market),
+            ))
+        return options
+
+    @property
+    def instance_ids(self) -> Sequence[str]:
         return [
             inst['InstanceId']
             for inst in self._group_config.get('Instances', [])
@@ -214,12 +252,17 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         ]
 
     @property
-    def fulfilled_capacity(self) -> float:
+    def stale_instance_ids(self) -> Sequence[str]:
+        return self._stale_instance_ids
+
+    @property
+    def fulfilled_capacity(self) -> ClustermanResources:
         return sum(
             [
-                int(instance.get('WeightedCapacity', '1'))
+                self.get_instance_resources(instance)
                 for instance in self._group_config.get('Instances', [])
-            ]
+            ],
+            ClustermanResources(),
         )
 
     @property

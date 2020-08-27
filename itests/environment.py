@@ -85,7 +85,7 @@ def setup_configurations(context):
             }
         ],
         'autoscale_signal': {
-            'internal': True,
+            'name': 'FooSignal',
             'period_minutes': 10,
         }
     }
@@ -126,14 +126,7 @@ def setup_configurations(context):
     }
     kube_pool_config = {
         'resource_groups': [
-            {
-                'sfr': {
-                    's3': {
-                        'bucket': 'fake-bucket-k8s',
-                        'prefix': 'none',
-                    }
-                },
-            },
+            {'sfr': {'tag': 'puppet:role::paasta'}},
             {'asg': {'tag': 'puppet:role::paasta'}},
         ],
         'scaling_limits': {
@@ -148,6 +141,10 @@ def setup_configurations(context):
                 'runbook': 'y/their-runbook',
             }
         ],
+        'autoscale_signal': {
+            'internal': True,
+            'period_minutes': 7,
+        }
     }
     with staticconf.testing.MockConfiguration(boto_config, namespace=CREDENTIALS_NAMESPACE), \
             staticconf.testing.MockConfiguration(main_clusterman_config), \
@@ -157,14 +154,20 @@ def setup_configurations(context):
 
 
 def make_asg(asg_name, subnet_id):
-    autoscaling.create_launch_configuration(
-        LaunchConfigurationName='mock_launch_configuration',
-        ImageId='ami-foo',
-        InstanceType='t2.micro',
-    )
+    if len(ec2.describe_launch_templates()['LaunchTemplates']) == 0:
+        ec2.create_launch_template(
+            LaunchTemplateName='fake_launch_template',
+            LaunchTemplateData={
+                'ImageId': 'ami-785db401',  # this AMI is hard-coded into moto, represents ubuntu xenial
+                'InstanceType': 't2.2xlarge',
+            },
+        )
     return autoscaling.create_auto_scaling_group(
         AutoScalingGroupName=asg_name,
-        LaunchConfigurationName='mock_launch_configuration',
+        LaunchTemplate={
+            'LaunchTemplateName': 'fake_launch_template',
+            'Version': '1',
+        },
         MinSize=1,
         MaxSize=30,
         DesiredCapacity=1,
@@ -186,36 +189,6 @@ def make_asg(asg_name, subnet_id):
     )
 
 
-def make_fleet(subnet_id):
-    ec2.create_launch_template(
-        LaunchTemplateName='mock_launch_template',
-        LaunchTemplateData={
-            'InstanceType': 'c3.4xlarge',
-            'NetworkInterfaces': [{'SubnetId': subnet_id}],
-        },
-    )
-    return ec2.create_fleet(
-        ExcessCapacityTerminationPolicy='no-termination',
-        LaunchTemplateConfigs={'LaunchTemplateSpecification': {'LaunchTemplateName': 'mock_launch_template'}},
-        TargetCapacitySpecification={'TotalTargetCapacity': 1},
-        TagSpecifications=[
-            {
-                'ResourceType': 'instance',
-                'Tags': [{
-                    'Key': 'puppet:role::paasta',
-                    'Value': json.dumps({
-                        'paasta_cluster': 'mesos-test',
-                        'pool': 'bar',
-                    }),
-                }, {
-                    'Key': 'fake_fleet_key',
-                    'Value': 'fake_fleet_value',
-                }],
-            },
-        ],
-    )
-
-
 def make_sfr(subnet_id):
     return ec2.request_spot_fleet(
         SpotFleetRequestConfig={
@@ -229,13 +202,14 @@ def make_sfr(subnet_id):
                     'WeightedCapacity': 1,
                     'InstanceType': 'c3.8xlarge',
                     'EbsOptimized': False,
-                    # note that this is not useful until we solve
-                    # https://github.com/spulec/moto/issues/1644
                     'TagSpecifications': [{
                         'ResourceType': 'instance',
                         'Tags': [{
-                            'Key': 'foo',
-                            'Value': 'bar',
+                            'Key': 'puppet:role::paasta',
+                            'Value': json.dumps({
+                                'paasta_cluster': 'mesos-test',
+                                'pool': 'bar',
+                            }),
                         }],
                     }],
                 },
