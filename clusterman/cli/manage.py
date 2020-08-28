@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
+import json
 from getpass import getuser
 from socket import gethostname
 
 import arrow
-import staticconf
 
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_cluster_config_directory_arg
@@ -24,28 +24,30 @@ from clusterman.args import add_pool_arg
 from clusterman.args import add_scheduler_arg
 from clusterman.args import subparser
 from clusterman.autoscaler.pool_manager import PoolManager
-from clusterman.config import POOL_NAMESPACE
 from clusterman.util import ask_for_confirmation
+from clusterman.util import ClustermanResources
 from clusterman.util import get_autoscaler_scribe_stream
 from clusterman.util import log_to_scribe
 
 LOG_TEMPLATE = f'{arrow.now()} {gethostname()} {__name__}'
 
 
-def get_target_capacity_value(target_capacity: str, pool: str, scheduler: str) -> int:
+def get_target_capacity_value(target_capacity: str, manager: PoolManager) -> ClustermanResources:
     target_capacity = target_capacity.lower()
-    pool_namespace = POOL_NAMESPACE.format(pool=pool, scheduler=scheduler)
     if target_capacity == 'min':
-        return staticconf.read_int('scaling_limits.min_capacity', namespace=pool_namespace)
+        return manager.min_capacity
     elif target_capacity == 'max':
-        return staticconf.read_int('scaling_limits.max_capacity', namespace=pool_namespace)
+        return manager.max_capacity
     else:
-        return int(target_capacity)
+
+        target_capacity_dict = manager.target_capacity._asdict()
+        target_capacity_dict.update(json.loads(target_capacity))
+        return ClustermanResources(**target_capacity_dict)
 
 
 def change_target_capacity(manager: PoolManager, target_capacity: str, dry_run: bool) -> str:
     old_target = manager.target_capacity
-    requested_target = get_target_capacity_value(target_capacity, manager.pool, manager.scheduler)
+    requested_target = get_target_capacity_value(target_capacity, manager)
     if not dry_run and not ask_for_confirmation(
         f'Modifying target capacity for {manager.cluster}, {manager.pool}.{manager.scheduler} '
         f'from {old_target} to {requested_target}.  Proceed? '
@@ -99,14 +101,20 @@ def main(args: argparse.Namespace) -> None:
 
 
 @subparser('manage', 'check the status of a cluster', main)
-def add_mesos_manager_parser(subparser, required_named_args, optional_named_args):  # pragma: no cover
+def add_mesos_manager_parser(
+    subparser: argparse.ArgumentParser,
+    required_named_args: argparse._ArgumentGroup,
+    optional_named_args: argparse._ArgumentGroup,
+) -> None:  # pragma: no cover
     add_cluster_arg(required_named_args, required=True)
     add_pool_arg(required_named_args)
     add_scheduler_arg(required_named_args)
     optional_named_args.add_argument(
         '--target-capacity',
         metavar='X',
-        help='New target capacity for the cluster (valid options: min, max, positive integer)',
+        help='New target capacity for the cluster (valid options: min, max, '
+             f'JSON-encoded dictionary with the keys {ClustermanResources._fields!r}). If one of these keys is '
+             'omitted, the current target capacity for that resource will be used.',
     )
     optional_named_args.add_argument(
         '--mark-stale',
