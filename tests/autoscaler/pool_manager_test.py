@@ -17,14 +17,17 @@ import staticconf
 import staticconf.testing
 
 from clusterman.autoscaler.pool_manager import ClusterNodeMetadata
+from clusterman.autoscaler.pool_manager import logger as pool_manager_logger
 from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.exceptions import AllResourceGroupsAreStaleError
 from clusterman.exceptions import PoolManagerError
 from clusterman.exceptions import ResourceGroupError
+from clusterman.interfaces.resource_group import ResourceGroupActions
 from clusterman.interfaces.types import AgentMetadata
 from clusterman.interfaces.types import AgentState
 from clusterman.interfaces.types import InstanceMetadata
+from clusterman.util import ClustermanResources
 
 
 def _make_metadata(
@@ -32,16 +35,20 @@ def _make_metadata(
     instance_id,
     agent_state=AgentState.RUNNING,
     is_stale=False,
-    weight=1,
+    resources=None,
     tasks=5,
     batch_tasks=0,
 ):
+    if resources is None:
+        resources = ClustermanResources(cpus=1)
+
     return ClusterNodeMetadata(
         AgentMetadata(
             agent_id='foo',
             batch_task_count=batch_tasks,
             state=agent_state,
             task_count=tasks,
+            total_resources=resources,
         ),
         InstanceMetadata(
             group_id=rg_id,
@@ -52,7 +59,6 @@ def _make_metadata(
             market='market-1',
             state='running',
             uptime=1000,
-            weight=weight,
         ),
     )
 
@@ -63,16 +69,21 @@ def mock_resource_groups():
         f'sfr-{i}': mock.Mock(
             id=f'sfr-{i}',
             instance_ids=[f'i-{i}'],
-            target_capacity=i * 2 + 1,
-            fulfilled_capacity=i * 6,
-            market_capacities={'market-1': i, 'market-2': i * 2, 'market-3': i * 3},
+            target_capacity=ClustermanResources(cpus=i * 2 + 1),
+            fulfilled_capacity=ClustermanResources(cpus=i * 6),
+            market_capacities={
+                'market-1': ClustermanResources(cpus=i),
+                'market-2': ClustermanResources(cpus=i * 2),
+                'market-3': ClustermanResources(cpus=i * 3),
+            },
             is_stale=False,
             market_weight=mock.Mock(return_value=1.0),
             terminate_instances_by_id=mock.Mock(return_value=[]),
             spec=AWSResourceGroup,
             mark_stale=mock.Mock(side_effect=NotImplementedError),
-            min_capacity=0,
-            max_capacity=float('inf'),
+            min_capacity=ClustermanResources(),
+            max_capacity=ClustermanResources(float('inf'), float('inf'), float('inf'), float('inf')),
+            scale_up_options=lambda: [_make_metadata('foo', 'bar')],
         )
         for i in range(7)
     }
@@ -93,6 +104,15 @@ def mock_pool_manager(mock_resource_groups):
     ):
         manager = PoolManager('mesos-test', 'bar', 'mesos')
         manager.resource_groups = mock_resource_groups
+        manager.get_node_metadatas = mock.Mock(return_value=[
+            _make_metadata(
+                group.id,
+                f'i-{group.id}_{j}',
+                resources=group.target_capacity / group.target_capacity.cpus,
+            )
+            for group in manager.resource_groups.values()
+            for j in range(group.target_capacity.cpus)
+        ])
 
         return manager
 
@@ -105,10 +125,22 @@ def test_pool_manager_init(mock_pool_manager, mock_resource_groups):
         {
             'scaling_limits': {
                 'max_tasks_to_kill': 'inf',
-                'max_weight_to_add': 100,
-                'max_weight_to_remove': 100,
-                'min_capacity': 3,
-                'max_capacity': 3,
+                'max_cpus_to_add': 100,
+                'max_mem_to_add': 100000,
+                'max_disk_to_add': 100000,
+                'max_gpus_to_add': 100,
+                'max_cpus_to_remove': 100,
+                'max_mem_to_remove': 100000,
+                'max_disk_to_remove': 100000,
+                'max_gpus_to_remove': 100,
+                'min_capacity_cpus': 3,
+                'min_capacity_mem': 3000,
+                'min_capacity_disk': 3000,
+                'min_capacity_gpus': 0,
+                'max_capacity_cpus': 3,
+                'max_capacity_mem': 3000,
+                'max_capacity_disk': 3000,
+                'max_capacity_gpus': 0,
             },
         },
         namespace='bar.mesos_config',
@@ -136,29 +168,39 @@ def test_mark_stale(mock_pool_manager, caplog):
 def test_modify_target_capacity_no_resource_groups(mock_pool_manager):
     mock_pool_manager.resource_groups = []
     with pytest.raises(PoolManagerError):
-        mock_pool_manager.modify_target_capacity(1234)
+        mock_pool_manager.modify_target_capacity(ClustermanResources(cpus=1234))
 
 
 def test_modify_target_capacity_skip_failing_group(mock_pool_manager):
     list(mock_pool_manager.resource_groups.values())[0].modify_target_capacity.side_effect = ResourceGroupError('foo')
     with mock.patch('clusterman.autoscaler.pool_manager.get_monitoring_client') as mock_monitoring_client:
-        mock_pool_manager.modify_target_capacity(1234)
+        mock_pool_manager.modify_target_capacity(ClustermanResources(cpus=1234))
         assert mock_monitoring_client.return_value.create_counter.call_count == 1
 
 
-@pytest.mark.parametrize('new_target,constrained_target', ((100, 90), (10, 49)))
-def test_modify_target_capacity(new_target, constrained_target, mock_pool_manager):
+@pytest.mark.parametrize('new_target_cpus,constrained_target_cpus', ((100, 90), (10, 49)))
+def test_modify_target_capacity(new_target_cpus, constrained_target_cpus, mock_pool_manager):
+    new_target = ClustermanResources(cpus=new_target_cpus)
+    constrained_target = ClustermanResources(cpus=constrained_target_cpus)
     mock_pool_manager.prune_excess_fulfilled_capacity = mock.Mock()
     mock_pool_manager._constrain_target_capacity = mock.Mock(return_value=constrained_target)
-    mock_pool_manager._compute_new_resource_group_targets = mock.Mock(return_value={f'sfr-{i}': i for i in range(7)})
+    actions = {
+        f'sfr-{i}': ResourceGroupActions(
+            to_launch=[mock.Mock()],
+            to_terminate=[],
+            target_capacity=ClustermanResources(cpus=i),
+        )
+        for i in range(7)
+    }
+    mock_pool_manager._compute_new_resource_group_actions = mock.Mock(return_value=actions)
 
     assert mock_pool_manager.modify_target_capacity(new_target) == constrained_target
     assert mock_pool_manager._constrain_target_capacity.call_count == 1
     assert mock_pool_manager.prune_excess_fulfilled_capacity.call_count == 1
-    assert mock_pool_manager._compute_new_resource_group_targets.call_count == 1
+    assert mock_pool_manager._compute_new_resource_group_actions.call_count == 1
     for i, group in enumerate(mock_pool_manager.resource_groups.values()):
         assert group.modify_target_capacity.call_count == 1
-        assert group.modify_target_capacity.call_args[0][0] == i
+        assert group.modify_target_capacity.call_args[0][0] == actions[group.id]
 
 
 class TestPruneExcessFulfilledCapacity:
@@ -239,15 +281,15 @@ class TestReloadResourceGroups:
         assert 'rg1' in mock_pool_manager.resource_groups
 
 
-@mock.patch('clusterman.autoscaler.pool_manager.logger')
+@mock.patch('clusterman.autoscaler.pool_manager.logger', wraps=pool_manager_logger)
 @pytest.mark.parametrize('force', [True, False])
 class TestConstrainTargetCapacity:
     """
     - target_capacity: 49
-    - max_capacity: 345
-    - min_capacity: 3
-    - max_weight_to_add: 200
-    - max_weight_to_remove: 10
+    - max_capacity_cpus: 345
+    - min_capacity_cpus: 3
+    - max_cpus_to_add: 200
+    - max_cpus_to_remove: 10
     """
 
     def set_target_capacity(self, pool_manager, target_capacity):
@@ -261,263 +303,303 @@ class TestConstrainTargetCapacity:
 
         groups = list(pool_manager.resource_groups.values())
         for i in range(len(groups)):
-            groups[i].target_capacity = targets[i]
+            groups[i].target_capacity = ClustermanResources(cpus=targets[i])
 
     def test_positive_delta_target_in_limit(self, mock_logger, force, mock_pool_manager):
-        assert mock_pool_manager._constrain_target_capacity(100, force) == 100
-        assert mock_pool_manager._constrain_target_capacity(1000, force) == (1000 if force else 249)
-        mock_pool_manager.max_capacity = 97
-        assert mock_pool_manager._constrain_target_capacity(1000, force) == (1000 if force else 97)
-        assert mock_logger.warning.call_count == 2
+        assert mock_pool_manager._constrain_target_capacity(ClustermanResources(100), force).cpus == 100
+        assert mock_pool_manager._constrain_target_capacity(
+            ClustermanResources(1000),
+            force,
+        ).cpus == (1000 if force else 249)
+        mock_pool_manager.max_capacity = ClustermanResources(97)
+        assert mock_pool_manager._constrain_target_capacity(
+            ClustermanResources(1000),
+            force,
+        ).cpus == (1000 if force else 97)
+        # assert mock_logger.warning.call_count == 2
 
     def test_positive_delta_target_above_max(self, mock_logger, force, mock_pool_manager):
         self.set_target_capacity(mock_pool_manager, 490)
-        assert mock_pool_manager._constrain_target_capacity(1000, force) == (1000 if force else 480)
-        assert mock_logger.warning.call_count == 1
+        # 480 because max is 300, current is 490, max decrease is 10. We're above max, so we should decrease, but can
+        # only decrease by 10.
+        assert mock_pool_manager._constrain_target_capacity(
+            ClustermanResources(1000),
+            force,
+        ).cpus == (1000 if force else 480)
+        # assert mock_logger.warning.call_count == 1
 
     def test_positive_delta_target_below_min(self, mock_logger, force, mock_pool_manager):
         self.set_target_capacity(mock_pool_manager, 1)
-        mock_pool_manager.min_capacity = 300
-        assert mock_pool_manager._constrain_target_capacity(100, force) == 100
-        assert mock_pool_manager._constrain_target_capacity(1000, force) == (1000 if force else 201)
-        assert mock_logger.warning.call_count == 1
+        mock_pool_manager.min_capacity = ClustermanResources(300)
+        assert mock_pool_manager._constrain_target_capacity(ClustermanResources(100), force).cpus == 100
+        # 201 when force=false because of the max_cpus_to_add: 200 in conftest.py
+        assert mock_pool_manager._constrain_target_capacity(
+            ClustermanResources(1000),
+            force,
+        ).cpus == (1000 if force else 201)
+        # assert mock_logger.warning.call_count == 1
 
     def test_negative_delta_target_in_limit(self, mock_logger, force, mock_pool_manager):
-        assert mock_pool_manager._constrain_target_capacity(40, force) == 40
-        assert mock_pool_manager._constrain_target_capacity(20, force) == (20 if force else 39)
-        mock_pool_manager.min_capacity = 45
-        assert mock_pool_manager._constrain_target_capacity(20, force) == (20 if force else 45)
-        assert mock_logger.warning.call_count == 2
+        assert mock_pool_manager._constrain_target_capacity(ClustermanResources(40), force).cpus == 40
+        assert mock_pool_manager._constrain_target_capacity(
+            ClustermanResources(20),
+            force,
+        ).cpus == (20 if force else 39)
+        mock_pool_manager.min_capacity = ClustermanResources(45)
+        assert mock_pool_manager._constrain_target_capacity(
+            ClustermanResources(20),
+            force,
+        ).cpus == (20 if force else 45)
+        # assert mock_logger.warning.call_count == 2
 
     def test_negative_delta_target_above_max(self, mock_logger, force, mock_pool_manager):
         self.set_target_capacity(mock_pool_manager, 490)
-        assert mock_pool_manager._constrain_target_capacity(485, force) == 485
-        assert mock_pool_manager._constrain_target_capacity(100, force) == (100 if force else 480)
-        assert mock_logger.warning.call_count == 1
+        assert mock_pool_manager._constrain_target_capacity(ClustermanResources(485), force).cpus == 485
+        assert mock_pool_manager._constrain_target_capacity(
+            ClustermanResources(100),
+            force,
+        ).cpus == (100 if force else 480)
+        # assert mock_logger.warning.call_count == 1
 
     def test_negative_delta_target_below_min(self, mock_logger, force, mock_pool_manager):
-        mock_pool_manager.min_capacity = 300
-        assert mock_pool_manager._constrain_target_capacity(30, force) == (30 if force else 249)
-        assert mock_logger.warning.call_count == 1
+        mock_pool_manager.min_capacity = ClustermanResources(300)
+        assert mock_pool_manager._constrain_target_capacity(
+            ClustermanResources(30),
+            force,
+        ).cpus == (30 if force else 249)
+        # assert mock_logger.warning.call_count == 1
 
     def test_zero_delta(self, mock_logger, force, mock_pool_manager):
-        assert mock_pool_manager._constrain_target_capacity(49, force) == 49
+        assert mock_pool_manager._constrain_target_capacity(ClustermanResources(49), force).cpus == 49
 
 
-@mock.patch('clusterman.autoscaler.pool_manager.logger', autospec=True)
+@mock.patch('clusterman.autoscaler.pool_manager.logger', autospec=True, wraps=pool_manager_logger)
 class TestChooseNodesToPrune:
 
     @pytest.fixture
     def mock_pool_manager(self, mock_pool_manager):
-        mock_pool_manager.non_orphan_fulfilled_capacity = 126
+        mock_pool_manager.non_orphan_fulfilled_capacity = ClustermanResources(126)
         return mock_pool_manager
 
     def test_fulfilled_capacity_under_target(self, mock_logger, mock_pool_manager):
-        assert mock_pool_manager._choose_nodes_to_prune(300, None) == {}
+        assert mock_pool_manager._choose_nodes_to_prune(ClustermanResources(300), None) == {}
 
     def test_no_nodes_to_kill(self, mock_logger, mock_pool_manager):
         mock_pool_manager._get_prioritized_killable_nodes = mock.Mock(return_value=[])
-        assert mock_pool_manager._choose_nodes_to_prune(100, None) == {}
+        assert mock_pool_manager._choose_nodes_to_prune(ClustermanResources(100), None) == {}
 
     def test_killable_node_max_weight_to_remove(self, mock_logger, mock_pool_manager):
         mock_pool_manager._get_prioritized_killable_nodes = mock.Mock(return_value=[
-            _make_metadata('sfr-1', 'i-1', weight=1000)
+            _make_metadata('sfr-1', 'i-1', resources=ClustermanResources(cpus=1000))
         ])
-        assert mock_pool_manager._choose_nodes_to_prune(100, None) == {}
-        assert 'would take us over our max_weight_to_remove' in mock_logger.info.call_args[0][0]
+        assert mock_pool_manager._choose_nodes_to_prune(ClustermanResources(100), None) == {}
+        assert 'would take us over our max_capacity_to_remove' in mock_logger.info.call_args[0][0]
 
     def test_killable_node_under_group_capacity(self, mock_logger, mock_pool_manager):
         mock_pool_manager._get_prioritized_killable_nodes = mock.Mock(return_value=[
-            _make_metadata('sfr-1', 'i-1', weight=1000)
+            _make_metadata('sfr-1', 'i-1', resources=ClustermanResources(cpus=1000))
         ])
-        mock_pool_manager.max_weight_to_remove = 10000
-        assert mock_pool_manager._choose_nodes_to_prune(100, None) == {}
+        mock_pool_manager.max_capacity_to_remove = ClustermanResources(cpus=10000)
+        assert mock_pool_manager._choose_nodes_to_prune(ClustermanResources(100), None) == {}
         assert 'is at target capacity' in mock_logger.info.call_args[0][0]
 
     def test_killable_node_too_many_tasks(self, mock_logger, mock_pool_manager):
         mock_pool_manager._get_prioritized_killable_nodes = mock.Mock(return_value=[
             _make_metadata('sfr-1', 'i-1')
         ])
-        assert mock_pool_manager._choose_nodes_to_prune(100, None) == {}
+        assert mock_pool_manager._choose_nodes_to_prune(ClustermanResources(100), None) == {}
         assert 'would take us over our max_tasks_to_kill' in mock_logger.info.call_args[0][0]
 
     def test_killable_nodes_under_target_capacity(self, mock_logger, mock_pool_manager):
         mock_pool_manager._get_prioritized_killable_nodes = mock.Mock(return_value=[
-            _make_metadata('sfr-1', 'i-1', weight=2)
+            _make_metadata('sfr-1', 'i-1', resources=ClustermanResources(cpus=2))
         ])
         mock_pool_manager.max_tasks_to_kill = 100
-        assert mock_pool_manager._choose_nodes_to_prune(125, None) == {}
+        assert mock_pool_manager._choose_nodes_to_prune(ClustermanResources(125), None) == {}
         assert 'would take us under our target_capacity' in mock_logger.info.call_args[0][0]
 
     def test_kill_node(self, mock_logger, mock_pool_manager):
         mock_pool_manager._get_prioritized_killable_nodes = mock.Mock(return_value=[
-            _make_metadata('sfr-1', 'i-1', weight=2)
+            _make_metadata('sfr-1', 'i-1', resources=ClustermanResources(cpus=2))
         ])
         mock_pool_manager.max_tasks_to_kill = 100
-        assert mock_pool_manager._choose_nodes_to_prune(100, None)['sfr-1'][0].instance.instance_id == 'i-1'
+        assert 'i-1' == mock_pool_manager._choose_nodes_to_prune(
+            ClustermanResources(100),
+            None
+        )['sfr-1'][0].instance.instance_id
 
 
-def test_compute_new_resource_group_targets_no_unfilled_capacity(mock_pool_manager):
+def test_compute_new_resource_group_actions_no_unfilled_capacity(mock_pool_manager):
     target_capacity = mock_pool_manager.target_capacity
-    assert sorted(list(mock_pool_manager._compute_new_resource_group_targets(target_capacity).values())) == [
-        group.target_capacity
+    assert mock_pool_manager._compute_new_resource_group_actions(target_capacity) == {
+        group.id: ResourceGroupActions([], [], group.target_capacity)
         for group in (mock_pool_manager.resource_groups.values())
-    ]
+    }
 
 
 @pytest.mark.parametrize('orig_targets', [10, 17])
-def test_compute_new_resource_group_targets_all_equal(orig_targets, mock_pool_manager):
+def test_compute_new_resource_group_actions_all_equal(orig_targets, mock_pool_manager):
     for group in mock_pool_manager.resource_groups.values():
-        group.target_capacity = orig_targets
+        group.target_capacity = ClustermanResources(cpus=orig_targets)
 
     num_groups = len(mock_pool_manager.resource_groups)
-    new_targets = mock_pool_manager._compute_new_resource_group_targets(105)
-    assert sorted(list(new_targets.values())) == [15] * num_groups
+    new_targets = mock_pool_manager._compute_new_resource_group_actions(ClustermanResources(cpus=105))
+    assert sorted(list(t.target_capacity.cpus for t in new_targets.values())) == [15] * num_groups
 
 
 @pytest.mark.parametrize('orig_targets', [10, 17])
-def test_compute_new_resource_group_targets_all_equal_with_remainder(orig_targets, mock_pool_manager):
+def test_compute_new_resource_group_actions_all_equal_with_remainder(orig_targets, mock_pool_manager):
     for group in mock_pool_manager.resource_groups.values():
-        group.target_capacity = orig_targets
+        group.target_capacity = ClustermanResources(cpus=orig_targets)
 
-    new_targets = mock_pool_manager._compute_new_resource_group_targets(107)
-    assert sorted(list(new_targets.values())) == [15, 15, 15, 15, 15, 16, 16]
-
-
-def test_compute_new_resource_group_targets_uneven_scale_up(mock_pool_manager):
-    new_targets = mock_pool_manager._compute_new_resource_group_targets(304)
-    assert sorted(list(new_targets.values())) == [43, 43, 43, 43, 44, 44, 44]
+    new_targets = mock_pool_manager._compute_new_resource_group_actions(ClustermanResources(cpus=107))
+    assert sorted(list(t.target_capacity.cpus for t in new_targets.values())) == [15, 15, 15, 15, 15, 16, 16]
 
 
-def test_compute_new_resource_group_targets_uneven_scale_down(mock_pool_manager):
+def test_compute_new_resource_group_actions_uneven_scale_up(mock_pool_manager):
+    new_targets = mock_pool_manager._compute_new_resource_group_actions(ClustermanResources(cpus=304))
+    assert sorted(list(t.target_capacity.cpus for t in new_targets.values())) == [43, 43, 43, 43, 44, 44, 44]
+
+
+def test_compute_new_resource_group_actions_uneven_scale_down(mock_pool_manager):
     for group in mock_pool_manager.resource_groups.values():
-        group.target_capacity += 20
+        group.target_capacity.cpus += 20
 
-    new_targets = mock_pool_manager._compute_new_resource_group_targets(10)
-    assert sorted(list(new_targets.values())) == [1, 1, 1, 1, 2, 2, 2]
-
-
-def test_compute_new_resource_group_targets_above_delta_scale_up(mock_pool_manager):
-    new_targets = mock_pool_manager._compute_new_resource_group_targets(62)
-    assert sorted(list(new_targets.values())) == [7, 7, 7, 8, 9, 11, 13]
+    new_targets = mock_pool_manager._compute_new_resource_group_actions(ClustermanResources(cpus=10))
+    assert sorted(list(t.target_capacity.cpus for t in new_targets.values())) == [1, 1, 1, 1, 2, 2, 2]
 
 
-def test_compute_new_resource_group_targets_below_delta_scale_down(mock_pool_manager):
-    new_targets = mock_pool_manager._compute_new_resource_group_targets(30)
-    assert sorted(list(new_targets.values())) == [1, 3, 5, 5, 5, 5, 6]
+def test_compute_new_resource_group_actions_above_delta_scale_up(mock_pool_manager):
+    new_targets = mock_pool_manager._compute_new_resource_group_actions(ClustermanResources(cpus=62))
+    assert sorted(list(t.target_capacity.cpus for t in new_targets.values())) == [7, 7, 7, 8, 9, 11, 13]
 
 
-def test_compute_new_resource_group_targets_above_delta_equal_scale_up(mock_pool_manager):
+def test_compute_new_resource_group_actions_below_delta_scale_down(mock_pool_manager):
+    new_targets = mock_pool_manager._compute_new_resource_group_actions(ClustermanResources(cpus=30))
+    assert sorted(list(t.target_capacity.cpus for t in new_targets.values())) == [1, 3, 5, 5, 5, 5, 6]
+
+
+def test_compute_new_resource_group_actions_above_delta_equal_scale_up(mock_pool_manager):
     for group in list(mock_pool_manager.resource_groups.values())[3:]:
-        group.target_capacity = 20
+        group.target_capacity = ClustermanResources(cpus=20)
 
-    new_targets = mock_pool_manager._compute_new_resource_group_targets(100)
-    assert sorted(list(new_targets.values())) == [6, 7, 7, 20, 20, 20, 20]
+    new_targets = mock_pool_manager._compute_new_resource_group_actions(ClustermanResources(cpus=100))
+    assert sorted(list(t.target_capacity.cpus for t in new_targets.values())) == [6, 7, 7, 20, 20, 20, 20]
 
 
-def test_compute_new_resource_group_targets_below_delta_equal_scale_down(mock_pool_manager):
+def test_compute_new_resource_group_actions_below_delta_equal_scale_down(mock_pool_manager):
     for group in list(mock_pool_manager.resource_groups.values())[:3]:
-        group.target_capacity = 1
+        group.target_capacity = ClustermanResources(cpus=1)
 
-    new_targets = mock_pool_manager._compute_new_resource_group_targets(20)
-    assert sorted(list(new_targets.values())) == [1, 1, 1, 4, 4, 4, 5]
+    new_targets = mock_pool_manager._compute_new_resource_group_actions(ClustermanResources(cpus=20))
+    assert sorted(list(t.target_capacity.cpus for t in new_targets.values())) == [1, 1, 1, 4, 4, 4, 5]
 
 
-def test_compute_new_resource_group_targets_above_delta_equal_scale_up_2(mock_pool_manager):
+def test_compute_new_resource_group_actions_above_delta_equal_scale_up_2(mock_pool_manager):
     for group in list(mock_pool_manager.resource_groups.values())[3:]:
-        group.target_capacity = 20
+        group.target_capacity = ClustermanResources(cpus=20)
 
-    new_targets = mock_pool_manager._compute_new_resource_group_targets(145)
-    assert sorted(list(new_targets.values())) == [20, 20, 21, 21, 21, 21, 21]
+    new_targets = mock_pool_manager._compute_new_resource_group_actions(ClustermanResources(cpus=145))
+    assert sorted(list(t.target_capacity.cpus for t in new_targets.values())) == [20, 20, 21, 21, 21, 21, 21]
 
 
-def test_compute_new_resource_group_targets_below_delta_equal_scale_down_2(mock_pool_manager):
+def test_compute_new_resource_group_actions_below_delta_equal_scale_down_2(mock_pool_manager):
     for group in list(mock_pool_manager.resource_groups.values())[:3]:
-        group.target_capacity = 1
+        group.target_capacity = ClustermanResources(cpus=1)
 
-    new_targets = mock_pool_manager._compute_new_resource_group_targets(9)
-    assert sorted(list(new_targets.values())) == [1, 1, 1, 1, 1, 2, 2]
+    new_targets = mock_pool_manager._compute_new_resource_group_actions(ClustermanResources(cpus=9))
+    assert sorted(list(t.target_capacity.cpus for t in new_targets.values())) == [1, 1, 1, 1, 1, 2, 2]
 
 
-def test_compute_new_resource_group_targets_all_rgs_are_stale(mock_pool_manager):
+def test_compute_new_resource_group_actions_all_rgs_are_stale(mock_pool_manager):
     for group in mock_pool_manager.resource_groups.values():
         group.is_stale = True
 
     with pytest.raises(AllResourceGroupsAreStaleError):
-        mock_pool_manager._compute_new_resource_group_targets(9)
+        mock_pool_manager._compute_new_resource_group_actions(ClustermanResources(cpus=9))
 
 
-def test_compute_new_resource_group_targets_max_capacity(mock_pool_manager):
+def test_compute_new_resource_group_actions_max_capacity(mock_pool_manager):
     for group in mock_pool_manager.resource_groups.values():
-        group.target_capacity = 1
+        group.target_capacity = ClustermanResources(cpus=1)
 
     constrained_group = list(mock_pool_manager.resource_groups.values())[0]
     constrained_group.max_capacity = 1
 
-    new_targets = mock_pool_manager._compute_new_resource_group_targets(19)
-    assert sorted(list(new_targets.values())) == [1, 3, 3, 3, 3, 3, 3]
-    assert new_targets[constrained_group.id] == 1
+    new_targets = mock_pool_manager._compute_new_resource_group_actions(ClustermanResources(cpus=19))
+    assert sorted(list(t.target_capacity.cpus for t in new_targets.values())) == [1, 3, 3, 3, 3, 3, 3]
+    assert new_targets[constrained_group.id].target_capacity == ClustermanResources(cpus=1)
 
 
-def test_compute_new_resource_group_targets_min_capacity(mock_pool_manager):
+def test_compute_new_resource_group_actions_min_capacity(mock_pool_manager):
     for group in mock_pool_manager.resource_groups.values():
-        group.target_capacity = 10
+        group.target_capacity = ClustermanResources(cpus=10)
 
     constrained_group = list(mock_pool_manager.resource_groups.values())[0]
-    constrained_group.min_capacity = 8
+    constrained_group.min_capacity = ClustermanResources(cpus=8)
 
-    new_targets = mock_pool_manager._compute_new_resource_group_targets(44)
-    assert sorted(list(new_targets.values())) == [6, 6, 6, 6, 6, 6, 8]
-    assert new_targets[constrained_group.id] == 8
+    new_targets = mock_pool_manager._compute_new_resource_group_actions(ClustermanResources(cpus=44))
+    assert sorted(list(t.target_capacity.cpus for t in new_targets.values())) == [6, 6, 6, 6, 6, 6, 8]
+    assert new_targets[constrained_group.id].target_capacity == ClustermanResources(cpus=8)
 
 
-def test_compute_new_resource_group_targets_all_rgs_have_max_capacity(mock_pool_manager):
+def test_compute_new_resource_group_actions_all_rgs_have_max_capacity(mock_pool_manager):
     for group in mock_pool_manager.resource_groups.values():
-        group.target_capacity = 1
-        group.max_capacity = 2
+        group.target_capacity = ClustermanResources(cpus=1)
+        group.max_capacity = ClustermanResources(cpus=2)
 
-    new_targets = mock_pool_manager._compute_new_resource_group_targets(21)
-    assert list(new_targets.values()) == [2] * 7
+    new_targets = mock_pool_manager._compute_new_resource_group_actions(ClustermanResources(cpus=21))
+    assert sorted(list(t.target_capacity.cpus for t in new_targets.values())) == [2] * 7
 
 
-def test_compute_new_resource_group_targets_all_rgs_have_min_capacity(mock_pool_manager):
+def test_compute_new_resource_group_actions_all_rgs_have_min_capacity(mock_pool_manager):
     for group in mock_pool_manager.resource_groups.values():
-        group.target_capacity = 10
-        group.min_capacity = 5
+        group.target_capacity = ClustermanResources(cpus=10)
+        group.min_capacity = ClustermanResources(cpus=5)
 
-    new_targets = mock_pool_manager._compute_new_resource_group_targets(21)
-    assert list(new_targets.values()) == [5] * 7
+    new_targets = mock_pool_manager._compute_new_resource_group_actions(ClustermanResources(cpus=21))
+    assert sorted(list(t.target_capacity.cpus for t in new_targets.values())) == [5] * 7
 
 
 @pytest.mark.parametrize('non_stale_capacity', [1, 5])
-def test_compute_new_resource_group_targets_scale_up_stale_pools_0(non_stale_capacity, mock_pool_manager):
+def test_compute_new_resource_group_actions_scale_up_stale_pools_0(non_stale_capacity, mock_pool_manager):
     for group in list(mock_pool_manager.resource_groups.values())[:3]:
-        group.target_capacity = non_stale_capacity
+        group.target_capacity = ClustermanResources(cpus=non_stale_capacity)
     for group in list(mock_pool_manager.resource_groups.values())[3:]:
-        group.target_capacity = 3
+        group.target_capacity = ClustermanResources(cpus=3)
         group.is_stale = True
 
-    new_targets = mock_pool_manager._compute_new_resource_group_targets(6)
-    assert new_targets == {'sfr-0': 2, 'sfr-1': 2, 'sfr-2': 2, 'sfr-3': 0, 'sfr-4': 0, 'sfr-5': 0, 'sfr-6': 0}
+    new_targets = mock_pool_manager._compute_new_resource_group_actions(ClustermanResources(cpus=6))
+    assert {
+        g: a.target_capacity.cpus for g, a in new_targets.items()
+    } == {
+        'sfr-0': 2,
+        'sfr-1': 2,
+        'sfr-2': 2,
+        'sfr-3': 0,
+        'sfr-4': 0,
+        'sfr-5': 0,
+        'sfr-6': 0,
+    }
 
 
 def test_get_market_capacities(mock_pool_manager):
     assert mock_pool_manager.get_market_capacities() == {
-        'market-1': sum(i for i in range(7)),
-        'market-2': sum(i * 2 for i in range(7)),
-        'market-3': sum(i * 3 for i in range(7)),
+        'market-1': ClustermanResources(cpus=sum(i for i in range(7))),
+        'market-2': ClustermanResources(cpus=sum(i * 2 for i in range(7))),
+        'market-3': ClustermanResources(cpus=sum(i * 3 for i in range(7))),
     }
     assert mock_pool_manager.get_market_capacities(market_filter='market-2') == {
-        'market-2': sum(i * 2 for i in range(7)),
+        'market-2': ClustermanResources(cpus=sum(i * 2 for i in range(7))),
     }
 
 
 def test_target_capacity(mock_pool_manager):
-    assert mock_pool_manager.target_capacity == sum(2 * i + 1 for i in range(7))
+    assert mock_pool_manager.target_capacity == ClustermanResources(cpus=sum(2 * i + 1 for i in range(7)))
 
 
 def test_fulfilled_capacity(mock_pool_manager):
-    assert mock_pool_manager.fulfilled_capacity == sum(i * 6 for i in range(7))
+    assert mock_pool_manager.fulfilled_capacity == ClustermanResources(cpus=sum(i * 6 for i in range(7)))
 
 
 def test_instance_kill_order(mock_pool_manager):

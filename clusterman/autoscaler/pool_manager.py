@@ -257,24 +257,56 @@ class PoolManager:
     ) -> ClustermanResources:
         """ Signals can return arbitrary values, so make sure we don't add or remove too much capacity """
 
-        constrained_target_capacity = requested_target_capacity.clamp(self.min_capacity, self.max_capacity)
-        constrained_target_capacity = constrained_target_capacity.clamp(
-            self.target_capacity - self.max_capacity_to_remove,
-            self.target_capacity + self.max_capacity_to_add,
-        )
+        constrained_target_capacity = ClustermanResources()
 
-        if constrained_target_capacity != requested_target_capacity:
-            if force:
-                logger.warning(
-                    f'Forcing target capacity to {requested_target_capacity} even though '
-                    f'scaling limits would restrict to {constrained_target_capacity}.'
-                )
-                return requested_target_capacity
+        for resource in ClustermanResources._fields:
+            """ Signals can return arbitrary values, so make sure we don't add or remove too much capacity """
+
+            requested: float = getattr(requested_target_capacity, resource)
+            target: float = getattr(self.target_capacity, resource)
+            _max: float = getattr(self.max_capacity, resource)
+            _min: float = getattr(self.min_capacity, resource)
+            max_to_add: float = getattr(self.max_capacity_to_add, resource)
+            max_to_remove: float = getattr(self.max_capacity_to_remove, resource)
+
+            requested_delta = requested - target
+
+            # first, determine whether or not the delta is actually positive or negative.
+            # for example, if the current target capacity is above the maximum, the resulting delta
+            # will be negative, even if the requested delta is positive because we take the min
+            # of the two. This is good because using this delta means moving towards the
+            # limit, in the case of the example, towards the maximum, since the target capacity
+            # is currently above the maximum.
+            if requested_delta > 0:
+                delta = min(_max - target, requested_delta)
+            elif requested_delta < 0:
+                delta = max(_min - target, requested_delta)
             else:
-                logger.warning(
-                    f'Requested target capacity {requested_target_capacity}; '
-                    f'restricting to {constrained_target_capacity} due to scaling limits.'
-                )
+                delta = 0
+
+            # second, constrain the delta by the max weight to change, depending on if it
+            # it is positive or negative.
+            if delta > 0:
+                delta = min(max_to_add, delta)
+            elif delta < 0:
+                delta = max(-max_to_remove, delta)
+
+            constrained_value = target + delta
+            if requested_delta != delta:
+                if force:
+                    forced_target_capacity = target + requested_delta
+                    logger.warning(
+                        f'Forcing target {resource} to {forced_target_capacity} even though '
+                        f'scaling limits would restrict to {constrained_value}.'
+                    )
+                    constrained_value = forced_target_capacity
+                else:
+                    logger.warning(
+                        f'Requested target {resource} {requested}; '
+                        f'restricting to {constrained_value} due to scaling limits.'
+                    )
+
+            setattr(constrained_target_capacity, resource, constrained_value)
         return constrained_target_capacity
 
     def _choose_nodes_to_prune(
@@ -403,7 +435,8 @@ class PoolManager:
         non_stale_groups = [group for group in self.resource_groups.values() if not group.is_stale]
 
         # If we're scaling down the logic is identical but reversed, so we multiply everything by -1
-        coeff = -1 if new_target_capacity.all_lt(self.target_capacity) else 1
+        coeff = 1 if new_target_capacity.any_gt(self.target_capacity) else -1
+
         actions: Dict[str, ResourceGroupActions] = {
             g.id: ResourceGroupActions([], [], g.target_capacity) for g in non_stale_groups
         }
@@ -413,45 +446,78 @@ class PoolManager:
             actions[stale_group.id] = ResourceGroupActions([], [], ClustermanResources())
 
         # when coeff is positive, if any resource is under our target, we need to keep scaling.
-        # when coeff is negative, if any resource is under our target, we can stop scaling.
+        # when coeff is negative, if any resource is under or at our target, we can stop scaling.
         def keep_scaling() -> bool:
             total_target_capacity = sum([a.target_capacity for a in actions.values()], ClustermanResources())
-            under = total_target_capacity.any_le(new_target_capacity)
             if coeff > 0:
-                return under
+                return total_target_capacity.any_lt(new_target_capacity)
             else:
-                return not under
+                return not total_target_capacity.any_le(new_target_capacity)
 
         def valid_options() -> Iterator[Tuple[str, ClusterNodeMetadata]]:
             """generate the actions we can take without violating constraints, e.g. launch c5.12xlarge in group A,
             launch m5.9xlarge in group B."""
 
+            total_target_capacity = sum([a.target_capacity for a in actions.values()], ClustermanResources())
+
             if coeff > 0:
                 for group in non_stale_groups:
                     for option in group.scale_up_options():
-                        if group.max_capacity.all_ge(actions[group.id].target_capacity + option.agent.total_resources):
-                            yield (group.id, option)
+                        total_with_option = total_target_capacity + option.agent.total_resources
+                        group_with_option = actions[group.id].target_capacity + option.agent.total_resources
+                        # Disqualify options that would push us beyond our limits.
+                        if group_with_option.all_le(group.max_capacity) and total_with_option.all_le(self.max_capacity):
+                            # Only consider an option if it gets us closer to our target.
+                            if total_with_option.clamp(upper_bound=new_target_capacity).any_gt(total_target_capacity):
+                                yield (group.id, option)
             else:
                 for option in self.get_node_metadatas():
                     group_id = option.instance.group_id
                     group = self.resource_groups[group_id]
-                    if group.min_capacity.all_le(actions[group.id].target_capacity + option.agent.total_resources):
-                        yield (group_id, option)
+
+                    total_with_option = total_target_capacity - option.agent.total_resources
+                    group_with_option = actions[group.id].target_capacity - option.agent.total_resources
+
+                    # Disqualify options that would push us below minimum or new_target_capacity.
+                    if all([
+                        group_with_option.all_ge(group.min_capacity),
+                        total_with_option.all_ge(self.min_capacity),
+                        total_with_option.all_ge(new_target_capacity),
+                    ]):
+                        # Only consider an option if it gets us closer to our target.
+                        if total_with_option.clamp(upper_bound=new_target_capacity).any_lt(total_target_capacity):
+                            yield (group_id, option)
 
         def heuristic(option: Tuple[str, ClusterNodeMetadata]) -> float:
-            # TODO: something better.
-            return 0
+            """This heuristic tries to minimize the percentage difference of each resource from our ideal split of
+            resources."""
+            perfectly_balanced = new_target_capacity / len(non_stale_groups)
+            score = 0
+
+            option_group, option_metadata = option
+
+            for balanced_value, group_target_value, change in zip(
+                perfectly_balanced,
+                actions[option_group].target_capacity,
+                option_metadata.agent.total_resources,
+            ):
+                # avoid divide-by-zero errors by ignoring resources with a target of 0.0
+                if balanced_value != 0:
+                    score += (group_target_value + coeff * change - balanced_value)**2 / balanced_value
+                    score -= (group_target_value - balanced_value) ** 2 / balanced_value
+
+            return score
 
         def apply_option(option: Tuple[str, ClusterNodeMetadata]) -> None:
             group_id, metadata = option
             delta = metadata.agent.total_resources
-            actions[group_id].target_capacity += delta
+            actions[group_id].target_capacity += delta * coeff
             if coeff > 0:
                 actions[group_id].to_launch.append(metadata)
             else:
                 actions[group_id].to_terminate.append(metadata)
 
-        while keep_scaling():
+        while True:
             # List options that don't violate constraints.
             # Choose the option that balances the groups the best.
             # What is balanced?

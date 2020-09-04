@@ -26,6 +26,7 @@ from clusterman.simulator import simulator
 from clusterman.simulator.simulated_aws_cluster import SimulatedAWSCluster
 from clusterman.simulator.simulated_cluster_connector import SimulatedClusterConnector
 from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSpotFleetResourceGroup
+from clusterman.util import ClustermanResources
 from clusterman.util import read_int_or_inf
 
 
@@ -42,8 +43,19 @@ class SimulatedPoolManager(PoolManager):
         ]
         self.resource_groups = {group.id: group for group in groups}
         self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool, scheduler='mesos'))
-        self.min_capacity = self.pool_config.read_int('scaling_limits.min_capacity')
-        self.max_capacity = self.pool_config.read_int('scaling_limits.max_capacity')
+        self.min_capacity = ClustermanResources(
+            cpus=self.pool_config.read_float('scaling_limits.min_capacity_cpus'),
+            mem=self.pool_config.read_float('scaling_limits.min_capacity_mem'),
+            disk=self.pool_config.read_float('scaling_limits.min_capacity_disk'),
+            gpus=self.pool_config.read_float('scaling_limits.min_capacity_gpus'),
+        )
+        self.max_capacity = ClustermanResources(
+            cpus=self.pool_config.read_float('scaling_limits.max_capacity_cpus'),
+            mem=self.pool_config.read_float('scaling_limits.max_capacity_mem'),
+            disk=self.pool_config.read_float('scaling_limits.max_capacity_disk'),
+            gpus=self.pool_config.read_float('scaling_limits.max_capacity_gpus'),
+        )
+
         self.max_tasks_to_kill = read_int_or_inf(self.pool_config, 'scaling_limits.max_tasks_to_kill')
         self.cluster_connector = SimulatedClusterConnector(self.cluster, self.pool, self.simulator)
 
@@ -71,7 +83,6 @@ class SimulatedPoolManager(PoolManager):
                         market=instance.market,
                         state='running',
                         uptime=(self.simulator.current_time - instance.start_time),
-                        weight=group.market_weight(instance.market),
                     ),
                 )
                 agent_metadatas.append(metadata)

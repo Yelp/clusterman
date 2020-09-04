@@ -21,6 +21,7 @@ from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
+from typing import NamedTuple
 from typing import Optional
 from typing import TypeVar
 from typing import Union
@@ -32,7 +33,6 @@ import staticconf
 from colorama import Fore
 from colorama import Style
 from mypy_extensions import TypedDict
-from namedtuple import NamedTuple
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 from clusterman.aws.client import dynamodb
@@ -177,6 +177,16 @@ class ClustermanResources:
     #         self.gpus >= other.gpus,
     #     ])
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, ClustermanResources):
+            return NotImplemented
+        return all([
+            self.cpus == other.cpus,
+            self.mem == other.mem,
+            self.disk == other.disk,
+            self.gpus == other.gpus,
+        ])
+
     def any_lt(self, other: Union['ClustermanResources', float, int]) -> bool:
         if isinstance(other, (int, float)):
             return any([a < other for a in self])
@@ -248,6 +258,9 @@ class ClustermanResources:
             disk=(resources.disk or DEFAULT_VOLUME_SIZE_GB) * 1024,  # AWS metadata for disk is in GB
             gpus=resources.gpus,
         )
+
+    def __repr__(self) -> str:
+        return f'ClustermanResources(cpus={self.cpus!r}, mem={self.mem!r}, disk={self.disk!r}, gpus={self.gpus!r})'
 
 
 class SignalResourceRequest(NamedTuple):

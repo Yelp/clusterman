@@ -277,10 +277,12 @@ class Autoscaler:
             )
             return current_target_capacity
 
-        new_target_capacity = ClustermanResources(**{
-            # XXX: is 0 the right value to replace None?
-            resource: (0 if value is None else value) for (resource, value) in resource_request.items()
-        }) / self.autoscaling_config.setpoint
+        new_target_capacity = ClustermanResources(
+            cpus=0 if resource_request.cpus is None else resource_request.cpus,
+            mem=0 if resource_request.mem is None else resource_request.mem,
+            disk=0 if resource_request.disk is None else resource_request.disk,
+            gpus=0 if resource_request.gpus is None else resource_request.gpus,
+        ) / self.autoscaling_config.setpoint
 
         # If the percentage change between current target capacity and the new target capacity is more than the
         # allowable margin we scale up/down to reach the setpoint. We want to use target_capacity here instead of
@@ -288,8 +290,7 @@ class Autoscaler:
         target_capacity_change = new_target_capacity - current_target_capacity
         margin = self.autoscaling_config.target_capacity_margin
         margin_amount = current_target_capacity * margin
-
-        if target_capacity_change.any_ge(margin_amount) or (-1 * target_capacity_change).any_ge(margin_amount):
+        if target_capacity_change.any_gt(margin_amount) or (-1 * target_capacity_change).any_gt(margin_amount):
             logger.info(
                 f'Percentage change between current and new target capacities is greater than margin {margin_amount} '
                 f'({margin} of current capacity). '

@@ -39,6 +39,22 @@ class ResourceGroupActions:
         self.to_terminate = to_terminate
         self.target_capacity = target_capacity
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, ResourceGroupActions):
+            return NotImplemented
+        else:
+            return all([
+                self.to_launch == other.to_launch,
+                self.to_terminate == other.to_terminate,
+                self.target_capacity == other.target_capacity,
+            ])
+
+    def __repr__(self) -> str:
+        return f'ResourceGroupActions(' \
+            f'to_launch={self.to_launch!r}, ' \
+            f'to_terminate={self.to_terminate!r}, ' \
+            f'target_capacity={self.target_capacity!r})'
+
 
 class ResourceGroup(metaclass=ABCMeta):
     """
