@@ -17,6 +17,7 @@ from typing import Dict
 from typing import Iterable
 from typing import Mapping
 from typing import Sequence
+from typing import Tuple
 
 import botocore
 import colorlog
@@ -184,19 +185,6 @@ class SpotFleetResourceGroup(AWSResourceGroup):
         unfulfilled_weight = self.target_capacity_weight - self.fulfilled_capacity_weight
         return self.fulfilled_capacity + self._estimate_capacity_per_weight * unfulfilled_weight
 
-    @property
-    def _estimate_capacity_per_weight(self) -> ClustermanResources:
-        """Estimates the capacity that would be launced if target_capacity_weight were increased by 1, by summing the
-        capacity and weights of all launch specifications and dividing."""
-        sum_weight = 0
-        sum_capacity = ClustermanResources()
-
-        for spec in self._configuration['SpotFleetRequestConfig']['LaunchSpecifications']:
-            sum_weight += spec['WeightedCapacity']
-            sum_capacity += self._resources_for_spec(spec)
-
-        return sum_capacity / sum_weight
-
     def _resources_for_spec(self, spec: LaunchSpecificationDict) -> ClustermanResources:
         market_resources = get_market_resources(get_instance_market(spec))
 
@@ -269,13 +257,13 @@ class SpotFleetResourceGroup(AWSResourceGroup):
             instance=InstanceMetadata(market=get_instance_market(spec)),
         )
 
-    def scale_up_options(self) -> Iterable[ClusterNodeMetadata]:
+    def _weighted_options(self) -> Iterable[Tuple[float, ClusterNodeMetadata]]:
         """ Generate each of the options for scaling up this resource group. For a spot fleet, this would be one
         ClustermanResources for each instance type. For a non-spot ASG, this would be a single ClustermanResources that
         represents the instance type the ASG is configured to run.
         """
         return (
-            self._node_metadata_for_spec(spec)
+            (spec['WeightedCapacity'], self._node_metadata_for_spec(spec))
             for spec in self._configuration['SpotFleetRequestConfig']['LaunchSpecifications']
         )
 

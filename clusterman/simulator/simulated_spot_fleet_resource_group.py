@@ -14,6 +14,7 @@
 from collections import namedtuple
 from functools import lru_cache
 from typing import Iterable
+from typing import Tuple
 from uuid import uuid4
 
 from clusterman.aws.aws_resource_group import AWSResourceGroup
@@ -246,7 +247,7 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, AWSResourceGroup):
     def load(cluster, pool, config):
         raise NotImplementedError("Shouldn't be called")
 
-    def scale_up_options(self) -> Iterable[ClusterNodeMetadata]:
+    def _weighted_options(self) -> Iterable[Tuple[float, ClusterNodeMetadata]]:
         """ Generate each of the options for scaling up this resource group. For a spot fleet, this would be one
         ClustermanResources for each instance type. For a non-spot ASG, this would be a single ClustermanResources that
         represents the instance type the ASG is configured to run.

@@ -161,25 +161,27 @@ class AutoScalingResourceGroup(AWSResourceGroup):
     def max_capacity_weight(self) -> int:
         return self._group_config['MaxSize']
 
-    def scale_up_options(self) -> Iterable[ClusterNodeMetadata]:
+    def _weighted_options(self) -> Iterable[Tuple[float, ClusterNodeMetadata]]:
         if not self._launch_template_config:
             raise NoLaunchTemplateConfiguredError(
                 f'ASG {self.id} has no launch template associated with it; unable to generate scaling options',
             )
         # Either there is a list of LaunchTemplate overrides, or this ASG uses a single instance type
-        options: List[ClusterNodeMetadata] = []
+        options: List[Tuple[float, ClusterNodeMetadata]] = []
         for override in self._launch_template_overrides:
-            options.extend(self._get_options_for_instance_type(
-                override['InstanceType'],
-                float(override['WeightedCapacity']),
-            ))
+            options.extend(
+                (float(override['WeightedCapacity']), o)
+                for o in self._get_options_for_instance_type(override['InstanceType'])
+            )
 
         # If no overrides were specified, we just use the "default" instance type here
         if not options:
-            options.extend(self._get_options_for_instance_type(
-                self._launch_template_config['LaunchTemplateData']['InstanceType'],
-            ))
-
+            options.extend(
+                (1, o)
+                for o in self._get_options_for_instance_type(
+                    self._launch_template_config['LaunchTemplateData']['InstanceType'],
+                )
+            )
         return options
 
     def _get_auto_scaling_group_config(self) -> AutoScalingGroupConfig:
@@ -227,7 +229,6 @@ class AutoScalingResourceGroup(AWSResourceGroup):
     def _get_options_for_instance_type(
         self,
         instance_type: str,
-        weight: Optional[float] = None,
     ) -> List[ClusterNodeMetadata]:
         """ Generate a list of possible ClusterNode types that could be added to this ASG,
         given a particular instance type """
@@ -236,7 +237,6 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         az_options = self._group_config['AvailabilityZones']
         for az in az_options:
             instance_market = InstanceMarket(instance_type, az)
-            weight = weight or self.market_weight(instance_market)
             options.append(ClusterNodeMetadata(
                 agent=AgentMetadata(total_resources=ClustermanResources.from_instance_type(instance_type)),
                 instance=InstanceMetadata(market=instance_market),
@@ -266,6 +266,15 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         )
 
     @property
+    def fulfilled_capacity_weight(self) -> float:
+        return sum(
+            [
+                int(instance.get('WeightedCapacity', '1'))
+                for instance in self._group_config.get('Instances', [])
+            ]
+        )
+
+    @property
     def status(self) -> str:
         """ The status of the ASG
 
@@ -286,6 +295,11 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         Staleness by definition means the resource group should go away after we clean it up.
         """
         return False
+
+    @property
+    def _target_capacity(self) -> ClustermanResources:
+        unfulfilled_weight = self.target_capacity_weight - self.fulfilled_capacity_weight
+        return self.fulfilled_capacity + self._estimate_capacity_per_weight * unfulfilled_weight
 
     @property
     def target_capacity_weight(self) -> float:

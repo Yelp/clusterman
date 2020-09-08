@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from abc import ABCMeta
+from abc import abstractmethod
 from abc import abstractproperty
 from collections import defaultdict
 from socket import gethostbyaddr
@@ -23,6 +24,8 @@ from typing import List
 from typing import Mapping
 from typing import Optional
 from typing import Sequence
+from typing import Tuple
+from typing import Union
 
 import arrow
 import colorlog
@@ -33,12 +36,14 @@ from clusterman.aws import CACHE_TTL_SECONDS
 from clusterman.aws.client import ec2
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.client import InstanceDict
+from clusterman.aws.client import MarketDict
 from clusterman.aws.markets import get_instance_market
-from clusterman.aws.markets import get_market_resources
 from clusterman.aws.markets import InstanceMarket
+from clusterman.aws.response_types import AutoScalingInstanceConfig
 from clusterman.interfaces.resource_group import ClustermanResources
 from clusterman.interfaces.resource_group import InstanceMetadata
 from clusterman.interfaces.resource_group import ResourceGroup
+from clusterman.interfaces.types import ClusterNodeMetadata
 
 
 logger = colorlog.getLogger(__name__)
@@ -90,17 +95,15 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
             instance_metadatas.append(metadata)
         return instance_metadatas
 
-    def get_instance_resources(self, instance_dict) -> ClustermanResources:
-        base_resources = get_market_resources(get_instance_market(instance_dict))
+    def get_instance_resources(
+        self,
+        instance_dict: Union[MarketDict, AutoScalingInstanceConfig],
+    ) -> ClustermanResources:
+        # TODO: make this smarter about disk. Currently this pretty much assumes 300gb for any instance type without
+        # built-in storage.
+        return ClustermanResources.from_instance_type(instance_dict['InstanceType'])
 
-        return ClustermanResources(
-            cpus=base_resources.cpus,
-            mem=base_resources.mem,
-            disk=self.get_ebs_volume_size(instance_dict) if base_resources.disk is None else base_resources.disk,
-            gpus=base_resources.gpus,
-        )
-
-    def get_ebs_volume_size(self, instance_dict) -> float:
+    def get_ebs_volume_size(self, instance_dict: InstanceDict) -> float:
         raise NotImplementedError()  # TODO: implement.
         # instance_dict["BlockDeviceMappings"] doesn't have sizes; we'll need to look up individual block devices?
         # maybe there's a way to look this up in the LaunchTemplate / LaunchConfiguration?
@@ -237,3 +240,23 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
             ret.update(fetched)
 
         return ret
+
+    @abstractmethod
+    def _weighted_options(self) -> Iterable[Tuple[float, ClusterNodeMetadata]]:
+        ...
+
+    def scale_up_options(self) -> Iterable[ClusterNodeMetadata]:
+        return [o for w, o in self._weighted_options()]
+
+    @property
+    def _estimate_capacity_per_weight(self) -> ClustermanResources:
+        """Estimates the capacity that would be launced if target_capacity_weight were increased by 1, by summing the
+        capacity and weights of all launch specifications and dividing."""
+        sum_weight = 0.0
+        sum_capacity = ClustermanResources()
+
+        for weight, option in self._weighted_options():
+            sum_weight += weight
+            sum_capacity += option.agent.total_resources
+
+        return sum_capacity / sum_weight
