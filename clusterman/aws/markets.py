@@ -17,9 +17,8 @@ from typing import Mapping
 from typing import NamedTuple
 from typing import Optional
 
-from mypy_extensions import TypedDict
-
 from clusterman.aws.client import ec2
+from clusterman.aws.client import MarketDict
 
 
 class InstanceResources(NamedTuple):
@@ -32,12 +31,6 @@ class InstanceResources(NamedTuple):
 class _InstanceMarket(NamedTuple):
     instance: str
     az: Optional[str]
-
-
-class MarketDict(TypedDict):
-    InstanceType: str
-    SubnetId: str
-    Placement: Mapping
 
 
 class InstanceMarket(_InstanceMarket):

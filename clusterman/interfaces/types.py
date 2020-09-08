@@ -27,7 +27,6 @@ class AgentMetadata(NamedTuple):
 
 class InstanceMetadata(NamedTuple):
     market: InstanceMarket
-    weight: float
     group_id: str = ''
     hostname: Optional[str] = None
     instance_id: str = ''

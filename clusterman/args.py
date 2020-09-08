@@ -14,6 +14,7 @@
 import argparse
 import os
 import sys
+from typing import Callable
 
 import colorlog
 
@@ -22,16 +23,26 @@ from clusterman import __version__
 logger = colorlog.getLogger(__name__)
 
 
-def subparser(command, help, entrypoint):  # pragma: no cover
+AddArgsFunc = Callable[
+    [
+        argparse.ArgumentParser,
+        argparse._ArgumentGroup,
+        argparse._ArgumentGroup,
+    ],
+    None,
+]
+
+
+def subparser(command: str, help: str, entrypoint: Callable[[argparse.Namespace], None]):  # pragma: no cover
     """ Function decorator to simplify adding arguments to subcommands
 
     :param command: name of the subcommand to add
     :param help: help string for the subcommand
     :param entrypoint: the 'main' function for the subcommand to execute
     """
-    def decorator(add_args):
-        def wrapper(subparser):
-            subparser = subparser.add_parser(command, formatter_class=help_formatter, add_help=False)
+    def decorator(add_args: AddArgsFunc) -> Callable[[argparse._SubParsersAction], None]:
+        def wrapper(_subparser: argparse._SubParsersAction) -> None:
+            subparser = _subparser.add_parser(command, formatter_class=help_formatter, add_help=False)
             required_named_args = subparser.add_argument_group('required arguments')
             optional_named_args = subparser.add_argument_group('optional arguments')
             add_args(subparser, required_named_args, optional_named_args)

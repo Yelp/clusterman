@@ -12,15 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from abc import ABCMeta
+from abc import abstractmethod
 from abc import abstractproperty
 from collections import defaultdict
 from socket import gethostbyaddr
 from typing import Any
 from typing import Collection
+from typing import Dict
+from typing import Iterable
 from typing import List
 from typing import Mapping
 from typing import Optional
 from typing import Sequence
+from typing import Tuple
+from typing import Union
 
 import arrow
 import colorlog
@@ -30,10 +35,15 @@ from cached_property import timed_cached_property
 from clusterman.aws import CACHE_TTL_SECONDS
 from clusterman.aws.client import ec2
 from clusterman.aws.client import ec2_describe_instances
+from clusterman.aws.client import InstanceDict
+from clusterman.aws.client import MarketDict
 from clusterman.aws.markets import get_instance_market
 from clusterman.aws.markets import InstanceMarket
+from clusterman.aws.response_types import AutoScalingInstanceConfig
+from clusterman.interfaces.resource_group import ClustermanResources
 from clusterman.interfaces.resource_group import InstanceMetadata
 from clusterman.interfaces.resource_group import ResourceGroup
+from clusterman.interfaces.types import ClusterNodeMetadata
 
 
 logger = colorlog.getLogger(__name__)
@@ -59,6 +69,7 @@ def protect_unowned_instances(func):
 class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
     def __init__(self, group_id: str, **kwargs: Any) -> None:
         self.group_id = group_id
+        self._describe_instances_cache: Dict[str, InstanceDict] = {}
 
     def get_instance_metadatas(self, state_filter: Optional[Collection[str]] = None) -> Sequence[InstanceMetadata]:
         instance_metadatas = []
@@ -80,14 +91,22 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
                 market=instance_market,
                 state=aws_state,
                 uptime=(arrow.now() - arrow.get(instance_dict['LaunchTime'])),
-                weight=self.market_weight(instance_market),
             )
             instance_metadatas.append(metadata)
         return instance_metadatas
 
-    def market_weight(self, market: InstanceMarket) -> float:
-        # some types of resource groups don't understand weights, so default to 1 for every market
-        return 1
+    def get_instance_resources(
+        self,
+        instance_dict: Union[MarketDict, AutoScalingInstanceConfig],
+    ) -> ClustermanResources:
+        # TODO: make this smarter about disk. Currently this pretty much assumes 300gb for any instance type without
+        # built-in storage.
+        return ClustermanResources.from_instance_type(instance_dict['InstanceType'])
+
+    def get_ebs_volume_size(self, instance_dict: InstanceDict) -> float:
+        raise NotImplementedError()  # TODO: implement.
+        # instance_dict["BlockDeviceMappings"] doesn't have sizes; we'll need to look up individual block devices?
+        # maybe there's a way to look this up in the LaunchTemplate / LaunchConfiguration?
 
     @protect_unowned_instances
     def terminate_instances_by_id(self, instance_ids: List[str], batch_size: int = 500) -> Sequence[str]:
@@ -101,7 +120,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
             logger.warning(f'No instances to terminate in {self.group_id}')
             return []
 
-        instance_weights = {}
+        instance_resources = {}
         for instance in ec2_describe_instances(instance_ids):
             instance_market = get_instance_market(instance)
             if not instance_market.az:
@@ -110,7 +129,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
                 )
                 instance_ids.remove(instance['InstanceId'])
                 continue
-            instance_weights[instance['InstanceId']] = self.market_weight(get_instance_market(instance))
+            instance_resources[instance['InstanceId']] = self.get_instance_resources(instance)
 
         # AWS API recommends not terminating more than 1000 instances at a time, and to
         # terminate larger numbers in batches
@@ -126,9 +145,9 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
         if missing_instances:
             logger.warning('Some instances could not be terminated; they were probably killed previously')
             logger.warning(f'Missing instances: {list(missing_instances)}')
-        terminated_capacity = sum(instance_weights[i] for i in instance_ids)
+        terminated_capacity = sum((instance_resources[i] for i in instance_ids), ClustermanResources())
 
-        logger.info(f'{self.id} terminated weight: {terminated_capacity}; instances: {terminated_instance_ids}')
+        logger.info(f'{self.id} terminated capacity: {terminated_capacity}; instances: {terminated_instance_ids}')
         return terminated_instance_ids
 
     @property
@@ -137,15 +156,15 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
         return self.group_id
 
     @property
-    def market_capacities(self) -> Mapping[InstanceMarket, float]:
+    def market_capacities(self) -> Mapping[InstanceMarket, ClustermanResources]:
         return {
-            market: len(instances) * self.market_weight(market)
+            market: sum([self.get_instance_resources(instance) for instance in instances], ClustermanResources())
             for market, instances in self._instances_by_market.items()
             if market.az
         }
 
     @property
-    def target_capacity(self) -> float:
+    def target_capacity(self) -> ClustermanResources:
         """ The target (or desired) weighted capacity for this AWSResourceGroup
 
         Note that the actual weighted capacity in the AWSResourceGroup may be smaller or larger than the
@@ -155,7 +174,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
         if self.is_stale:
             # If we're in cancelled, cancelled_running, or cancelled_terminated, then no more instances will be
             # launched. This is effectively a target_capacity of 0, so let's just pretend like it is.
-            return 0
+            return ClustermanResources()
         return self._target_capacity
 
     @timed_cached_property(ttl=CACHE_TTL_SECONDS)
@@ -167,7 +186,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
         return instance_dict
 
     @abstractproperty
-    def _target_capacity(self):  # pragma: no cover
+    def _target_capacity(self) -> ClustermanResources:  # pragma: no cover
         pass
 
     @classmethod
@@ -204,3 +223,40 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
     @classmethod
     def _get_resource_group_tags(cls) -> Mapping[str, Mapping[str, str]]:  # pragma: no cover
         return {}
+
+    def cached_describe_instances(self, instance_ids: Iterable[str]) -> Dict[str, InstanceDict]:
+        to_fetch = []
+        ret = {}
+        for instance_id in instance_ids:
+            try:
+                ret[instance_id] = self._describe_instances_cache[instance_id]
+            except KeyError:
+                to_fetch.append(instance_id)
+                pass
+
+        if to_fetch:
+            fetched = {i['InstanceId']: i for i in ec2_describe_instances(to_fetch)}
+            self._describe_instances_cache.update(fetched)
+            ret.update(fetched)
+
+        return ret
+
+    @abstractmethod
+    def _weighted_options(self) -> Iterable[Tuple[float, ClusterNodeMetadata]]:
+        ...
+
+    def scale_up_options(self) -> Iterable[ClusterNodeMetadata]:
+        return [o for w, o in self._weighted_options()]
+
+    @property
+    def _estimate_capacity_per_weight(self) -> ClustermanResources:
+        """Estimates the capacity that would be launced if target_capacity_weight were increased by 1, by summing the
+        capacity and weights of all launch specifications and dividing."""
+        sum_weight = 0.0
+        sum_capacity = ClustermanResources()
+
+        for weight, option in self._weighted_options():
+            sum_weight += weight
+            sum_capacity += option.agent.total_resources
+
+        return sum_capacity / sum_weight

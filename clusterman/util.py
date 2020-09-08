@@ -24,6 +24,7 @@ from typing import List
 from typing import NamedTuple
 from typing import Optional
 from typing import TypeVar
+from typing import Union
 
 import arrow
 import colorlog
@@ -31,6 +32,7 @@ import parsedatetime
 import staticconf
 from colorama import Fore
 from colorama import Style
+from mypy_extensions import TypedDict
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 from clusterman.aws.client import dynamodb
@@ -59,11 +61,193 @@ class All:
     pass
 
 
-class ClustermanResources(NamedTuple):
+class ClustermanResourcesDict(TypedDict):
+    cpus: float
+    mem: float
+    disk: float
+    gpus: float
+
+
+class ClustermanResources:
     cpus: float = 0
     mem: float = 0
     disk: float = 0
     gpus: float = 0
+
+    _fields = ('cpus', 'mem', 'disk', 'gpus')
+
+    def __init__(
+        self,
+        cpus: float = 0,
+        mem: float = 0,
+        disk: float = 0,
+        gpus: float = 0,
+    ):
+        self.cpus = cpus
+        self.mem = mem
+        self.disk = disk
+        self.gpus = gpus
+
+    def _asdict(self) -> ClustermanResourcesDict:
+        return {
+            'cpus': self.cpus,
+            'mem': self.mem,
+            'disk': self.disk,
+            'gpus': self.gpus,
+        }
+
+    def __iter__(self):
+        return iter((self.cpus, self.mem, self.disk, self.gpus))
+
+    def __add__(self, other: 'ClustermanResources') -> 'ClustermanResources':
+        return ClustermanResources(
+            cpus=self.cpus + other.cpus,
+            mem=self.mem + other.mem,
+            disk=self.disk + other.disk,
+            gpus=self.gpus + other.gpus,
+        )
+
+    def __sub__(self, other: 'ClustermanResources') -> 'ClustermanResources':
+        return ClustermanResources(
+            cpus=self.cpus - other.cpus,
+            mem=self.mem - other.mem,
+            disk=self.disk - other.disk,
+            gpus=self.gpus - other.gpus,
+        )
+
+    def __mul__(self, other: Union[float, int]) -> 'ClustermanResources':
+        if isinstance(other, (float, int)):
+            return ClustermanResources(
+                cpus=self.cpus * other,
+                mem=self.mem * other,
+                disk=self.disk * other,
+                gpus=self.gpus * other,
+            )
+        else:
+            raise TypeError(f'ClustermanResources cannot be multiplied by {type(other)}')
+
+    def __rmul__(self, other: Union[float, int]) -> 'ClustermanResources':
+        return self * other
+
+    def __truediv__(self, other: Union['ClustermanResources', float, int]) -> 'ClustermanResources':
+        if isinstance(other, (float, int)):
+            return ClustermanResources(
+                cpus=self.cpus / other,
+                mem=self.mem / other,
+                disk=self.disk / other,
+                gpus=self.gpus / other,
+            )
+        else:
+            return ClustermanResources(
+                cpus=self.cpus / other.cpus,
+                mem=self.mem / other.mem,
+                disk=self.disk / other.disk,
+                gpus=self.gpus / other.gpus,
+            )
+
+    # def __lt__(self, other: 'ClustermanResources'):
+    #     return all([
+    #         self.cpus < other.cpus,
+    #         self.mem < other.mem,
+    #         self.disk < other.disk,
+    #         self.gpus < other.gpus,
+    #     ])
+
+    # def __le__(self, other: 'ClustermanResources'):
+    #     return all([
+    #         self.cpus <= other.cpus,
+    #         self.mem <= other.mem,
+    #         self.disk <= other.disk,
+    #         self.gpus <= other.gpus,
+    #     ])
+
+    # def __gt__(self, other: 'ClustermanResources'):
+    #     return all([
+    #         self.cpus > other.cpus,
+    #         self.mem > other.mem,
+    #         self.disk > other.disk,
+    #         self.gpus > other.gpus,
+    #     ])
+
+    # def __ge__(self, other: 'ClustermanResources'):
+    #     return all([
+    #         self.cpus >= other.cpus,
+    #         self.mem >= other.mem,
+    #         self.disk >= other.disk,
+    #         self.gpus >= other.gpus,
+    #     ])
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, ClustermanResources):
+            return NotImplemented
+        return all([
+            self.cpus == other.cpus,
+            self.mem == other.mem,
+            self.disk == other.disk,
+            self.gpus == other.gpus,
+        ])
+
+    def any_lt(self, other: Union['ClustermanResources', float, int]) -> bool:
+        if isinstance(other, (int, float)):
+            return any([a < other for a in self])
+        else:
+            return any([a < b for (a, b) in zip(self, other)])
+
+    def any_gt(self, other: Union['ClustermanResources', float, int]) -> bool:
+        if isinstance(other, (int, float)):
+            return any([a > other for a in self])
+        else:
+            return any([a > b for (a, b) in zip(self, other)])
+
+    def any_le(self, other: Union['ClustermanResources', float, int]) -> bool:
+        if isinstance(other, (int, float)):
+            return any([a <= other for a in self])
+        else:
+            return any([a <= b for (a, b) in zip(self, other)])
+
+    def any_ge(self, other: Union['ClustermanResources', float, int]) -> bool:
+        if isinstance(other, (int, float)):
+            return any([a >= other for a in self])
+        else:
+            return any([a >= b for (a, b) in zip(self, other)])
+
+    def all_lt(self, other: Union['ClustermanResources', float, int]) -> bool:
+        if isinstance(other, (int, float)):
+            return all([a < other for a in self])
+        else:
+            return all([a < b for (a, b) in zip(self, other)])
+
+    def all_gt(self, other: Union['ClustermanResources', float, int]) -> bool:
+        if isinstance(other, (int, float)):
+            return all([a > other for a in self])
+        else:
+            return all([a > b for (a, b) in zip(self, other)])
+
+    def all_le(self, other: Union['ClustermanResources', float, int]) -> bool:
+        if isinstance(other, (int, float)):
+            return all([a <= other for a in self])
+        else:
+            return all([a <= b for (a, b) in zip(self, other)])
+
+    def all_ge(self, other: Union['ClustermanResources', float, int]) -> bool:
+        if isinstance(other, (int, float)):
+            return all([a >= other for a in self])
+        else:
+            return all([a >= b for (a, b) in zip(self, other)])
+
+    def clamp(
+        self,
+        lower_bound: 'ClustermanResources' = None,
+        upper_bound: 'ClustermanResources' = None,
+    ) -> 'ClustermanResources':
+        if lower_bound is None:
+            lower_bound = ClustermanResources(float('-inf'), float('-inf'), float('-inf'), float('-inf'))
+        if upper_bound is None:
+            upper_bound = ClustermanResources(float('inf'), float('inf'), float('inf'), float('inf'))
+
+        return ClustermanResources(
+            *(min(max(lo, x), hi) for (lo, x, hi) in zip(lower_bound, self, upper_bound)),
+        )
 
     @staticmethod
     def from_instance_type(instance_type: str) -> 'ClustermanResources':
@@ -75,13 +259,8 @@ class ClustermanResources(NamedTuple):
             gpus=resources.gpus,
         )
 
-    def __mul__(self, scalar: float) -> 'ClustermanResources':
-        return ClustermanResources(
-            cpus=self.cpus * scalar,
-            mem=self.mem * scalar,
-            disk=self.disk * scalar,
-            gpus=self.gpus * scalar,
-        )
+    def __repr__(self) -> str:
+        return f'ClustermanResources(cpus={self.cpus!r}, mem={self.mem!r}, disk={self.disk!r}, gpus={self.gpus!r})'
 
 
 class SignalResourceRequest(NamedTuple):

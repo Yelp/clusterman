@@ -45,6 +45,7 @@ from clusterman.simulator.simulated_aws_cluster import SimulatedAWSCluster
 from clusterman.simulator.simulated_pool_manager import SimulatedPoolManager
 from clusterman.simulator.util import patch_join_delay
 from clusterman.simulator.util import SimulationMetadata
+from clusterman.util import ClustermanResources
 from clusterman.util import get_cluster_dimensions
 
 
@@ -273,7 +274,7 @@ class Simulator:
             configs.extend([config['SpotFleetRequestConfig'] for config in aws_configs['SpotFleetRequestConfigs']])
         pool_manager = SimulatedPoolManager(self.metadata.cluster, self.metadata.pool, configs, self)
         metric_values = self.metrics_client.get_metric_values(
-            'target_capacity',
+            'target_capacity_cpus',
             METADATA,
             self.start_time.timestamp,
             # metrics collector runs 1x/min, but we'll try to get five data points in case some data is missing
@@ -283,8 +284,12 @@ class Simulator:
         )
         # take the earliest data point available - this is a Decimal, which doesn't play nicely, so convert to an int
         with patch_join_delay():
-            actual_target_capacity = int(metric_values['target_capacity'][0][1])
-            pool_manager.modify_target_capacity(actual_target_capacity, force=True, prune=False)
+            actual_target_capacity_cpus = int(metric_values['target_capacity_cpus'][0][1])
+            pool_manager.modify_target_capacity(
+                ClustermanResources(cpus=actual_target_capacity_cpus),
+                force=True,
+                prune=False,
+            )
 
         for config in configs:
             for spec in config['LaunchSpecifications']:

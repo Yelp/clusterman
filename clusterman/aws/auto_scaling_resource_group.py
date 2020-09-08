@@ -29,6 +29,7 @@ from clusterman.aws.response_types import AutoScalingGroupConfig
 from clusterman.aws.response_types import InstanceOverrideConfig
 from clusterman.aws.response_types import LaunchTemplateConfig
 from clusterman.exceptions import NoLaunchTemplateConfiguredError
+from clusterman.interfaces.resource_group import ResourceGroupActions
 from clusterman.interfaces.types import AgentMetadata
 from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.interfaces.types import InstanceMetadata
@@ -97,17 +98,19 @@ class AutoScalingResourceGroup(AWSResourceGroup):
 
     def modify_target_capacity(
         self,
-        target_capacity: float,
+        actions: ResourceGroupActions,
         *,
         dry_run: bool = False,
         honor_cooldown: bool = False,
     ) -> None:
         """ Modify the desired capacity for the ASG.
 
-        :param target_capacity: The new desired number of instances in th ASG.
-            Must be such that the desired capacity is between the minimum and
-            maximum capacities of the ASGs. The desired capacity will be rounded
-            to the minimum or maximum otherwise, whichever is closer.
+        :param actions: A collection of ClustermanResources vectors, representing the way in which to scale up or down.
+                        ClustermanResources objects with positive values represent scale-up events, whereas
+                        ClustermanResources objects with negative values represent scale-down events.
+                        Currently, this method simply converts these actions to corresponding weights and sums them --
+                        AWS will likely end up launching instances that are different than those specified in actions.
+
         :param dry_run: Boolean indicating whether or not to take action or just
             log
         :param honor_cooldown: Boolean for whether or not to wait for a period
@@ -115,23 +118,27 @@ class AutoScalingResourceGroup(AWSResourceGroup):
             activity has completed before initiating this one. Defaults to False,
             which is the AWS default for manual scaling activities.
         """
+
+        target_capacity = self.target_capacity_weight
         # We pretend like stale instances aren't in the ASG, but actually they are so
         # we have to double-count them in the target capacity computation
         target_capacity += self._stale_capacity
+        target_capacity += sum(self.market_weight(cnm.instance.market) for cnm in actions.to_launch)
+        target_capacity -= sum(self.market_weight(cnm.instance.market) for cnm in actions.to_terminate)
 
         # Round target_cpacity to min or max if necessary
-        if target_capacity > self.max_capacity:
+        if target_capacity > self.max_capacity_weight:
             logger.warning(
-                f'New target_capacity={target_capacity} exceeds ASG MaxSize={self.max_capacity}, '
+                f'New target_capacity={target_capacity} exceeds ASG MaxSize={self.max_capacity_weight}, '
                 'setting to max instead'
             )
-            target_capacity = self.max_capacity
-        elif target_capacity < self.min_capacity:
+            target_capacity = self.max_capacity_weight
+        elif target_capacity < self.min_capacity_weight:
             logger.warning(
-                f'New target_capacity={target_capacity} falls below ASG MinSize={self.min_capacity}, '
+                f'New target_capacity={target_capacity} falls below ASG MinSize={self.min_capacity_weight}, '
                 'setting to min instead'
             )
-            target_capacity = self.min_capacity
+            target_capacity = self.min_capacity_weight
 
         kwargs = dict(
             AutoScalingGroupName=self.group_id,
@@ -147,33 +154,36 @@ class AutoScalingResourceGroup(AWSResourceGroup):
 
         autoscaling.set_desired_capacity(**kwargs)
 
-    def scale_up_options(self) -> Iterable[ClusterNodeMetadata]:
+    @property
+    def min_capacity_weight(self) -> int:
+        return self._group_config['MinSize']
+
+    @property
+    def max_capacity_weight(self) -> int:
+        return self._group_config['MaxSize']
+
+    def _weighted_options(self) -> Iterable[Tuple[float, ClusterNodeMetadata]]:
         if not self._launch_template_config:
             raise NoLaunchTemplateConfiguredError(
                 f'ASG {self.id} has no launch template associated with it; unable to generate scaling options',
             )
-
         # Either there is a list of LaunchTemplate overrides, or this ASG uses a single instance type
-        options: List[ClusterNodeMetadata] = []
+        options: List[Tuple[float, ClusterNodeMetadata]] = []
         for override in self._launch_template_overrides:
-            options.extend(self._get_options_for_instance_type(
-                override['InstanceType'],
-                float(override['WeightedCapacity']),
-            ))
+            options.extend(
+                (float(override['WeightedCapacity']), o)
+                for o in self._get_options_for_instance_type(override['InstanceType'])
+            )
 
         # If no overrides were specified, we just use the "default" instance type here
         if not options:
-            options.extend(self._get_options_for_instance_type(
-                self._launch_template_config['LaunchTemplateData']['InstanceType'],
-            ))
-
+            options.extend(
+                (1, o)
+                for o in self._get_options_for_instance_type(
+                    self._launch_template_config['LaunchTemplateData']['InstanceType'],
+                )
+            )
         return options
-
-    def scale_down_options(self) -> Iterable[ClusterNodeMetadata]:
-        """ Generate each of the options for scaling down this resource group, i.e. the list of instance types currently
-        running in this resource group.
-        """
-        raise NotImplementedError()
 
     def _get_auto_scaling_group_config(self) -> AutoScalingGroupConfig:
         response = autoscaling.describe_auto_scaling_groups(
@@ -220,7 +230,6 @@ class AutoScalingResourceGroup(AWSResourceGroup):
     def _get_options_for_instance_type(
         self,
         instance_type: str,
-        weight: Optional[float] = None,
     ) -> List[ClusterNodeMetadata]:
         """ Generate a list of possible ClusterNode types that could be added to this ASG,
         given a particular instance type """
@@ -229,20 +238,11 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         az_options = self._group_config['AvailabilityZones']
         for az in az_options:
             instance_market = InstanceMarket(instance_type, az)
-            weight = weight or self.market_weight(instance_market)
             options.append(ClusterNodeMetadata(
                 agent=AgentMetadata(total_resources=ClustermanResources.from_instance_type(instance_type)),
-                instance=InstanceMetadata(market=instance_market, weight=weight),
+                instance=InstanceMetadata(market=instance_market),
             ))
         return options
-
-    @property
-    def min_capacity(self) -> int:
-        return self._group_config['MinSize']
-
-    @property
-    def max_capacity(self) -> int:
-        return self._group_config['MaxSize']
 
     @property
     def instance_ids(self) -> Sequence[str]:
@@ -257,7 +257,17 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         return self._stale_instance_ids
 
     @property
-    def fulfilled_capacity(self) -> float:
+    def fulfilled_capacity(self) -> ClustermanResources:
+        return sum(
+            [
+                self.get_instance_resources(instance)
+                for instance in self._group_config.get('Instances', [])
+            ],
+            ClustermanResources(),
+        )
+
+    @property
+    def fulfilled_capacity_weight(self) -> float:
         return sum(
             [
                 int(instance.get('WeightedCapacity', '1'))
@@ -288,7 +298,12 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         return False
 
     @property
-    def _target_capacity(self) -> float:
+    def _target_capacity(self) -> ClustermanResources:
+        unfulfilled_weight = self.target_capacity_weight - self.fulfilled_capacity_weight
+        return self.fulfilled_capacity + self._estimate_capacity_per_weight * unfulfilled_weight
+
+    @property
+    def target_capacity_weight(self) -> float:
         # We pretend like stale instances aren't in the ASG, but actually they are so
         # we have to remove them manually from the existing target capacity
         return self._group_config['DesiredCapacity'] - self._stale_capacity

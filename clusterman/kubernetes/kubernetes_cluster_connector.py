@@ -147,7 +147,7 @@ class KubernetesClusterConnector(ClusterConnector):
     def _get_pod_unschedulable_reason(self, pod: KubernetesPod) -> PodUnschedulableReason:
         pod_resource_request = total_pod_resources(pod)
         for node in self._nodes_by_ip.values():
-            if pod_resource_request < total_node_resources(node):
+            if pod_resource_request.all_lt(total_node_resources(node)):
                 return PodUnschedulableReason.Unknown
 
         return PodUnschedulableReason.InsufficientResources

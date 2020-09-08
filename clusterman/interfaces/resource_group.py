@@ -26,6 +26,34 @@ from typing import Sequence
 from clusterman.aws.markets import InstanceMarket
 from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.interfaces.types import InstanceMetadata
+from clusterman.util import ClustermanResources
+
+
+class ResourceGroupActions:
+    to_launch: List[ClusterNodeMetadata]
+    to_terminate: List[ClusterNodeMetadata]
+    target_capacity: ClustermanResources
+
+    def __init__(self, to_launch, to_terminate, target_capacity):
+        self.to_launch = to_launch
+        self.to_terminate = to_terminate
+        self.target_capacity = target_capacity
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, ResourceGroupActions):
+            return NotImplemented
+        else:
+            return all([
+                self.to_launch == other.to_launch,
+                self.to_terminate == other.to_terminate,
+                self.target_capacity == other.target_capacity,
+            ])
+
+    def __repr__(self) -> str:
+        return f'ResourceGroupActions(' \
+            f'to_launch={self.to_launch!r}, ' \
+            f'to_terminate={self.to_terminate!r}, ' \
+            f'target_capacity={self.target_capacity!r})'
 
 
 class ResourceGroup(metaclass=ABCMeta):
@@ -65,26 +93,33 @@ class ResourceGroup(metaclass=ABCMeta):
     @abstractmethod
     def modify_target_capacity(
         self,
-        target_capacity: float,
+        actions: ResourceGroupActions,
         *,
         dry_run: bool,
     ) -> None:  # pragma: no cover
         """ Modify the target capacity for the resource group
 
-        :param target_capacity: the (weighted) new target capacity for the resource group
+        :param actions: A ResourceGroupActions object, representing the types of instances to launch and terminate, and
+                        the total target capacity. Importantly, Importantly, this method should NOT immediately
+                        terminate instances, and instead should wait for the caller to call terminate_instances_by_id.
         :param dry_run: boolean indicating whether to take action or just write to stdout
         """
         pass
 
     @property
-    def min_capacity(self) -> float:
+    def min_capacity(self) -> ClustermanResources:
         """The lowest value that will be respected by modify_target_capacity."""
-        return 0
+        return ClustermanResources()
 
     @property
-    def max_capacity(self) -> float:
+    def max_capacity(self) -> ClustermanResources:
         """The highest value that will be respected by modify_target_capacity."""
-        return float('inf')
+        return ClustermanResources(
+            cpus=float('inf'),
+            mem=float('inf'),
+            disk=float('inf'),
+            gpus=float('inf'),
+        )
 
     @abstractmethod
     def terminate_instances_by_id(
@@ -115,12 +150,12 @@ class ResourceGroup(metaclass=ABCMeta):
         pass
 
     @abstractproperty
-    def market_capacities(self) -> Mapping[InstanceMarket, float]:  # pragma: no cover
+    def market_capacities(self) -> Mapping[InstanceMarket, ClustermanResources]:  # pragma: no cover
         """ The (weighted) capacities of each market in the resource group """
         pass
 
     @abstractproperty
-    def target_capacity(self) -> float:  # pragma: no cover
+    def target_capacity(self) -> ClustermanResources:  # pragma: no cover
         """ The target (or desired) weighted capacity for this ResourceGroup
 
         Note that the actual weighted capacity in the ResourceGroup may be smaller or larger than the
@@ -130,7 +165,7 @@ class ResourceGroup(metaclass=ABCMeta):
         pass
 
     @abstractproperty
-    def fulfilled_capacity(self) -> float:  # pragma: no cover
+    def fulfilled_capacity(self) -> ClustermanResources:  # pragma: no cover
         """ The actual weighted capacity for this ResourceGroup """
         pass
 
@@ -160,12 +195,5 @@ class ResourceGroup(metaclass=ABCMeta):
         """ Generate each of the options for scaling up this resource group. For a spot fleet, this would be one
         ClustermanResources for each instance type. For a non-spot ASG, this would be a single ClustermanResources that
         represents the instance type the ASG is configured to run.
-        """
-        pass
-
-    @abstractmethod
-    def scale_down_options(self) -> Iterable[ClusterNodeMetadata]:
-        """ Generate each of the options for scaling down this resource group, i.e. the list of instance types currently
-        running in this resource group.
         """
         pass

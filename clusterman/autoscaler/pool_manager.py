@@ -11,12 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import math
 import traceback
 from collections import defaultdict
 from typing import cast
 from typing import Collection
 from typing import Dict
+from typing import Iterator
 from typing import List
 from typing import Mapping
 from typing import MutableMapping
@@ -39,14 +39,15 @@ from clusterman.exceptions import PoolManagerError
 from clusterman.exceptions import ResourceGroupError
 from clusterman.interfaces.cluster_connector import ClusterConnector
 from clusterman.interfaces.resource_group import ResourceGroup
+from clusterman.interfaces.resource_group import ResourceGroupActions
 from clusterman.interfaces.types import AgentState
 from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.kubernetes.util import total_pod_resources
 from clusterman.monitoring_lib import get_monitoring_client
+from clusterman.util import ClustermanResources
 from clusterman.util import read_int_or_inf
 
 AWS_RUNNING_STATES = ('running',)
-MIN_CAPACITY_PER_GROUP = 1
 SFX_RESOURCE_GROUP_MODIFICATION_FAILED_NAME = 'clusterman.resource_group_modification_failed'
 logger = colorlog.getLogger(__name__)
 
@@ -67,11 +68,32 @@ class PoolManager:
 
         self.draining_enabled = self.pool_config.read_bool('draining_enabled', default=False)
         self.draining_client: Optional[DrainingClient] = DrainingClient(cluster) if self.draining_enabled else None
-        self.min_capacity = self.pool_config.read_int('scaling_limits.min_capacity')
-        self.max_capacity = self.pool_config.read_int('scaling_limits.max_capacity')
+        self.min_capacity = ClustermanResources(
+            cpus=self.pool_config.read_float('scaling_limits.min_capacity_cpus'),
+            mem=self.pool_config.read_float('scaling_limits.min_capacity_mem'),
+            disk=self.pool_config.read_float('scaling_limits.min_capacity_disk'),
+            gpus=self.pool_config.read_float('scaling_limits.min_capacity_gpus'),
+        )
+        self.max_capacity = ClustermanResources(
+            cpus=self.pool_config.read_float('scaling_limits.max_capacity_cpus'),
+            mem=self.pool_config.read_float('scaling_limits.max_capacity_mem'),
+            disk=self.pool_config.read_float('scaling_limits.max_capacity_disk'),
+            gpus=self.pool_config.read_float('scaling_limits.max_capacity_gpus'),
+        )
         self.max_tasks_to_kill = read_int_or_inf(self.pool_config, 'scaling_limits.max_tasks_to_kill')
-        self.max_weight_to_add = self.pool_config.read_int('scaling_limits.max_weight_to_add')
-        self.max_weight_to_remove = self.pool_config.read_int('scaling_limits.max_weight_to_remove')
+
+        self.max_capacity_to_add = ClustermanResources(
+            cpus=self.pool_config.read_float('scaling_limits.max_cpus_to_add'),
+            mem=self.pool_config.read_float('scaling_limits.max_mem_to_add'),
+            disk=self.pool_config.read_float('scaling_limits.max_disk_to_add'),
+            gpus=self.pool_config.read_float('scaling_limits.max_gpus_to_add'),
+        )
+        self.max_capacity_to_remove = ClustermanResources(
+            cpus=self.pool_config.read_float('scaling_limits.max_cpus_to_remove'),
+            mem=self.pool_config.read_float('scaling_limits.max_mem_to_remove'),
+            disk=self.pool_config.read_float('scaling_limits.max_disk_to_remove'),
+            gpus=self.pool_config.read_float('scaling_limits.max_gpus_to_remove'),
+        )
 
         if fetch_state:
             self.reload_state()
@@ -103,11 +125,11 @@ class PoolManager:
 
     def modify_target_capacity(
         self,
-        new_target_capacity: float,
+        new_target_capacity: ClustermanResources,
         dry_run: bool = False,
         force: bool = False,
         prune: bool = True,
-    ) -> float:
+    ) -> ClustermanResources:
         """ Change the desired :attr:`target_capacity` of the resource groups belonging to this pool.
 
         Capacity changes are roughly evenly distributed across the resource groups to ensure that
@@ -132,14 +154,14 @@ class PoolManager:
         orig_target_capacity = self.target_capacity
         new_target_capacity = self._constrain_target_capacity(new_target_capacity, force)
 
-        res_group_targets = self._compute_new_resource_group_targets(new_target_capacity)
-        for group_id, target in res_group_targets.items():
-            if self.resource_groups[group_id].target_capacity == target:
+        res_group_actions = self._compute_new_resource_group_actions(new_target_capacity)
+        for group_id, actions in res_group_actions.items():
+            if actions.to_launch == [] and actions.to_terminate == []:
                 continue
 
             try:
                 self.resource_groups[group_id].modify_target_capacity(
-                    target,
+                    actions,
                     dry_run=dry_run,
                 )
             except ResourceGroupError:
@@ -152,14 +174,18 @@ class PoolManager:
                 continue
 
         if prune:
-            self.prune_excess_fulfilled_capacity(new_target_capacity, res_group_targets, dry_run)
+            self.prune_excess_fulfilled_capacity(
+                new_target_capacity,
+                {g: a.target_capacity for g, a in res_group_actions.items()},
+                dry_run,
+            )
         logger.info(f'Target capacity for {self.pool} changed from {orig_target_capacity} to {new_target_capacity}')
         return new_target_capacity
 
     def prune_excess_fulfilled_capacity(
         self,
-        new_target_capacity: float,
-        group_targets: Optional[Mapping[str, float]] = None,
+        new_target_capacity: ClustermanResources,
+        group_targets: Optional[Mapping[str, ClustermanResources]] = None,
         dry_run: bool = False,
     ) -> None:
         """ Decrease the capacity in the cluster
@@ -215,7 +241,7 @@ class PoolManager:
         for group_id, options in scale_up_options.items():
             for option in options:
                 reason = ''
-                if total_pod_resources(pod) > option.agent.allocated_resources:
+                if total_pod_resources(pod).any_gt(option.agent.allocated_resources):
                     reason = 'insufficient resources'
 
                 if reason:
@@ -249,53 +275,67 @@ class PoolManager:
 
     def _constrain_target_capacity(
         self,
-        requested_target_capacity: float,
+        requested_target_capacity: ClustermanResources,
         force: bool = False,
-    ) -> float:
+    ) -> ClustermanResources:
         """ Signals can return arbitrary values, so make sure we don't add or remove too much capacity """
 
-        requested_delta = requested_target_capacity - self.target_capacity
+        constrained_target_capacity = ClustermanResources()
 
-        # first, determine whether or not the delta is actually positive or negative.
-        # for example, if the current target capacity is above the maximum, the resulting delta
-        # will be negative, even if the requested delta is positive because we take the min
-        # of the two. This is good because using this delta means moving towards the
-        # limit, in the case of the example, towards the maximum, since the target capacity
-        # is currently above the maximum.
-        if requested_delta > 0:
-            delta = min(self.max_capacity - self.target_capacity, requested_delta)
-        elif requested_delta < 0:
-            delta = max(self.min_capacity - self.target_capacity, requested_delta)
-        else:
-            delta = 0
+        for resource in ClustermanResources._fields:
+            """ Signals can return arbitrary values, so make sure we don't add or remove too much capacity """
 
-        # second, constrain the delta by the max weight to change, depending on if it
-        # it is positive or negative.
-        if delta > 0:
-            delta = min(self.max_weight_to_add, delta)
-        elif delta < 0:
-            delta = max(-self.max_weight_to_remove, delta)
+            requested: float = getattr(requested_target_capacity, resource)
+            target: float = getattr(self.target_capacity, resource)
+            _max: float = getattr(self.max_capacity, resource)
+            _min: float = getattr(self.min_capacity, resource)
+            max_to_add: float = getattr(self.max_capacity_to_add, resource)
+            max_to_remove: float = getattr(self.max_capacity_to_remove, resource)
 
-        constrained_target_capacity = self.target_capacity + delta
-        if requested_delta != delta:
-            if force:
-                forced_target_capacity = self.target_capacity + requested_delta
-                logger.warning(
-                    f'Forcing target capacity to {forced_target_capacity} even though '
-                    f'scaling limits would restrict to {constrained_target_capacity}.'
-                )
-                return forced_target_capacity
+            requested_delta = requested - target
+
+            # first, determine whether or not the delta is actually positive or negative.
+            # for example, if the current target capacity is above the maximum, the resulting delta
+            # will be negative, even if the requested delta is positive because we take the min
+            # of the two. This is good because using this delta means moving towards the
+            # limit, in the case of the example, towards the maximum, since the target capacity
+            # is currently above the maximum.
+            if requested_delta > 0:
+                delta = min(_max - target, requested_delta)
+            elif requested_delta < 0:
+                delta = max(_min - target, requested_delta)
             else:
-                logger.warning(
-                    f'Requested target capacity {requested_target_capacity}; '
-                    f'restricting to {constrained_target_capacity} due to scaling limits.'
-                )
+                delta = 0
+
+            # second, constrain the delta by the max weight to change, depending on if it
+            # it is positive or negative.
+            if delta > 0:
+                delta = min(max_to_add, delta)
+            elif delta < 0:
+                delta = max(-max_to_remove, delta)
+
+            constrained_value = target + delta
+            if requested_delta != delta:
+                if force:
+                    forced_target_capacity = target + requested_delta
+                    logger.warning(
+                        f'Forcing target {resource} to {forced_target_capacity} even though '
+                        f'scaling limits would restrict to {constrained_value}.'
+                    )
+                    constrained_value = forced_target_capacity
+                else:
+                    logger.warning(
+                        f'Requested target {resource} {requested}; '
+                        f'restricting to {constrained_value} due to scaling limits.'
+                    )
+
+            setattr(constrained_target_capacity, resource, constrained_value)
         return constrained_target_capacity
 
     def _choose_nodes_to_prune(
         self,
-        new_target_capacity: float,
-        group_targets: Optional[Mapping[str, float]],
+        new_target_capacity: ClustermanResources,
+        group_targets: Optional[Mapping[str, ClustermanResources]],
     ) -> Mapping[str, List[ClusterNodeMetadata]]:
         """ Choose nodes to kill in order to decrease the capacity on the cluster.
 
@@ -321,8 +361,10 @@ class PoolManager:
             group_targets = {group_id: rg.target_capacity for group_id, rg in self.resource_groups.items()}
 
         curr_capacity = self.fulfilled_capacity
-        # we use new_target_capacity instead of self.target_capacity here in case they are different (see docstring)
-        if curr_capacity <= new_target_capacity:
+
+        # Short circuit: if we're under-scaled on all resources, don't bother with the calculation since it should
+        # return nothing anyway.
+        if curr_capacity.all_le(new_target_capacity):
             return {}
 
         prioritized_killable_nodes = self._get_prioritized_killable_nodes()
@@ -340,10 +382,11 @@ class PoolManager:
         # Iterate through all of the idle agents and mark one at a time for removal until we reach our target capacity
         # or have reached our limit of tasks to kill.
         marked_nodes: Mapping[str, List[ClusterNodeMetadata]] = defaultdict(list)
-        removed_weight, killed_task_count = 0.0, 0
+        removed_resources = ClustermanResources()
+        killed_task_count = 0
         for node_metadata in prioritized_killable_nodes:
             # Try to mark the node for removal; this could fail in a few different ways:
-            #  0) We've gone over our limit for max weight to remove
+            #  0) We've gone over our limit for max resources to remove
             #  1) The resource group the node belongs to can't be reduced further.
             #  2) Killing the node's tasks would take over the maximum number of tasks we are willing to kill.
             #  3) Killing the node would bring us under our target_capacity of non-orphaned nodes.
@@ -351,17 +394,17 @@ class PoolManager:
 
             instance_id = node_metadata.instance.instance_id
             group_id = node_metadata.instance.group_id
-            instance_weight = node_metadata.instance.weight
+            instance_resources = node_metadata.agent.total_resources
 
-            new_group_capacity = rem_group_capacities[group_id] - instance_weight
-            if instance_weight + removed_weight > self.max_weight_to_remove:  # case 0
+            new_group_capacity = rem_group_capacities[group_id] - instance_resources
+            if (instance_resources + removed_resources).any_gt(self.max_capacity_to_remove):  # case 0
                 logger.info(
-                    f'Killing instance {instance_id} with weight {instance_weight} would take us '
-                    f'over our max_weight_to_remove of {self.max_weight_to_remove}. Skipping this instance.'
+                    f'Killing instance {instance_id} with resources {instance_resources} would take us '
+                    f'over our max_capacity_to_remove of {self.max_capacity_to_remove}. Skipping this instance.'
                 )
                 continue
 
-            if new_group_capacity < group_targets[group_id]:  # case 1
+            if new_group_capacity.any_lt(group_targets[group_id]):  # case 1
                 logger.info(
                     f'Resource group {group_id} is at target capacity; skipping {instance_id}'
                 )
@@ -375,79 +418,161 @@ class PoolManager:
                 continue
 
             if node_metadata.agent.state != AgentState.ORPHANED:
-                if (remaining_non_orphan_capacity - instance_weight < new_target_capacity):  # case 3
+                if (remaining_non_orphan_capacity - instance_resources).any_lt(new_target_capacity):  # case 3
                     logger.info(
-                        f'Killing instance {instance_id} with weight {instance_weight} would take us under '
+                        f'Killing instance {instance_id} with resources {instance_resources} would take us under '
                         f'our target_capacity for non-orphan boxes. Skipping this instance.'
                     )
                     continue
 
             logger.info(f'marking {instance_id} for termination')
             marked_nodes[group_id].append(node_metadata)
-            rem_group_capacities[group_id] -= instance_weight
-            curr_capacity -= instance_weight
+            rem_group_capacities[group_id] -= instance_resources
+            curr_capacity -= instance_resources
             killed_task_count += node_metadata.agent.task_count
-            removed_weight += instance_weight
+            removed_resources += instance_resources
             if node_metadata.agent.state != AgentState.ORPHANED:
-                remaining_non_orphan_capacity -= instance_weight
+                remaining_non_orphan_capacity -= instance_resources
 
-            if curr_capacity <= new_target_capacity:
+            if curr_capacity.any_le(new_target_capacity):
                 logger.info("Seems like we've picked enough nodes to kill; finishing")
                 break
 
         return marked_nodes
 
-    def _compute_new_resource_group_targets(self, new_target_capacity: float) -> Mapping[str, float]:
+    def _compute_new_resource_group_actions(self, new_target_capacity: ClustermanResources) -> Mapping[
+        str,
+        ResourceGroupActions,
+    ]:
         """ Compute a balanced distribution of target capacities for the resource groups in the cluster
 
         :param new_target_capacity: the desired new target capacity that needs to be distributed
-        :returns: A list of target_capacity values, sorted in order of resource groups
+        :returns: A dict of resource group ID to a tuple of:
+                  - a list of ClusterNodeMetadata to launch, chosen from the collection returned by
+                  group.scale_up_options() for each resource group.
+                  - a list of ClusterNodeMetadata to terminate, chosen from the collection returned by
+                  self.get_node_metadatas().
         """
 
         stale_groups = [group for group in self.resource_groups.values() if group.is_stale]
         non_stale_groups = [group for group in self.resource_groups.values() if not group.is_stale]
 
         # If we're scaling down the logic is identical but reversed, so we multiply everything by -1
-        coeff = -1 if new_target_capacity < self.target_capacity else 1
-        targets: Dict[str, float] = {g.id: g.target_capacity for g in non_stale_groups}
+        coeff = 1 if new_target_capacity.any_gt(self.target_capacity) else -1
+
+        actions: Dict[str, ResourceGroupActions] = {
+            g.id: ResourceGroupActions([], [], g.target_capacity) for g in non_stale_groups
+        }
 
         # For stale groups, we set target_capacity to 0. This is a noop on SpotFleetResourceGroup.
         for stale_group in stale_groups:
-            targets[stale_group.id] = 0
+            actions[stale_group.id] = ResourceGroupActions([], [], ClustermanResources())
 
-        def is_constrained(group):
+        # when coeff is positive, if any resource is under our target, we need to keep scaling.
+        # when coeff is negative, if any resource is under or at our target, we can stop scaling.
+        def keep_scaling() -> bool:
+            total_target_capacity = sum([a.target_capacity for a in actions.values()], ClustermanResources())
             if coeff > 0:
-                return targets[group.id] + coeff > group.max_capacity
+                return total_target_capacity.any_lt(new_target_capacity)
             else:
-                return targets[group.id] + coeff < group.min_capacity
+                return not total_target_capacity.any_le(new_target_capacity)
 
-        while sum(targets.values()) * coeff < math.ceil(new_target_capacity) * coeff:
+        def valid_options() -> Iterator[Tuple[str, ClusterNodeMetadata]]:
+            """generate the actions we can take without violating constraints, e.g. launch c5.12xlarge in group A,
+            launch m5.9xlarge in group B."""
+
+            total_target_capacity = sum([a.target_capacity for a in actions.values()], ClustermanResources())
+
+            if coeff > 0:
+                for group in non_stale_groups:
+                    for option in group.scale_up_options():
+                        total_with_option = total_target_capacity + option.agent.total_resources
+                        group_with_option = actions[group.id].target_capacity + option.agent.total_resources
+                        # Disqualify options that would push us beyond our limits.
+                        if group_with_option.all_le(group.max_capacity) and total_with_option.all_le(self.max_capacity):
+                            # Only consider an option if it gets us closer to our target.
+                            if total_with_option.clamp(upper_bound=new_target_capacity).any_gt(total_target_capacity):
+                                yield (group.id, option)
+            else:
+                for option in self.get_node_metadatas():
+                    group_id = option.instance.group_id
+                    group = self.resource_groups[group_id]
+
+                    total_with_option = total_target_capacity - option.agent.total_resources
+                    group_with_option = actions[group.id].target_capacity - option.agent.total_resources
+
+                    # Disqualify options that would push us below minimum or new_target_capacity.
+                    if all([
+                        group_with_option.all_ge(group.min_capacity),
+                        total_with_option.all_ge(self.min_capacity),
+                        total_with_option.all_ge(new_target_capacity),
+                    ]):
+                        # Only consider an option if it gets us closer to our target.
+                        if total_with_option.clamp(upper_bound=new_target_capacity).any_lt(total_target_capacity):
+                            yield (group_id, option)
+
+        def heuristic(option: Tuple[str, ClusterNodeMetadata]) -> float:
+            """This heuristic tries to minimize the percentage difference of each resource from our ideal split of
+            resources."""
+            perfectly_balanced = new_target_capacity / len(non_stale_groups)
+            score = 0
+
+            option_group, option_metadata = option
+
+            for balanced_value, group_target_value, change in zip(
+                perfectly_balanced,
+                actions[option_group].target_capacity,
+                option_metadata.agent.total_resources,
+            ):
+                # avoid divide-by-zero errors by ignoring resources with a target of 0.0
+                if balanced_value != 0:
+                    score += (group_target_value + coeff * change - balanced_value)**2 / balanced_value
+                    score -= (group_target_value - balanced_value) ** 2 / balanced_value
+
+            return score
+
+        def apply_option(option: Tuple[str, ClusterNodeMetadata]) -> None:
+            group_id, metadata = option
+            delta = metadata.agent.total_resources
+            actions[group_id].target_capacity += delta * coeff
+            if coeff > 0:
+                actions[group_id].to_launch.append(metadata)
+            else:
+                actions[group_id].to_terminate.append(metadata)
+
+        while True:
+            # List options that don't violate constraints.
+            # Choose the option that balances the groups the best.
+            # What is balanced?
+            # Apply that option. Loop.
+
             try:
-                group = sorted(
-                    [g for g in non_stale_groups if not is_constrained(g)],
-                    key=lambda g: (coeff * targets[g.id], g.id),
-                )[0]
-            except IndexError:
+                option = min(
+                    valid_options(),
+                    key=heuristic,
+                )
+            except ValueError:
                 logger.warning(' '.join([
                     'All resource groups are stale or constrained.',
-                    f'The closest we could get to {new_target_capacity} is {sum(targets.values())}',
+                    f'The closest we could get to {new_target_capacity} is',
+                    f'{sum([a.target_capacity for a in actions.values()], ClustermanResources())}',
                 ]))
                 break
 
-            targets[group.id] += coeff
+            apply_option(option)
 
-        return targets
+        return actions
 
     def get_market_capacities(
         self,
         market_filter: Optional[Collection[InstanceMarket]] = None
-    ) -> Mapping[InstanceMarket, float]:
+    ) -> Mapping[InstanceMarket, ClustermanResources]:
         """ Return the total (fulfilled) capacities in the cluster across all resource groups
 
         :param market_filter: a set of :py:class:`.InstanceMarket` to filter by
         :returns: the total capacity in each of the specified markets
         """
-        total_market_capacities: MutableMapping[InstanceMarket, float] = defaultdict(float)
+        total_market_capacities: MutableMapping[InstanceMarket, ClustermanResources] = defaultdict(ClustermanResources)
         for group in self.resource_groups.values():
             for market, capacity in group.market_capacities.items():
                 if not market_filter or market in market_filter:
@@ -489,28 +614,31 @@ class PoolManager:
             key=sort_key,
         )
 
-    def _calculate_non_orphan_fulfilled_capacity(self) -> float:
+    def _calculate_non_orphan_fulfilled_capacity(self) -> ClustermanResources:
         return sum(
-            node_metadata.instance.weight
-            for node_metadata in self.get_node_metadatas(AWS_RUNNING_STATES)
-            if node_metadata.agent.state not in (AgentState.ORPHANED, AgentState.UNKNOWN)
+            (
+                node_metadata.agent.total_resources
+                for node_metadata in self.get_node_metadatas(AWS_RUNNING_STATES)
+                if node_metadata.agent.state not in (AgentState.ORPHANED, AgentState.UNKNOWN)
+            ),
+            ClustermanResources()
         )
 
     @property
-    def target_capacity(self) -> float:
-        """ The target capacity is the *desired* weighted capacity for the given Mesos cluster pool.  There is no
+    def target_capacity(self) -> ClustermanResources:
+        """ The target capacity is the *desired* resource capacity for the given Mesos cluster pool.  There is no
         guarantee that the actual capacity will equal the target capacity.
         """
         non_stale_groups = [group for group in self.resource_groups.values() if not group.is_stale]
         if not non_stale_groups:
             raise AllResourceGroupsAreStaleError()
-        return sum(group.target_capacity for group in non_stale_groups)
+        return sum((group.target_capacity for group in non_stale_groups), ClustermanResources())
 
     @property
-    def fulfilled_capacity(self) -> float:
-        """ The fulfilled capacity is the *actual* weighted capacity for the given Mesos cluster pool at a particular
+    def fulfilled_capacity(self) -> ClustermanResources:
+        """ The fulfilled capacity is the *actual* resource capacity for the given Mesos cluster pool at a particular
         point in time.  This may be equal to, above, or below the :attr:`target_capacity`, depending on the availability
         and state of AWS at the time.  In general, once the cluster has reached equilibrium, the fulfilled capacity will
         be greater than or equal to the target capacity.
         """
-        return sum(group.fulfilled_capacity for group in self.resource_groups.values())
+        return sum((group.fulfilled_capacity for group in self.resource_groups.values()), ClustermanResources())
