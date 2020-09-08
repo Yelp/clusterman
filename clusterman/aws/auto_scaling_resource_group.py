@@ -118,10 +118,11 @@ class AutoScalingResourceGroup(AWSResourceGroup):
             activity has completed before initiating this one. Defaults to False,
             which is the AWS default for manual scaling activities.
         """
-        # We pretend like stale instances aren't in the ASG, but actually they are so
-        # we have to double-count them in the target capacity computation
 
         target_capacity = self.target_capacity_weight
+        # We pretend like stale instances aren't in the ASG, but actually they are so
+        # we have to double-count them in the target capacity computation
+        target_capacity += self._stale_capacity
         target_capacity += sum(self.market_weight(cnm.instance.market) for cnm in actions.to_launch)
         target_capacity -= sum(self.market_weight(cnm.instance.market) for cnm in actions.to_terminate)
 

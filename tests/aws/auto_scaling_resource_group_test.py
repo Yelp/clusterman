@@ -22,6 +22,7 @@ from clusterman.aws.client import autoscaling
 from clusterman.aws.client import ec2
 from clusterman.aws.markets import InstanceMarket
 from clusterman.exceptions import NoLaunchTemplateConfiguredError
+from clusterman.interfaces.resource_group import ResourceGroupActions
 from clusterman.util import ClustermanResources
 from clusterman.util import DEFAULT_VOLUME_SIZE_GB
 
@@ -116,14 +117,16 @@ def test_mark_stale(mock_asrg, dry_run):
 
 @pytest.mark.parametrize('stale_instances', [0, 7])
 def test_modify_target_capacity_up(mock_asrg, stale_instances):
-    new_desired_capacity = mock_asrg.target_capacity + 5
+    new_desired_capacity = mock_asrg.target_capacity_weight + 5
     with mock.patch(
         'clusterman.aws.auto_scaling_resource_group.AutoScalingResourceGroup.stale_instance_ids',
         mock.PropertyMock(return_value=mock_asrg.instance_ids[:stale_instances])
+    ), mock.patch(
+        'clusterman.aws.auto_scaling_resource_group.AutoScalingResourceGroup.market_weight',
+        return_value=(new_desired_capacity - mock_asrg.target_capacity_weight),
     ):
-
         mock_asrg.modify_target_capacity(
-            new_desired_capacity,
+            ResourceGroupActions([mock.Mock()], [], mock.Mock()),
             dry_run=False,
             honor_cooldown=False,
         )
@@ -134,15 +137,18 @@ def test_modify_target_capacity_up(mock_asrg, stale_instances):
 
 @pytest.mark.parametrize('stale_instances', [0, 7])
 def test_modify_target_capacity_down(mock_asrg, stale_instances):
-    old_target_capacity = mock_asrg.target_capacity
-    new_target_capacity = old_target_capacity - 5
+    old_target_capacity = mock_asrg.target_capacity_weight
+    new_desired_capacity = old_target_capacity - 5
 
     with mock.patch(
         'clusterman.aws.auto_scaling_resource_group.AutoScalingResourceGroup.stale_instance_ids',
         mock.PropertyMock(return_value=mock_asrg.instance_ids[:stale_instances])
+    ), mock.patch(
+        'clusterman.aws.auto_scaling_resource_group.AutoScalingResourceGroup.market_weight',
+        return_value=(mock_asrg.target_capacity_weight - new_desired_capacity),
     ):
         mock_asrg.modify_target_capacity(
-            new_target_capacity,
+            ResourceGroupActions([], [mock.Mock()], mock.Mock()),
             dry_run=False,
             honor_cooldown=False,
         )
@@ -150,26 +156,45 @@ def test_modify_target_capacity_down(mock_asrg, stale_instances):
         new_config = mock_asrg._get_auto_scaling_group_config()
         # because some instances are stale, we might have to _increase_ our "real" target capacity
         # even if we're decreasing our _requested_ target capacity
-        assert new_config['DesiredCapacity'] == new_target_capacity + stale_instances
+        assert new_config['DesiredCapacity'] == new_desired_capacity + stale_instances
 
 
-@pytest.mark.parametrize('new_desired_capacity', [0, 100])
-def test_modify_target_capacity_min_max(
+def test_modify_target_capacity_min(
     mock_asrg,
     mock_asg_config,
-    new_desired_capacity,
 ):
-    mock_asrg.modify_target_capacity(
-        new_desired_capacity,
-        dry_run=False,
-        honor_cooldown=False,
-    )
+    new_desired_capacity = 0
+    with mock.patch(
+        'clusterman.aws.auto_scaling_resource_group.AutoScalingResourceGroup.market_weight',
+        return_value=(mock_asrg.target_capacity_weight - new_desired_capacity),
+    ):
+        mock_asrg.modify_target_capacity(
+            ResourceGroupActions([], [mock.Mock()], mock.Mock()),
+            dry_run=False,
+            honor_cooldown=False,
+        )
 
     new_config = mock_asrg._get_auto_scaling_group_config()
-    if new_desired_capacity < mock_asg_config['MinSize']:
-        assert new_config['DesiredCapacity'] == mock_asg_config['MinSize']
-    elif new_desired_capacity > mock_asg_config['MaxSize']:
-        assert new_config['DesiredCapacity'] == mock_asg_config['MaxSize']
+    assert new_config['DesiredCapacity'] == mock_asg_config['MinSize']
+
+
+def test_modify_target_capacity_max(
+    mock_asrg,
+    mock_asg_config,
+):
+    new_desired_capacity = 100
+    with mock.patch(
+        'clusterman.aws.auto_scaling_resource_group.AutoScalingResourceGroup.market_weight',
+        return_value=(new_desired_capacity - mock_asrg.target_capacity_weight),
+    ):
+        mock_asrg.modify_target_capacity(
+            ResourceGroupActions([mock.Mock()], [], mock.Mock()),
+            dry_run=False,
+            honor_cooldown=False,
+        )
+
+    new_config = mock_asrg._get_auto_scaling_group_config()
+    assert new_config['DesiredCapacity'] == mock_asg_config['MaxSize']
 
 
 def test_get_scale_up_options_no_launch_template(mock_asrg):
