@@ -211,7 +211,7 @@ def test_get_scale_up_options_no_override(mock_asrg, overrides):
     assert mock_asrg._get_options_for_instance_type.call_args == (
         mock.call('t2.2xlarge')
         if not overrides
-        else mock.call('m4.5xlarge', 4.0)
+        else mock.call('m4.5xlarge')
     )
 
 
