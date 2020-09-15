@@ -82,7 +82,7 @@ class Autoscaler:
         gauge_dimensions = {'cluster': cluster, 'pool': pool}
         monitoring_client = get_monitoring_client()
         self.target_capacity_gauges: Dict[str, Any] = {}
-        for resource in ('cpus', 'mem', 'disk', 'gpus'):
+        for resource in ClustermanResources._fields:
             self.target_capacity_gauges[resource] = monitoring_client.create_gauge(
                 TARGET_CAPACITY_GAUGE_NAME.format(resource=resource),
                 gauge_dimensions,
@@ -160,10 +160,8 @@ class Autoscaler:
             pass
         else:
             new_target_capacity = self._compute_target_capacity(resource_request)
-            self.target_capacity_gauges['cpus'].set(new_target_capacity.cpus, {'dry_run': dry_run})
-            self.target_capacity_gauges['mem'].set(new_target_capacity.mem, {'dry_run': dry_run})
-            self.target_capacity_gauges['disk'].set(new_target_capacity.disk, {'dry_run': dry_run})
-            self.target_capacity_gauges['gpus'].set(new_target_capacity.gpus, {'dry_run': dry_run})
+            for resource in ClustermanResources._fields:
+                self.target_capacity_gauges[resource].set(getattr(new_target_capacity, resource), {'dry_run': dry_run})
             self._emit_requested_resource_metrics(resource_request, dry_run=dry_run)
 
         self.pool_manager.modify_target_capacity(new_target_capacity, dry_run=dry_run)
