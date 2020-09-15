@@ -22,6 +22,7 @@ from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.client import ec2
 from clusterman.aws.markets import InstanceMarket
 from clusterman.interfaces.types import ClusterNodeMetadata
+from clusterman.util import ClustermanResources
 
 
 class MockResourceGroup(AWSResourceGroup):
@@ -60,7 +61,7 @@ class MockResourceGroup(AWSResourceGroup):
 
     @property
     def _target_capacity(self):
-        return 5
+        return 5 * ClustermanResources.from_instance_type('c3.4xlarge')
 
     @classmethod
     def _get_resource_group_tags(cls):
@@ -198,14 +199,15 @@ def test_protect_unowned_instances(mock_resource_group):
 
 def test_market_capacities(mock_resource_group):
     assert mock_resource_group.market_capacities == {
-        InstanceMarket('c3.4xlarge', 'us-west-2a'): 5
+        InstanceMarket('c3.4xlarge', 'us-west-2a'): 5 * ClustermanResources.from_instance_type('c3.4xlarge'),
     }
 
 
 @pytest.mark.parametrize('is_stale', [True, False])
 def test_target_capacity(mock_resource_group, is_stale):
     with mock.patch(f'{__name__}.MockResourceGroup.is_stale', mock.PropertyMock(return_value=is_stale)):
-        assert mock_resource_group.target_capacity == 0 if is_stale else 5
+        assert mock_resource_group.target_capacity == (ClustermanResources(
+        ) if is_stale else 5 * ClustermanResources.from_instance_type('c3.4xlarge'))
 
 
 def test_get_node_metadatas(mock_resource_group):
@@ -225,4 +227,3 @@ def test_get_node_metadatas(mock_resource_group):
         assert instance_metadata.ip_address == ips[i]
         assert instance_metadata.market.instance == 'c3.4xlarge'
         assert instance_metadata.state == 'running'
-        assert instance_metadata.weight == 1
