@@ -38,10 +38,10 @@ def test_agent_pid_to_ip():
 
 
 def test_allocated_agent_resources(mock_agents_response):
-    assert allocated_agent_resources(mock_agents_response.json()['slaves'][0])[0] == 0
-    assert allocated_agent_resources(mock_agents_response.json()['slaves'][1])[0] == 0
-    assert allocated_agent_resources(mock_agents_response.json()['slaves'][2])[0] == 10
-    assert allocated_agent_resources(mock_agents_response.json()['slaves'][2])[1] == 20
+    assert allocated_agent_resources(mock_agents_response.json()['slaves'][0]).cpus == 0
+    assert allocated_agent_resources(mock_agents_response.json()['slaves'][1]).cpus == 0
+    assert allocated_agent_resources(mock_agents_response.json()['slaves'][2]).cpus == 10
+    assert allocated_agent_resources(mock_agents_response.json()['slaves'][2]).mem == 20
 
 
 @mock.patch('clusterman.mesos.util.mesos_post', wraps=mesos_post)
