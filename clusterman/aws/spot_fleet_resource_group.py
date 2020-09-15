@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import math
 from typing import Any
 from typing import cast
 from typing import Dict
@@ -91,7 +92,7 @@ class SpotFleetResourceGroup(AWSResourceGroup):
 
         kwargs = {
             'SpotFleetRequestId': self.group_id,
-            'TargetCapacity': target_capacity,
+            'TargetCapacity': int(math.ceil(target_capacity)),
             'ExcessCapacityTerminationPolicy': 'NoTermination',
         }
         logger.info(f'Modifying spot fleet request with arguments: {kwargs}')
@@ -116,6 +117,7 @@ class SpotFleetResourceGroup(AWSResourceGroup):
         )
         return min(resources / self._estimate_capacity_per_weight)
 
+    @property
     def instance_ids(self) -> Sequence[str]:
         """ Responses from this API call are cached to prevent hitting any AWS request limits """
         return [
@@ -127,7 +129,7 @@ class SpotFleetResourceGroup(AWSResourceGroup):
     def _instances(self) -> Sequence[Dict]:
         """ Responses from this API call are cached to prevent hitting any AWS request limits """
         return [
-            instance['InstanceId']
+            instance
             for page in ec2.get_paginator('describe_spot_fleet_instances').paginate(SpotFleetRequestId=self.group_id)
             for instance in page['ActiveInstances']
             if instance is not None

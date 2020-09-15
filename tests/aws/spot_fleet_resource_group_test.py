@@ -24,6 +24,8 @@ from clusterman.aws.markets import InstanceMarket
 from clusterman.aws.spot_fleet_resource_group import load_spot_fleets_from_s3
 from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
 from clusterman.exceptions import ResourceGroupError
+from clusterman.interfaces.resource_group import ResourceGroupActions
+from clusterman.util import ClustermanResources
 
 
 @pytest.fixture
@@ -148,7 +150,10 @@ def test_get_spot_fleet_request_tags(mock_sfr_response):
 # inside moto.  So if moto's implementation changes, these tests could break.  However, I still think
 # these tests cover important functionality, and I can't think of a way to make them less brittle.
 def test_fulfilled_capacity(mock_spot_fleet_resource_group):
-    assert mock_spot_fleet_resource_group.fulfilled_capacity == 11
+    assert mock_spot_fleet_resource_group.fulfilled_capacity == (
+        4 * ClustermanResources.from_instance_type('c3.8xlarge') +
+        3 * ClustermanResources.from_instance_type('i2.4xlarge')
+    )
 
 
 def test_modify_target_capacity_stale(mock_spot_fleet_resource_group):
@@ -159,35 +164,60 @@ def test_modify_target_capacity_stale(mock_spot_fleet_resource_group):
             ],
         }
         mock_spot_fleet_resource_group.modify_target_capacity(20)
-        assert mock_spot_fleet_resource_group.target_capacity == 0
+        assert mock_spot_fleet_resource_group.target_capacity == ClustermanResources()
 
 
 def test_modify_target_capacity_up(mock_spot_fleet_resource_group):
-    mock_spot_fleet_resource_group.modify_target_capacity(20)
-    assert mock_spot_fleet_resource_group.target_capacity == 20
+    mock_spot_fleet_resource_group.modify_target_capacity(
+        ResourceGroupActions(
+            to_launch=[mock.Mock(instance=mock.Mock(market=InstanceMarket('c3.8xlarge', 'us-west-2a')))] * 5,
+            to_terminate=[],
+            target_capacity=20,  # currently unused.
+        ),
+    )
+    assert mock_spot_fleet_resource_group.target_capacity_weight == 20
     assert len(mock_spot_fleet_resource_group.instance_ids) == 13
 
 
 def test_modify_target_capacity_down(mock_spot_fleet_resource_group):
-    mock_spot_fleet_resource_group.modify_target_capacity(5)
-    assert mock_spot_fleet_resource_group.target_capacity == 5
-    assert mock_spot_fleet_resource_group.fulfilled_capacity == 11
+    mock_spot_fleet_resource_group.modify_target_capacity(
+        ResourceGroupActions(
+            to_launch=[],
+            to_terminate=[mock.Mock(instance=mock.Mock(market=InstanceMarket('i2.4xlarge', 'us-west-2a')))] * 5,
+            target_capacity=5,  # currently unused.
+        ),
+    )
+    assert mock_spot_fleet_resource_group.target_capacity_weight == 5
+    assert mock_spot_fleet_resource_group.fulfilled_capacity_weight == 11
     assert len(mock_spot_fleet_resource_group.instance_ids) == 7
 
 
 def test_modify_target_capacity_dry_run(mock_spot_fleet_resource_group):
-    mock_spot_fleet_resource_group.modify_target_capacity(5, dry_run=True)
-    assert mock_spot_fleet_resource_group.target_capacity == 10
-    assert mock_spot_fleet_resource_group.fulfilled_capacity == 11
+    mock_spot_fleet_resource_group.modify_target_capacity(
+        ResourceGroupActions(
+            to_launch=[],
+            to_terminate=[mock.Mock(instance=mock.Mock(market=InstanceMarket('i2.4xlarge', 'us-west-2a')))] * 5,
+            target_capacity=5,  # currently unused.
+        ),
+        dry_run=True,
+    )
+    assert mock_spot_fleet_resource_group.target_capacity_weight == 10
+    assert mock_spot_fleet_resource_group.fulfilled_capacity_weight == 11
 
 
 def test_modify_target_capacity_error(mock_spot_fleet_resource_group):
     with mock.patch('clusterman.aws.spot_fleet_resource_group.ec2.modify_spot_fleet_request') as mock_modify, \
             pytest.raises(ResourceGroupError):
         mock_modify.return_value = {'Return': False}
-        mock_spot_fleet_resource_group.modify_target_capacity(5)
-    assert mock_spot_fleet_resource_group.target_capacity == 10
-    assert mock_spot_fleet_resource_group.fulfilled_capacity == 11
+        mock_spot_fleet_resource_group.modify_target_capacity(
+            ResourceGroupActions(
+                to_launch=[],
+                to_terminate=[mock.Mock(instance=mock.Mock(market=InstanceMarket('i2.4xlarge', 'us-west-2a')))] * 5,
+                target_capacity=5,  # currently unused.
+            ),
+        )
+    assert mock_spot_fleet_resource_group.target_capacity_weight == 10
+    assert mock_spot_fleet_resource_group.fulfilled_capacity_weight == 11
 
 
 def test_instances(mock_spot_fleet_resource_group):
@@ -196,8 +226,14 @@ def test_instances(mock_spot_fleet_resource_group):
 
 def test_market_capacities(mock_spot_fleet_resource_group, mock_subnet):
     assert mock_spot_fleet_resource_group.market_capacities == {
-        InstanceMarket('c3.8xlarge', mock_subnet['Subnet']['AvailabilityZone']): 8,
-        InstanceMarket('i2.4xlarge', mock_subnet['Subnet']['AvailabilityZone']): 3,
+        InstanceMarket(
+            'c3.8xlarge',
+            mock_subnet['Subnet']['AvailabilityZone'],
+        ): 4 * ClustermanResources.from_instance_type('c3.8xlarge'),
+        InstanceMarket(
+            'i2.4xlarge',
+            mock_subnet['Subnet']['AvailabilityZone'],
+        ): 3 * ClustermanResources.from_instance_type('i2.4xlarge'),
     }
 
 
