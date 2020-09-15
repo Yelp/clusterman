@@ -22,6 +22,7 @@ from clusterman.cli.manage import get_target_capacity_value
 from clusterman.cli.manage import LOG_TEMPLATE
 from clusterman.cli.manage import main
 from clusterman.cli.manage import mark_stale
+from clusterman.util import ClustermanResources
 
 
 @pytest.fixture
@@ -38,24 +39,32 @@ def args():
 
 @pytest.fixture
 def mock_pool_manager():
-    return mock.Mock(cluster='mesos-test', pool='bar', scheduler='mesos', spec=PoolManager)
+    return mock.Mock(
+        cluster='mesos-test',
+        pool='bar',
+        scheduler='mesos',
+        spec=PoolManager,
+        min_capacity=ClustermanResources(3),
+        max_capacity=ClustermanResources(345),
+        target_capacity=ClustermanResources(321),
+    )
 
 
-def test_get_target_capacity_value_min():
-    assert get_target_capacity_value('mIN', 'bar', 'mesos') == 3
+def test_get_target_capacity_value_min(mock_pool_manager):
+    assert get_target_capacity_value('mIN', mock_pool_manager) == ClustermanResources(3)
 
 
-def test_get_target_capacity_value_max():
-    assert get_target_capacity_value('mAx', 'bar', 'mesos') == 345
+def test_get_target_capacity_value_max(mock_pool_manager):
+    assert get_target_capacity_value('mAx', mock_pool_manager) == ClustermanResources(345)
 
 
-def test_get_target_capacity_value_number():
-    assert get_target_capacity_value('123', 'bar', 'mesos') == 123
+def test_get_target_capacity_value_number(mock_pool_manager):
+    assert get_target_capacity_value('{"cpus": 123}', mock_pool_manager) == ClustermanResources(123)
 
 
-def test_get_target_capacity_value_invalid():
+def test_get_target_capacity_value_invalid(mock_pool_manager):
     with pytest.raises(ValueError):
-        get_target_capacity_value('asdf', 'bar', 'mesos')
+        get_target_capacity_value('asdf', mock_pool_manager)
 
 
 @mock.patch('clusterman.cli.manage.ask_for_confirmation')
