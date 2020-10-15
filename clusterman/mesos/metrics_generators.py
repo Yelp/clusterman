@@ -21,17 +21,27 @@ from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.util import get_cluster_dimensions
 
 
+GPU_RESOURCE_NAME = {
+    'kubernetes': 'nvidia.com/gpu',
+    'mesos': 'gpus',
+}
+
+
 SYSTEM_METRICS = {
     'cpus_allocated': lambda manager: manager.cluster_connector.get_resource_allocation('cpus'),
     'mem_allocated': lambda manager: manager.cluster_connector.get_resource_allocation('mem'),
     'disk_allocated': lambda manager: manager.cluster_connector.get_resource_allocation('disk'),
-    'gpus_allocated': lambda manager: manager.cluster_connector.get_resource_allocation('gpus'),
+    'gpus_allocated': lambda manager: manager.cluster_connector.get_resource_allocation(
+        GPU_RESOURCE_NAME.get(manager.scheduler),
+    ),
 }
 SIMPLE_METADATA = {
     'cpus_total': lambda manager: manager.cluster_connector.get_resource_total('cpus'),
     'mem_total': lambda manager: manager.cluster_connector.get_resource_total('mem'),
     'disk_total': lambda manager: manager.cluster_connector.get_resource_total('disk'),
-    'gpus_total': lambda manager: manager.cluster_connector.get_resource_total('gpus'),
+    'gpus_total': lambda manager: manager.cluster_connector.get_resource_total(
+        GPU_RESOURCE_NAME.get(manager.scheduler),
+    ),
     'target_capacity': lambda manager: manager.target_capacity,
     'fulfilled_capacity': lambda manager: {str(market): value for market,
                                            value in manager.get_market_capacities().items()},
@@ -42,7 +52,7 @@ KUBERNETES_METRICS = {
     'cpus_pending': lambda manager: manager.cluster_connector.get_resource_pending('cpus'),
     'mem_pending': lambda manager: manager.cluster_connector.get_resource_pending('mem'),
     'disk_pending': lambda manager: manager.cluster_connector.get_resource_pending('disk'),
-    'gpus_pending': lambda manager: manager.cluster_connector.get_resource_pending('gpus'),
+    'gpus_pending': lambda manager: manager.cluster_connector.get_resource_pending('nvidia.com/gpu'),
 }
 
 
