@@ -19,6 +19,19 @@ import pytest
 import staticconf.testing
 from clusterman_metrics import APP_METRICS
 from clusterman_metrics import SYSTEM_METRICS
+from kubernetes.client import V1Container
+from kubernetes.client import V1ObjectMeta
+from kubernetes.client import V1Pod
+from kubernetes.client import V1PodCondition
+from kubernetes.client import V1PodSpec
+from kubernetes.client import V1PodStatus
+from kubernetes.client import V1ResourceRequirements
+from kubernetes.client.models.v1_affinity import V1Affinity
+from kubernetes.client.models.v1_node_affinity import V1NodeAffinity
+from kubernetes.client.models.v1_node_selector import V1NodeSelector
+from kubernetes.client.models.v1_node_selector_requirement import V1NodeSelectorRequirement
+from kubernetes.client.models.v1_node_selector_term import V1NodeSelectorTerm
+from kubernetes.client.models.v1_preferred_scheduling_term import V1PreferredSchedulingTerm
 
 from clusterman.config import CREDENTIALS_NAMESPACE
 from clusterman.math.piecewise import PiecewiseConstantFunction
@@ -211,3 +224,150 @@ def block_meteorite_emission():
 @pytest.fixture
 def fn():
     return PiecewiseConstantFunction(1)
+
+
+@pytest.fixture
+def pod1():
+    return V1Pod(
+        metadata=V1ObjectMeta(name='pod1'),
+        status=V1PodStatus(phase='Running'),
+        spec=V1PodSpec(containers=[
+               V1Container(
+                    name='container1',
+                    resources=V1ResourceRequirements(requests={'cpu': '1.5'})
+                )
+            ]
+        )
+    )
+
+
+@pytest.fixture
+def pod2():
+    return V1Pod(
+        metadata=V1ObjectMeta(name='pod2', annotations={'clusterman.com/safe_to_evict': 'false'}),
+        status=V1PodStatus(phase='Running'),
+        spec=V1PodSpec(containers=[
+               V1Container(
+                    name='container1',
+                    resources=V1ResourceRequirements(requests={'cpu': '1.5'})
+                )
+            ]
+        )
+    )
+
+
+@pytest.fixture
+def pod3():
+    return V1Pod(
+        metadata=V1ObjectMeta(name='pod3', annotations=dict()),
+        status=V1PodStatus(
+            phase='Pending',
+            conditions=[
+                V1PodCondition(status='False', type='PodScheduled', reason='Unschedulable')
+            ]
+        ),
+        spec=V1PodSpec(
+            containers=[
+                V1Container(
+                    name='container2',
+                    resources=V1ResourceRequirements(requests={'cpu': '1.5'})
+                )
+            ],
+            node_selector={'clusterman.com/pool': 'bar'}
+        )
+    )
+
+
+@pytest.fixture
+def pod5():
+    return V1Pod(
+        metadata=V1ObjectMeta(name='pod5', annotations=dict()),
+        status=V1PodStatus(
+            phase='Pending',
+            conditions=None,
+        ),
+        spec=V1PodSpec(
+            containers=[
+                V1Container(
+                    name='container2',
+                    resources=V1ResourceRequirements(requests={'cpu': '1.5'})
+                )
+            ],
+            node_selector={'clusterman.com/pool': 'bar'}
+        )
+    )
+
+
+@pytest.fixture
+def pod6():
+    return V1Pod(
+        spec=V1PodSpec(
+            containers=[
+                V1Container(
+                    name='container',
+                    resources=V1ResourceRequirements(requests={'cpu': '1.5'})
+                )
+            ],
+            affinity=V1Affinity(
+                node_affinity=V1NodeAffinity(
+                    required_during_scheduling_ignored_during_execution=V1NodeSelector(
+                        node_selector_terms=[
+                            V1NodeSelectorTerm(
+                                match_expressions=[
+                                    V1NodeSelectorRequirement(
+                                        key='clusterman.com/pool',
+                                        operator='In',
+                                        values=['bar']
+                                    )
+                                ]
+                            )
+                        ]
+                    )
+                )
+            )
+        )
+    )
+
+
+@pytest.fixture
+def pod7():
+    return V1Pod(
+        spec=V1PodSpec(
+            containers=[
+                V1Container(
+                    name='container',
+                    resources=V1ResourceRequirements(requests={'cpu': '1.5'})
+                )
+            ],
+            affinity=V1Affinity(
+                node_affinity=V1NodeAffinity(
+                    required_during_scheduling_ignored_during_execution=V1NodeSelector(
+                        node_selector_terms=[
+                            V1NodeSelectorTerm(
+                                match_expressions=[
+                                    V1NodeSelectorRequirement(
+                                        key='clusterman.com/scheduler',
+                                        operator='Exists'
+                                    )
+                                ]
+                            )
+                        ]
+                    ),
+                    preferred_during_scheduling_ignored_during_execution=[
+                        V1PreferredSchedulingTerm(
+                            weight=10,
+                            preference=V1NodeSelectorTerm(
+                                match_expressions=[
+                                    V1NodeSelectorRequirement(
+                                        key='clusterman.com/pool',
+                                        operator='In',
+                                        values=['bar']
+                                    )
+                                ]
+                            )
+                        )
+                    ]
+                )
+            )
+        )
+    )

@@ -1,8 +1,11 @@
 import enum
+from typing import List
+from typing import Mapping
 from typing import NamedTuple
 from typing import Optional
 
 import arrow
+from kubernetes.client.models.v1_taint import V1Taint as KubernetesTaint
 
 from clusterman.aws.markets import InstanceMarket
 from clusterman.util import ClustermanResources
@@ -20,9 +23,13 @@ class AgentMetadata(NamedTuple):
     allocated_resources: ClustermanResources = ClustermanResources()
     batch_task_count: int = 0
     is_safe_to_kill: bool = True
+    labels: Mapping[str, str] = {}
+    max_tasks: Optional[int] = None
     state: AgentState = AgentState.UNKNOWN
+    taints: List[KubernetesTaint] = []
     task_count: int = 0
     total_resources: ClustermanResources = ClustermanResources()
+    unschedulable: bool = False
 
 
 class InstanceMetadata(NamedTuple):
