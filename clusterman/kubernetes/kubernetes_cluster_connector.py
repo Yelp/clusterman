@@ -97,7 +97,7 @@ class KubernetesClusterConnector(ClusterConnector):
             for node in self._nodes_by_ip.values()
         )
         if excluded_total > 0:
-            logger.debug(f'Excluded {excluded_total} {resource_name} from total resources by config')
+            logger.info(f'Excluded {excluded_total} {resource_name} from total resources')
         return base_total - excluded_total
 
     def get_unschedulable_pods(self) -> List[Tuple[KubernetesPod, PodUnschedulableReason]]:
