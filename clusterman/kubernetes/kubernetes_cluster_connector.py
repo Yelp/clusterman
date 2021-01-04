@@ -87,18 +87,18 @@ class KubernetesClusterConnector(ClusterConnector):
         )
 
     def get_resource_total(self, resource_name: str) -> float:
-        # Total node resources minus any allocated resources to excluded pods
-        base_total = sum(
-            getattr(total_node_resources(node), resource_name)
-            for node in self._nodes_by_ip.values()
+        if self._excluded_pods_by_ip:
+            logger.info(f'Excluded {self.get_resource_excluded(resource_name)} {resource_name} from daemonset pods')
+        return sum(
+            getattr(total_node_resources(node, self._excluded_pods_by_ip.get(node_ip, [])), resource_name)
+            for node_ip, node in self._nodes_by_ip.items()
         )
-        excluded_total = sum(
-            getattr(allocated_node_resources(self._excluded_pods_by_ip[get_node_ip(node)]), resource_name)
-            for node in self._nodes_by_ip.values()
+
+    def get_resource_excluded(self, resource_name: str) -> float:
+        return sum(
+            getattr(allocated_node_resources(self._excluded_pods_by_ip.get(node_ip, [])), resource_name)
+            for node_ip in self._nodes_by_ip.keys()
         )
-        if excluded_total > 0:
-            logger.info(f'Excluded {excluded_total} {resource_name} from total resources')
-        return base_total - excluded_total
 
     def get_unschedulable_pods(self) -> List[Tuple[KubernetesPod, PodUnschedulableReason]]:
         unschedulable_pods = []
@@ -155,8 +155,11 @@ class KubernetesClusterConnector(ClusterConnector):
         pod_resource_request = total_pod_resources(pod)
         for node_ip, pods_on_node in self._pods_by_ip.items():
             node = self._nodes_by_ip.get(node_ip)
-            if node and pod_resource_request < total_node_resources(node) - allocated_node_resources(pods_on_node):
-                return PodUnschedulableReason.Unknown
+            if node:
+                available_node_resources = (total_node_resources(node, self._excluded_pods_by_ip.get(
+                    node_ip, [])) - allocated_node_resources(pods_on_node))
+                if pod_resource_request < available_node_resources:
+                    return PodUnschedulableReason.Unknown
 
         return PodUnschedulableReason.InsufficientResources
 
@@ -171,7 +174,7 @@ class KubernetesClusterConnector(ClusterConnector):
             batch_task_count=self._count_batch_tasks(node_ip),
             state=(AgentState.RUNNING if self._pods_by_ip[node_ip] else AgentState.IDLE),
             task_count=len(self._pods_by_ip[node_ip]),
-            total_resources=total_node_resources(node),
+            total_resources=total_node_resources(node, self._excluded_pods_by_ip.get(node_ip, [])),
         )
 
     def _is_node_safe_to_kill(self, node_ip: str) -> bool:

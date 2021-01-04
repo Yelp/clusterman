@@ -148,9 +148,10 @@ debug:
 	docker build . -t clusterman_debug_container
 	paasta_docker_wrapper run -it \
 		-v $(shell pwd)/clusterman:/code/clusterman:rw \
+		-v $(shell pwd)/clusterman.conf:/var/lib/clusterman/clusterman.conf:rw \
 		-v $(shell pwd)/.cman_debug_bashrc:/home/nobody/.bashrc:ro \
-		-v /nail/srv/configs:/nail/srv/configs:ro \
 		-v $(shell pwd)/etc-kubernetes:/etc/kubernetes:ro \
+		-v /nail/srv/configs:/nail/srv/configs:ro \
 		-v /nail/etc/services:/nail/etc/services:ro \
 		-v /etc/boto_cfg:/etc/boto_cfg:ro \
 		-e "CMAN_CLUSTER=kubestage" \
