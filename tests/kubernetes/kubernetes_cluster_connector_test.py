@@ -18,6 +18,7 @@ import pytest
 from kubernetes.client import V1Container
 from kubernetes.client import V1NodeStatus
 from kubernetes.client import V1ObjectMeta
+from kubernetes.client import V1OwnerReference
 from kubernetes.client import V1Pod
 from kubernetes.client import V1PodCondition
 from kubernetes.client import V1PodSpec
@@ -33,6 +34,7 @@ from kubernetes.client.models.v1_node_selector_term import V1NodeSelectorTerm
 from kubernetes.client.models.v1_preferred_scheduling_term import V1PreferredSchedulingTerm
 from staticconf.testing import PatchConfiguration
 
+from clusterman.config import POOL_NAMESPACE
 from clusterman.interfaces.types import AgentState
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
 
@@ -40,7 +42,7 @@ from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesCluster
 @pytest.fixture
 def running_pod_1():
     return V1Pod(
-        metadata=V1ObjectMeta(name='running_pod_1'),
+        metadata=V1ObjectMeta(name='running_pod_1', owner_references=[]),
         status=V1PodStatus(phase='Running', host_ip='10.10.10.2'),
         spec=V1PodSpec(containers=[
                V1Container(
@@ -56,7 +58,7 @@ def running_pod_1():
 @pytest.fixture
 def running_pod_2():
     return V1Pod(
-        metadata=V1ObjectMeta(name='running_pod_2'),
+        metadata=V1ObjectMeta(name='running_pod_2', owner_references=[]),
         status=V1PodStatus(phase='Running', host_ip='10.10.10.3'),
         spec=V1PodSpec(containers=[
                V1Container(
@@ -72,7 +74,7 @@ def running_pod_2():
 @pytest.fixture
 def running_pod_on_nonexistent_node():
     return V1Pod(
-        metadata=V1ObjectMeta(name='running_pod_on_nonexistent_node'),
+        metadata=V1ObjectMeta(name='running_pod_on_nonexistent_node', owner_references=[]),
         status=V1PodStatus(phase='Running', host_ip='10.10.10.4'),
         spec=V1PodSpec(containers=[
                V1Container(
@@ -88,7 +90,11 @@ def running_pod_on_nonexistent_node():
 @pytest.fixture
 def unevictable_pod():
     return V1Pod(
-        metadata=V1ObjectMeta(name='unevictable_pod', annotations={'clusterman.com/safe_to_evict': 'false'}),
+        metadata=V1ObjectMeta(
+            name='unevictable_pod',
+            annotations={'clusterman.com/safe_to_evict': 'false'},
+            owner_references=[]
+        ),
         status=V1PodStatus(phase='Running', host_ip='10.10.10.2'),
         spec=V1PodSpec(containers=[
                V1Container(
@@ -103,7 +109,7 @@ def unevictable_pod():
 @pytest.fixture
 def unschedulable_pod():
     return V1Pod(
-        metadata=V1ObjectMeta(name='unschedulable_pod', annotations=dict()),
+        metadata=V1ObjectMeta(name='unschedulable_pod', annotations=dict(), owner_references=[]),
         status=V1PodStatus(
             phase='Pending',
             conditions=[
@@ -125,7 +131,7 @@ def unschedulable_pod():
 @pytest.fixture
 def pending_pod():
     return V1Pod(
-        metadata=V1ObjectMeta(name='pending_pod', annotations=dict()),
+        metadata=V1ObjectMeta(name='pending_pod', annotations=dict(), owner_references=[]),
         status=V1PodStatus(
             phase='Pending',
             conditions=None,
@@ -138,6 +144,28 @@ def pending_pod():
                 )
             ],
             node_selector={'clusterman.com/pool': 'bar'}
+        )
+    )
+
+
+@pytest.fixture
+def daemonset_pod():
+    return V1Pod(
+        metadata=V1ObjectMeta(
+            name='daemonset_pod',
+            annotations=dict(),
+            owner_references=[V1OwnerReference(kind='DaemonSet', api_version='foo', name='daemonset', uid='bar')]),
+        status=V1PodStatus(
+            phase='Running',
+            host_ip='10.10.10.2',
+        ),
+        spec=V1PodSpec(
+            containers=[
+                V1Container(
+                    name='container1',
+                    resources=V1ResourceRequirements(requests={'cpu': '1.5'})
+                )
+            ],
         )
     )
 
@@ -237,6 +265,7 @@ def mock_cluster_connector(
     unevictable_pod,
     unschedulable_pod,
     pending_pod,
+    daemonset_pod,
 ):
     with mock.patch(
         'clusterman.kubernetes.kubernetes_cluster_connector.kubernetes',
@@ -278,6 +307,7 @@ def mock_cluster_connector(
             unevictable_pod,
             unschedulable_pod,
             pending_pod,
+            daemonset_pod,
         ]
         mock_cluster_connector = KubernetesClusterConnector('kubernetes-test', 'bar')
         mock_cluster_connector.reload_state()
@@ -297,7 +327,18 @@ def test_get_agent_metadata(mock_cluster_connector, ip_address, expected_state):
 
 
 def test_allocation(mock_cluster_connector):
-    assert mock_cluster_connector.get_resource_allocation('cpus') == 6.0
+    assert mock_cluster_connector.get_resource_allocation('cpus') == 7.5
+
+
+def test_allocation_with_excluded_pods(mock_cluster_connector, daemonset_pod):
+    with PatchConfiguration({'exclude_daemonset_pods': True},
+                            namespace=POOL_NAMESPACE.format(pool=mock_cluster_connector.pool,
+                                                            scheduler=mock_cluster_connector.SCHEDULER)
+                            ):
+        mock_cluster_connector.reload_state()
+        assert daemonset_pod not in mock_cluster_connector._pods_by_ip['10.10.10.2']
+        assert mock_cluster_connector.get_resource_total('cpus') == 10
+        assert mock_cluster_connector.get_resource_allocation('cpus') == 6
 
 
 def test_total_cpus(mock_cluster_connector):
@@ -310,6 +351,11 @@ def test_get_unschedulable_pods(mock_cluster_connector):
 
 def test_pending_cpus(mock_cluster_connector):
     assert mock_cluster_connector.get_resource_pending('cpus') == 1.5
+
+
+def test_pod_belongs_to_daemonset(mock_cluster_connector, running_pod_1, daemonset_pod):
+    assert not mock_cluster_connector._pod_belongs_to_daemonset(running_pod_1)
+    assert mock_cluster_connector._pod_belongs_to_daemonset(daemonset_pod)
 
 
 def test_pod_belongs_to_pool(

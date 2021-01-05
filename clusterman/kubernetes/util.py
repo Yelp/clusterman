@@ -135,13 +135,15 @@ def get_node_ip(node: KubernetesNode) -> str:
     raise ValueError('Kubernetes node {node.metadata.name} has no "InternalIP" address')
 
 
-def total_node_resources(node: KubernetesNode) -> ClustermanResources:
-    return ClustermanResources(
+def total_node_resources(node: KubernetesNode, excluded_pods: List[KubernetesPod]) -> ClustermanResources:
+    base_total = ClustermanResources(
         cpus=ResourceParser.cpus(node.status.allocatable),
         mem=ResourceParser.mem(node.status.allocatable),
         disk=ResourceParser.disk(node.status.allocatable),
         gpus=ResourceParser.gpus(node.status.allocatable),
     )
+    excluded_resources = allocated_node_resources(excluded_pods)
+    return base_total - excluded_resources
 
 
 def total_pod_resources(pod: KubernetesPod) -> ClustermanResources:
