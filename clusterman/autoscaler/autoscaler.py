@@ -257,7 +257,7 @@ class Autoscaler:
         logger.info(f'Currently non-orphan fulfilled capacity is {non_orphan_fulfilled_capacity}')
         logger.info(f'Current cluster total resources: {cluster_total_resources}')
         logger.info(f'Current cluster allocated resources: {cluster_allocated_resources}')
-
+        logger.info(f'Current setpoint: {self.autoscaling_config.setpoint}')
         # This block of code is kinda complicated logic for figuring out what happens if the cluster
         # or the resource request is empty.  There are essentially four checks, as follows:
         #
