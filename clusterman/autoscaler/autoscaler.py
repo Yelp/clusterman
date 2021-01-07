@@ -253,11 +253,12 @@ class Autoscaler:
         cluster_total_resources = self.pool_manager.cluster_connector.get_cluster_total_resources()
         cluster_allocated_resources = self.pool_manager.cluster_connector.get_cluster_allocated_resources()
         non_orphan_fulfilled_capacity = self.pool_manager.non_orphan_fulfilled_capacity
+        determined_setpoint = self.autoscaling_config.setpoint
         logger.info(f'Currently at target_capacity of {current_target_capacity}')
         logger.info(f'Currently non-orphan fulfilled capacity is {non_orphan_fulfilled_capacity}')
         logger.info(f'Current cluster total resources: {cluster_total_resources}')
         logger.info(f'Current cluster allocated resources: {cluster_allocated_resources}')
-
+        logger.info(f'Current determined setpoint: {determined_setpoint}')
         # This block of code is kinda complicated logic for figuring out what happens if the cluster
         # or the resource request is empty.  There are essentially four checks, as follows:
         #
