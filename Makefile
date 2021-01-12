@@ -152,6 +152,8 @@ debug:
 		-v $(shell pwd)/.cman_debug_bashrc:/home/nobody/.bashrc:ro \
 		-v $(shell pwd)/etc-kubernetes:/etc/kubernetes:ro \
 		-v /nail/srv/configs:/nail/srv/configs:ro \
+		-v $(shell pwd)/clusterman.yaml:/nail/srv/configs/clusterman.yaml:ro \
+		-v $(shell pwd)/default.kubernetes:/nail/srv/configs/clusterman-clusters/kubestage/default.kubernetes:ro \
 		-v /nail/etc/services:/nail/etc/services:ro \
 		-v /etc/boto_cfg:/etc/boto_cfg:ro \
 		-e "CMAN_CLUSTER=kubestage" \
