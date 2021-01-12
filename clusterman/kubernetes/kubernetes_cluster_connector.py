@@ -204,7 +204,8 @@ class KubernetesClusterConnector(ClusterConnector):
         pending_pods: List[KubernetesPod] = []
         excluded_pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
 
-        exclude_daemonset_pods = self.pool_config.read_bool('exclude_daemonset_pods', default=False)
+        exclude_daemonset_pods = self.pool_config.read_bool(
+            'exclude_daemonset_pods', default=staticconf.read_bool('exclude_daemonset_pods', default=False))
         all_pods = self._core_api.list_pod_for_all_namespaces().items
         for pod in all_pods:
             if self._pod_belongs_to_pool(pod):
