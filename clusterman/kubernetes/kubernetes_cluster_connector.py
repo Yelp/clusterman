@@ -116,7 +116,10 @@ class KubernetesClusterConnector(ClusterConnector):
         return unschedulable_pods
 
     def _pod_belongs_to_daemonset(self, pod: KubernetesPod) -> bool:
-        return any([owner_reference.kind == 'DaemonSet' for owner_reference in pod.metadata.owner_references])
+        return (
+            pod.metadata.owner_references and
+            any([owner_reference.kind == 'DaemonSet' for owner_reference in pod.metadata.owner_references])
+        )
 
     def _pod_belongs_to_pool(self, pod: KubernetesPod) -> bool:
         # Check if the pod is on a node in the pool -- this should cover most cases

@@ -42,7 +42,7 @@ from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesCluster
 @pytest.fixture
 def running_pod_1():
     return V1Pod(
-        metadata=V1ObjectMeta(name='running_pod_1', owner_references=[]),
+        metadata=V1ObjectMeta(name='running_pod_1'),
         status=V1PodStatus(phase='Running', host_ip='10.10.10.2'),
         spec=V1PodSpec(containers=[
                V1Container(
