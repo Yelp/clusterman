@@ -163,8 +163,8 @@ class Autoscaler:
                                ' which is greater than the threshold ({}),'.format(
                                    str(num_removed_nodes_before_last_reload),
                                    str(self.autoscaling_config.instance_loss_threshold)
-                                   ),
-                               ' will not scale down on this run')
+                                   ))
+                logger.warning('Autoscaler will not kill any nodes on this run.')
                 no_scale_down = True
 
         if isinstance(resource_request, list):
