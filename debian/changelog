@@ -1,3 +1,9 @@
+clusterman (4.5.7) xenial bionic; urgency=low
+
+  * Add support for c5a and c5ad instance type families.
+
+ -- Timmy Zhu <tzhu@yelp.com>  Fri, 15 Jan 2021 14:31:40 -0800
+
 clusterman (4.5.6) xenial bionic; urgency=low
 
   * CLUSTERMAN-542 Add option to exclude daemonset resources from kubernetes clusters
