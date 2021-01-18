@@ -35,6 +35,7 @@ from clusterman.aws.util import RESOURCE_GROUPS
 from clusterman.config import POOL_NAMESPACE
 from clusterman.draining.queue import DrainingClient
 from clusterman.exceptions import AllResourceGroupsAreStaleError
+from clusterman.exceptions import NoResourceGroupsFoundError
 from clusterman.exceptions import PoolManagerError
 from clusterman.exceptions import ResourceGroupError
 from clusterman.interfaces.cluster_connector import ClusterConnector
@@ -516,7 +517,11 @@ class PoolManager:
         """ The target capacity is the *desired* weighted capacity for the given Mesos cluster pool.  There is no
         guarantee that the actual capacity will equal the target capacity.
         """
+        if not self.resource_groups:
+            raise NoResourceGroupsFoundError()
+
         non_stale_groups = [group for group in self.resource_groups.values() if not group.is_stale]
+
         if not non_stale_groups:
             raise AllResourceGroupsAreStaleError()
         return sum(group.target_capacity for group in non_stale_groups)

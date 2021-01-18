@@ -20,6 +20,7 @@ from clusterman.autoscaler.pool_manager import ClusterNodeMetadata
 from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.exceptions import AllResourceGroupsAreStaleError
+from clusterman.exceptions import NoResourceGroupsFoundError
 from clusterman.exceptions import PoolManagerError
 from clusterman.exceptions import ResourceGroupError
 from clusterman.interfaces.types import AgentMetadata
@@ -501,6 +502,12 @@ def test_compute_new_resource_group_targets_scale_up_stale_pools_0(non_stale_cap
 
     new_targets = mock_pool_manager._compute_new_resource_group_targets(6)
     assert new_targets == {'sfr-0': 2, 'sfr-1': 2, 'sfr-2': 2, 'sfr-3': 0, 'sfr-4': 0, 'sfr-5': 0, 'sfr-6': 0}
+
+
+def test_compute_target_capacity_no_resource_groups_found(mock_pool_manager):
+    mock_pool_manager.resource_groups = []
+    with pytest.raises(NoResourceGroupsFoundError):
+        mock_pool_manager.target_capacity == 0
 
 
 def test_get_market_capacities(mock_pool_manager):
