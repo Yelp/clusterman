@@ -37,6 +37,10 @@ class NoLaunchTemplateConfiguredError(ClustermanException):
     pass
 
 
+class NoResourceGroupsFoundError(Exception):
+    pass
+
+
 class NoSignalConfiguredException(ClustermanException):
     pass
 
