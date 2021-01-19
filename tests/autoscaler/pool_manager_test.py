@@ -505,7 +505,7 @@ def test_compute_new_resource_group_targets_scale_up_stale_pools_0(non_stale_cap
 
 
 def test_compute_target_capacity_no_resource_groups_found(mock_pool_manager):
-    mock_pool_manager.resource_groups = []
+    mock_pool_manager.resource_groups = {}
     with pytest.raises(NoResourceGroupsFoundError):
         mock_pool_manager.target_capacity == 0
 
