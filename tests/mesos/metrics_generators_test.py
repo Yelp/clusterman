@@ -15,6 +15,7 @@ import mock
 import pytest
 
 from clusterman.autoscaler.pool_manager import PoolManager
+from clusterman.exceptions import NoResourceGroupsFoundError
 from clusterman.mesos.metrics_generators import ClusterMetric
 from clusterman.mesos.metrics_generators import generate_simple_metadata
 from clusterman.mesos.metrics_generators import generate_system_metrics
@@ -85,4 +86,35 @@ def test_generate_simple_metadata(mock_pool_manager):
             dimensions={'cluster': 'mesos-test', 'pool': 'bar.mesos'},
         ),
     ]
+    assert sorted(generate_simple_metadata(mock_pool_manager)) == sorted(expected_metrics)
+
+
+def test_generate_simple_metadata_no_terraform_resources(mock_pool_manager):
+    resource_totals = {'cpus': 20, 'mem': 2000, 'disk': 20000, 'gpus': 0}
+    mock_pool_manager.cluster_connector.get_resource_total.side_effect = resource_totals.get
+
+    market_capacities = {'market1': 15, 'market2': 25}
+    mock_pool_manager.get_market_capacities.return_value = market_capacities
+
+    mock_pool_manager.non_orphan_fulfilled_capacity = 12
+
+    expected_metrics = [
+        ClusterMetric(metric_name='cpus_total', value=20, dimensions={'cluster': 'mesos-test', 'pool': 'bar.mesos'}),
+        ClusterMetric(metric_name='mem_total', value=2000, dimensions={'cluster': 'mesos-test', 'pool': 'bar.mesos'}),
+        ClusterMetric(metric_name='disk_total', value=20000, dimensions={'cluster': 'mesos-test', 'pool': 'bar.mesos'}),
+        ClusterMetric(metric_name='gpus_total', value=0, dimensions={'cluster': 'mesos-test', 'pool': 'bar.mesos'}),
+        ClusterMetric(
+            metric_name='fulfilled_capacity',
+            value=market_capacities,
+            dimensions={'cluster': 'mesos-test', 'pool': 'bar.mesos'},
+        ),
+        ClusterMetric(
+            metric_name='non_orphan_fulfilled_capacity',
+            value=12,
+            dimensions={'cluster': 'mesos-test', 'pool': 'bar.mesos'},
+        ),
+    ]
+
+    type(mock_pool_manager).target_capacity = mock.PropertyMock(side_effect=NoResourceGroupsFoundError)
+
     assert sorted(generate_simple_metadata(mock_pool_manager)) == sorted(expected_metrics)
