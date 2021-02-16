@@ -64,6 +64,7 @@ def simple_metadata_expected_metrics(mock_pool_manager):
         ),
     ]
 
+
 def test_generate_system_metrics(mock_pool_manager):
     resources_allocated = {'cpus': 10, 'mem': 1000, 'disk': 10000, 'gpus': 0}
     mock_pool_manager.cluster_connector.get_resource_allocation.side_effect = resources_allocated.get
