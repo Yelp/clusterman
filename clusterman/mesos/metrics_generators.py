@@ -17,10 +17,13 @@ from typing import Mapping
 from typing import NamedTuple
 from typing import Union
 
+import colorlog
+
 from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.exceptions import NoResourceGroupsFoundError
 from clusterman.util import get_cluster_dimensions
 
+logger = colorlog.getLogger(__name__)
 
 SYSTEM_METRICS = {
     'cpus_allocated': lambda manager: manager.cluster_connector.get_resource_allocation('cpus'),
@@ -65,6 +68,7 @@ def generate_simple_metadata(manager: PoolManager) -> Generator[ClusterMetric, N
         try:
             result = value_method(manager)
         except NoResourceGroupsFoundError:
+            logger.warning(f'Resources for metric {metric_name} not found')
             continue
 
         yield ClusterMetric(metric_name, result, dimensions=dimensions)
