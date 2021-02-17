@@ -12,7 +12,7 @@ mypy-extensions
 numpy>=1.16
 parsedatetime
 PyStaticConfiguration
-PyYAML>=5.1
+PyYAML>=5.4
 requests>=2.22.0
 retry
 signalfx
