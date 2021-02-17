@@ -106,6 +106,10 @@ class sqs(metaclass=_BotoForwarder):
     client = 'sqs'
 
 
+class sts(metaclass=_BotoForwarder):
+    client = 'sts'
+
+
 class dynamodb(metaclass=_BotoForwarder):
     client = 'dynamodb'
 
