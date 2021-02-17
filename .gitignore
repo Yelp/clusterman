@@ -34,3 +34,4 @@ package/itest/xenial/*
 package/itest/bionic/*
 /completions/[a-zA-Z]*
 acceptance/.local*
+sftp-config.json
