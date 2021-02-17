@@ -68,7 +68,7 @@ def generate_simple_metadata(manager: PoolManager) -> Generator[ClusterMetric, N
         try:
             result = value_method(manager)
         except NoResourceGroupsFoundError:
-            logger.warning(f'Resources for metric {metric_name} not found')
+            logger.warning(f'Resources for metric {metric_name} cluster {manager.cluster} not found')
             continue
 
         yield ClusterMetric(metric_name, result, dimensions=dimensions)
