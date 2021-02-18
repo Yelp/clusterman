@@ -17,6 +17,7 @@ import mock
 import pytest
 
 from clusterman.cli.toggle import check_account_id, enable, disable
+from clusterman.exceptions import AccountNumberMistmatchError
 
 @pytest.fixture
 def args():
@@ -37,9 +38,9 @@ class TestManageMethods:
         mock_sts.get_caller_identity.return_value = {'Account': '123'}
         mock_staticconf.read_string.return_value = "456"
 
-        check_account_id("sample_cluster")
+        with pytest.raises(AccountNumberMistmatchError):
+            check_account_id("sample_cluster")
 
-        assert mock_logger.warning.call_count == 1
 
     @mock.patch('clusterman.cli.toggle.autoscaling_is_paused')
     @mock.patch('clusterman.cli.toggle.dynamodb')
@@ -52,9 +53,9 @@ class TestManageMethods:
 
         mock_autoscaling_is_paused.return_value = False
 
-        enable(args)
+        with pytest.raises(AccountNumberMistmatchError):
+            enable(args)
 
-        assert mock_logger.warning.call_count == 1
 
     @mock.patch('clusterman.cli.toggle.autoscaling_is_paused')
     @mock.patch('clusterman.cli.toggle.dynamodb')
@@ -67,6 +68,5 @@ class TestManageMethods:
 
         mock_autoscaling_is_paused.return_value = True
 
-        disable(args)
-
-        assert mock_logger.warning.call_count == 1
+        with pytest.raises(AccountNumberMistmatchError):
+            disable(args)

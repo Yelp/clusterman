@@ -25,6 +25,7 @@ from clusterman.args import subparser
 from clusterman.aws.client import dynamodb
 from clusterman.aws.client import sts
 from clusterman.cli.util import timeout_wrapper
+from clusterman.exceptions import AccountNumberMistmatchError
 from clusterman.util import AUTOSCALER_PAUSED
 from clusterman.util import autoscaling_is_paused
 from clusterman.util import CLUSTERMAN_STATE_TABLE
@@ -39,7 +40,7 @@ def check_account_id(cluster) -> None:
     cluster_account_id = staticconf.read_string(f'clusters.{cluster}.aws_account_number')
 
     if(current_account_id != cluster_account_id):
-        logger.warning(
+        raise AccountNumberMistmatchError(
             f'ACCOUNT ID MISMATCH! Current account id: {current_account_id}. Cluster account id: {cluster_account_id}'
         )
 
