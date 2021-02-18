@@ -35,7 +35,7 @@ logger = colorlog.getLogger(__name__)
 
 
 @timeout_wrapper
-def check_account_id(cluster) -> None:
+def ensure_account_id(cluster) -> None:
     current_account_id = sts.get_caller_identity()['Account']
     cluster_account_id = staticconf.read_string(f'clusters.{cluster}.aws_account_number')
 
@@ -47,7 +47,7 @@ def check_account_id(cluster) -> None:
 
 @timeout_wrapper
 def disable(args: argparse.Namespace) -> None:
-    check_account_id(args.cluster)
+    ensure_account_id(args.cluster)
 
     state = {
         'state': {'S': AUTOSCALER_PAUSED},
@@ -81,7 +81,7 @@ def disable(args: argparse.Namespace) -> None:
 
 @timeout_wrapper
 def enable(args: argparse.Namespace) -> None:
-    check_account_id(args.cluster)
+    ensure_account_id(args.cluster)
 
     dynamodb.delete_item(
         TableName=staticconf.read('aws.state_table', default=CLUSTERMAN_STATE_TABLE),
