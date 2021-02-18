@@ -34,7 +34,7 @@ def args():
 class TestManageMethods:
     def test_check_account_id(self, mock_logger, mock_staticconf, mock_sts, *extra_args):
         # Note the different values
-        mock_sts.get_caller_identity.return_value = "123"
+        mock_sts.get_caller_identity.return_value = {'Account': '123'}
         mock_staticconf.read_string.return_value = "456"
 
         check_account_id("sample_cluster")
@@ -45,7 +45,7 @@ class TestManageMethods:
     @mock.patch('clusterman.cli.toggle.dynamodb')
     def test_enable(self, mock_dynamodb, mock_autoscaling_is_paused, mock_logger, mock_staticconf, mock_sts, args, *extra_args):
         # Note the different values
-        mock_sts.get_caller_identity.return_value = "123"
+        mock_sts.get_caller_identity.return_value = {'Account': '123'}
         mock_staticconf.read_string.return_value = "456"
 
         mock_dynamodb.put_item = mock.Mock()
@@ -60,7 +60,7 @@ class TestManageMethods:
     @mock.patch('clusterman.cli.toggle.dynamodb')
     def test_disable(self, mock_dynamodb, mock_autoscaling_is_paused, mock_logger, mock_staticconf, mock_sts, args, *extra_args):
         # Note the different values
-        mock_sts.get_caller_identity.return_value = "123"
+        mock_sts.get_caller_identity.return_value = {'Account': '123'}
         mock_staticconf.read_string.return_value = "456"
 
         mock_dynamodb.delete_item = mock.Mock()

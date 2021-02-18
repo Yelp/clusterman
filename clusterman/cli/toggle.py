@@ -35,7 +35,7 @@ logger = colorlog.getLogger(__name__)
 
 @timeout_wrapper
 def check_account_id(cluster) -> None:
-    current_account_id = sts.get_caller_identity()
+    current_account_id = sts.get_caller_identity()['Account']
     cluster_account_id = staticconf.read_string(f'clusters.{cluster}.aws_account_number')
 
     if(current_account_id != cluster_account_id):
