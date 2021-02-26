@@ -16,8 +16,11 @@ from argparse import Namespace
 import mock
 import pytest
 
-from clusterman.cli.toggle import ensure_account_id, enable, disable
+from clusterman.cli.toggle import disable
+from clusterman.cli.toggle import enable
+from clusterman.cli.toggle import ensure_account_id
 from clusterman.exceptions import AccountNumberMistmatchError
+
 
 @pytest.fixture
 def args():
@@ -36,18 +39,17 @@ class TestManageMethods:
     def test_ensure_account_id(self, mock_logger, mock_staticconf, mock_sts, *extra_args):
         # Note the different values
         mock_sts.get_caller_identity.return_value = {'Account': '123'}
-        mock_staticconf.read_string.return_value = "456"
+        mock_staticconf.read_string.return_value = '456'
 
         with pytest.raises(AccountNumberMistmatchError):
-            ensure_account_id("sample_cluster")
-
+            ensure_account_id('sample_cluster')
 
     @mock.patch('clusterman.cli.toggle.autoscaling_is_paused')
     @mock.patch('clusterman.cli.toggle.dynamodb')
     def test_enable(self, mock_dynamodb, mock_autoscaling_is_paused, mock_logger, mock_staticconf, mock_sts, args, *extra_args):
         # Note the different values
         mock_sts.get_caller_identity.return_value = {'Account': '123'}
-        mock_staticconf.read_string.return_value = "456"
+        mock_staticconf.read_string.return_value = '456'
 
         mock_dynamodb.put_item = mock.Mock()
 
@@ -56,13 +58,12 @@ class TestManageMethods:
         with pytest.raises(AccountNumberMistmatchError):
             enable(args)
 
-
     @mock.patch('clusterman.cli.toggle.autoscaling_is_paused')
     @mock.patch('clusterman.cli.toggle.dynamodb')
     def test_disable(self, mock_dynamodb, mock_autoscaling_is_paused, mock_logger, mock_staticconf, mock_sts, args, *extra_args):
         # Note the different values
         mock_sts.get_caller_identity.return_value = {'Account': '123'}
-        mock_staticconf.read_string.return_value = "456"
+        mock_staticconf.read_string.return_value = '456'
 
         mock_dynamodb.delete_item = mock.Mock()
 

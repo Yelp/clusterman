@@ -30,7 +30,7 @@ def main(argv=None):
     try:
         args.entrypoint(args)
     except Exception as e:
-        print(f"Exception of type {e.__class__.__name__} occured")
+        print(f'Exception of type {e.__class__.__name__} occured')
 
         if e.args:
             for arg in e.args:
