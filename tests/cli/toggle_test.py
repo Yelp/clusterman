@@ -46,7 +46,16 @@ class TestManageMethods:
 
     @mock.patch('clusterman.cli.toggle.autoscaling_is_paused')
     @mock.patch('clusterman.cli.toggle.dynamodb')
-    def test_enable(self, mock_dynamodb, mock_autoscaling_is_paused, mock_logger, mock_staticconf, mock_sts, args, *extra_args):
+    def test_enable(
+        self,
+        mock_dynamodb,
+        mock_autoscaling_is_paused,
+        mock_logger,
+        mock_staticconf,
+        mock_sts,
+        args,
+        *extra_args
+    ):
         # Note the different values
         mock_sts.get_caller_identity.return_value = {'Account': '123'}
         mock_staticconf.read_string.return_value = '456'
@@ -60,7 +69,16 @@ class TestManageMethods:
 
     @mock.patch('clusterman.cli.toggle.autoscaling_is_paused')
     @mock.patch('clusterman.cli.toggle.dynamodb')
-    def test_disable(self, mock_dynamodb, mock_autoscaling_is_paused, mock_logger, mock_staticconf, mock_sts, args, *extra_args):
+    def test_disable(
+        self,
+        mock_dynamodb,
+        mock_autoscaling_is_paused,
+        mock_logger,
+        mock_staticconf,
+        mock_sts,
+        args,
+        *extra_args
+    ):
         # Note the different values
         mock_sts.get_caller_identity.return_value = {'Account': '123'}
         mock_staticconf.read_string.return_value = '456'

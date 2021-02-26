@@ -296,9 +296,27 @@ class AutoScalingResourceGroup(AWSResourceGroup):
 
     @classmethod
     @ttl_cache(ttl=RESOURCE_GROUP_CACHE_SECONDS)
-    def _get_resource_group_tags(cls) -> Mapping[str, Mapping[str, str]]:
+    def _get_resource_group_tags(cls, filter_tag: str = '') -> Mapping[str, Mapping[str, str]]:
         """ Retrieves the tags for each ASG """
         asg_id_to_tags = {}
+
+        if filter_tag:
+            filter = [
+                {
+                    'Name': 'key',
+                    'Values': [
+                        filter_tag,
+                    ]
+                },
+            ]
+            """If the filter tag is present switch to desribe-tag method for server side
+                filtering for performance reasons
+            """
+            for page in autoscaling.get_paginator('describe_tags').paginate(Filters=filter):
+                for instance in page['Tags']:
+                    asg_id_to_tags[instance['ResourceId']] = {filter_tag: instance['Value']}
+            return asg_id_to_tags
+
         for page in autoscaling.get_paginator('describe_auto_scaling_groups').paginate():
             for asg in page['AutoScalingGroups']:
                 tags_dict = {tag['Key']: tag['Value'] for tag in asg['Tags']}
