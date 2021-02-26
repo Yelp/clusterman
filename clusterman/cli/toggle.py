@@ -14,6 +14,7 @@
 import argparse
 import time
 
+import colorlog
 import staticconf
 
 from clusterman.args import add_cluster_arg
@@ -22,20 +23,38 @@ from clusterman.args import add_pool_arg
 from clusterman.args import add_scheduler_arg
 from clusterman.args import subparser
 from clusterman.aws.client import dynamodb
+from clusterman.aws.client import sts
 from clusterman.cli.util import timeout_wrapper
+from clusterman.exceptions import AccountNumberMistmatchError
 from clusterman.util import AUTOSCALER_PAUSED
 from clusterman.util import autoscaling_is_paused
 from clusterman.util import CLUSTERMAN_STATE_TABLE
 from clusterman.util import parse_time_string
 
+logger = colorlog.getLogger(__name__)
+
+
+@timeout_wrapper
+def ensure_account_id(cluster) -> None:
+    current_account_id = sts.get_caller_identity()['Account']
+    cluster_account_id = staticconf.read_string(f'clusters.{cluster}.aws_account_number')
+
+    if(current_account_id != cluster_account_id):
+        raise AccountNumberMistmatchError(
+            f'ACCOUNT ID MISMATCH! Current account id: {current_account_id}. Cluster account id: {cluster_account_id}'
+        )
+
 
 @timeout_wrapper
 def disable(args: argparse.Namespace) -> None:
+    ensure_account_id(args.cluster)
+
     state = {
         'state': {'S': AUTOSCALER_PAUSED},
         'entity': {'S': f'{args.cluster}.{args.pool}.{args.scheduler}'},
         'timestamp': {'N':  str(int(time.time()))},
     }
+
     if args.until:
         state['expiration_timestamp'] = {'N': str(parse_time_string(args.until).timestamp)}
 
@@ -45,19 +64,25 @@ def disable(args: argparse.Namespace) -> None:
     )
 
     time.sleep(1)  # Give DynamoDB some time to settle
+
     now = parse_time_string('now').to('local')
+
     if not autoscaling_is_paused(args.cluster, args.pool, args.scheduler, now):
         print('Something went wrong!  The autoscaler is NOT paused')
     else:
         s = f'The autoscaler for {args.cluster}.{args.pool}.{args.scheduler} was paused at {now}'
+
         if args.until:
             until_str = str(parse_time_string(args.until).to('local'))
             s += f' until {until_str}'
+
         print(s)
 
 
 @timeout_wrapper
 def enable(args: argparse.Namespace) -> None:
+    ensure_account_id(args.cluster)
+
     dynamodb.delete_item(
         TableName=staticconf.read('aws.state_table', default=CLUSTERMAN_STATE_TABLE),
         Key={

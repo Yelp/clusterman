@@ -21,6 +21,10 @@ class AllResourceGroupsAreStaleError(Exception):
     pass
 
 
+class AccountNumberMistmatchError(Exception):
+    pass
+
+
 class AutoscalerError(ClustermanException):
     pass
 
