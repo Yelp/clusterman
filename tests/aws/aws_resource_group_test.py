@@ -68,7 +68,7 @@ class MockResourceGroup(AWSResourceGroup):
         pass
 
     @classmethod
-    def _get_resource_group_tags(cls):
+    def _get_resource_group_tags(cls, filter_tag: str = ''):
         return {
             'sfr-123': {
                 'some': 'tag',
