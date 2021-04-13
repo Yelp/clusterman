@@ -28,6 +28,7 @@ from kubernetes.client import V1PodSpec
 from kubernetes.client import V1PodStatus
 from kubernetes.client import V1ResourceRequirements
 from moto import mock_dynamodb2
+from moto.autoscaling.responses import AutoScalingResponse
 
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.autoscaler.config import AutoscalingConfig
@@ -41,6 +42,36 @@ from clusterman.util import AUTOSCALER_PAUSED
 from clusterman.util import CLUSTERMAN_STATE_TABLE
 from clusterman.util import ClustermanResources
 from itests.environment import boto_patches
+
+"""
+This change is needed, so that moto does not complain about missing describe-tags
+api in autoscaling, Issue for this can be tracked here https://github.com/spulec/moto/issues/3854
+"""
+DESCRIBE_TAG_TEMPLATE = """<DescribeTagsResponse xmlns="http://autoscaling.amazonaws.com/doc/2011-01-01/">
+  <DescribeTagsResult>
+    <Tags>
+      <member>
+        <ResourceId>my-asg</ResourceId>
+        <PropagateAtLaunch>true</PropagateAtLaunch>
+        <Value>test</Value>
+        <Key>environment</Key>
+        <ResourceType>auto-scaling-group</ResourceType>
+      </member>
+    </Tags>
+  </DescribeTagsResult>
+  <ResponseMetadata>
+    <RequestId>7c6e177f-f082-11e1-ac58-3714bEXAMPLE</RequestId>
+  </ResponseMetadata>
+</DescribeTagsResponse> """
+
+
+def describe_tags(self):
+    a = self.response_template(DESCRIBE_TAG_TEMPLATE)
+    print(a.render())
+    return a.render()
+
+
+AutoScalingResponse.describe_tags = describe_tags
 
 
 @behave.fixture
