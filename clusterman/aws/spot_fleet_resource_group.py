@@ -180,7 +180,7 @@ class SpotFleetResourceGroup(AWSResourceGroup):
 
     @classmethod
     @ttl_cache(ttl=RESOURCE_GROUP_CACHE_SECONDS)
-    def _get_resource_group_tags(cls) -> Mapping[str, Mapping[str, str]]:
+    def _get_resource_group_tags(cls, filter_tag: str = '') -> Mapping[str, Mapping[str, str]]:
         """ Gets a dictionary of SFR id -> a dictionary of tags. The tags are taken
         from the TagSpecifications for the first LaunchSpecification
         """
