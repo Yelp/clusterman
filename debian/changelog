@@ -1,3 +1,9 @@
+clusterman (4.5.9) xenial bionic; urgency=low
+
+  * Added performace improvement for status command
+
+ -- Manvendra Singh <msingh@yelp.com>  Wed, 14 Apr 2021 05:00:52 -0700
+
 clusterman (4.5.8) xenial bionic; urgency=low
 
   *
