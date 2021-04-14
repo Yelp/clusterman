@@ -186,13 +186,14 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
         :param config: a config specific to a resource group type
         :returns: a dictionary of resource groups, indexed by id
         """
-        resource_group_tags = cls._get_resource_group_tags()
-        matching_resource_groups = {}
 
         try:
             identifier_tag_label = config['tag']
         except KeyError:
             return {}
+
+        resource_group_tags = cls._get_resource_group_tags(identifier_tag_label)
+        matching_resource_groups = {}
 
         for rg_id, tags in resource_group_tags.items():
             try:
@@ -210,5 +211,5 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
-    def _get_resource_group_tags(cls) -> Mapping[str, Mapping[str, str]]:  # pragma: no cover
+    def _get_resource_group_tags(cls, filter_tag: str = '') -> Mapping[str, Mapping[str, str]]:  # pragma: no cover
         pass
