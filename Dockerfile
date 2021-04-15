@@ -26,7 +26,6 @@ RUN     apt-get update \
             zk-flock \
         && apt-get clean
 
-ENV     PIP_INDEX_URL=https://pypi.yelpcorp.com/simple
 RUN     /usr/bin/pip install supervisor
 COPY    tox.ini requirements.txt requirements-bootstrap.txt extra-requirements-yelp.txt /code/
 RUN     cd code && tox -e virtualenv_run
