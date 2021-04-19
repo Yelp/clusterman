@@ -26,27 +26,28 @@ from clusterman.util import get_cluster_dimensions
 logger = colorlog.getLogger(__name__)
 
 SYSTEM_METRICS = {
-    'cpus_allocated': lambda manager: manager.cluster_connector.get_resource_allocation('cpus'),
-    'mem_allocated': lambda manager: manager.cluster_connector.get_resource_allocation('mem'),
-    'disk_allocated': lambda manager: manager.cluster_connector.get_resource_allocation('disk'),
-    'gpus_allocated': lambda manager: manager.cluster_connector.get_resource_allocation('gpus'),
+    "cpus_allocated": lambda manager: manager.cluster_connector.get_resource_allocation("cpus"),
+    "mem_allocated": lambda manager: manager.cluster_connector.get_resource_allocation("mem"),
+    "disk_allocated": lambda manager: manager.cluster_connector.get_resource_allocation("disk"),
+    "gpus_allocated": lambda manager: manager.cluster_connector.get_resource_allocation("gpus"),
 }
 SIMPLE_METADATA = {
-    'cpus_total': lambda manager: manager.cluster_connector.get_resource_total('cpus'),
-    'mem_total': lambda manager: manager.cluster_connector.get_resource_total('mem'),
-    'disk_total': lambda manager: manager.cluster_connector.get_resource_total('disk'),
-    'gpus_total': lambda manager: manager.cluster_connector.get_resource_total('gpus'),
-    'target_capacity': lambda manager: manager.target_capacity,
-    'fulfilled_capacity': lambda manager: {str(market): value for market,
-                                           value in manager.get_market_capacities().items()},
-    'non_orphan_fulfilled_capacity': lambda manager: manager.non_orphan_fulfilled_capacity,
+    "cpus_total": lambda manager: manager.cluster_connector.get_resource_total("cpus"),
+    "mem_total": lambda manager: manager.cluster_connector.get_resource_total("mem"),
+    "disk_total": lambda manager: manager.cluster_connector.get_resource_total("disk"),
+    "gpus_total": lambda manager: manager.cluster_connector.get_resource_total("gpus"),
+    "target_capacity": lambda manager: manager.target_capacity,
+    "fulfilled_capacity": lambda manager: {
+        str(market): value for market, value in manager.get_market_capacities().items()
+    },
+    "non_orphan_fulfilled_capacity": lambda manager: manager.non_orphan_fulfilled_capacity,
 }
 KUBERNETES_METRICS = {
-    'unschedulable_pods': lambda manager: len(manager.cluster_connector.get_unschedulable_pods()),
-    'cpus_pending': lambda manager: manager.cluster_connector.get_resource_pending('cpus'),
-    'mem_pending': lambda manager: manager.cluster_connector.get_resource_pending('mem'),
-    'disk_pending': lambda manager: manager.cluster_connector.get_resource_pending('disk'),
-    'gpus_pending': lambda manager: manager.cluster_connector.get_resource_pending('gpus'),
+    "unschedulable_pods": lambda manager: len(manager.cluster_connector.get_unschedulable_pods()),
+    "cpus_pending": lambda manager: manager.cluster_connector.get_resource_pending("cpus"),
+    "mem_pending": lambda manager: manager.cluster_connector.get_resource_pending("mem"),
+    "disk_pending": lambda manager: manager.cluster_connector.get_resource_pending("disk"),
+    "gpus_pending": lambda manager: manager.cluster_connector.get_resource_pending("gpus"),
 }
 
 
@@ -56,25 +57,25 @@ class ClusterMetric(NamedTuple):
     dimensions: Dict[str, str]  # clusterman_metrics wants a Dict here
 
 
-def generate_system_metrics(manager: PoolManager) -> Generator[ClusterMetric, None, None]:
+def generate_system_metrics(manager: PoolManager,) -> Generator[ClusterMetric, None, None]:
     dimensions = get_cluster_dimensions(manager.cluster, manager.pool, manager.scheduler)
     for metric_name, value_method in SYSTEM_METRICS.items():
         yield ClusterMetric(metric_name, value_method(manager), dimensions=dimensions)
 
 
-def generate_simple_metadata(manager: PoolManager) -> Generator[ClusterMetric, None, None]:
+def generate_simple_metadata(manager: PoolManager,) -> Generator[ClusterMetric, None, None]:
     dimensions = get_cluster_dimensions(manager.cluster, manager.pool, manager.scheduler)
     for metric_name, value_method in SIMPLE_METADATA.items():
         try:
             result = value_method(manager)
         except NoResourceGroupsFoundError:
-            logger.warning(f'Resources for metric {metric_name} cluster {manager.cluster} not found')
+            logger.warning(f"Resources for metric {metric_name} cluster {manager.cluster} not found")
             continue
 
         yield ClusterMetric(metric_name, result, dimensions=dimensions)
 
 
-def generate_kubernetes_metrics(manager: PoolManager) -> Generator[ClusterMetric, None, None]:
+def generate_kubernetes_metrics(manager: PoolManager,) -> Generator[ClusterMetric, None, None]:
     dimensions = get_cluster_dimensions(manager.cluster, manager.pool, manager.scheduler)
     for metric_name, value_method in KUBERNETES_METRICS.items():
         yield ClusterMetric(metric_name, value_method(manager), dimensions=dimensions)

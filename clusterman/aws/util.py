@@ -19,14 +19,8 @@ from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
 
 
-RESOURCE_GROUPS: Mapping[
-    str,
-    Type[AWSResourceGroup]
-] = {
-    'asg': AutoScalingResourceGroup,
-    'sfr': SpotFleetResourceGroup,
+RESOURCE_GROUPS: Mapping[str, Type[AWSResourceGroup]] = {
+    "asg": AutoScalingResourceGroup,
+    "sfr": SpotFleetResourceGroup,
 }
-RESOURCE_GROUPS_REV: Mapping[
-    Type[AWSResourceGroup],
-    str
-] = {v: k for k, v in RESOURCE_GROUPS.items()}
+RESOURCE_GROUPS_REV: Mapping[Type[AWSResourceGroup], str] = {v: k for k, v in RESOURCE_GROUPS.items()}

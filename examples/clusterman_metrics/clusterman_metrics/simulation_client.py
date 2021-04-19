@@ -35,20 +35,19 @@ def _validate_metrics_object(obj):
         return
 
     if not set(obj).issubset(METRIC_TYPES):
-        raise ValueError('Invalid metric type in {gen}; valid choices are {valid}'.format(
-            gen=list(obj),
-            valid=list(METRIC_TYPES),
-        ))
+        raise ValueError(
+            "Invalid metric type in {gen}; valid choices are {valid}".format(gen=list(obj), valid=list(METRIC_TYPES),)
+        )
 
     for metric in obj.values():
         for key in metric:
             timestamps = [t for t, __ in metric[key]]
             if len(set(timestamps)) != len(timestamps):
-                raise ValueError('Duplicate timestamps detected in {key}'.format(key=metric[key]))
+                raise ValueError("Duplicate timestamps detected in {key}".format(key=metric[key]))
             if any([not isinstance(timestamp, Number) for timestamp, __ in metric[key]]):
-                raise ValueError('Invalid timestamp values for {key}'.format(key=metric[key]))
+                raise ValueError("Invalid timestamp values for {key}".format(key=metric[key]))
             if any([not isinstance(value, Number) and not isinstance(value, dict) for __, value in metric[key]]):
-                raise ValueError('Invalid metric values for {key}'.format(key=metric[key]))
+                raise ValueError("Invalid metric values for {key}".format(key=metric[key]))
             metric[key] = sorted(metric[key])
 
 
@@ -71,10 +70,7 @@ class ClustermanMetricsSimulationClient(ClustermanMetricsBotoClient):
                 ...
             }
         """
-        super(ClustermanMetricsSimulationClient, self).__init__(
-            *args,
-            **kwargs
-        )
+        super(ClustermanMetricsSimulationClient, self).__init__(*args, **kwargs)
         _validate_metrics_object(generated_metrics)
         self.generated_metrics = generated_metrics
 
@@ -83,7 +79,7 @@ class ClustermanMetricsSimulationClient(ClustermanMetricsBotoClient):
         def log_values(*args, **kwargs):
             while True:
                 values = yield
-                logger.warning('Client is read-only; not writing {values}'.format(values=values))
+                logger.warning("Client is read-only; not writing {values}".format(values=values))
 
         coroutine = log_values()
         try:
@@ -133,11 +129,5 @@ class ClustermanMetricsSimulationClient(ClustermanMetricsBotoClient):
             return metrics
         else:
             return super(ClustermanMetricsSimulationClient, self)._get_new_metric_values(
-                key_prefix,
-                metric_query,
-                metric_type,
-                time_start,
-                time_end,
-                is_regex,
-                extra_dimensions,
+                key_prefix, metric_query, metric_type, time_start, time_end, is_regex, extra_dimensions,
             )

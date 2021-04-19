@@ -44,40 +44,33 @@ class TaskCount(TypedDict):
 
 
 class MesosClusterConnector(ClusterConnector):
-    SCHEDULER = 'mesos'
+    SCHEDULER = "mesos"
 
     def __init__(self, cluster: str, pool: str) -> None:
         super().__init__(cluster, pool)
-        mesos_master_fqdn = staticconf.read_string(f'clusters.{self.cluster}.mesos_master_fqdn')
+        mesos_master_fqdn = staticconf.read_string(f"clusters.{self.cluster}.mesos_master_fqdn")
         self.non_batch_framework_prefixes = self.pool_config.read_list(
-            'non_batch_framework_prefixes',
-            default=['marathon'],
+            "non_batch_framework_prefixes", default=["marathon"],
         )
-        self.api_endpoint = f'http://{mesos_master_fqdn}:5050/'
-        logger.info(f'Connecting to Mesos masters at {self.api_endpoint}')
+        self.api_endpoint = f"http://{mesos_master_fqdn}:5050/"
+        logger.info(f"Connecting to Mesos masters at {self.api_endpoint}")
 
     def reload_state(self) -> None:
 
         # Note that order matters here: we can't map tasks to agents until we've calculated
         # all of the tasks and agents
-        logger.info('Reloading agents')
+        logger.info("Reloading agents")
         self._agents_by_ip = self._get_agents_by_ip()
 
-        logger.info('Reloading frameworks and tasks')
+        logger.info("Reloading frameworks and tasks")
         self._tasks, self._frameworks = self._get_tasks_and_frameworks()
         self._task_count_per_agent = self._count_tasks_per_agent()
 
     def get_resource_allocation(self, resource_name: str) -> float:
-        return sum(
-            getattr(allocated_agent_resources(agent), resource_name)
-            for agent in self._agents_by_ip.values()
-        )
+        return sum(getattr(allocated_agent_resources(agent), resource_name) for agent in self._agents_by_ip.values())
 
     def get_resource_total(self, resource_name: str) -> float:
-        return sum(
-            getattr(total_agent_resources(agent), resource_name)
-            for agent in self._agents_by_ip.values()
-        )
+        return sum(getattr(total_agent_resources(agent), resource_name) for agent in self._agents_by_ip.values())
 
     def _get_agent_metadata(self, instance_ip: str) -> AgentMetadata:
         agent_dict = self._agents_by_ip.get(instance_ip)
@@ -86,11 +79,11 @@ class MesosClusterConnector(ClusterConnector):
 
         allocated_resources = allocated_agent_resources(agent_dict)
         return AgentMetadata(
-            agent_id=agent_dict['id'],
+            agent_id=agent_dict["id"],
             allocated_resources=allocated_agent_resources(agent_dict),
-            batch_task_count=self._task_count_per_agent[agent_dict['id']]['batch_tasks'],
+            batch_task_count=self._task_count_per_agent[agent_dict["id"]]["batch_tasks"],
             state=(AgentState.RUNNING if any(allocated_resources) else AgentState.IDLE),
-            task_count=self._task_count_per_agent[agent_dict['id']]['all_tasks'],
+            task_count=self._task_count_per_agent[agent_dict["id"]]["all_tasks"],
             total_resources=total_agent_resources(agent_dict),
         )
 
@@ -101,33 +94,28 @@ class MesosClusterConnector(ClusterConnector):
         )
 
         for task in self._tasks:
-            if task['state'] == 'TASK_RUNNING':
-                instance_id_to_task_count[task['slave_id']]['all_tasks'] += 1
-                framework_name = self._frameworks[task['framework_id']]['name']
+            if task["state"] == "TASK_RUNNING":
+                instance_id_to_task_count[task["slave_id"]]["all_tasks"] += 1
+                framework_name = self._frameworks[task["framework_id"]]["name"]
                 if self._is_batch_framework(framework_name):
-                    instance_id_to_task_count[task['slave_id']]['batch_tasks'] += 1
+                    instance_id_to_task_count[task["slave_id"]]["batch_tasks"] += 1
         return instance_id_to_task_count
 
     def _get_agents_by_ip(self) -> Mapping[str, MesosAgentDict]:
-        response: MesosAgents = mesos_post(self.api_endpoint, 'slaves').json()
+        response: MesosAgents = mesos_post(self.api_endpoint, "slaves").json()
         return {
-            agent_pid_to_ip(agent_dict['pid']): agent_dict
-            for agent_dict in response['slaves']
-            if agent_dict.get('attributes', {}).get('pool', 'default') == self.pool
+            agent_pid_to_ip(agent_dict["pid"]): agent_dict
+            for agent_dict in response["slaves"]
+            if agent_dict.get("attributes", {}).get("pool", "default") == self.pool
         }
 
-    def _get_tasks_and_frameworks(
-        self
-    ) -> Tuple[Sequence[MesosTaskDict], Mapping[str, MesosFrameworkDict]]:
-        response: MesosFrameworks = mesos_post(self.api_endpoint, 'master/frameworks').json()
-        running_frameworks = {
-            framework['id']: framework
-            for framework in response['frameworks']
-        }
+    def _get_tasks_and_frameworks(self,) -> Tuple[Sequence[MesosTaskDict], Mapping[str, MesosFrameworkDict]]:
+        response: MesosFrameworks = mesos_post(self.api_endpoint, "master/frameworks").json()
+        running_frameworks = {framework["id"]: framework for framework in response["frameworks"]}
 
         tasks: List[MesosTaskDict] = []
         for framework in running_frameworks.values():
-            tasks.extend(framework['tasks'])
+            tasks.extend(framework["tasks"])
 
         return tasks, running_frameworks
 

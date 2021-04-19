@@ -23,8 +23,7 @@ from clusterman.util import ClustermanResources
 
 
 class SimulatedClusterConnector(ClusterConnector):
-
-    def __init__(self, cluster: str, pool: str, simulator: 'simulator.Simulator') -> None:
+    def __init__(self, cluster: str, pool: str, simulator: "simulator.Simulator") -> None:
         self.cluster = cluster
         self.pool = pool
         self.simulator = simulator
@@ -51,17 +50,13 @@ class SimulatedClusterConnector(ClusterConnector):
                 if instance_ip == i.ip_address:
                     return AgentMetadata(
                         agent_id=str(uuid.uuid4()),
-                        state=(
-                            AgentState.ORPHANED
-                            if self.simulator.current_time < i.join_time
-                            else AgentState.IDLE
-                        ),
+                        state=(AgentState.ORPHANED if self.simulator.current_time < i.join_time else AgentState.IDLE),
                         total_resources=ClustermanResources(
                             cpus=i.resources.cpus,
                             mem=i.resources.mem * 1000,
-                            disk=(i.resources.disk or staticconf.read_int('ebs_volume_size', 0)) * 1000,
+                            disk=(i.resources.disk or staticconf.read_int("ebs_volume_size", 0)) * 1000,
                             gpus=(i.resources.gpus),
-                        )
+                        ),
                     )
 
         # if we don't know the given IP then it's orphaned

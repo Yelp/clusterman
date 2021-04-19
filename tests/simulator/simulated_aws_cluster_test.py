@@ -22,39 +22,41 @@ from clusterman.simulator.simulated_aws_cluster import SimulatedAWSCluster
 def cluster(simulator):
     cluster = SimulatedAWSCluster(simulator)
     cluster.simulator.current_time.shift(seconds=+42)
-    cluster.modify_size({
-        InstanceMarket('m4.4xlarge', 'us-west-1a'): 4,
-        InstanceMarket('i2.8xlarge', 'us-west-1a'): 2,
-        InstanceMarket('i2.8xlarge', 'us-west-2a'): 1,
-    })
+    cluster.modify_size(
+        {
+            InstanceMarket("m4.4xlarge", "us-west-1a"): 4,
+            InstanceMarket("i2.8xlarge", "us-west-1a"): 2,
+            InstanceMarket("i2.8xlarge", "us-west-2a"): 1,
+        }
+    )
     cluster.ebs_storage += 3000
     return cluster
 
 
 @pytest.yield_fixture
 def fake_markets():
-    with mock.patch('clusterman.aws.markets.EC2_INSTANCE_TYPES') as mock_instance_types, \
-            mock.patch('clusterman.aws.markets.EC2_AZS') as mock_azs:
+    with mock.patch("clusterman.aws.markets.EC2_INSTANCE_TYPES") as mock_instance_types, mock.patch(
+        "clusterman.aws.markets.EC2_AZS"
+    ) as mock_azs:
         mock_instance_types.__contains__.return_value = True
         mock_azs.__contains__.return_value = True
         yield
 
 
 def test_valid_market(fake_markets):
-    InstanceMarket('foo', 'bar')
+    InstanceMarket("foo", "bar")
 
 
 def test_invalid_market():
     with pytest.raises(ValueError):
-        InstanceMarket('foo', 'bar')
+        InstanceMarket("foo", "bar")
 
 
 def test_modify_size(cluster):
     cluster.simulator.current_time.shift(seconds=+76)
-    added_instances, removed_instances = cluster.modify_size({
-        InstanceMarket('m4.4xlarge', 'us-west-1a'): 1,
-        InstanceMarket('i2.8xlarge', 'us-west-1a'): 4,
-    })
+    added_instances, removed_instances = cluster.modify_size(
+        {InstanceMarket("m4.4xlarge", "us-west-1a"): 1, InstanceMarket("i2.8xlarge", "us-west-1a"): 4,}
+    )
     assert len(added_instances) == 2
     assert len(removed_instances) == 4
     assert len(cluster) == 5
@@ -69,10 +71,9 @@ def test_cpu_mem_disk(cluster):
 
 def test_remove_instances(cluster):
     cluster.simulator.current_time.shift(seconds=+42)
-    cluster.modify_size({
-        InstanceMarket('m4.4xlarge', 'us-west-1a'): 1,
-        InstanceMarket('i2.8xlarge', 'us-west-1a'): 1,
-    })
+    cluster.modify_size(
+        {InstanceMarket("m4.4xlarge", "us-west-1a"): 1, InstanceMarket("i2.8xlarge", "us-west-1a"): 1,}
+    )
 
     assert len(cluster) == 2
     assert cluster.cpus == 48

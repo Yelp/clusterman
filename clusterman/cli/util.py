@@ -13,9 +13,9 @@ def timeout_wrapper(main):
 
         # After 10s, prints a warning message if the command is running from the wrong place
         def timeout_handler(signum, frame):
-            warning_string = 'This command is taking a long time to run; are you running from the right account?'
-            if 'yelpcorp' in socket.getfqdn():
-                warning_string += '\nHINT: try ssh\'ing to adhoc-prod or another box in the right account.'
+            warning_string = "This command is taking a long time to run; are you running from the right account?"
+            if "yelpcorp" in socket.getfqdn():
+                warning_string += "\nHINT: try ssh'ing to adhoc-prod or another box in the right account."
             logger.warning(warning_string)
 
         signal.signal(signal.SIGALRM, timeout_handler)
@@ -23,4 +23,5 @@ def timeout_wrapper(main):
 
         main(args)
         signal.alarm(0)  # Cancel the alarm if we've gotten here
+
     return wrapper

@@ -21,12 +21,12 @@ from .util.constants import SYSTEM_METRICS
 from .util.meteorite import generate_key_with_dimensions
 
 __all__ = [
-    'ClustermanMetricsBotoClient',
-    'MetricsValuesDict',
-    'ClustermanMetricsSimulationClient',
-    'APP_METRICS',
-    'METADATA',
-    'METRIC_TYPES',
-    'SYSTEM_METRICS',
-    'generate_key_with_dimensions',
+    "ClustermanMetricsBotoClient",
+    "MetricsValuesDict",
+    "ClustermanMetricsSimulationClient",
+    "APP_METRICS",
+    "METADATA",
+    "METRIC_TYPES",
+    "SYSTEM_METRICS",
+    "generate_key_with_dimensions",
 ]

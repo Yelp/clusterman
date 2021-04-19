@@ -40,52 +40,54 @@ from clusterman.util import splay_event_time
 from clusterman.util import Status
 
 logger = colorlog.getLogger(__name__)
-colorlog.getLogger('clusterman_metrics')  # This just adds a handler to the clusterman_metrics logger
-SERVICE_CHECK_NAME = 'check_clusterman_autoscaler_service'
-DEFAULT_TTL = '25m'
-DEFAULT_CHECK_EVERY = '10m'
+colorlog.getLogger("clusterman_metrics")  # This just adds a handler to the clusterman_metrics logger
+SERVICE_CHECK_NAME = "check_clusterman_autoscaler_service"
+DEFAULT_TTL = "25m"
+DEFAULT_CHECK_EVERY = "10m"
 
 
 def sensu_alert_triage(fail=False):
     def decorator(fn):
         def wrapper(self):
-            msg = ''
+            msg = ""
             service_failed = False
             error = None
             try:
                 fn(self)
             except ClustermanSignalError as e:
                 msg = str(e)
-                logger.exception(f'Autoscaler signal failed: {msg}')
+                logger.exception(f"Autoscaler signal failed: {msg}")
                 error = e
             except Exception as e:
                 msg = str(e)
-                logger.exception(f'Autoscaler service failed: {msg}')
+                logger.exception(f"Autoscaler service failed: {msg}")
                 error = e
                 service_failed = True
             self._do_sensu_checkins(service_failed, msg)
             if fail and error:
                 raise AutoscalerError from error
+
         return wrapper
+
     return decorator
 
 
 class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
-    notify_emails = ['compute-infra@yelp.com']
+    notify_emails = ["compute-infra@yelp.com"]
 
     @batch_command_line_arguments
     def parse_args(self, parser):
-        arg_group = parser.add_argument_group('AutoscalerBatch options')
+        arg_group = parser.add_argument_group("AutoscalerBatch options")
         add_cluster_arg(arg_group, required=True)
         add_pool_arg(arg_group)
         add_scheduler_arg(arg_group)
         add_cluster_config_directory_arg(arg_group)
         add_env_config_path_arg(arg_group)
         arg_group.add_argument(
-            '--dry-run',
+            "--dry-run",
             default=False,
-            action='store_true',
-            help='If true, will only log autoscaling decisions instead of modifying capacities',
+            action="store_true",
+            help="If true, will only log autoscaling decisions instead of modifying capacities",
         )
 
     @batch_configure
@@ -95,11 +97,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
         self.logger = logger
 
         self.apps = [self.options.pool]  # TODO (CLUSTERMAN-126) someday these should not be the same thing
-        pool_manager = PoolManager(
-            self.options.cluster,
-            self.options.pool,
-            self.options.scheduler,
-        )
+        pool_manager = PoolManager(self.options.cluster, self.options.pool, self.options.scheduler,)
         self.autoscaler = Autoscaler(
             self.options.cluster,
             self.options.pool,
@@ -122,10 +120,9 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
 
     @sensu_alert_triage()
     def _autoscale(self):
-        time.sleep(splay_event_time(
-            self.autoscaler.run_frequency,
-            self.get_name() + self.options.cluster + self.options.pool,
-        ))
+        time.sleep(
+            splay_event_time(self.autoscaler.run_frequency, self.get_name() + self.options.cluster + self.options.pool,)
+        )
         with suppress_request_limit_exceeded():
             self.autoscaler.run(dry_run=self.options.dry_run)
 
@@ -136,14 +133,17 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
             try:
                 self._autoscale()
             except (PoolConnectionError, EndpointConnectionError) as e:
-                logger.exception(f'Encountered a connection error: {e}')
+                logger.exception(f"Encountered a connection error: {e}")
 
     def _do_sensu_checkins(self, service_failed, msg):
-        check_every = ('{minutes}m'.format(minutes=int(self.autoscaler.run_frequency // 60))
-                       if self.autoscaler else DEFAULT_CHECK_EVERY)
+        check_every = (
+            "{minutes}m".format(minutes=int(self.autoscaler.run_frequency // 60))
+            if self.autoscaler
+            else DEFAULT_CHECK_EVERY
+        )
         # magic-y numbers here; an alert will time out after two autoscaler run periods plus a five minute buffer
         alert_delay = (
-            '{minutes}m'.format(minutes=int(self.autoscaler.run_frequency // 60) * 2 + 5)
+            "{minutes}m".format(minutes=int(self.autoscaler.run_frequency // 60) * 2 + 5)
             if self.autoscaler
             else DEFAULT_TTL
         )
@@ -153,7 +153,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
             scheduler=self.options.scheduler,
             app=self.apps[0],  # TODO (CLUSTERMAN-126)
             check_every=check_every,
-            source=f'{self.options.cluster}_{self.options.pool}',
+            source=f"{self.options.cluster}_{self.options.pool}",
             ttl=alert_delay,
             alert_after=alert_delay,
             noop=self.options.dry_run,
@@ -161,13 +161,13 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
         )
 
         if service_failed:
-            sensu_args['output'] = f'FAILED: clusterman autoscaler failed ({msg})'
-            sensu_args['status'] = Status.CRITICAL
+            sensu_args["output"] = f"FAILED: clusterman autoscaler failed ({msg})"
+            sensu_args["status"] = Status.CRITICAL
         else:
-            sensu_args['output'] = 'OK: clusterman autoscaler is fine'
+            sensu_args["output"] = "OK: clusterman autoscaler is fine"
         sensu_checkin(**sensu_args)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     setup_logging()
     AutoscalerBatch().start()

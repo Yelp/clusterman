@@ -43,9 +43,9 @@ from clusterman.util import sensu_checkin
 from clusterman.util import SignalResourceRequest
 from clusterman.util import Status
 
-SIGNAL_LOAD_CHECK_NAME = 'signal_configuration_failed'
-TARGET_CAPACITY_GAUGE_NAME = 'clusterman.autoscaler.target_capacity'
-RESOURCE_GAUGE_BASE_NAME = 'clusterman.autoscaler.requested_{resource}'
+SIGNAL_LOAD_CHECK_NAME = "signal_configuration_failed"
+TARGET_CAPACITY_GAUGE_NAME = "clusterman.autoscaler.target_capacity"
+RESOURCE_GAUGE_BASE_NAME = "clusterman.autoscaler.requested_{resource}"
 logger = colorlog.getLogger(__name__)
 
 
@@ -77,18 +77,17 @@ class Autoscaler:
 
         # TODO: handle multiple apps in the autoscaler (CLUSTERMAN-126)
         if len(self.apps) > 1:
-            raise NotImplementedError('Scaling multiple apps in a cluster is not yet supported')
+            raise NotImplementedError("Scaling multiple apps in a cluster is not yet supported")
 
-        logger.info(f'Initializing autoscaler engine for {self.pool} in {self.cluster}...')
+        logger.info(f"Initializing autoscaler engine for {self.pool} in {self.cluster}...")
 
-        gauge_dimensions = {'cluster': cluster, 'pool': pool}
+        gauge_dimensions = {"cluster": cluster, "pool": pool}
         monitoring_client = get_monitoring_client()
         self.target_capacity_gauge = monitoring_client.create_gauge(TARGET_CAPACITY_GAUGE_NAME, gauge_dimensions)
         self.resource_request_gauges: Dict[str, Any] = {}
         for resource in SignalResourceRequest._fields:
             self.resource_request_gauges[resource] = monitoring_client.create_gauge(
-                RESOURCE_GAUGE_BASE_NAME.format(resource=resource),
-                gauge_dimensions,
+                RESOURCE_GAUGE_BASE_NAME.format(resource=resource), gauge_dimensions,
             )
 
         self.autoscaling_config = get_autoscaling_config(
@@ -96,17 +95,17 @@ class Autoscaler:
         )
         self.pool_manager = pool_manager or PoolManager(self.cluster, self.pool, self.scheduler)
 
-        self.mesos_region = staticconf.read_string('aws.region')
+        self.mesos_region = staticconf.read_string("aws.region")
         self.metrics_client = metrics_client or ClustermanMetricsBotoClient(self.mesos_region)
         self.default_signal: Signal
-        if staticconf.read_bool('autoscale_signal.internal', default=False):
+        if staticconf.read_bool("autoscale_signal.internal", default=False):
             # we should never get here unless we're on Kubernetes; this assert makes mypy happy
             assert isinstance(self.pool_manager.cluster_connector, KubernetesClusterConnector)
             self.default_signal = PendingPodsSignal(
                 self.cluster,
                 self.pool,
                 self.scheduler,
-                '__default__',
+                "__default__",
                 DEFAULT_NAMESPACE,
                 self.metrics_client,
                 self.pool_manager.cluster_connector,
@@ -116,13 +115,13 @@ class Autoscaler:
                 self.cluster,
                 self.pool,
                 self.scheduler,
-                '__default__',
+                "__default__",
                 DEFAULT_NAMESPACE,
                 self.metrics_client,
-                signal_namespace=staticconf.read_string('autoscaling.default_signal_role'),
+                signal_namespace=staticconf.read_string("autoscaling.default_signal_role"),
             )
         self.signal = self._get_signal_for_app(self.apps[0])
-        logger.info('Initialization complete')
+        logger.info("Initialization complete")
 
     @property
     def run_frequency(self) -> int:
@@ -136,9 +135,9 @@ class Autoscaler:
         """
 
         timestamp = timestamp or arrow.utcnow()
-        logger.info(f'Autoscaling run starting at {timestamp}')
+        logger.info(f"Autoscaling run starting at {timestamp}")
         if autoscaling_is_paused(self.cluster, self.pool, self.scheduler, timestamp):
-            logger.info('Autoscaling is currently paused; doing nothing')
+            logger.info("Autoscaling is currently paused; doing nothing")
             return
 
         self.pool_manager.reload_state()
@@ -147,43 +146,44 @@ class Autoscaler:
             resource_request = self.signal.evaluate(timestamp)
             exception = None
         except Exception as e:
-            logger.error(f'Client signal {self.signal.name} failed; using default signal')
+            logger.error(f"Client signal {self.signal.name} failed; using default signal")
             signal_name = self.default_signal.name
             resource_request = self.default_signal.evaluate(timestamp)
             exception, tb = e, traceback.format_exc()
 
-        logger.info(f'Signal {signal_name} requested {resource_request}')
+        logger.info(f"Signal {signal_name} requested {resource_request}")
 
         no_scale_down = False
         if self.autoscaling_config.prevent_scale_down_after_capacity_loss:
             num_removed_nodes_before_last_reload = self.pool_manager.get_num_removed_nodes_before_last_reload()
             # TODO (CLUSTERMAN-576): support instance weights here, instead of just instance count
             if num_removed_nodes_before_last_reload > self.autoscaling_config.instance_loss_threshold:
-                logger.warning('Nodes lost since last autoscaler run is {}'
-                               ' which is greater than the threshold ({}),'.format(
-                                   str(num_removed_nodes_before_last_reload),
-                                   str(self.autoscaling_config.instance_loss_threshold)
-                                   ))
-                logger.warning('Autoscaler will not kill any nodes on this run.')
+                logger.warning(
+                    "Nodes lost since last autoscaler run is {}"
+                    " which is greater than the threshold ({}),".format(
+                        str(num_removed_nodes_before_last_reload), str(self.autoscaling_config.instance_loss_threshold),
+                    )
+                )
+                logger.warning("Autoscaler will not kill any nodes on this run.")
                 no_scale_down = True
 
         if isinstance(resource_request, list):
             pass
         else:
             new_target_capacity = self._compute_target_capacity(resource_request)
-            self.target_capacity_gauge.set(new_target_capacity, {'dry_run': dry_run})
+            self.target_capacity_gauge.set(new_target_capacity, {"dry_run": dry_run})
             self._emit_requested_resource_metrics(resource_request, dry_run=dry_run)
 
         self.pool_manager.modify_target_capacity(new_target_capacity, dry_run=dry_run, no_scale_down=no_scale_down)
 
         if exception:
-            logger.error(f'The client signal failed with:\n{tb}')
+            logger.error(f"The client signal failed with:\n{tb}")
             raise exception
 
     def _emit_requested_resource_metrics(self, resource_request: SignalResourceRequest, dry_run: bool) -> None:
         for resource_type, resource_gauge in self.resource_request_gauges.items():
             if getattr(resource_request, resource_type) is not None:
-                resource_gauge.set(getattr(resource_request, resource_type), {'dry_run': dry_run})
+                resource_gauge.set(getattr(resource_request, resource_type), {"dry_run": dry_run})
 
     def _get_signal_for_app(self, app: str) -> Signal:
         """Load the signal object to use for autoscaling for a particular app
@@ -191,14 +191,14 @@ class Autoscaler:
         :param app: the name of the app to load a Signal for
         :returns: the configured app signal, or the default signal in case of an error
         """
-        logger.info(f'Loading autoscaling signal for {app} on {self.pool} in {self.cluster}')
+        logger.info(f"Loading autoscaling signal for {app} on {self.pool} in {self.cluster}")
 
         # TODO (CLUSTERMAN-126, CLUSTERMAN-195) apps will eventually have separate namespaces from pools
         pool_namespace = POOL_NAMESPACE.format(pool=app, scheduler=self.scheduler)
 
         try:
             # see if the pool has set up a custom signal correctly; if not, fall back to the default signal
-            if staticconf.read_bool('autoscale_signal.internal', default=False, namespace=pool_namespace):
+            if staticconf.read_bool("autoscale_signal.internal", default=False, namespace=pool_namespace):
                 # we should never get here unless we're on Kubernetes; this assert makes mypy happy
                 assert isinstance(self.pool_manager.cluster_connector, KubernetesClusterConnector)
                 return PendingPodsSignal(
@@ -218,16 +218,14 @@ class Autoscaler:
                 pool_namespace,
                 self.metrics_client,
                 signal_namespace=staticconf.read_string(
-                    'autoscale_signal.namespace',
-                    default=app,
-                    namespace=pool_namespace,
+                    "autoscale_signal.namespace", default=app, namespace=pool_namespace,
                 ),
             )
         except NoSignalConfiguredException:
-            logger.info(f'No signal configured for {app}, falling back to default')
+            logger.info(f"No signal configured for {app}, falling back to default")
             return self.default_signal
         except Exception:
-            msg = f'WARNING: loading signal for {app} failed, falling back to default'
+            msg = f"WARNING: loading signal for {app} failed, falling back to default"
             logger.exception(msg)
             sensu_checkin(
                 check_name=SIGNAL_LOAD_CHECK_NAME,
@@ -253,11 +251,11 @@ class Autoscaler:
         cluster_total_resources = self.pool_manager.cluster_connector.get_cluster_total_resources()
         cluster_allocated_resources = self.pool_manager.cluster_connector.get_cluster_allocated_resources()
         non_orphan_fulfilled_capacity = self.pool_manager.non_orphan_fulfilled_capacity
-        logger.info(f'Currently at target_capacity of {current_target_capacity}')
-        logger.info(f'Currently non-orphan fulfilled capacity is {non_orphan_fulfilled_capacity}')
-        logger.info(f'Current cluster total resources: {cluster_total_resources}')
-        logger.info(f'Current cluster allocated resources: {cluster_allocated_resources}')
-        logger.info(f'Current setpoint: {self.autoscaling_config.setpoint}')
+        logger.info(f"Currently at target_capacity of {current_target_capacity}")
+        logger.info(f"Currently non-orphan fulfilled capacity is {non_orphan_fulfilled_capacity}")
+        logger.info(f"Current cluster total resources: {cluster_total_resources}")
+        logger.info(f"Current cluster allocated resources: {cluster_allocated_resources}")
+        logger.info(f"Current setpoint: {self.autoscaling_config.setpoint}")
         # This block of code is kinda complicated logic for figuring out what happens if the cluster
         # or the resource request is empty.  There are essentially four checks, as follows:
         #
@@ -281,43 +279,44 @@ class Autoscaler:
         #    the cluster yet, we just need to wait until they join before doing anything else.
 
         if all(requested_quantity is None for requested_quantity in resource_request):
-            logger.info('No data from signal, not changing capacity')
+            logger.info("No data from signal, not changing capacity")
             return current_target_capacity
         elif all(requested_quantity in {0, None} for requested_quantity in resource_request):
             return 0
         elif current_target_capacity == 0:
             try:
-                logger.info('Current target capacity is 0 and we received a non-zero resource request')
-                logger.info('Trying to use historical data to determine weighted resource values...')
+                logger.info("Current target capacity is 0 and we received a non-zero resource request")
+                logger.info("Trying to use historical data to determine weighted resource values...")
                 historical_weighted_resources = self._get_historical_weighted_resource_value()
-                max_weighted_capacity_request = max([
-                    (request or 0) / history
-                    for request, history in zip(resource_request, historical_weighted_resources)
-                    if history != 0
-                ])
-                logger.info(f'Success!  Historical data is {historical_weighted_resources}')
-                logger.info(f'max_weighted_capacity_request = {max_weighted_capacity_request}')
+                max_weighted_capacity_request = max(
+                    [
+                        (request or 0) / history
+                        for request, history in zip(resource_request, historical_weighted_resources)
+                        if history != 0
+                    ]
+                )
+                logger.info(f"Success!  Historical data is {historical_weighted_resources}")
+                logger.info(f"max_weighted_capacity_request = {max_weighted_capacity_request}")
                 return max_weighted_capacity_request / self.autoscaling_config.setpoint
             except ValueError:
-                logger.info('No historical data found; scaling up by 1 to get some data')
+                logger.info("No historical data found; scaling up by 1 to get some data")
                 return 1
         elif non_orphan_fulfilled_capacity == 0:
             # Entering the main body of this method with non_orphan_fulfilled_capacity = 0 guarantees that
             # new_target_capacity will be 0, which we do not want (since the resource request is non-zero)
             logger.info(
-                'Non-orphan fulfilled capacity is 0 and current target capacity > 0, not changing target to let the '
-                'new instances join'
+                "Non-orphan fulfilled capacity is 0 and current target capacity > 0, not changing target to let the "
+                "new instances join"
             )
             return current_target_capacity
 
         # If we get here, everything is non-zero and we can use the "normal" logic to determine scaling
-        most_constrained_resource, usage_pct = self._get_most_constrained_resource_for_request(
-            resource_request,
-            cluster_total_resources,
+        (most_constrained_resource, usage_pct,) = self._get_most_constrained_resource_for_request(
+            resource_request, cluster_total_resources,
         )
         logger.info(
-            f'Fulfilling resource request will cause {most_constrained_resource} to be the most constrained resource '
-            f'at {usage_pct} usage'
+            f"Fulfilling resource request will cause {most_constrained_resource} to be the most constrained resource "
+            f"at {usage_pct} usage"
         )
 
         # We want to scale the cluster so that requested / (total * scale_factor) = setpoint.
@@ -348,27 +347,23 @@ class Autoscaler:
         # get_resource_total to protect against short-term fluctuations in the cluster.
         target_capacity_percentage_change = abs(new_target_capacity - current_target_capacity) / current_target_capacity
         logger.info(
-            f'Percentage change between current target capacity {current_target_capacity}, and new target capacity '
-            f'{new_target_capacity}, is {target_capacity_percentage_change}'
+            f"Percentage change between current target capacity {current_target_capacity}, and new target capacity "
+            f"{new_target_capacity}, is {target_capacity_percentage_change}"
         )
         margin = self.autoscaling_config.target_capacity_margin
         if target_capacity_percentage_change >= margin:
             logger.info(
-                f'Percentage change between current and new target capacities is greater than margin ({margin}). '
-                f'Scaling to {new_target_capacity}.'
+                f"Percentage change between current and new target capacities is greater than margin ({margin}). "
+                f"Scaling to {new_target_capacity}."
             )
         else:
-            logger.info(
-                f'We are within our target capacity margin ({margin}). Not changing target capacity.'
-            )
+            logger.info(f"We are within our target capacity margin ({margin}). Not changing target capacity.")
             new_target_capacity = current_target_capacity
 
         return new_target_capacity
 
     def _get_most_constrained_resource_for_request(
-        self,
-        resource_request: SignalResourceRequest,
-        cluster_total_resources: ClustermanResources,
+        self, resource_request: SignalResourceRequest, cluster_total_resources: ClustermanResources,
     ) -> Tuple[str, float]:
         """Determine what would be the most constrained resource if were to fulfill a resource_request without scaling
         the cluster.
@@ -385,13 +380,13 @@ class Autoscaler:
                 continue
 
             if resource in self.autoscaling_config.excluded_resources:
-                logger.info(f'Signal requested {resource_total} {resource} but it is excluded from scaling decisions')
+                logger.info(f"Signal requested {resource_total} {resource} but it is excluded from scaling decisions")
                 continue
 
             if resource_total == 0:
                 if resource_request_value > 0:
                     raise ResourceRequestError(
-                        f'Signal requested {resource_request_value} for {resource} '
+                        f"Signal requested {resource_request_value} for {resource} "
                         "but the cluster doesn't have any of that resource"
                     )
                 requested_resource_usage_pcts[resource] = 0
@@ -405,7 +400,7 @@ class Autoscaler:
         returns: a ClustermanResources object with the weighted resource value, or 0 if it couldn't be determined
         """
         capacity_history = self._get_smoothed_non_zero_metadata(
-            'non_orphan_fulfilled_capacity',
+            "non_orphan_fulfilled_capacity",
             time_start=arrow.now().shift(weeks=-1).timestamp,
             time_end=arrow.now().timestamp,
         )
@@ -416,9 +411,7 @@ class Autoscaler:
         weighted_resource_dict: MutableMapping[str, float] = {}
         for resource in ClustermanResources._fields:
             resource_history = self._get_smoothed_non_zero_metadata(
-                f'{resource}_total',
-                time_start=time_start,
-                time_end=time_end,
+                f"{resource}_total", time_start=time_start, time_end=time_end,
             )
             if not resource_history:
                 weighted_resource_dict[resource] = 0
@@ -428,11 +421,7 @@ class Autoscaler:
         return ClustermanResources(**weighted_resource_dict)
 
     def _get_smoothed_non_zero_metadata(
-        self,
-        metric_name: str,
-        time_start: arrow.Arrow,
-        time_end: arrow.Arrow,
-        smoothing: int = 5,
+        self, metric_name: str, time_start: arrow.Arrow, time_end: arrow.Arrow, smoothing: int = 5,
     ) -> Optional[Tuple[int, int, float]]:
         """ Compute some smoothed-out historical metrics metadata
 

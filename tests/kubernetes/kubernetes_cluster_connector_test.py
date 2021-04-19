@@ -42,48 +42,36 @@ from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesCluster
 @pytest.fixture
 def running_pod_1():
     return V1Pod(
-        metadata=V1ObjectMeta(name='running_pod_1'),
-        status=V1PodStatus(phase='Running', host_ip='10.10.10.2'),
-        spec=V1PodSpec(containers=[
-               V1Container(
-                    name='container1',
-                    resources=V1ResourceRequirements(requests={'cpu': '1.5'})
-                )
-            ],
-            node_selector={'clusterman.com/pool': 'bar'}
-        )
+        metadata=V1ObjectMeta(name="running_pod_1"),
+        status=V1PodStatus(phase="Running", host_ip="10.10.10.2"),
+        spec=V1PodSpec(
+            containers=[V1Container(name="container1", resources=V1ResourceRequirements(requests={"cpu": "1.5"}),)],
+            node_selector={"clusterman.com/pool": "bar"},
+        ),
     )
 
 
 @pytest.fixture
 def running_pod_2():
     return V1Pod(
-        metadata=V1ObjectMeta(name='running_pod_2', owner_references=[]),
-        status=V1PodStatus(phase='Running', host_ip='10.10.10.3'),
-        spec=V1PodSpec(containers=[
-               V1Container(
-                    name='container1',
-                    resources=V1ResourceRequirements(requests={'cpu': '1.5'})
-                )
-            ],
-            node_selector={'clusterman.com/pool': 'bar'}
-        )
+        metadata=V1ObjectMeta(name="running_pod_2", owner_references=[]),
+        status=V1PodStatus(phase="Running", host_ip="10.10.10.3"),
+        spec=V1PodSpec(
+            containers=[V1Container(name="container1", resources=V1ResourceRequirements(requests={"cpu": "1.5"}),)],
+            node_selector={"clusterman.com/pool": "bar"},
+        ),
     )
 
 
 @pytest.fixture
 def running_pod_on_nonexistent_node():
     return V1Pod(
-        metadata=V1ObjectMeta(name='running_pod_on_nonexistent_node', owner_references=[]),
-        status=V1PodStatus(phase='Running', host_ip='10.10.10.4'),
-        spec=V1PodSpec(containers=[
-               V1Container(
-                    name='container1',
-                    resources=V1ResourceRequirements(requests={'cpu': '1.5'})
-                )
-            ],
-            node_selector={'clusterman.com/pool': 'bar'}
-        )
+        metadata=V1ObjectMeta(name="running_pod_on_nonexistent_node", owner_references=[]),
+        status=V1PodStatus(phase="Running", host_ip="10.10.10.4"),
+        spec=V1PodSpec(
+            containers=[V1Container(name="container1", resources=V1ResourceRequirements(requests={"cpu": "1.5"}),)],
+            node_selector={"clusterman.com/pool": "bar"},
+        ),
     )
 
 
@@ -91,60 +79,38 @@ def running_pod_on_nonexistent_node():
 def unevictable_pod():
     return V1Pod(
         metadata=V1ObjectMeta(
-            name='unevictable_pod',
-            annotations={'clusterman.com/safe_to_evict': 'false'},
-            owner_references=[]
+            name="unevictable_pod", annotations={"clusterman.com/safe_to_evict": "false"}, owner_references=[],
         ),
-        status=V1PodStatus(phase='Running', host_ip='10.10.10.2'),
-        spec=V1PodSpec(containers=[
-               V1Container(
-                    name='container1',
-                    resources=V1ResourceRequirements(requests={'cpu': '1.5'})
-                )
-            ]
-        )
+        status=V1PodStatus(phase="Running", host_ip="10.10.10.2"),
+        spec=V1PodSpec(
+            containers=[V1Container(name="container1", resources=V1ResourceRequirements(requests={"cpu": "1.5"}),)]
+        ),
     )
 
 
 @pytest.fixture
 def unschedulable_pod():
     return V1Pod(
-        metadata=V1ObjectMeta(name='unschedulable_pod', annotations=dict(), owner_references=[]),
+        metadata=V1ObjectMeta(name="unschedulable_pod", annotations=dict(), owner_references=[]),
         status=V1PodStatus(
-            phase='Pending',
-            conditions=[
-                V1PodCondition(status='False', type='PodScheduled', reason='Unschedulable')
-            ]
+            phase="Pending", conditions=[V1PodCondition(status="False", type="PodScheduled", reason="Unschedulable")],
         ),
         spec=V1PodSpec(
-            containers=[
-                V1Container(
-                    name='container2',
-                    resources=V1ResourceRequirements(requests={'cpu': '1.5'})
-                )
-            ],
-            node_selector={'clusterman.com/pool': 'bar'}
-        )
+            containers=[V1Container(name="container2", resources=V1ResourceRequirements(requests={"cpu": "1.5"}),)],
+            node_selector={"clusterman.com/pool": "bar"},
+        ),
     )
 
 
 @pytest.fixture
 def pending_pod():
     return V1Pod(
-        metadata=V1ObjectMeta(name='pending_pod', annotations=dict(), owner_references=[]),
-        status=V1PodStatus(
-            phase='Pending',
-            conditions=None,
-        ),
+        metadata=V1ObjectMeta(name="pending_pod", annotations=dict(), owner_references=[]),
+        status=V1PodStatus(phase="Pending", conditions=None,),
         spec=V1PodSpec(
-            containers=[
-                V1Container(
-                    name='container2',
-                    resources=V1ResourceRequirements(requests={'cpu': '1.5'})
-                )
-            ],
-            node_selector={'clusterman.com/pool': 'bar'}
-        )
+            containers=[V1Container(name="container2", resources=V1ResourceRequirements(requests={"cpu": "1.5"}),)],
+            node_selector={"clusterman.com/pool": "bar"},
+        ),
     )
 
 
@@ -152,21 +118,14 @@ def pending_pod():
 def daemonset_pod():
     return V1Pod(
         metadata=V1ObjectMeta(
-            name='daemonset_pod',
+            name="daemonset_pod",
             annotations=dict(),
-            owner_references=[V1OwnerReference(kind='DaemonSet', api_version='foo', name='daemonset', uid='bar')]),
-        status=V1PodStatus(
-            phase='Running',
-            host_ip='10.10.10.2',
+            owner_references=[V1OwnerReference(kind="DaemonSet", api_version="foo", name="daemonset", uid="bar")],
         ),
+        status=V1PodStatus(phase="Running", host_ip="10.10.10.2",),
         spec=V1PodSpec(
-            containers=[
-                V1Container(
-                    name='container1',
-                    resources=V1ResourceRequirements(requests={'cpu': '1.5'})
-                )
-            ],
-        )
+            containers=[V1Container(name="container1", resources=V1ResourceRequirements(requests={"cpu": "1.5"}),)],
+        ),
     )
 
 
@@ -174,36 +133,24 @@ def daemonset_pod():
 def pod_with_required_affinity():
     return V1Pod(
         status=V1PodStatus(
-            phase='Pending',
-            conditions=[
-                V1PodCondition(status='False', type='PodScheduled', reason='Unschedulable')
-            ]
+            phase="Pending", conditions=[V1PodCondition(status="False", type="PodScheduled", reason="Unschedulable")],
         ),
         spec=V1PodSpec(
-            containers=[
-                V1Container(
-                    name='container',
-                    resources=V1ResourceRequirements(requests={'cpu': '1.5'})
-                )
-            ],
+            containers=[V1Container(name="container", resources=V1ResourceRequirements(requests={"cpu": "1.5"}),)],
             affinity=V1Affinity(
                 node_affinity=V1NodeAffinity(
                     required_during_scheduling_ignored_during_execution=V1NodeSelector(
                         node_selector_terms=[
                             V1NodeSelectorTerm(
                                 match_expressions=[
-                                    V1NodeSelectorRequirement(
-                                        key='clusterman.com/pool',
-                                        operator='In',
-                                        values=['bar']
-                                    )
+                                    V1NodeSelectorRequirement(key="clusterman.com/pool", operator="In", values=["bar"],)
                                 ]
                             )
                         ]
                     )
                 )
-            )
-        )
+            ),
+        ),
     )
 
 
@@ -211,28 +158,17 @@ def pod_with_required_affinity():
 def pod_with_preferred_affinity():
     return V1Pod(
         status=V1PodStatus(
-            phase='Pending',
-            conditions=[
-                V1PodCondition(status='False', type='PodScheduled', reason='Unschedulable')
-            ]
+            phase="Pending", conditions=[V1PodCondition(status="False", type="PodScheduled", reason="Unschedulable")],
         ),
         spec=V1PodSpec(
-            containers=[
-                V1Container(
-                    name='container',
-                    resources=V1ResourceRequirements(requests={'cpu': '1.5'})
-                )
-            ],
+            containers=[V1Container(name="container", resources=V1ResourceRequirements(requests={"cpu": "1.5"}),)],
             affinity=V1Affinity(
                 node_affinity=V1NodeAffinity(
                     required_during_scheduling_ignored_during_execution=V1NodeSelector(
                         node_selector_terms=[
                             V1NodeSelectorTerm(
                                 match_expressions=[
-                                    V1NodeSelectorRequirement(
-                                        key='clusterman.com/scheduler',
-                                        operator='Exists'
-                                    )
+                                    V1NodeSelectorRequirement(key="clusterman.com/scheduler", operator="Exists",)
                                 ]
                             )
                         ]
@@ -242,18 +178,14 @@ def pod_with_preferred_affinity():
                             weight=10,
                             preference=V1NodeSelectorTerm(
                                 match_expressions=[
-                                    V1NodeSelectorRequirement(
-                                        key='clusterman.com/pool',
-                                        operator='In',
-                                        values=['bar']
-                                    )
+                                    V1NodeSelectorRequirement(key="clusterman.com/pool", operator="In", values=["bar"],)
                                 ]
-                            )
+                            ),
                         )
-                    ]
+                    ],
                 )
-            )
-        )
+            ),
+        ),
     )
 
 
@@ -267,37 +199,35 @@ def mock_cluster_connector(
     pending_pod,
     daemonset_pod,
 ):
-    with mock.patch(
-        'clusterman.kubernetes.kubernetes_cluster_connector.kubernetes',
-    ), mock.patch(
-        'clusterman.kubernetes.kubernetes_cluster_connector.CachedCoreV1Api',
+    with mock.patch("clusterman.kubernetes.kubernetes_cluster_connector.kubernetes",), mock.patch(
+        "clusterman.kubernetes.kubernetes_cluster_connector.CachedCoreV1Api",
     ) as mock_core_api, PatchConfiguration(
-        {'clusters': {'kubernetes-test': {'kubeconfig_path': '/var/lib/clusterman.conf'}}},
+        {"clusters": {"kubernetes-test": {"kubeconfig_path": "/var/lib/clusterman.conf"}}},
     ):
         mock_core_api.return_value.list_node.return_value.items = [
             KubernetesNode(
-                metadata=V1ObjectMeta(name='node1', labels={'clusterman.com/pool': 'bar'}),
+                metadata=V1ObjectMeta(name="node1", labels={"clusterman.com/pool": "bar"}),
                 status=V1NodeStatus(
-                    allocatable={'cpu': '4', 'gpu': 2},
-                    capacity={'cpu': '4', 'gpu': '2'},
-                    addresses=[V1NodeAddress(type='InternalIP', address='10.10.10.1')],
-                )
+                    allocatable={"cpu": "4", "gpu": 2},
+                    capacity={"cpu": "4", "gpu": "2"},
+                    addresses=[V1NodeAddress(type="InternalIP", address="10.10.10.1")],
+                ),
             ),
             KubernetesNode(
-                metadata=V1ObjectMeta(name='node2', labels={'clusterman.com/pool': 'bar'}),
+                metadata=V1ObjectMeta(name="node2", labels={"clusterman.com/pool": "bar"}),
                 status=V1NodeStatus(
-                    allocatable={'cpu': '6.5'},
-                    capacity={'cpu': '8'},
-                    addresses=[V1NodeAddress(type='InternalIP', address='10.10.10.2')],
-                )
+                    allocatable={"cpu": "6.5"},
+                    capacity={"cpu": "8"},
+                    addresses=[V1NodeAddress(type="InternalIP", address="10.10.10.2")],
+                ),
             ),
             KubernetesNode(
-                metadata=V1ObjectMeta(name='node2', labels={'clusterman.com/pool': 'bar'}),
+                metadata=V1ObjectMeta(name="node2", labels={"clusterman.com/pool": "bar"}),
                 status=V1NodeStatus(
-                    allocatable={'cpu': '1'},
-                    capacity={'cpu': '8'},
-                    addresses=[V1NodeAddress(type='InternalIP', address='10.10.10.3')],
-                )
+                    allocatable={"cpu": "1"},
+                    capacity={"cpu": "8"},
+                    addresses=[V1NodeAddress(type="InternalIP", address="10.10.10.3")],
+                ),
             ),
         ]
         mock_core_api.return_value.list_pod_for_all_namespaces.return_value.items = [
@@ -309,40 +239,43 @@ def mock_cluster_connector(
             pending_pod,
             daemonset_pod,
         ]
-        mock_cluster_connector = KubernetesClusterConnector('kubernetes-test', 'bar')
+        mock_cluster_connector = KubernetesClusterConnector("kubernetes-test", "bar")
         mock_cluster_connector.reload_state()
         yield mock_cluster_connector
 
 
-@pytest.mark.parametrize('ip_address,expected_state', [
-    (None, AgentState.UNKNOWN),
-    ('1.2.3.4', AgentState.ORPHANED),
-    ('10.10.10.1', AgentState.IDLE),
-    ('10.10.10.2', AgentState.RUNNING),
-])
+@pytest.mark.parametrize(
+    "ip_address,expected_state",
+    [
+        (None, AgentState.UNKNOWN),
+        ("1.2.3.4", AgentState.ORPHANED),
+        ("10.10.10.1", AgentState.IDLE),
+        ("10.10.10.2", AgentState.RUNNING),
+    ],
+)
 def test_get_agent_metadata(mock_cluster_connector, ip_address, expected_state):
     agent_metadata = mock_cluster_connector.get_agent_metadata(ip_address)
-    assert agent_metadata.is_safe_to_kill == (ip_address != '10.10.10.2')
+    assert agent_metadata.is_safe_to_kill == (ip_address != "10.10.10.2")
     assert agent_metadata.state == expected_state
 
 
 def test_allocation(mock_cluster_connector):
-    assert mock_cluster_connector.get_resource_allocation('cpus') == 7.5
+    assert mock_cluster_connector.get_resource_allocation("cpus") == 7.5
 
 
 def test_allocation_with_excluded_pods(mock_cluster_connector, daemonset_pod):
-    with PatchConfiguration({'exclude_daemonset_pods': True},
-                            namespace=POOL_NAMESPACE.format(pool=mock_cluster_connector.pool,
-                                                            scheduler=mock_cluster_connector.SCHEDULER)
-                            ):
+    with PatchConfiguration(
+        {"exclude_daemonset_pods": True},
+        namespace=POOL_NAMESPACE.format(pool=mock_cluster_connector.pool, scheduler=mock_cluster_connector.SCHEDULER),
+    ):
         mock_cluster_connector.reload_state()
-        assert daemonset_pod not in mock_cluster_connector._pods_by_ip['10.10.10.2']
-        assert mock_cluster_connector.get_resource_total('cpus') == 10
-        assert mock_cluster_connector.get_resource_allocation('cpus') == 6
+        assert daemonset_pod not in mock_cluster_connector._pods_by_ip["10.10.10.2"]
+        assert mock_cluster_connector.get_resource_total("cpus") == 10
+        assert mock_cluster_connector.get_resource_allocation("cpus") == 6
 
 
 def test_total_cpus(mock_cluster_connector):
-    assert mock_cluster_connector.get_resource_total('cpus') == 11.5
+    assert mock_cluster_connector.get_resource_total("cpus") == 11.5
 
 
 def test_get_unschedulable_pods(mock_cluster_connector):
@@ -350,7 +283,7 @@ def test_get_unschedulable_pods(mock_cluster_connector):
 
 
 def test_pending_cpus(mock_cluster_connector):
-    assert mock_cluster_connector.get_resource_pending('cpus') == 1.5
+    assert mock_cluster_connector.get_resource_pending("cpus") == 1.5
 
 
 def test_pod_belongs_to_daemonset(mock_cluster_connector, running_pod_1, daemonset_pod):
@@ -370,11 +303,15 @@ def test_pod_belongs_to_pool(
     pod_with_preferred_affinity,
 ):
     pod_with_node_selector_elsewhere = deepcopy(pending_pod)
-    pod_with_node_selector_elsewhere.spec.node_selector = {'clusterman.com/pool': 'not-bar'}
+    pod_with_node_selector_elsewhere.spec.node_selector = {"clusterman.com/pool": "not-bar"}
     pod_with_required_affinity_elsewhere = deepcopy(pod_with_required_affinity)
-    pod_with_required_affinity_elsewhere.spec.affinity.node_affinity. \
-        required_during_scheduling_ignored_during_execution.node_selector_terms[0].match_expressions[0].values = \
-        ['not-bar']
+    pod_with_required_affinity_elsewhere.spec.affinity.node_affinity.required_during_scheduling_ignored_during_execution.node_selector_terms[  # noqa
+        0
+    ].match_expressions[
+        0
+    ].values = [
+        "not-bar"
+    ]
     assert mock_cluster_connector._pod_belongs_to_pool(running_pod_1)
     assert mock_cluster_connector._pod_belongs_to_pool(running_pod_2)
     assert mock_cluster_connector._pod_belongs_to_pool(running_pod_on_nonexistent_node)

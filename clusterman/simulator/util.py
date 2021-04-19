@@ -16,10 +16,7 @@ from staticconf.testing import PatchConfiguration
 
 
 def patch_join_delay(mean=0, stdev=0):
-    return PatchConfiguration({
-        'join_delay_mean_seconds': mean,
-        'join_delay_stdev_seconds': stdev,
-    })
+    return PatchConfiguration({"join_delay_mean_seconds": mean, "join_delay_stdev_seconds": stdev,})
 
 
 class SimulationMetadata:  # pragma: no cover
@@ -38,4 +35,4 @@ class SimulationMetadata:  # pragma: no cover
         self.sim_end = arrow.now()
 
     def __str__(self):
-        return f'({self.cluster}, {self.pool}, {self.sim_start}, {self.sim_end})'
+        return f"({self.cluster}, {self.pool}, {self.sim_start}, {self.sim_end})"

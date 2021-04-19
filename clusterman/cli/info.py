@@ -24,28 +24,25 @@ def list_clusters(args):  # pragma: no cover
     if args.json:
         print(json.dumps(list(get_cluster_name_list())))
     else:
-        print('\n'.join(get_cluster_name_list()))
+        print("\n".join(get_cluster_name_list()))
 
 
-@subparser('list-clusters', 'list available clusters', list_clusters)
+@subparser("list-clusters", "list available clusters", list_clusters)
 def add_list_clusters_parser(subparser, required_named_args, optional_named_args):  # pragma: no cover
     add_json_arg(optional_named_args)
 
 
 def list_pools(args):  # pragma: no cover
     if args.json:
-        obj = {
-            scheduler: list(get_pool_name_list(args.cluster, scheduler))
-            for scheduler in ['mesos', 'kubernetes']
-        }
+        obj = {scheduler: list(get_pool_name_list(args.cluster, scheduler)) for scheduler in ["mesos", "kubernetes"]}
         print(json.dumps(obj))
     else:
-        for scheduler in ['mesos', 'kubernetes']:
-            print(f'\n{scheduler.capitalize()} pools\n--------------------')
-            print('\n'.join(get_pool_name_list(args.cluster, scheduler)))
+        for scheduler in ["mesos", "kubernetes"]:
+            print(f"\n{scheduler.capitalize()} pools\n--------------------")
+            print("\n".join(get_pool_name_list(args.cluster, scheduler)))
 
 
-@subparser('list-pools', 'list available pools in a cluster', list_pools)
+@subparser("list-pools", "list available pools in a cluster", list_pools)
 def add_list_pools_parser(subparser, required_named_args, optional_named_args):  # pragma: no cover
     add_cluster_arg(required_named_args, required=True)
     add_json_arg(optional_named_args)

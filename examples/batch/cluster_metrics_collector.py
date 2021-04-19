@@ -55,11 +55,11 @@ class MetricToWrite(NamedTuple):
     generator: Callable[[PoolManager], Generator[ClusterMetric, None, None]]
     type: str
     aggregate_meteorite_dims: bool
-    pools: Union[Type[All], List['str']]
+    pools: Union[Type[All], List["str"]]
 
 
 METRICS_TO_WRITE = [
-    MetricToWrite(generate_system_metrics, SYSTEM_METRICS, aggregate_meteorite_dims=False, pools=All),
+    MetricToWrite(generate_system_metrics, SYSTEM_METRICS, aggregate_meteorite_dims=False, pools=All,),
     MetricToWrite(generate_simple_metadata, METADATA, aggregate_meteorite_dims=False, pools=All),
 ]
 
@@ -67,7 +67,7 @@ METRICS_TO_WRITE = [
 class ClusterMetricsCollector(BatchRunningSentinelMixin):
     def parse_args(self) -> None:
         parser = argparse.ArgumentParser()
-        arg_group = parser.add_argument_group('ClusterMetricsCollector options')
+        arg_group = parser.add_argument_group("ClusterMetricsCollector options")
         add_cluster_arg(arg_group, required=True)
         add_env_config_path_arg(arg_group)
         add_cluster_config_directory_arg(arg_group)
@@ -79,26 +79,26 @@ class ClusterMetricsCollector(BatchRunningSentinelMixin):
         # Since we want to collect metrics for all the pools, we need to call setup_config
         # first to load the cluster config path, and then read all the entries in that directory
         self.pools: MutableMapping[str, List[str]] = {}
-        for scheduler in {'mesos', 'kubernetes'}:
+        for scheduler in {"mesos", "kubernetes"}:
             self.pools[scheduler] = get_pool_name_list(self.options.cluster, scheduler)
         for scheduler, pools in self.pools.items():
             for pool in pools:
                 load_cluster_pool_config(self.options.cluster, pool, scheduler, None)
 
-        self.region = staticconf.read_string('aws.region')
-        self.run_interval = staticconf.read_int('batches.cluster_metrics.run_interval_seconds')
+        self.region = staticconf.read_string("aws.region")
+        self.run_interval = staticconf.read_int("batches.cluster_metrics.run_interval_seconds")
         self.logger = logger
 
         self.metrics_client = ClustermanMetricsBotoClient(region_name=self.region)
 
     def load_pool_managers(self) -> None:
-        logger.info('Reloading all PoolManagers')
+        logger.info("Reloading all PoolManagers")
         self.pool_managers: Mapping[str, PoolManager] = {}
         for scheduler, pools in self.pools.items():
             for pool in pools:
                 try:
-                    logger.info(f'Loading resource groups for {pool}.{scheduler} on {self.options.cluster}')
-                    self.pool_managers[f'{pool}.{scheduler}'] = PoolManager(self.options.cluster, pool, scheduler)
+                    logger.info(f"Loading resource groups for {pool}.{scheduler} on {self.options.cluster}")
+                    self.pool_managers[f"{pool}.{scheduler}"] = PoolManager(self.options.cluster, pool, scheduler)
                 except Exception as e:
                     logger.exception(e)
                     continue
@@ -109,15 +109,12 @@ class ClusterMetricsCollector(BatchRunningSentinelMixin):
         self.make_running_sentinel()
 
         while True:
-            time.sleep(splay_event_time(
-                self.run_interval,
-                self.__class__.__name__ + self.options.cluster,
-            ))
+            time.sleep(splay_event_time(self.run_interval, self.__class__.__name__ + self.options.cluster,))
 
             for pool, manager in self.pool_managers.items():
-                logger.info(f'Reloading state for pool manager for pool {pool}')
+                logger.info(f"Reloading state for pool manager for pool {pool}")
                 manager.reload_state()
-                logger.info(f'Done reloading state for pool {pool}')
+                logger.info(f"Done reloading state for pool {pool}")
 
             self.write_all_metrics()
 
@@ -126,14 +123,13 @@ class ClusterMetricsCollector(BatchRunningSentinelMixin):
 
         for metric_to_write in METRICS_TO_WRITE:
             with self.metrics_client.get_writer(
-                metric_to_write.type,
-                metric_to_write.aggregate_meteorite_dims
+                metric_to_write.type, metric_to_write.aggregate_meteorite_dims
             ) as writer:
                 try:
                     self.write_metrics(writer, metric_to_write.generator, metric_to_write.pools)
                 except socket.timeout:
                     # Try to get metrics for the rest of the clusters, but make sure we know this failed
-                    logger.warn(f'Timed out getting cluster metric data:\n\n{format_exc()}')
+                    logger.warn(f"Timed out getting cluster metric data:\n\n{format_exc()}")
                     successful = False
                     continue
 
@@ -152,12 +148,12 @@ class ClusterMetricsCollector(BatchRunningSentinelMixin):
             for cluster_metric in metric_generator(manager):
                 metric_name = generate_key_with_dimensions(cluster_metric.metric_name, cluster_metric.dimensions)
                 data = (metric_name, int(time.time()), cluster_metric.value)
-                logger.info(f'Writing value {cluster_metric.value} for metric {metric_name} to metric store')
+                logger.info(f"Writing value {cluster_metric.value} for metric {metric_name} to metric store")
 
                 writer.send(data)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     setup_logging()
     batch = ClusterMetricsCollector()
     batch.parse_args()

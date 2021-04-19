@@ -40,27 +40,27 @@ logger = colorlog.getLogger(__name__)
 
 
 class SpotPriceCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
-    notify_emails = ['compute-infra@yelp.com']
+    notify_emails = ["compute-infra@yelp.com"]
 
     @batch_command_line_arguments
     def parse_args(self, parser):
-        arg_group = parser.add_argument_group('SpotPriceCollector options')
+        arg_group = parser.add_argument_group("SpotPriceCollector options")
         parser.add_argument(
-            '--aws-region',
+            "--aws-region",
             required=True,
-            choices=['us-west-1', 'us-west-2', 'us-east-1'],
-            help='AWS region to collect spot pricing data for',
+            choices=["us-west-1", "us-west-2", "us-east-1"],
+            help="AWS region to collect spot pricing data for",
         )
         add_env_config_path_arg(arg_group)
         add_disable_sensu_arg(arg_group)
         arg_group.add_argument(
-            '--start-time',
+            "--start-time",
             default=arrow.utcnow(),
             help=(
-                'Start of period to collect prices for. Default is now. '
-                'Suggested format: 2017-01-13T21:10:34-08:00 (if no timezone, will be parsed as UTC).'
+                "Start of period to collect prices for. Default is now. "
+                "Suggested format: 2017-01-13T21:10:34-08:00 (if no timezone, will be parsed as UTC)."
             ),
-            type=lambda d: arrow.get(d).to('utc'),
+            type=lambda d: arrow.get(d).to("utc"),
         )
 
     @batch_configure
@@ -69,10 +69,10 @@ class SpotPriceCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMix
         setup_config(self.options)
 
         self.logger = logger
-        self.region = staticconf.read_string('aws.region')
+        self.region = staticconf.read_string("aws.region")
         self.last_time_called = self.options.start_time
-        self.run_interval = staticconf.read_int('batches.spot_prices.run_interval_seconds')
-        self.dedupe_interval = staticconf.read_int('batches.spot_prices.dedupe_interval_seconds')
+        self.run_interval = staticconf.read_int("batches.spot_prices.run_interval_seconds")
+        self.dedupe_interval = staticconf.read_int("batches.spot_prices.dedupe_interval_seconds")
         self.metrics_client = ClustermanMetricsBotoClient(region_name=self.region)
 
     def write_prices(self, end_time, writer):
@@ -82,10 +82,7 @@ class SpotPriceCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMix
 
     def run(self):
         while self.running:
-            time.sleep(splay_event_time(
-                self.run_interval,
-                self.get_name() + staticconf.read_string('aws.region'),
-            ))
+            time.sleep(splay_event_time(self.run_interval, self.get_name() + staticconf.read_string("aws.region"),))
 
             now = arrow.utcnow()
             with self.metrics_client.get_writer(METADATA) as writer:
@@ -94,21 +91,21 @@ class SpotPriceCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMix
                         self.write_prices(now, writer)
                 except socket.timeout:
                     # We don't really care if we miss a few spot price changes so just continue here
-                    logger.warn(f'Timed out getting spot prices:\n\n{format_exc()}')
+                    logger.warn(f"Timed out getting spot prices:\n\n{format_exc()}")
                     continue
 
             # Report successful run to Sensu.
             sensu_args = dict(
-                check_name='check_clusterman_spot_prices_running',
-                output='OK: clusterman spot_prices was successful',
-                check_every='1m',
+                check_name="check_clusterman_spot_prices_running",
+                output="OK: clusterman spot_prices was successful",
+                check_every="1m",
                 source=self.options.aws_region,
-                ttl='10m',
+                ttl="10m",
                 noop=self.options.disable_sensu,
             )
             sensu_checkin(**sensu_args)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     setup_logging()
     SpotPriceCollector().start()

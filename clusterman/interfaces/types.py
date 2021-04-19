@@ -9,14 +9,14 @@ from clusterman.util import ClustermanResources
 
 
 class AgentState(enum.Enum):
-    IDLE = 'idle'
-    ORPHANED = 'orphaned'
-    RUNNING = 'running'
-    UNKNOWN = 'unknown'
+    IDLE = "idle"
+    ORPHANED = "orphaned"
+    RUNNING = "running"
+    UNKNOWN = "unknown"
 
 
 class AgentMetadata(NamedTuple):
-    agent_id: str = ''
+    agent_id: str = ""
     allocated_resources: ClustermanResources = ClustermanResources()
     batch_task_count: int = 0
     is_safe_to_kill: bool = True
@@ -28,12 +28,12 @@ class AgentMetadata(NamedTuple):
 class InstanceMetadata(NamedTuple):
     market: InstanceMarket
     weight: float
-    group_id: str = ''
+    group_id: str = ""
     hostname: Optional[str] = None
-    instance_id: str = ''
+    instance_id: str = ""
     ip_address: Optional[str] = None
     is_stale: bool = False
-    state: str = ''
+    state: str = ""
     uptime: arrow.Arrow = 0
 
 

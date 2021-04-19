@@ -47,33 +47,27 @@ from clusterman.kubernetes.util import total_pod_resources
 from clusterman.monitoring_lib import get_monitoring_client
 from clusterman.util import read_int_or_inf
 
-AWS_RUNNING_STATES = ('running',)
+AWS_RUNNING_STATES = ("running",)
 MIN_CAPACITY_PER_GROUP = 1
-SFX_RESOURCE_GROUP_MODIFICATION_FAILED_NAME = 'clusterman.resource_group_modification_failed'
+SFX_RESOURCE_GROUP_MODIFICATION_FAILED_NAME = "clusterman.resource_group_modification_failed"
 logger = colorlog.getLogger(__name__)
 
 
 class PoolManager:
-    def __init__(
-        self,
-        cluster: str,
-        pool: str,
-        scheduler: str,
-        fetch_state: bool = True,
-    ) -> None:
+    def __init__(self, cluster: str, pool: str, scheduler: str, fetch_state: bool = True,) -> None:
         self.cluster = cluster
         self.pool = pool
         self.scheduler = scheduler
         self.cluster_connector = ClusterConnector.load(self.cluster, self.pool, self.scheduler)
         self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool, scheduler=self.scheduler))
 
-        self.draining_enabled = self.pool_config.read_bool('draining_enabled', default=False)
+        self.draining_enabled = self.pool_config.read_bool("draining_enabled", default=False)
         self.draining_client: Optional[DrainingClient] = DrainingClient(cluster) if self.draining_enabled else None
-        self.min_capacity = self.pool_config.read_int('scaling_limits.min_capacity')
-        self.max_capacity = self.pool_config.read_int('scaling_limits.max_capacity')
-        self.max_tasks_to_kill = read_int_or_inf(self.pool_config, 'scaling_limits.max_tasks_to_kill')
-        self.max_weight_to_add = self.pool_config.read_int('scaling_limits.max_weight_to_add')
-        self.max_weight_to_remove = self.pool_config.read_int('scaling_limits.max_weight_to_remove')
+        self.min_capacity = self.pool_config.read_int("scaling_limits.min_capacity")
+        self.max_capacity = self.pool_config.read_int("scaling_limits.max_capacity")
+        self.max_tasks_to_kill = read_int_or_inf(self.pool_config, "scaling_limits.max_tasks_to_kill")
+        self.max_weight_to_add = self.pool_config.read_int("scaling_limits.max_weight_to_add")
+        self.max_weight_to_remove = self.pool_config.read_int("scaling_limits.max_weight_to_remove")
 
         if fetch_state:
             self.reload_state()
@@ -82,18 +76,18 @@ class PoolManager:
         """ Fetch any state that may have changed behind our back, but which we do not want to change during an
         ``Autoscaler.run()``.
         """
-        logger.info('Reloading cluster connector state')
+        logger.info("Reloading cluster connector state")
         self.cluster_connector.reload_state()
 
-        logger.info('Reloading resource groups')
+        logger.info("Reloading resource groups")
         self._reload_resource_groups()
 
-        logger.info('Recalculating non-orphan fulfilled capacity')
+        logger.info("Recalculating non-orphan fulfilled capacity")
         self.non_orphan_fulfilled_capacity = self._calculate_non_orphan_fulfilled_capacity()
 
     def get_num_removed_nodes_before_last_reload(self) -> int:
         if not isinstance(self.cluster_connector, KubernetesClusterConnector):
-            logger.warning('get_num_removed_nodes_since_last_reload is only supported for Kubernetes clusters')
+            logger.warning("get_num_removed_nodes_since_last_reload is only supported for Kubernetes clusters")
             return 0
 
         return self.cluster_connector.get_num_removed_nodes_before_last_reload()
@@ -103,11 +97,11 @@ class PoolManager:
             logger.warning('Running in "dry-run" mode; cluster state will not be modified')
 
         for group_id, group in self.resource_groups.items():
-            logger.info(f'Marking {group_id} as stale!')
+            logger.info(f"Marking {group_id} as stale!")
             try:
                 group.mark_stale(dry_run)
             except NotImplementedError as e:
-                logger.warning(f'Skipping {group_id} because of error:')
+                logger.warning(f"Skipping {group_id} because of error:")
                 logger.warning(str(e))
 
     def modify_target_capacity(
@@ -137,7 +131,7 @@ class PoolManager:
         if dry_run:
             logger.warning('Running in "dry-run" mode; cluster state will not be modified')
         if not self.resource_groups:
-            raise PoolManagerError('No resource groups available')
+            raise PoolManagerError("No resource groups available")
 
         orig_target_capacity = self.target_capacity
         new_target_capacity = self._constrain_target_capacity(new_target_capacity, force, no_scale_down)
@@ -149,28 +143,23 @@ class PoolManager:
 
             try:
                 self.resource_groups[group_id].modify_target_capacity(
-                    target,
-                    dry_run=dry_run,
+                    target, dry_run=dry_run,
                 )
             except ResourceGroupError:
                 logger.critical(traceback.format_exc())
                 rge_counter = get_monitoring_client().create_counter(
-                    SFX_RESOURCE_GROUP_MODIFICATION_FAILED_NAME,
-                    {'cluster': self.cluster, 'pool': self.pool},
+                    SFX_RESOURCE_GROUP_MODIFICATION_FAILED_NAME, {"cluster": self.cluster, "pool": self.pool},
                 )
                 rge_counter.count()
                 continue
 
         if prune:
             self.prune_excess_fulfilled_capacity(new_target_capacity, res_group_targets, dry_run)
-        logger.info(f'Target capacity for {self.pool} changed from {orig_target_capacity} to {new_target_capacity}')
+        logger.info(f"Target capacity for {self.pool} changed from {orig_target_capacity} to {new_target_capacity}")
         return new_target_capacity
 
     def prune_excess_fulfilled_capacity(
-        self,
-        new_target_capacity: float,
-        group_targets: Optional[Mapping[str, float]] = None,
-        dry_run: bool = False,
+        self, new_target_capacity: float, group_targets: Optional[Mapping[str, float]] = None, dry_run: bool = False,
     ) -> None:
         """ Decrease the capacity in the cluster
 
@@ -191,15 +180,14 @@ class PoolManager:
                     for node_metadata in node_metadatas:
                         self.draining_client.submit_instance_for_draining(
                             node_metadata.instance,
-                            sender=cast(Type[AWSResourceGroup], self.resource_groups[group_id].__class__),
+                            sender=cast(Type[AWSResourceGroup], self.resource_groups[group_id].__class__,),
                             scheduler=self.scheduler,
                         )
             else:
                 for group_id, node_metadatas in marked_nodes_by_group.items():
-                    self.resource_groups[group_id].terminate_instances_by_id([
-                        node_metadata.instance.instance_id
-                        for node_metadata in node_metadatas
-                    ])
+                    self.resource_groups[group_id].terminate_instances_by_id(
+                        [node_metadata.instance.instance_id for node_metadata in node_metadatas]
+                    )
 
     def get_node_metadatas(self, state_filter: Optional[Collection[str]] = None) -> Sequence[ClusterNodeMetadata]:
         """ Get a list of metadata about the nodes currently in the pool
@@ -209,8 +197,7 @@ class PoolManager:
         """
         return [
             ClusterNodeMetadata(
-                self.cluster_connector.get_agent_metadata(instance_metadata.ip_address),
-                instance_metadata,
+                self.cluster_connector.get_agent_metadata(instance_metadata.ip_address), instance_metadata,
             )
             for group in self.resource_groups.values()
             for instance_metadata in group.get_instance_metadatas(state_filter)
@@ -218,21 +205,17 @@ class PoolManager:
 
     # currently dead code, so don't count towards coverage metrics
     def _filter_scale_up_options_for_pod(
-        self,
-        pod: KubernetesPod,
-        scale_up_options: Mapping[str, List[ClusterNodeMetadata]],
+        self, pod: KubernetesPod, scale_up_options: Mapping[str, List[ClusterNodeMetadata]],
     ) -> Mapping[str, List[ClusterNodeMetadata]]:  # pragma: no cover
         filtered_options: Mapping[str, List[ClusterNodeMetadata]] = defaultdict(list)
         for group_id, options in scale_up_options.items():
             for option in options:
-                reason = ''
+                reason = ""
                 if total_pod_resources(pod) > option.agent.allocated_resources:
-                    reason = 'insufficient resources'
+                    reason = "insufficient resources"
 
                 if reason:
-                    logger.debug(
-                        'Skipping option {option.instance.market} for {pod.metadata.name}: {reason}'
-                    )
+                    logger.debug("Skipping option {option.instance.market} for {pod.metadata.name}: {reason}")
                     continue
                 filtered_options[group_id].append(option)
 
@@ -240,29 +223,26 @@ class PoolManager:
 
     def _reload_resource_groups(self) -> None:
         resource_groups: MutableMapping[str, ResourceGroup] = {}
-        for resource_group_conf in self.pool_config.read_list('resource_groups'):
+        for resource_group_conf in self.pool_config.read_list("resource_groups"):
             if not isinstance(resource_group_conf, dict) or len(resource_group_conf) != 1:
-                logger.error(f'Malformed config: {resource_group_conf}')
+                logger.error(f"Malformed config: {resource_group_conf}")
                 continue
             resource_group_type = list(resource_group_conf.keys())[0]
             resource_group_cls = RESOURCE_GROUPS.get(resource_group_type)
             if resource_group_cls is None:
-                logger.error(f'Unknown resource group {resource_group_type}')
+                logger.error(f"Unknown resource group {resource_group_type}")
                 continue
 
-            resource_groups.update(resource_group_cls.load(
-                cluster=self.cluster,
-                pool=self.pool,
-                config=list(resource_group_conf.values())[0],
-            ))
+            resource_groups.update(
+                resource_group_cls.load(
+                    cluster=self.cluster, pool=self.pool, config=list(resource_group_conf.values())[0],
+                )
+            )
         self.resource_groups = resource_groups
-        logger.info(f'Loaded resource groups: {list(resource_groups)}')
+        logger.info(f"Loaded resource groups: {list(resource_groups)}")
 
     def _constrain_target_capacity(
-        self,
-        requested_target_capacity: float,
-        force: bool = False,
-        no_scale_down: bool = False,
+        self, requested_target_capacity: float, force: bool = False, no_scale_down: bool = False,
     ) -> float:
         """ Signals can return arbitrary values, so make sure we don't add or remove too much capacity """
 
@@ -297,21 +277,19 @@ class PoolManager:
             if force:
                 forced_target_capacity = self.target_capacity + requested_delta
                 logger.warning(
-                    f'Forcing target capacity to {forced_target_capacity} even though '
-                    f'scaling limits would restrict to {constrained_target_capacity}.'
+                    f"Forcing target capacity to {forced_target_capacity} even though "
+                    f"scaling limits would restrict to {constrained_target_capacity}."
                 )
                 return forced_target_capacity
             else:
                 logger.warning(
-                    f'Requested target capacity {requested_target_capacity}; '
-                    f'restricting to {constrained_target_capacity} due to scaling limits.'
+                    f"Requested target capacity {requested_target_capacity}; "
+                    f"restricting to {constrained_target_capacity} due to scaling limits."
                 )
         return constrained_target_capacity
 
     def _choose_nodes_to_prune(
-        self,
-        new_target_capacity: float,
-        group_targets: Optional[Mapping[str, float]],
+        self, new_target_capacity: float, group_targets: Optional[Mapping[str, float]],
     ) -> Mapping[str, List[ClusterNodeMetadata]]:
         """ Choose nodes to kill in order to decrease the capacity on the cluster.
 
@@ -342,9 +320,11 @@ class PoolManager:
             return {}
 
         prioritized_killable_nodes = self._get_prioritized_killable_nodes()
-        logger.info('Killable instance IDs in kill order:\n{instance_ids}'.format(
-            instance_ids=[node_metadata.instance.instance_id for node_metadata in prioritized_killable_nodes],
-        ))
+        logger.info(
+            "Killable instance IDs in kill order:\n{instance_ids}".format(
+                instance_ids=[node_metadata.instance.instance_id for node_metadata in prioritized_killable_nodes],
+            )
+        )
 
         if not prioritized_killable_nodes:
             return {}
@@ -372,33 +352,31 @@ class PoolManager:
             new_group_capacity = rem_group_capacities[group_id] - instance_weight
             if instance_weight + removed_weight > self.max_weight_to_remove:  # case 0
                 logger.info(
-                    f'Killing instance {instance_id} with weight {instance_weight} would take us '
-                    f'over our max_weight_to_remove of {self.max_weight_to_remove}. Skipping this instance.'
+                    f"Killing instance {instance_id} with weight {instance_weight} would take us "
+                    f"over our max_weight_to_remove of {self.max_weight_to_remove}. Skipping this instance."
                 )
                 continue
 
             if new_group_capacity < group_targets[group_id]:  # case 1
-                logger.info(
-                    f'Resource group {group_id} is at target capacity; skipping {instance_id}'
-                )
+                logger.info(f"Resource group {group_id} is at target capacity; skipping {instance_id}")
                 continue
 
             if killed_task_count + node_metadata.agent.task_count > self.max_tasks_to_kill:  # case 2
                 logger.info(
-                    f'Killing instance {instance_id} with {node_metadata.agent.task_count} tasks would take us '
-                    f'over our max_tasks_to_kill of {self.max_tasks_to_kill}. Skipping this instance.'
+                    f"Killing instance {instance_id} with {node_metadata.agent.task_count} tasks would take us "
+                    f"over our max_tasks_to_kill of {self.max_tasks_to_kill}. Skipping this instance."
                 )
                 continue
 
             if node_metadata.agent.state != AgentState.ORPHANED:
-                if (remaining_non_orphan_capacity - instance_weight < new_target_capacity):  # case 3
+                if remaining_non_orphan_capacity - instance_weight < new_target_capacity:  # case 3
                     logger.info(
-                        f'Killing instance {instance_id} with weight {instance_weight} would take us under '
-                        f'our target_capacity for non-orphan boxes. Skipping this instance.'
+                        f"Killing instance {instance_id} with weight {instance_weight} would take us under "
+                        f"our target_capacity for non-orphan boxes. Skipping this instance."
                     )
                     continue
 
-            logger.info(f'marking {instance_id} for termination')
+            logger.info(f"marking {instance_id} for termination")
             marked_nodes[group_id].append(node_metadata)
             rem_group_capacities[group_id] -= instance_weight
             curr_capacity -= instance_weight
@@ -440,14 +418,17 @@ class PoolManager:
         while sum(targets.values()) * coeff < math.ceil(new_target_capacity) * coeff:
             try:
                 group = sorted(
-                    [g for g in non_stale_groups if not is_constrained(g)],
-                    key=lambda g: (coeff * targets[g.id], g.id),
+                    [g for g in non_stale_groups if not is_constrained(g)], key=lambda g: (coeff * targets[g.id], g.id),
                 )[0]
             except IndexError:
-                logger.warning(' '.join([
-                    'All resource groups are stale or constrained.',
-                    f'The closest we could get to {new_target_capacity} is {sum(targets.values())}',
-                ]))
+                logger.warning(
+                    " ".join(
+                        [
+                            "All resource groups are stale or constrained.",
+                            f"The closest we could get to {new_target_capacity} is {sum(targets.values())}",
+                        ]
+                    )
+                )
                 break
 
             targets[group.id] += coeff
@@ -455,8 +436,7 @@ class PoolManager:
         return targets
 
     def get_market_capacities(
-        self,
-        market_filter: Optional[Collection[InstanceMarket]] = None
+        self, market_filter: Optional[Collection[InstanceMarket]] = None
     ) -> Mapping[InstanceMarket, float]:
         """ Return the total (fulfilled) capacities in the cluster across all resource groups
 
@@ -475,8 +455,7 @@ class PoolManager:
         termination.
         """
         killable_nodes = [
-            metadata for metadata in self.get_node_metadatas(AWS_RUNNING_STATES)
-            if self._is_node_killable(metadata)
+            metadata for metadata in self.get_node_metadatas(AWS_RUNNING_STATES) if self._is_node_killable(metadata)
         ]
         return self._prioritize_killable_nodes(killable_nodes)
 
@@ -492,7 +471,8 @@ class PoolManager:
 
     def _prioritize_killable_nodes(self, killable_nodes: List[ClusterNodeMetadata]) -> List[ClusterNodeMetadata]:
         """Returns killable_nodes sorted with most-killable things first."""
-        def sort_key(node_metadata: ClusterNodeMetadata) -> Tuple[int, int, int, int, int]:
+
+        def sort_key(node_metadata: ClusterNodeMetadata,) -> Tuple[int, int, int, int, int]:
             return (
                 0 if node_metadata.agent.state == AgentState.ORPHANED else 1,
                 0 if node_metadata.agent.state == AgentState.IDLE else 1,
@@ -500,10 +480,8 @@ class PoolManager:
                 node_metadata.agent.batch_task_count,
                 node_metadata.agent.task_count,
             )
-        return sorted(
-            killable_nodes,
-            key=sort_key,
-        )
+
+        return sorted(killable_nodes, key=sort_key,)
 
     def _calculate_non_orphan_fulfilled_capacity(self) -> float:
         return sum(
