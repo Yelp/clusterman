@@ -42,8 +42,7 @@ class ResourceGroup(metaclass=ABCMeta):
 
     @abstractmethod
     def get_instance_metadatas(
-        self,
-        state_filter: Optional[Collection[str]] = None,
+        self, state_filter: Optional[Collection[str]] = None,
     ) -> Sequence[InstanceMetadata]:  # pragma: no cover
         pass
 
@@ -60,15 +59,10 @@ class ResourceGroup(metaclass=ABCMeta):
         pass
 
     def mark_stale(self, dry_run: bool) -> None:
-        raise NotImplementedError(f'{type(self).__name__} cannot be marked stale')
+        raise NotImplementedError(f"{type(self).__name__} cannot be marked stale")
 
     @abstractmethod
-    def modify_target_capacity(
-        self,
-        target_capacity: float,
-        *,
-        dry_run: bool,
-    ) -> None:  # pragma: no cover
+    def modify_target_capacity(self, target_capacity: float, *, dry_run: bool,) -> None:  # pragma: no cover
         """ Modify the target capacity for the resource group
 
         :param target_capacity: the (weighted) new target capacity for the resource group
@@ -84,13 +78,11 @@ class ResourceGroup(metaclass=ABCMeta):
     @property
     def max_capacity(self) -> float:
         """The highest value that will be respected by modify_target_capacity."""
-        return float('inf')
+        return float("inf")
 
     @abstractmethod
     def terminate_instances_by_id(
-        self,
-        instance_ids: List[str],
-        batch_size: int = 500,
+        self, instance_ids: List[str], batch_size: int = 500,
     ) -> Sequence[str]:  # pragma: no cover
         """ Terminate instances in this resource group
 
@@ -153,7 +145,7 @@ class ResourceGroup(metaclass=ABCMeta):
         pass
 
     @abstractclassmethod
-    def load(cls, cluster: str, pool: str, config: Any) -> Mapping[str, 'ResourceGroup']:  # pragma: no cover
+    def load(cls, cluster: str, pool: str, config: Any) -> Mapping[str, "ResourceGroup"]:  # pragma: no cover
         """ Load a list of corresponding resource groups
 
         :param cluster: a cluster name

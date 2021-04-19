@@ -77,17 +77,13 @@ class ClusterConnector(metaclass=ABCMeta):
     def get_cluster_allocated_resources(self) -> ClustermanResources:
         """Get all allocated resources for the cluster"""
         allocated_resources = {
-            resource: self.get_resource_allocation(resource)
-            for resource in ClustermanResources._fields
+            resource: self.get_resource_allocation(resource) for resource in ClustermanResources._fields
         }
         return ClustermanResources(**allocated_resources)
 
     def get_cluster_total_resources(self) -> ClustermanResources:
         """Get the total available resources for the cluster"""
-        total_resources = {
-            resource: self.get_resource_total(resource)
-            for resource in ClustermanResources._fields
-        }
+        total_resources = {resource: self.get_resource_total(resource) for resource in ClustermanResources._fields}
         return ClustermanResources(**total_resources)
 
     @abstractmethod
@@ -95,13 +91,15 @@ class ClusterConnector(metaclass=ABCMeta):
         pass
 
     @staticmethod
-    def load(cluster: str, pool: str, scheduler: str) -> 'ClusterConnector':
+    def load(cluster: str, pool: str, scheduler: str) -> "ClusterConnector":
         """ Load the cluster connector for the given cluster and pool """
-        if scheduler == 'mesos':
+        if scheduler == "mesos":
             from clusterman.mesos.mesos_cluster_connector import MesosClusterConnector
+
             return MesosClusterConnector(cluster, pool)
-        elif scheduler == 'kubernetes':
+        elif scheduler == "kubernetes":
             from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
+
             return KubernetesClusterConnector(cluster, pool)
         else:
-            raise ValueError(f'Unknown scheduler type: {scheduler}')
+            raise ValueError(f"Unknown scheduler type: {scheduler}")

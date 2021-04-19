@@ -39,11 +39,11 @@ from clusterman.kubernetes.util import total_node_resources
 from clusterman.kubernetes.util import total_pod_resources
 
 logger = colorlog.getLogger(__name__)
-KUBERNETES_SCHEDULED_PHASES = {'Pending', 'Running'}
+KUBERNETES_SCHEDULED_PHASES = {"Pending", "Running"}
 
 
 class KubernetesClusterConnector(ClusterConnector):
-    SCHEDULER = 'kubernetes'
+    SCHEDULER = "kubernetes"
     _core_api: kubernetes.client.CoreV1Api
     _pods: List[KubernetesPod]
     _prev_nodes_by_ip: Mapping[str, KubernetesNode]
@@ -54,22 +54,22 @@ class KubernetesClusterConnector(ClusterConnector):
 
     def __init__(self, cluster: str, pool: Optional[str]) -> None:
         super().__init__(cluster, pool)
-        self.kubeconfig_path = staticconf.read_string(f'clusters.{cluster}.kubeconfig_path')
+        self.kubeconfig_path = staticconf.read_string(f"clusters.{cluster}.kubeconfig_path")
         self._safe_to_evict_annotation = staticconf.read_string(
-            f'clusters.{cluster}.pod_safe_to_evict_annotation',
-            default='cluster-autoscaler.kubernetes.io/safe-to-evict',
+            f"clusters.{cluster}.pod_safe_to_evict_annotation",
+            default="cluster-autoscaler.kubernetes.io/safe-to-evict",
         )
         self._nodes_by_ip = {}
 
     def reload_state(self) -> None:
-        logger.info('Reloading nodes')
+        logger.info("Reloading nodes")
 
         self._core_api = CachedCoreV1Api(self.kubeconfig_path)
 
         # store the previous _nodes_by_ip for use in get_removed_nodes_before_last_reload()
         self._prev_nodes_by_ip = copy.deepcopy(self._nodes_by_ip)
         self._nodes_by_ip = self._get_nodes_by_ip()
-        self._pods_by_ip, self._pending_pods, self._excluded_pods_by_ip = self._get_pods_by_ip_or_pending()
+        (self._pods_by_ip, self._pending_pods, self._excluded_pods_by_ip,) = self._get_pods_by_ip_or_pending()
 
     def get_num_removed_nodes_before_last_reload(self) -> int:
         previous_nodes = self._prev_nodes_by_ip
@@ -78,47 +78,43 @@ class KubernetesClusterConnector(ClusterConnector):
         return max(0, len(previous_nodes) - len(current_nodes))
 
     def get_resource_pending(self, resource_name: str) -> float:
-        return getattr(allocated_node_resources([p for p, __ in self.get_unschedulable_pods()]), resource_name)
+        return getattr(allocated_node_resources([p for p, __ in self.get_unschedulable_pods()]), resource_name,)
 
     def get_resource_allocation(self, resource_name: str) -> float:
-        return sum(
-            getattr(allocated_node_resources(pod), resource_name)
-            for pod in self._pods_by_ip.values()
-        )
+        return sum(getattr(allocated_node_resources(pod), resource_name) for pod in self._pods_by_ip.values())
 
     def get_resource_total(self, resource_name: str) -> float:
         if self._excluded_pods_by_ip:
-            logger.info(f'Excluded {self.get_resource_excluded(resource_name)} {resource_name} from daemonset pods')
+            logger.info(f"Excluded {self.get_resource_excluded(resource_name)} {resource_name} from daemonset pods")
         return sum(
-            getattr(total_node_resources(node, self._excluded_pods_by_ip.get(node_ip, [])), resource_name)
+            getattr(total_node_resources(node, self._excluded_pods_by_ip.get(node_ip, [])), resource_name,)
             for node_ip, node in self._nodes_by_ip.items()
         )
 
     def get_resource_excluded(self, resource_name: str) -> float:
         return sum(
-            getattr(allocated_node_resources(self._excluded_pods_by_ip.get(node_ip, [])), resource_name)
+            getattr(allocated_node_resources(self._excluded_pods_by_ip.get(node_ip, [])), resource_name,)
             for node_ip in self._nodes_by_ip.keys()
         )
 
-    def get_unschedulable_pods(self) -> List[Tuple[KubernetesPod, PodUnschedulableReason]]:
+    def get_unschedulable_pods(self,) -> List[Tuple[KubernetesPod, PodUnschedulableReason]]:
         unschedulable_pods = []
         for pod in self._pending_pods:
             is_unschedulable = False
             if not pod.status or not pod.status.conditions:
-                logger.info('No conditions in pod status, skipping')
+                logger.info("No conditions in pod status, skipping")
                 continue
 
             for condition in pod.status.conditions:
-                if condition.reason == 'Unschedulable':
+                if condition.reason == "Unschedulable":
                     is_unschedulable = True
             if is_unschedulable:
                 unschedulable_pods.append((pod, self._get_pod_unschedulable_reason(pod)))
         return unschedulable_pods
 
     def _pod_belongs_to_daemonset(self, pod: KubernetesPod) -> bool:
-        return (
-            pod.metadata.owner_references and
-            any([owner_reference.kind == 'DaemonSet' for owner_reference in pod.metadata.owner_references])
+        return pod.metadata.owner_references and any(
+            [owner_reference.kind == "DaemonSet" for owner_reference in pod.metadata.owner_references]
         )
 
     def _pod_belongs_to_pool(self, pod: KubernetesPod) -> bool:
@@ -136,9 +132,7 @@ class KubernetesClusterConnector(ClusterConnector):
                     return value == self.pool
 
         # Lastly, check if an affinity rule matches
-        selector_requirement = V1NodeSelectorRequirement(
-            key=self.pool_label_key, operator='In', values=[self.pool]
-        )
+        selector_requirement = V1NodeSelectorRequirement(key=self.pool_label_key, operator="In", values=[self.pool])
 
         if pod.spec.affinity and pod.spec.affinity.node_affinity:
             node_affinity = pod.spec.affinity.node_affinity
@@ -146,10 +140,9 @@ class KubernetesClusterConnector(ClusterConnector):
             if node_affinity.required_during_scheduling_ignored_during_execution:
                 terms.extend(node_affinity.required_during_scheduling_ignored_during_execution.node_selector_terms)
             if node_affinity.preferred_during_scheduling_ignored_during_execution:
-                terms.extend([
-                    term.preference
-                    for term in node_affinity.preferred_during_scheduling_ignored_during_execution
-                ])
+                terms.extend(
+                    [term.preference for term in node_affinity.preferred_during_scheduling_ignored_during_execution]
+                )
             if selector_term_matches_requirement(terms, selector_requirement):
                 return True
         return False
@@ -159,8 +152,9 @@ class KubernetesClusterConnector(ClusterConnector):
         for node_ip, pods_on_node in self._pods_by_ip.items():
             node = self._nodes_by_ip.get(node_ip)
             if node:
-                available_node_resources = (total_node_resources(node, self._excluded_pods_by_ip.get(
-                    node_ip, [])) - allocated_node_resources(pods_on_node))
+                available_node_resources = total_node_resources(
+                    node, self._excluded_pods_by_ip.get(node_ip, [])
+                ) - allocated_node_resources(pods_on_node)
                 if pod_resource_request < available_node_resources:
                     return PodUnschedulableReason.Unknown
 
@@ -183,13 +177,13 @@ class KubernetesClusterConnector(ClusterConnector):
     def _is_node_safe_to_kill(self, node_ip: str) -> bool:
         for pod in self._pods_by_ip[node_ip]:
             annotations = pod.metadata.annotations or dict()
-            pod_safe_to_evict = strtobool(annotations.get(self.safe_to_evict_key, 'true'))
+            pod_safe_to_evict = strtobool(annotations.get(self.safe_to_evict_key, "true"))
             if not pod_safe_to_evict:
                 return False
         return True
 
     def _get_nodes_by_ip(self) -> Mapping[str, KubernetesNode]:
-        pool_label_selector = self.pool_config.read_string('pool_label_key', default='clusterman.com/pool')
+        pool_label_selector = self.pool_config.read_string("pool_label_key", default="clusterman.com/pool")
         pool_nodes = self._core_api.list_node().items
 
         return {
@@ -198,23 +192,24 @@ class KubernetesClusterConnector(ClusterConnector):
             if not self.pool or node.metadata.labels.get(pool_label_selector, None) == self.pool
         }
 
-    def _get_pods_by_ip_or_pending(self) -> Tuple[
-                Mapping[str, List[KubernetesPod]],
-                List[KubernetesPod],
-                Mapping[str, List[KubernetesPod]]
-            ]:
+    def _get_pods_by_ip_or_pending(
+        self,
+    ) -> Tuple[
+        Mapping[str, List[KubernetesPod]], List[KubernetesPod], Mapping[str, List[KubernetesPod]],
+    ]:
         pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
         pending_pods: List[KubernetesPod] = []
         excluded_pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
 
         exclude_daemonset_pods = self.pool_config.read_bool(
-            'exclude_daemonset_pods', default=staticconf.read_bool('exclude_daemonset_pods', default=False))
+            "exclude_daemonset_pods", default=staticconf.read_bool("exclude_daemonset_pods", default=False),
+        )
         all_pods = self._core_api.list_pod_for_all_namespaces().items
         for pod in all_pods:
             if self._pod_belongs_to_pool(pod):
                 if exclude_daemonset_pods and self._pod_belongs_to_daemonset(pod):
                     excluded_pods_by_ip[pod.status.host_ip].append(pod)
-                elif pod.status.phase == 'Running':
+                elif pod.status.phase == "Running":
                     pods_by_ip[pod.status.host_ip].append(pod)
                 else:
                     pending_pods.append(pod)
@@ -227,14 +222,14 @@ class KubernetesClusterConnector(ClusterConnector):
                 continue
             for annotation, value in pod.metadata.annotations.items():
                 if annotation == self._safe_to_evict_annotation:
-                    count += (not strtobool(value))  # if it's safe to evict, it's NOT a batch task
+                    count += not strtobool(value)  # if it's safe to evict, it's NOT a batch task
                     break
         return count
 
     @property
     def pool_label_key(self):
-        return self.pool_config.read_string('pool_label_key', default='clusterman.com/pool')
+        return self.pool_config.read_string("pool_label_key", default="clusterman.com/pool")
 
     @property
     def safe_to_evict_key(self):
-        return self.pool_config.read_string('safe_to_evict_key', default='clusterman.com/safe_to_evict')
+        return self.pool_config.read_string("safe_to_evict_key", default="clusterman.com/safe_to_evict")

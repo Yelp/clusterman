@@ -33,7 +33,7 @@ def _parse_extra_options(opt_array):
     """
     kwargs = {}
     for opt_string in opt_array:
-        opt, val = [s.strip() for s in opt_string.split('=')]
+        opt, val = [s.strip() for s in opt_string.split("=")]
         if opt in kwargs:
             if not isinstance(kwargs[opt], list):
                 kwargs[opt] = [kwargs[opt]]
@@ -52,8 +52,8 @@ def main(args):
 
     if len(args.src_metric_names) != len(args.dest_metric_names):
         raise ValueError(
-            'Different number of source and destination metrics\n'
-            f'src = {args.src_metric_names}, dest = {args.dest_metric_names}'
+            "Different number of source and destination metrics\n"
+            f"src = {args.src_metric_names}, dest = {args.dest_metric_names}"
         )
 
     # Get clusterman metric type for each downloaded metric.
@@ -61,13 +61,13 @@ def main(args):
     metric_types = {}
     values = {}
     for src in args.src_metric_names:
-        metric_types[src] = ask_for_choice(f'What metric type is {src}?', metric_options)
+        metric_types[src] = ask_for_choice(f"What metric type is {src}?", metric_options)
 
     values = defaultdict(dict)
     api_token = args.api_token
-    filters = [s.split(':') for s in args.filter]
+    filters = [s.split(":") for s in args.filter]
     for src, dest in zip(args.src_metric_names, args.dest_metric_names):
-        print(f'Querying SignalFX for {src}')
+        print(f"Querying SignalFX for {src}")
         metric_type = metric_types[src]
         values[metric_type][dest] = basic_sfx_query(
             api_token,
@@ -75,8 +75,8 @@ def main(args):
             start_time,
             end_time,
             filters=filters,
-            aggregation=Aggregation('sum', by=['AZ', 'inst_type']),
-            extrapolation='last_value',
+            aggregation=Aggregation("sum", by=["AZ", "inst_type"]),
+            extrapolation="last_value",
             max_extrapolations=3,
             **kwargs,
         )
@@ -86,58 +86,52 @@ def main(args):
 
 def get_parser():
     parser = argparse.ArgumentParser()
-    required_named_args = parser.add_argument_group('required arguments')
-    optional_named_args = parser.add_argument_group('optional arguments')
+    required_named_args = parser.add_argument_group("required arguments")
+    optional_named_args = parser.add_argument_group("optional arguments")
 
     required_named_args.add_argument(
-        '--src-metric-names',
-        nargs='+',
-        metavar='metric-name',
+        "--src-metric-names",
+        nargs="+",
+        metavar="metric-name",
         required=True,
-        help='list of source SignalFX metric names to backfill from',
+        help="list of source SignalFX metric names to backfill from",
     )
     required_named_args.add_argument(
-        '--dest-file',
-        metavar='filename',
+        "--dest-file",
+        metavar="filename",
         required=True,
         help=(
-            'Filename to append the data to, in compressed JSON format. If the destination metric name '
-            'already exists, you have the option to overwrite it.'
-        )
+            "Filename to append the data to, in compressed JSON format. If the destination metric name "
+            "already exists, you have the option to overwrite it."
+        ),
     )
     required_named_args.add_argument(
-        '--api-token',
-        required=True,
-        help='SignalFX API token, from user profile',
+        "--api-token", required=True, help="SignalFX API token, from user profile",
     )
     add_start_end_args(
-        required_named_args,
-        'initial time for queried datapoints',
-        'final time for queried datapoints',
+        required_named_args, "initial time for queried datapoints", "final time for queried datapoints",
     )
 
     optional_named_args.add_argument(
-        '--filter',
-        default=[],
-        nargs='*',
-        help='Filters for SignalFX metrics, as dimension:value strings.',
+        "--filter", default=[], nargs="*", help="Filters for SignalFX metrics, as dimension:value strings.",
     )
     optional_named_args.add_argument(
-        '--dest-metric-names',
-        nargs='*',
-        metavar='metric-name',
+        "--dest-metric-names",
+        nargs="*",
+        metavar="metric-name",
         default=None,
-        help='list of destination metric names to backfill to (if None, same as --src-metric-names)',
+        help="list of destination metric names to backfill to (if None, same as --src-metric-names)",
     )
     optional_named_args.add_argument(
-        '-o', '--option',
+        "-o",
+        "--option",
         default=[],
-        nargs='*',
+        nargs="*",
         help=('additional options to be passed into the SignalFX query, as "opt=value" strings'),
     )
     return parser
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = get_parser().parse_args()
     main(args)

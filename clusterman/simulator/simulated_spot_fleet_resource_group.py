@@ -21,7 +21,7 @@ from clusterman.aws.markets import get_instance_market
 from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.simulator.simulated_aws_cluster import SimulatedAWSCluster
 
-SpotMarketConfig = namedtuple('SpotMarketConfig', ['bid_price', 'weight'])
+SpotMarketConfig = namedtuple("SpotMarketConfig", ["bid_price", "weight"])
 
 
 class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, AWSResourceGroup):
@@ -68,17 +68,17 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, AWSResourceGroup):
             }
         """
         SimulatedAWSCluster.__init__(self, simulator)
-        AWSResourceGroup.__init__(self, f'ssfr-{uuid4()}')
+        AWSResourceGroup.__init__(self, f"ssfr-{uuid4()}")
         self._instance_types = {}
-        for spec in config['LaunchSpecifications']:
-            bid_price = float(spec['SpotPrice']) * spec['WeightedCapacity']
+        for spec in config["LaunchSpecifications"]:
+            bid_price = float(spec["SpotPrice"]) * spec["WeightedCapacity"]
             market = get_instance_market(spec)
-            self._instance_types[market] = SpotMarketConfig(bid_price, spec['WeightedCapacity'])
+            self._instance_types[market] = SpotMarketConfig(bid_price, spec["WeightedCapacity"])
 
         self.__target_capacity = 0
-        self.allocation_strategy = config['AllocationStrategy']
-        if self.allocation_strategy != 'diversified':
-            raise NotImplementedError(f'{self.allocation_strategy} not supported')
+        self.allocation_strategy = config["AllocationStrategy"]
+        if self.allocation_strategy != "diversified":
+            raise NotImplementedError(f"{self.allocation_strategy} not supported")
 
     def market_weight(self, market):
         return self._instance_types[market].weight
@@ -131,16 +131,13 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, AWSResourceGroup):
         :raises ValueError: if target_capacity is less than the current self.target_capacity
         """
         if target_capacity < self.target_capacity:
-            raise ValueError(f'Target capacity {target_capacity} < current capacity {self.target_capacity}')
+            raise ValueError(f"Target capacity {target_capacity} < current capacity {self.target_capacity}")
 
         available_markets = self._find_available_markets()
         residuals = self._compute_market_residuals(target_capacity, available_markets)
 
         residual_correction = 0  # If we overflow in one market, correct the residuals in the remaining markets
-        new_market_counts = {
-            market: len(ids)
-            for market, ids in self.instance_ids_by_market.items()
-        }
+        new_market_counts = {market: len(ids) for market, ids in self.instance_ids_by_market.items()}
 
         for i, (market, residual) in enumerate(residuals):
             remaining_markets = len(residuals) - (i + 1)
@@ -190,12 +187,12 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, AWSResourceGroup):
 
         def residual_sort_key(value_tuple):
             market, residual = value_tuple
-            return (residual, self.simulator.instance_prices[market].call(self.simulator.current_time))
+            return (
+                residual,
+                self.simulator.instance_prices[market].call(self.simulator.current_time),
+            )
 
-        return sorted(
-            [(market, residual(market)) for market in markets],
-            key=residual_sort_key,
-        )
+        return sorted([(market, residual(market)) for market in markets], key=residual_sort_key,)
 
     def _reload_resource_group(self):
         pass  # don't need to do anything here
@@ -242,7 +239,7 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, AWSResourceGroup):
 
     @property
     def status(self):
-        return 'active'
+        return "active"
 
     @property
     def is_stale(self):

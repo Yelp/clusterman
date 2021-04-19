@@ -36,12 +36,12 @@ logger = colorlog.getLogger(__name__)
 
 @timeout_wrapper
 def ensure_account_id(cluster) -> None:
-    current_account_id = sts.get_caller_identity()['Account']
-    cluster_account_id = staticconf.read_string(f'clusters.{cluster}.aws_account_number')
+    current_account_id = sts.get_caller_identity()["Account"]
+    cluster_account_id = staticconf.read_string(f"clusters.{cluster}.aws_account_number")
 
-    if(current_account_id != cluster_account_id):
+    if current_account_id != cluster_account_id:
         raise AccountNumberMistmatchError(
-            f'ACCOUNT ID MISMATCH! Current account id: {current_account_id}. Cluster account id: {cluster_account_id}'
+            f"ACCOUNT ID MISMATCH! Current account id: {current_account_id}. Cluster account id: {cluster_account_id}"
         )
 
 
@@ -50,31 +50,30 @@ def disable(args: argparse.Namespace) -> None:
     ensure_account_id(args.cluster)
 
     state = {
-        'state': {'S': AUTOSCALER_PAUSED},
-        'entity': {'S': f'{args.cluster}.{args.pool}.{args.scheduler}'},
-        'timestamp': {'N':  str(int(time.time()))},
+        "state": {"S": AUTOSCALER_PAUSED},
+        "entity": {"S": f"{args.cluster}.{args.pool}.{args.scheduler}"},
+        "timestamp": {"N": str(int(time.time()))},
     }
 
     if args.until:
-        state['expiration_timestamp'] = {'N': str(parse_time_string(args.until).timestamp)}
+        state["expiration_timestamp"] = {"N": str(parse_time_string(args.until).timestamp)}
 
     dynamodb.put_item(
-        TableName=staticconf.read('aws.state_table', default=CLUSTERMAN_STATE_TABLE),
-        Item=state,
+        TableName=staticconf.read("aws.state_table", default=CLUSTERMAN_STATE_TABLE), Item=state,
     )
 
     time.sleep(1)  # Give DynamoDB some time to settle
 
-    now = parse_time_string('now').to('local')
+    now = parse_time_string("now").to("local")
 
     if not autoscaling_is_paused(args.cluster, args.pool, args.scheduler, now):
-        print('Something went wrong!  The autoscaler is NOT paused')
+        print("Something went wrong!  The autoscaler is NOT paused")
     else:
-        s = f'The autoscaler for {args.cluster}.{args.pool}.{args.scheduler} was paused at {now}'
+        s = f"The autoscaler for {args.cluster}.{args.pool}.{args.scheduler} was paused at {now}"
 
         if args.until:
-            until_str = str(parse_time_string(args.until).to('local'))
-            s += f' until {until_str}'
+            until_str = str(parse_time_string(args.until).to("local"))
+            s += f" until {until_str}"
 
         print(s)
 
@@ -84,34 +83,31 @@ def enable(args: argparse.Namespace) -> None:
     ensure_account_id(args.cluster)
 
     dynamodb.delete_item(
-        TableName=staticconf.read('aws.state_table', default=CLUSTERMAN_STATE_TABLE),
-        Key={
-            'state': {'S': AUTOSCALER_PAUSED},
-            'entity': {'S': f'{args.cluster}.{args.pool}.{args.scheduler}'},
-        }
+        TableName=staticconf.read("aws.state_table", default=CLUSTERMAN_STATE_TABLE),
+        Key={"state": {"S": AUTOSCALER_PAUSED}, "entity": {"S": f"{args.cluster}.{args.pool}.{args.scheduler}"},},
     )
     time.sleep(1)  # Give DynamoDB some time to settle
-    now = parse_time_string('now').to('local')
+    now = parse_time_string("now").to("local")
     if autoscaling_is_paused(args.cluster, args.pool, args.scheduler, now):
-        print('Something went wrong!  The autoscaler is paused')
+        print("Something went wrong!  The autoscaler is paused")
     else:
-        print(f'The autoscaler for {args.cluster}.{args.pool}.{args.scheduler} was enabled at {now}')
+        print(f"The autoscaler for {args.cluster}.{args.pool}.{args.scheduler} was enabled at {now}")
 
 
-@subparser('disable', 'temporarily turn the autoscaler for a cluster off', disable)
+@subparser("disable", "temporarily turn the autoscaler for a cluster off", disable)
 def add_cluster_disable_parser(subparser, required_named_args, optional_named_args):  # pragma: no cover
     add_cluster_arg(required_named_args, required=True)
     add_pool_arg(required_named_args)
     add_scheduler_arg(required_named_args)
     optional_named_args.add_argument(
-        '--until',
-        metavar='timestamp',
+        "--until",
+        metavar="timestamp",
         help='time at which to re-enable autoscaling (try "tomorrow", "+5m"; use quotes)',
     )
     add_cluster_config_directory_arg(optional_named_args)
 
 
-@subparser('enable', 'turn the autoscaler for a cluster back on', enable)
+@subparser("enable", "turn the autoscaler for a cluster back on", enable)
 def add_cluster_enable_parser(subparser, required_named_args, optional_named_args):  # pragma: no cover
     add_cluster_arg(required_named_args, required=True)
     add_pool_arg(required_named_args)

@@ -79,38 +79,35 @@ class StatusJsonObject(TypedDict):
 
 def _get_agent_json(metadata: ClusterNodeMetadata) -> AgentJsonObject:
     return {
-        'agent_state': metadata.agent.state,
-        'aws_state': metadata.instance.state,
-        'instance_id': metadata.instance.instance_id,
-        'ip_address': metadata.instance.ip_address,
-        'market': metadata.instance.market,
-        'task_count': metadata.agent.task_count,
-        'uptime': metadata.instance.uptime.total_seconds(),
-        'resources': {
+        "agent_state": metadata.agent.state,
+        "aws_state": metadata.instance.state,
+        "instance_id": metadata.instance.instance_id,
+        "ip_address": metadata.instance.ip_address,
+        "market": metadata.instance.market,
+        "task_count": metadata.agent.task_count,
+        "uptime": metadata.instance.uptime.total_seconds(),
+        "resources": {
             resource: {
-                'allocated': getattr(metadata.agent.allocated_resources, resource),
-                'total': getattr(metadata.agent.total_resources, resource),
+                "allocated": getattr(metadata.agent.allocated_resources, resource),
+                "total": getattr(metadata.agent.total_resources, resource),
             }
             for resource in ClustermanResources._fields
-        }
+        },
     }
 
 
 def _get_resource_groups_json(
-    groups: Iterable[ResourceGroup],
-    node_metadatas: Sequence[ClusterNodeMetadata],
+    groups: Iterable[ResourceGroup], node_metadatas: Sequence[ClusterNodeMetadata],
 ) -> List[ResourceGroupJsonObject]:
     return [
         {
-            'id': group.id,
-            'fulfilled_capacity': group.fulfilled_capacity,
-            'target_capacity': group.target_capacity,
-            'status': group.status,
-            'agents': [
-                _get_agent_json(metadata)
-                for metadata in node_metadatas
-                if metadata.instance.group_id == group.id
-            ]
+            "id": group.id,
+            "fulfilled_capacity": group.fulfilled_capacity,
+            "target_capacity": group.target_capacity,
+            "status": group.status,
+            "agents": [
+                _get_agent_json(metadata) for metadata in node_metadatas if metadata.instance.group_id == group.id
+            ],
         }
         for group in groups
     ]
@@ -119,11 +116,11 @@ def _get_resource_groups_json(
 def _status_json(manager: PoolManager, get_node_metadatas: bool) -> StatusJsonObject:
     node_metadatas = manager.get_node_metadatas() if get_node_metadatas else []
     return {
-        'disabled': autoscaling_is_paused(manager.cluster, manager.pool, manager.scheduler, arrow.now()),
-        'target_capacity': manager.target_capacity,
-        'fulfilled_capacity': manager.fulfilled_capacity,
-        'non_orphan_fulfilled_capacity': manager.non_orphan_fulfilled_capacity,
-        'resource_groups': _get_resource_groups_json(manager.resource_groups.values(), node_metadatas),
+        "disabled": autoscaling_is_paused(manager.cluster, manager.pool, manager.scheduler, arrow.now()),
+        "target_capacity": manager.target_capacity,
+        "fulfilled_capacity": manager.fulfilled_capacity,
+        "non_orphan_fulfilled_capacity": manager.non_orphan_fulfilled_capacity,
+        "resource_groups": _get_resource_groups_json(manager.resource_groups.values(), node_metadatas),
     }
 
 
@@ -131,20 +128,20 @@ def _write_resource_group_line(group) -> None:
     # TODO (CLUSTERMAN-100) These are just the status responses for spot fleets; this probably won't
     # extend to other types of resource groups, so we should figure out what to do about that.
     status_str = color_conditions(
-        group['status'],
-        green=any_of('active',),
-        blue=any_of('modifying', 'submitted'),
-        red=any_of('cancelled', 'failed', 'cancelled_running', 'cancelled_terminating'),
+        group["status"],
+        green=any_of("active",),
+        blue=any_of("modifying", "submitted"),
+        red=any_of("cancelled", "failed", "cancelled_running", "cancelled_terminating"),
     )
     print(f'\t{group["id"]}: {status_str} ({group["fulfilled_capacity"]} / {group["target_capacity"]})')
 
 
 def _write_agent_details(agent: AgentJsonObject) -> None:
     agent_aws_state = color_conditions(
-        agent['aws_state'],
-        green=any_of('running',),
-        blue=any_of('pending',),
-        red=any_of('shutting-down', 'terminated', 'stopping', 'stopped'),
+        agent["aws_state"],
+        green=any_of("running",),
+        blue=any_of("pending",),
+        red=any_of("shutting-down", "terminated", "stopping", "stopped"),
     )
     print(
         f'\t - {agent["instance_id"]} {agent["market"]} '
@@ -153,50 +150,54 @@ def _write_agent_details(agent: AgentJsonObject) -> None:
     )
 
     agent_state = color_conditions(
-        agent['agent_state'],
+        agent["agent_state"],
         green=any_of(AgentState.RUNNING,),
         blue=any_of(AgentState.IDLE,),
         red=any_of(AgentState.ORPHANED, AgentState.UNKNOWN),
     )
-    sys.stdout.write(f'\t   {agent_state} ')
+    sys.stdout.write(f"\t   {agent_state} ")
 
-    if agent['agent_state'] == AgentState.RUNNING:
+    if agent["agent_state"] == AgentState.RUNNING:
         output_str = f'{agent["task_count"]} tasks; '
         resource_strings = []
         for resource in ClustermanResources._fields:
-            allocated, total = agent['resources'][resource]['allocated'], agent['resources'][resource]['total']
+            allocated, total = (
+                agent["resources"][resource]["allocated"],
+                agent["resources"][resource]["total"],
+            )
             if total:
                 resource_strings.append(
-                    resource + ': ' +
-                    color_conditions(
+                    resource
+                    + ": "
+                    + color_conditions(
                         int(allocated / total * 100),
-                        postfix='%',
+                        postfix="%",
                         green=lambda x: x <= 90,
                         yellow=lambda x: x <= 95,
                         red=lambda x: x > 95,
                     )
                 )
             else:
-                resource_strings.append(resource + ': None')
+                resource_strings.append(resource + ": None")
 
-        sys.stdout.write(output_str + ', '.join(resource_strings))
-    sys.stdout.write('\n')
+        sys.stdout.write(output_str + ", ".join(resource_strings))
+    sys.stdout.write("\n")
 
 
 def _write_summary(manager: PoolManager) -> None:
-    print('Cluster statistics:')
-    total_cpus = manager.cluster_connector.get_resource_total('cpus')
-    total_mem = format_size(manager.cluster_connector.get_resource_total('mem') * 1000000)
-    total_disk = format_size(manager.cluster_connector.get_resource_total('disk') * 1000000)
-    total_gpus = manager.cluster_connector.get_resource_total('gpus')
-    allocated_cpus = manager.cluster_connector.get_resource_allocation('cpus')
-    allocated_mem = format_size(manager.cluster_connector.get_resource_allocation('mem') * 1000000)
-    allocated_disk = format_size(manager.cluster_connector.get_resource_allocation('disk') * 1000000)
-    allocated_gpus = manager.cluster_connector.get_resource_allocation('gpus')
-    print(f'\tCPU allocation: {allocated_cpus:.1f} CPUs allocated to tasks, {total_cpus:.1f} total')
-    print(f'\tMemory allocation: {allocated_mem} memory allocated to tasks, {total_mem} total')
-    print(f'\tDisk allocation: {allocated_disk} disk space allocated to tasks, {total_disk} total')
-    print(f'\tGPUs allocation: {allocated_gpus} GPUs allocated to tasks, {total_gpus} total')
+    print("Cluster statistics:")
+    total_cpus = manager.cluster_connector.get_resource_total("cpus")
+    total_mem = format_size(manager.cluster_connector.get_resource_total("mem") * 1000000)
+    total_disk = format_size(manager.cluster_connector.get_resource_total("disk") * 1000000)
+    total_gpus = manager.cluster_connector.get_resource_total("gpus")
+    allocated_cpus = manager.cluster_connector.get_resource_allocation("cpus")
+    allocated_mem = format_size(manager.cluster_connector.get_resource_allocation("mem") * 1000000)
+    allocated_disk = format_size(manager.cluster_connector.get_resource_allocation("disk") * 1000000)
+    allocated_gpus = manager.cluster_connector.get_resource_allocation("gpus")
+    print(f"\tCPU allocation: {allocated_cpus:.1f} CPUs allocated to tasks, {total_cpus:.1f} total")
+    print(f"\tMemory allocation: {allocated_mem} memory allocated to tasks, {total_mem} total")
+    print(f"\tDisk allocation: {allocated_disk} disk space allocated to tasks, {total_disk} total")
+    print(f"\tGPUs allocation: {allocated_gpus} GPUs allocated to tasks, {total_gpus} total")
 
 
 def print_status_json(manager: PoolManager):
@@ -205,10 +206,10 @@ def print_status_json(manager: PoolManager):
 
 def print_status(manager: PoolManager, args: argparse.Namespace) -> None:
     status_obj = _status_json(manager, get_node_metadatas=args.verbose)
-    sys.stdout.write('\n')
-    print(f'Current status for the {manager.pool} pool in the {manager.cluster} cluster:\n')
-    if status_obj['disabled']:
-        print(Fore.RED + 'Autoscaling is currently PAUSED!!!\n' + Style.RESET_ALL)
+    sys.stdout.write("\n")
+    print(f"Current status for the {manager.pool} pool in the {manager.cluster} cluster:\n")
+    if status_obj["disabled"]:
+        print(Fore.RED + "Autoscaling is currently PAUSED!!!\n" + Style.RESET_ALL)
 
     print(
         f'Resource groups (target capacity: {status_obj["target_capacity"]}, '
@@ -216,18 +217,19 @@ def print_status(manager: PoolManager, args: argparse.Namespace) -> None:
         f'non-orphan: {status_obj["non_orphan_fulfilled_capacity"]}):'
     )
 
-    for group in status_obj['resource_groups']:
+    for group in status_obj["resource_groups"]:
         _write_resource_group_line(group)
-        for metadata in group['agents']:
-            if ((args.only_orphans and metadata['agent_state'] != AgentState.ORPHANED) or
-                    (args.only_idle and metadata['agent_state'] != AgentState.IDLE)):
+        for metadata in group["agents"]:
+            if (args.only_orphans and metadata["agent_state"] != AgentState.ORPHANED) or (
+                args.only_idle and metadata["agent_state"] != AgentState.IDLE
+            ):
                 continue
             _write_agent_details(metadata)
 
-        sys.stdout.write('\n')
+        sys.stdout.write("\n")
 
     _write_summary(manager)
-    sys.stdout.write('\n')
+    sys.stdout.write("\n")
 
 
 @timeout_wrapper
@@ -239,26 +241,25 @@ def main(args: argparse.Namespace) -> None:  # pragma: no cover
         print_status(manager, args)
 
 
-@subparser('status', 'check the status of a cluster', main)
+@subparser("status", "check the status of a cluster", main)
 def add_status_parser(subparser, required_named_args, optional_named_args):  # pragma: no cover
     add_cluster_arg(required_named_args, required=True)
     add_pool_arg(required_named_args)
     add_scheduler_arg(required_named_args)
 
     optional_named_args.add_argument(
-        '--only-idle',
-        action='store_true',
-        help='Only show information about idle agents',
+        "--only-idle", action="store_true", help="Only show information about idle agents",
     )
     optional_named_args.add_argument(
-        '--only-orphans',
-        action='store_true',
-        help='Only show information about orphaned instances (instances that are not in the Mesos cluster)',
+        "--only-orphans",
+        action="store_true",
+        help="Only show information about orphaned instances (instances that are not in the Mesos cluster)",
     )
     optional_named_args.add_argument(
-        '-v', '--verbose',
-        action='store_true',
-        help='Show more detailed status information (implies -v, ignores --only-idle and --only-orphans)',
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Show more detailed status information (implies -v, ignores --only-idle and --only-orphans)",
     )
     add_json_arg(optional_named_args)
     add_cluster_config_directory_arg(optional_named_args)

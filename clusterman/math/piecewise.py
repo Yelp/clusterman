@@ -31,7 +31,7 @@ from clusterman.math.piecewise_types import XValueDiff
 
 
 _LRU_CACHE_SIZE = 5
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 def hour_transform(td: datetime.timedelta) -> float:
@@ -45,7 +45,6 @@ def piecewise_breakpoint_generator(breakpoints, start_time, end_time):
 
 
 class PiecewiseConstantFunction(Generic[T]):
-
     def __init__(self, initial_value: float = 0) -> None:
         """ Initialize the constant function to a particular value
 
@@ -118,7 +117,7 @@ class PiecewiseConstantFunction(Generic[T]):
         return (index, breakpoint, value)
 
     @lru_cache(maxsize=_LRU_CACHE_SIZE)  # cache results of calls to this function
-    def values(self, start: XValue[T], stop: XValue[T], step: XValueDiff[T]) -> 'SortedDict[XValue[T], float]':
+    def values(self, start: XValue[T], stop: XValue[T], step: XValueDiff[T]) -> "SortedDict[XValue[T], float]":
         """ Compute a sequence of values of the function
 
         This is more efficient than [self.call(xval) for xval in range(start, stop, step)] because each self.call(..)
@@ -161,7 +160,7 @@ class PiecewiseConstantFunction(Generic[T]):
         stop: XValue[T],
         step: XValueDiff[T],
         transform: Callable[[XValueDiff[T]], float] = lambda x: cast(float, x),
-    ) -> 'SortedDict[XValue[T], float]':
+    ) -> "SortedDict[XValue[T], float]":
         """ Compute a sequence of integrals of the function
 
         :param start: lower bound of integral sequence
@@ -178,10 +177,9 @@ class PiecewiseConstantFunction(Generic[T]):
             step_width = transform(step)
             range_width = transform(stop - start)
             num_full_chunks = int(range_width // step_width)
-            sequence = SortedDict([
-                (start + step * i, step_width * self._initial_value)
-                for i in range(num_full_chunks)
-            ])
+            sequence = SortedDict(
+                [(start + step * i, step_width * self._initial_value) for i in range(num_full_chunks)]
+            )
 
             # If the width does not evenly divide the range, compute the last chunk separately
             if range_width % step_width != 0:
@@ -217,10 +215,7 @@ class PiecewiseConstantFunction(Generic[T]):
         return sequence
 
     def integral(
-        self,
-        start: XValue[T],
-        stop: XValue[T],
-        transform: Callable[[XValueDiff[T]], float] = lambda x: cast(float, x),
+        self, start: XValue[T], stop: XValue[T], transform: Callable[[XValueDiff[T]], float] = lambda x: cast(float, x),
     ) -> float:
         """ Helper function to compute the integral of the whole specified range
 
@@ -231,32 +226,32 @@ class PiecewiseConstantFunction(Generic[T]):
         return self.integrals(start, stop, (stop - start), transform).values()[0]
 
     def __str__(self) -> str:
-        ret = f'{self._initial_value}, x < {self.breakpoints.keys()[0]}\n'
+        ret = f"{self._initial_value}, x < {self.breakpoints.keys()[0]}\n"
         for xval, yval in self.breakpoints.items():
-            ret += f'{yval}, x >= {xval}\n'
+            ret += f"{yval}, x >= {xval}\n"
         return ret
 
-    def __add__(self, other: 'PiecewiseConstantFunction[T]') -> 'PiecewiseConstantFunction[T]':
-        new_func: 'PiecewiseConstantFunction[T]' = PiecewiseConstantFunction(self._initial_value + other._initial_value)
+    def __add__(self, other: "PiecewiseConstantFunction[T]") -> "PiecewiseConstantFunction[T]":
+        new_func: "PiecewiseConstantFunction[T]" = PiecewiseConstantFunction(self._initial_value + other._initial_value)
         for xval, y0, y1 in _merged_breakpoints(self, other):
             new_func.add_breakpoint(xval, y0 + y1)
         return new_func
 
-    def __sub__(self, other: 'PiecewiseConstantFunction[T]') -> 'PiecewiseConstantFunction[T]':
-        new_func: 'PiecewiseConstantFunction[T]' = PiecewiseConstantFunction(self._initial_value - other._initial_value)
+    def __sub__(self, other: "PiecewiseConstantFunction[T]") -> "PiecewiseConstantFunction[T]":
+        new_func: "PiecewiseConstantFunction[T]" = PiecewiseConstantFunction(self._initial_value - other._initial_value)
         for xval, y0, y1 in _merged_breakpoints(self, other):
             new_func.add_breakpoint(xval, y0 - y1)
         return new_func
 
-    def __mul__(self, other: 'PiecewiseConstantFunction[T]') -> 'PiecewiseConstantFunction[T]':
-        new_func: 'PiecewiseConstantFunction[T]' = PiecewiseConstantFunction(self._initial_value * other._initial_value)
+    def __mul__(self, other: "PiecewiseConstantFunction[T]") -> "PiecewiseConstantFunction[T]":
+        new_func: "PiecewiseConstantFunction[T]" = PiecewiseConstantFunction(self._initial_value * other._initial_value)
         for xval, y0, y1 in _merged_breakpoints(self, other):
             new_func.add_breakpoint(xval, y0 * y1)
         return new_func
 
-    def __truediv__(self, other: 'PiecewiseConstantFunction[T]') -> 'PiecewiseConstantFunction[T]':
+    def __truediv__(self, other: "PiecewiseConstantFunction[T]") -> "PiecewiseConstantFunction[T]":
         try:
-            new_func: 'PiecewiseConstantFunction[T]' = PiecewiseConstantFunction(
+            new_func: "PiecewiseConstantFunction[T]" = PiecewiseConstantFunction(
                 self._initial_value / other._initial_value
             )
         except ZeroDivisionError:
@@ -271,8 +266,7 @@ class PiecewiseConstantFunction(Generic[T]):
 
 
 def piecewise_max(
-    fn0: PiecewiseConstantFunction[T],
-    fn1: PiecewiseConstantFunction[T],
+    fn0: PiecewiseConstantFunction[T], fn1: PiecewiseConstantFunction[T],
 ) -> PiecewiseConstantFunction[T]:
     new_func: PiecewiseConstantFunction[T] = PiecewiseConstantFunction(max(fn0._initial_value, fn1._initial_value))
     for xval, y0, y1 in _merged_breakpoints(fn0, fn1):
@@ -281,8 +275,7 @@ def piecewise_max(
 
 
 def _merged_breakpoints(
-    fn0: PiecewiseConstantFunction[T],
-    fn1: PiecewiseConstantFunction[T],
+    fn0: PiecewiseConstantFunction[T], fn1: PiecewiseConstantFunction[T],
 ) -> Iterable[Tuple[XValue[T], float, float]]:
 
     bp0 = zip_longest(fn0.breakpoints.items(), [], fillvalue=0)

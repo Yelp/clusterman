@@ -41,15 +41,7 @@ class MetricsConfigDict(TypedDict):
 
 
 class Signal(metaclass=ABCMeta):
-    def __init__(
-        self,
-        name: str,
-        cluster: str,
-        pool: str,
-        scheduler: str,
-        app: str,
-        config_namespace: str,
-    ) -> None:
+    def __init__(self, name: str, cluster: str, pool: str, scheduler: str, app: str, config_namespace: str,) -> None:
         """ Create an encapsulation of the Unix sockets via which we communicate with signals
 
         :param cluster: the name of the cluster this signal is for
@@ -68,27 +60,22 @@ class Signal(metaclass=ABCMeta):
         self.scheduler: str = scheduler
         self.app: str = app
 
-        self.period_minutes: int = reader.read_int('autoscale_signal.period_minutes')
+        self.period_minutes: int = reader.read_int("autoscale_signal.period_minutes")
         if self.period_minutes <= 0:
-            raise SignalValidationError(f'Length of signal period must be positive, got {self.period_minutes}')
+            raise SignalValidationError(f"Length of signal period must be positive, got {self.period_minutes}")
 
         self.parameters: Dict = {
             key: value
-            for param_dict in reader.read_list('autoscale_signal.parameters', default=[])
+            for param_dict in reader.read_list("autoscale_signal.parameters", default=[])
             for (key, value) in param_dict.items()
         }
         # Even if cluster and pool were set in parameters, we override them here
         # as we want to preserve a single source of truth
-        self.parameters.update(dict(
-            cluster=self.cluster,
-            pool=self.pool,
-        ))
+        self.parameters.update(dict(cluster=self.cluster, pool=self.pool,))
 
     @abstractmethod
     def evaluate(
-        self,
-        timestamp: arrow.Arrow,
-        retry_on_broken_pipe: bool = True,
+        self, timestamp: arrow.Arrow, retry_on_broken_pipe: bool = True,
     ) -> Union[SignalResourceRequest, List[KubernetesPod]]:  # pragma: no cover
         """ Compute a signal and return either a single response (representing an aggregate resource request), or a
         list of responses (representing per-pod resource requests)
@@ -114,32 +101,32 @@ def get_metrics_for_signal(
 
     metrics: MetricsValuesDict = defaultdict(list)
     for metric_dict in required_metrics:
-        if metric_dict['type'] not in (SYSTEM_METRICS, APP_METRICS):
+        if metric_dict["type"] not in (SYSTEM_METRICS, APP_METRICS):
             raise MetricsError(f"Metrics of type {metric_dict['type']} cannot be queried by signals.")
 
         # Need to add the cluster/pool to get the right system metrics
         # TODO (CLUSTERMAN-126) this should probably be cluster/pool/app eventually
         # TODO (CLUSTERMAN-446) if a mesos pool and a k8s pool share the same app_name,
         #      APP_METRICS will be used for both
-        if metric_dict['type'] == SYSTEM_METRICS:
+        if metric_dict["type"] == SYSTEM_METRICS:
             dims_list = [get_cluster_dimensions(cluster, pool, scheduler)]
-            if scheduler == 'mesos':  # handle old (non-scheduler-aware) metrics
+            if scheduler == "mesos":  # handle old (non-scheduler-aware) metrics
                 dims_list.insert(0, get_cluster_dimensions(cluster, pool, None))
         else:
             dims_list = [{}]
 
         # We only support regex expressions for APP_METRICS
-        if 'regex' not in metric_dict:
-            metric_dict['regex'] = False
+        if "regex" not in metric_dict:
+            metric_dict["regex"] = False
 
-        start_time = end_time.shift(minutes=-metric_dict['minute_range'])
+        start_time = end_time.shift(minutes=-metric_dict["minute_range"])
         for dims in dims_list:
             query_results = metrics_client.get_metric_values(
-                metric_dict['name'],
-                metric_dict['type'],
+                metric_dict["name"],
+                metric_dict["type"],
                 start_time.timestamp,
                 end_time.timestamp,
-                is_regex=metric_dict['regex'],
+                is_regex=metric_dict["regex"],
                 extra_dimensions=dims,
                 app_identifier=app,
             )

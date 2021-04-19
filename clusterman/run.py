@@ -22,7 +22,7 @@ def main(argv=None):
     if argv is None:
         argv = sys.argv[1:]
 
-    args = parse_args(argv, 'Cluster scaling and management for Mesos and Kubernetes')
+    args = parse_args(argv, "Cluster scaling and management for Mesos and Kubernetes")
 
     setup_logging(args.log_level)
     setup_config(args)
@@ -30,7 +30,7 @@ def main(argv=None):
     try:
         args.entrypoint(args)
     except Exception as e:
-        print(f'Exception of type {e.__class__.__name__} occured')
+        print(f"Exception of type {e.__class__.__name__} occured")
 
         if e.args:
             for arg in e.args:
@@ -39,5 +39,5 @@ def main(argv=None):
         exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

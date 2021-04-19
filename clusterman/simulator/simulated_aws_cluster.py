@@ -20,7 +20,7 @@ from clusterman.aws.markets import get_market_resources
 
 class Instance:
     id = itertools.count()
-    ip = ip_address('10.0.0.1')
+    ip = ip_address("10.0.0.1")
 
     def __init__(self, market, start_time, bid_price=None, join_time=None):
         self.id = next(Instance.id)
@@ -57,10 +57,9 @@ class SimulatedAWSCluster:
         :returns: a tuple (added_instances, removed_instances)
         """
         added_instances, removed_instances = [], []
-        instances_by_market.update({
-            market_to_empty: 0
-            for market_to_empty in set(self.instance_ids_by_market) - set(instances_by_market)
-        })
+        instances_by_market.update(
+            {market_to_empty: 0 for market_to_empty in set(self.instance_ids_by_market) - set(instances_by_market)}
+        )
         for market, num in instances_by_market.items():
             delta = int(num - self.market_size(market))
 
@@ -109,7 +108,5 @@ class SimulatedAWSCluster:
     def disk(self):
         # Not all instance types have storage and require a mounted EBS volume
         return self.ebs_storage + sum(
-            instance.resources.disk
-            for instance in self.instances.values()
-            if instance.resources.disk is not None
+            instance.resources.disk for instance in self.instances.values() if instance.resources.disk is not None
         )

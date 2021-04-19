@@ -20,41 +20,29 @@ repos:
           - id: check-byte-order-marker
             language_version: python3.6
           - id: fix-encoding-pragma
-            args: [
-                --remove]
+            args: [--remove]
             language_version: python3.6
           - id: flake8
             language_version: python3.6
             exclude: ^docs/.*
             args: [
-                '--ignore=E121,E123,E126,E133,E226,E241,E242,E704,W503,W504,W505,W605']
+                '--ignore=E121,E123,E126,E133,E203,E226,E231,E241,E242,E704,W503,W504,W505,W605'
+            ]
     - repo: https://github.com/asottile/reorder_python_imports
       rev: v0.3.5
       hooks:
           - id: reorder-python-imports
             args: [
-                --remove-import,
-                from
-                      __future__
-                      import
-                      absolute_import,
-                --remove-import,
-                from
-                      __future__
-                      import
-                      print_function,
-                --remove-import,
-                from
-                      __future__
-                      import
-                      unicode_literals]
+                --remove-import, from __future__ import absolute_import,
+                --remove-import, from __future__ import print_function,
+                --remove-import, from __future__ import unicode_literals
+            ]
             language_version: python3.7
     - repo: https://github.com/asottile/pyupgrade
       rev: v1.2.0
       hooks:
           - id: pyupgrade
-            args: [
-                --py3-plus]
+            args: [--py3-plus]
             language_version: python3.6
     - repo: http://github.com/psf/black
       rev: 19.10b0

@@ -40,7 +40,7 @@ def test_construct_function(fn):
     assert fn.call(4) == 1
 
 
-@pytest.mark.parametrize('squash', [True, False])
+@pytest.mark.parametrize("squash", [True, False])
 def test_add_duplicate_bp_values(fn, squash):
     fn.add_breakpoint(2, 2, squash=squash)
     fn.add_breakpoint(3, 2, squash=squash)
@@ -110,17 +110,17 @@ def test_integrals_multi_points(fn):
 def test_integrals_with_timedeltas(fn):
     for i in range(10):
         fn.add_delta(arrow.get(i * 60), 1)
-    x = fn.integrals(arrow.get(0), arrow.get(10 * 60), timedelta(seconds=60), transform=hour_transform)
+    x = fn.integrals(arrow.get(0), arrow.get(10 * 60), timedelta(seconds=60), transform=hour_transform,)
     sorteddict_values_assert(x, pytest.approx([60 / 3600 * i for i in range(2, 12)]))
 
 
-@pytest.mark.parametrize('initial_value', (0, 1))
+@pytest.mark.parametrize("initial_value", (0, 1))
 def test_constant_integral(initial_value):
     fn = PiecewiseConstantFunction(initial_value)
     assert fn.integral(0, 1) == initial_value
 
 
-@pytest.mark.parametrize('xval,result', ((0, 2), (1, 1)))
+@pytest.mark.parametrize("xval,result", ((0, 2), (1, 1)))
 def test_one_step_integral(xval, result):
     fn = PiecewiseConstantFunction()
     fn.add_delta(xval, 1)
@@ -168,7 +168,7 @@ def test_cache_invalidated(fn):
     assert inside_values_func.call_count == 2
 
 
-@pytest.mark.parametrize('op', [operator.add, operator.sub, operator.mul, operator.truediv])
+@pytest.mark.parametrize("op", [operator.add, operator.sub, operator.mul, operator.truediv])
 def test_combine_no_breakpoints(op):
     fn1 = PiecewiseConstantFunction(1)
     fn2 = PiecewiseConstantFunction(2)
@@ -177,7 +177,7 @@ def test_combine_no_breakpoints(op):
     assert len(fn3.breakpoints) == 0
 
 
-@pytest.mark.parametrize('op', [operator.add, operator.sub, operator.mul, operator.truediv])
+@pytest.mark.parametrize("op", [operator.add, operator.sub, operator.mul, operator.truediv])
 def test_combine_with_breakpoints_in_one_fn(op):
     fn1 = PiecewiseConstantFunction(1)
     fn1.add_breakpoint(2, 7)
@@ -192,7 +192,7 @@ def test_combine_with_breakpoints_in_one_fn(op):
     assert fn3.breakpoints[7] == op(fn1.breakpoints[7], fn2._initial_value)
 
 
-@pytest.mark.parametrize('op', [operator.add, operator.sub, operator.mul, operator.truediv])
+@pytest.mark.parametrize("op", [operator.add, operator.sub, operator.mul, operator.truediv])
 def test_combine_with_breakpoints_in_both_fns(op):
     fn1 = PiecewiseConstantFunction(1)
     fn1.add_breakpoint(2, 7)

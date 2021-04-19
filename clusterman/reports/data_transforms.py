@@ -27,7 +27,7 @@ def transform_heatmap_data(data, error_threshold_fn, months, tz):
     """
     data_by_month = {}
     error_data_by_month = {}
-    min_val, max_val = float('inf'), float('-inf')
+    min_val, max_val = float("inf"), float("-inf")
     for mstart, mend in months:
         mstart_index = data.bisect_left(mstart)
         mend_index = data.bisect_right(mend)
@@ -70,12 +70,15 @@ def transform_trend_data(data, months, trend_rollup):
         (the min/max values sets the range for the trend plot)
     """
     data_by_month = {}
-    min_val, max_val = 0, 0  # min_val sets the minimum y-value of the plot axis, which should always be 0 or less
+    min_val, max_val = (
+        0,
+        0,
+    )  # min_val sets the minimum y-value of the plot axis, which should always be 0 or less
     for mstart, mend in months:
         aggregated_daily_data = []
 
         # For each day in the month aggregate the data according to the chosen method
-        for dstart, dend in arrow.Arrow.span_range('day', mstart, mend):
+        for dstart, dend in arrow.Arrow.span_range("day", mstart, mend):
             dstart_index = data.bisect_left(dstart)
             dend_index = data.bisect_right(dend)
             day_slice = data.values()[dstart_index:dend_index]
