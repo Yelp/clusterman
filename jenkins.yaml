@@ -8,3 +8,4 @@ overrides:
     chatChannels: ['#clusterman']
   debian:
     platforms: [xenial, bionic]
+host_type: bionic
