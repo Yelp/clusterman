@@ -1,3 +1,9 @@
+clusterman (4.5.10) xenial bionic; urgency=low
+
+  * Add support for the m6i instance type families
+
+ -- Timmy Zhu <tzhu@yelp.com>  Thu, 26 Aug 2021 12:07:39 -0700
+
 clusterman (4.5.9) xenial bionic; urgency=low
 
   * Added performace improvement for status command
