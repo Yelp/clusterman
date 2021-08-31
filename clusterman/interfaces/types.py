@@ -31,6 +31,7 @@ class InstanceMetadata(NamedTuple):
     group_id: str = ""
     hostname: Optional[str] = None
     instance_id: str = ""
+    is_cordoned: bool = False
     ip_address: Optional[str] = None
     is_stale: bool = False
     state: str = ""
