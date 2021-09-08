@@ -37,6 +37,7 @@ def _make_metadata(
     tasks=5,
     batch_tasks=0,
     is_safe_to_kill=True,
+    is_cordoned=False,
 ):
     return ClusterNodeMetadata(
         AgentMetadata(
@@ -51,6 +52,7 @@ def _make_metadata(
             hostname="host1",
             instance_id=instance_id,
             ip_address="1.2.3.4",
+            is_cordoned=is_cordoned,
             is_stale=is_stale,
             market="market-1",
             state="running",
@@ -337,6 +339,15 @@ class TestChooseNodesToPrune:
         mock_pool_manager.max_tasks_to_kill = 100
         assert mock_pool_manager._choose_nodes_to_prune(125, None) == {}
         assert "would take us under our target_capacity" in mock_logger.info.call_args[0][0]
+
+    def test_killable_node_cordoned(self, mock_logger, mock_pool_manager):
+        mock_pool_manager.get_node_metadatas = mock.Mock(
+            return_value=[_make_metadata("sfr-1", "i-1", is_cordoned=True)]
+        )
+
+        mock_pool_manager.max_tasks_to_kill = 100
+
+        assert mock_pool_manager._choose_nodes_to_prune(100, None) == {}
 
     def test_kill_node(self, mock_logger, mock_pool_manager):
         mock_pool_manager._get_prioritized_killable_nodes = mock.Mock(
