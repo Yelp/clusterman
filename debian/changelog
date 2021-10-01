@@ -1,3 +1,9 @@
+clusterman (4.5.11) xenial bionic; urgency=low
+
+  * Prevent clusterman from deleting cordoned hosts
+
+ -- Amjad Mashaal <amashaal@yelp.com>  Fri, 01 Oct 2021 07:46:00 -0700
+
 clusterman (4.5.10) xenial bionic; urgency=low
 
   * Add support for the m6i instance type families
