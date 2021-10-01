@@ -103,7 +103,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
         tags = instance_dict.get("Tags", [])
 
         for tag in tags:
-            if tag["Key"] == "cordon":
+            if tag["Key"] == "is_cordoned":
                 if tag["Value"] == "true":
                     return True
 
