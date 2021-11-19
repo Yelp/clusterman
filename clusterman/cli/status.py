@@ -58,6 +58,7 @@ class AgentJsonObject(TypedDict):
     market: InstanceMarket
     task_count: int
     uptime: float
+    weight: float
     resources: Mapping[str, ResourceDictJsonObject]
 
 
@@ -86,6 +87,7 @@ def _get_agent_json(metadata: ClusterNodeMetadata) -> AgentJsonObject:
         "market": metadata.instance.market,
         "task_count": metadata.agent.task_count,
         "uptime": metadata.instance.uptime.total_seconds(),
+        "weight": metadata.instance.weight,
         "resources": {
             resource: {
                 "allocated": getattr(metadata.agent.allocated_resources, resource),
