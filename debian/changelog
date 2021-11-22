@@ -1,3 +1,9 @@
+clusterman (4.5.13) xenial bionic; urgency=low
+
+  * Export instance capacity weight in JSON status response
+
+ -- Amjad Mashaal <amashaal@yelp.com>  Mon, 22 Nov 2021 07:33:45 -0800
+
 clusterman (4.5.12) xenial bionic; urgency=low
 
   * Add support for the c6i instance type families
