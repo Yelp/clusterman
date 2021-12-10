@@ -14,6 +14,7 @@
 import os
 import subprocess
 import time
+import traceback
 import xmlrpc.client
 
 import colorlog
@@ -49,9 +50,15 @@ def wait_for_process(
 ) -> None:
     logger.info(f"waiting for {process_name} to start")
     while True:
-        states = [
-            rpc.supervisor.getProcessInfo(f"{process_name}:{process_name}_{i}")["statename"] for i in range(num_procs)
-        ]
+        try:
+            states = [
+                rpc.supervisor.getProcessInfo(f"{process_name}:{process_name}_{i}")["statename"]
+                for i in range(num_procs)
+            ]
+        except OSError:
+            logger.warning(f"Could not talk to supervisord process: {traceback.format_exc()}")
+            time.sleep(1)
+            continue
 
         if any(state == "FATAL" for state in states):
             raise AutoscalerBootstrapException(f"Process {process_name} could not start; aborting")
