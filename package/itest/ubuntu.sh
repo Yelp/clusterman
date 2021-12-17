@@ -30,13 +30,14 @@ ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 apt-get update && apt-get install -y software-properties-common
 add-apt-repository -y ppa:deadsnakes/ppa && apt-get update
-apt-get install -y --force-yes python3.7 python3-pip python3-yaml awscli
+apt-get install -y --force-yes python3.7 python3.7-dev python3-pip python3-yaml awscli
 dpkg -i /dist/${DISTRIB_CODENAME}/clusterman_${PACKAGE_VERSION}_amd64.deb || true
 apt-get install -y --force-yes --fix-broken
 
 export ACCEPTANCE_ROOT=/itest
-pip3 --index-url https://pypi.yelpcorp.com/simple install boto3 simplejson
-python3 /itest/run_instance.py
+python3.7 -m pip install --upgrade pip
+pip install boto3 simplejson
+python3.7 /itest/run_instance.py
 
 # Run the critical clusterman CLI commands
 if [ ! "${EXAMPLE}" ]; then

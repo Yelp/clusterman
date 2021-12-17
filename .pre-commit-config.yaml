@@ -3,27 +3,27 @@ repos:
       rev: v0.9.4
       hooks:
           - id: trailing-whitespace
-            language_version: python3.6
+            language_version: python3.7
           - id: end-of-file-fixer
-            language_version: python3.6
+            language_version: python3.7
             exclude: ^\.activate\.sh$
           - id: check-yaml
-            language_version: python3.6
+            language_version: python3.7
           - id: debug-statements
-            language_version: python3.6
+            language_version: python3.7
             exclude: ^itests/environment.py$
           - id: name-tests-test
-            language_version: python3.6
+            language_version: python3.7
           - id: check-added-large-files
-            language_version: python3.6
+            language_version: python3.7
             exclude: ^(\.activate\.sh|.*clusterman_signals_acceptance\.tar\.gz)$
           - id: check-byte-order-marker
-            language_version: python3.6
+            language_version: python3.7
           - id: fix-encoding-pragma
             args: [--remove]
-            language_version: python3.6
+            language_version: python3.7
           - id: flake8
-            language_version: python3.6
+            language_version: python3.7
             exclude: ^docs/.*
             args: [
                 '--ignore=E121,E123,E126,E133,E203,E226,E231,E241,E242,E704,W503,W504,W505,W605'
@@ -43,7 +43,7 @@ repos:
       hooks:
           - id: pyupgrade
             args: [--py3-plus]
-            language_version: python3.6
+            language_version: python3.7
     - repo: http://github.com/psf/black
       rev: 19.10b0
       hooks:

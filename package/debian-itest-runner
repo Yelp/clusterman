@@ -23,6 +23,7 @@ docker run -t -v "$(pwd)/itest:/itest:rw" -v "$(pwd)/dist:/dist:ro" \
 	-v "${ACCEPTANCE_DIR}/clusterman.json:/etc/boto_cfg/clusterman_metrics.json:ro" \
     -v "${ACCEPTANCE_DIR}/${DISTRIB_CODENAME}/clusterman_signals_acceptance.tar.gz:/itest/${DISTRIB_CODENAME}/clusterman_signals_acceptance.tar.gz" \
     ${EXTRA_FLAGS} \
+    -e PIP_INDEX_URL="${PIP_INDEX_URL}" \
     --name "${CONTAINER_NAME}" \
     "ubuntu:${DISTRIB_CODENAME}" sleep infinity &
 

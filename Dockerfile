@@ -3,6 +3,12 @@
 
 FROM    docker-dev.yelpcorp.com/bionic_yelp:latest
 
+ARG PIP_INDEX_URL=https://pypi.yelpcorp.com/simple
+ENV PIP_INDEX_URL=$PIP_INDEX_URL
+
+ARG CLUSTERMAN_ENV=YELP
+ENV CLUSTERMAN_ENV=$CLUSTERMAN_ENV
+
 # python and uwsgi deps
 RUN     apt-get update \
         && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -15,7 +21,6 @@ RUN     apt-get update \
             lsb-release \
             make \
             openssh-client \
-            python3.6 \
             python3.7 \
             python3-distutils \
             python-pip \
