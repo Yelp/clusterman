@@ -1,7 +1,10 @@
 #!/usr/bin/make -f
 # -*- makefile -*-
-ifneq ($(shell echo ${TRAVIS}),true)
-	YELP_DH_VIRTUALENV = --index-url='https://pypi.yelpcorp.com/simple' --preinstall=-rrequirements-bootstrap.txt --pip-tool=pip-custom-platform --extra-pip-arg --only-binary=:all:
+
+PIP_INDEX_URL ?= https://pypi.yelpcorp.com/simple
+
+ifeq ($(CLUSTERMAN_ENV),YELP)
+	YELP_DH_VIRTUALENV = --preinstall=-rrequirements-bootstrap.txt --pip-tool=pip-custom-platform --extra-pip-arg --only-binary=:all:
 	YELP_DH_INSTALL = install -d completions/usr debian/package/.
 endif
 
@@ -9,7 +12,7 @@ endif
 	dh $@ --with python-virtualenv
 
 override_dh_virtualenv:
-	dh_virtualenv --python python3.7 $(YELP_DH_VIRTUALENV)
+	dh_virtualenv -i $(PIP_INDEX_URL) --python=/usr/bin/python3.7 $(YELP_DH_VIRTUALENV)
 
 override_dh_install:
 	dh_install

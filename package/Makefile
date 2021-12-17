@@ -1,3 +1,11 @@
+ifeq ($(findstring .yelpcorp.com,$(shell hostname -f)), .yelpcorp.com)
+	export PIP_INDEX_URL ?= https://pypi.yelpcorp.com/simple
+	CLUSTERMAN_ENV ?= YELP
+else
+	export PIP_INDEX_URL ?= https://pypi.python.org/simple
+	CLUSTERMAN_ENV ?= $(shell hostname -f)
+endif
+
 .PHONY: itest_% itest_%-external package_% package_%-external build_%_docker
 
 SYSTEM_PKG_NAME ?= clusterman
@@ -27,6 +35,8 @@ dist/%/Packages.gz:
 package_%: build_%_docker
 	mkdir -p $(CURDIR)/dist/$*
 	$(DOCKER_BUILD_RUN) \
+		-e CLUSTERMAN_ENV=$(CLUSTERMAN_ENV) \
+		-e PIP_INDEX_URL=$(PIP_INDEX_URL) \
 		$(SYSTEM_PKG_NAME)_$*_container /bin/bash -c "\
 		$(DOCKER_WORKDIR) && cat extra-requirements-yelp.txt >> requirements.txt \
 		&& dpkg-buildpackage -d \
@@ -36,6 +46,8 @@ package_%: build_%_docker
 package_%_external: build_%_docker
 	mkdir -p $(CURDIR)/dist/$*
 	$(DOCKER_BUILD_RUN) \
+		-e CLUSTERMAN_ENV=$(CLUSTERMAN_ENV) \
+		-e PIP_INDEX_URL=$(PIP_INDEX_URL) \
 		$(SYSTEM_PKG_NAME)_$*_container /bin/bash -c "\
 		$(DOCKER_WORKDIR) && echo \"file:///work/examples/clusterman_metrics\" >> requirements.txt \
 		&& dpkg-buildpackage -d \

@@ -11,6 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+ifeq ($(findstring .yelpcorp.com,$(shell hostname -f)), .yelpcorp.com)
+	export PIP_INDEX_URL ?= https://pypi.yelpcorp.com/simple
+	CLUSTERMAN_ENV ?= YELP
+else
+	export PIP_INDEX_URL ?= https://pypi.python.org/simple
+	CLUSTERMAN_ENV ?= $(shell hostname -f)
+endif
+
 PKG_NAME=clusterman
 DOCKER_TAG ?= ${PKG_NAME}-dev-$(USER)
 VIRTUALENV_RUN_TARGET = virtualenv_run-dev
@@ -61,12 +69,18 @@ itest-external: cook-image-external
 .PHONY: cook-image
 cook-image:
 	git rev-parse HEAD > version
-	docker build -t $(DOCKER_TAG) .
+	docker build \
+		--build-arg PIP_INDEX_URL=$(PIP_INDEX_URL) \
+		--build-arg CLUSTERMAN_ENV=$(CLUSTERMAN_ENV) \
+		-t $(DOCKER_TAG) .
 
 .PHONY: cook-image-external
 cook-image-external:
 	git rev-parse HEAD > version
-	docker build -t $(DOCKER_TAG) -f Dockerfile.external .
+	docker build \
+		--build-arg PIP_INDEX_URL=$(PIP_INDEX_URL) \
+		--build-arg CLUSTERMAN_ENV=$(CLUSTERMAN_ENV) \
+		-t $(DOCKER_TAG) -f Dockerfile.external .
 
 .PHONY: completions
 completions:
@@ -145,7 +159,10 @@ clean-cache:
 
 .PHONY:
 debug:
-	docker build . -t clusterman_debug_container
+	docker build \
+		--build-arg PIP_INDEX_URL=$(PIP_INDEX_URL) \
+		--build-arg CLUSTERMAN_ENV=$(CLUSTERMAN_ENV) \
+		. -t clusterman_debug_container
 	paasta_docker_wrapper run -it \
 		-v $(shell pwd)/clusterman:/code/clusterman:rw \
 		-v $(shell pwd)/clusterman.conf:/var/lib/clusterman/clusterman.conf:rw \
