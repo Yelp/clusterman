@@ -55,8 +55,10 @@ def disable(args: argparse.Namespace) -> None:
         "timestamp": {"N": str(int(time.time()))},
     }
 
-    if args.until:
-        state["expiration_timestamp"] = {"N": str(parse_time_string(args.until).timestamp)}
+    # Default is 60 minutes
+    until_value = args.until if args.until else "+60m"
+
+    state["expiration_timestamp"] = {"N": str(parse_time_string(until_value).timestamp)}
 
     dynamodb.put_item(
         TableName=staticconf.read("aws.state_table", default=CLUSTERMAN_STATE_TABLE), Item=state,
@@ -71,9 +73,12 @@ def disable(args: argparse.Namespace) -> None:
     else:
         s = f"The autoscaler for {args.cluster}.{args.pool}.{args.scheduler} was paused at {now}"
 
+        until_str = str(parse_time_string(until_value).to("local"))
+
         if args.until:
-            until_str = str(parse_time_string(args.until).to("local"))
             s += f" until {until_str}"
+        else:
+            s += f". WARNING: Pause will be removed at {until_str}"
 
         print(s)
 
