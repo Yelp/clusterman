@@ -32,16 +32,22 @@ services:
       - zookeeper
   moto-ec2:
     build: ./moto/
+    volumes:
+      - /etc/pip.conf:/etc/pip.conf:ro
     ports:
       - 5000
     command: 'ec2'
   moto-s3:
     build: ./moto/
+    volumes:
+      - /etc/pip.conf:/etc/pip.conf:ro
     ports:
       - 5000
     command: 's3'
   moto-dynamodb:
     build: ./moto/
+    volumes:
+      - /etc/pip.conf:/etc/pip.conf:ro
     ports:
       - 5000
     command: 'dynamodb2'

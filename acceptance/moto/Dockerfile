@@ -10,6 +10,7 @@ RUN apk add --no-cache --update \
 
 ADD . /moto/
 ENV PYTHONUNBUFFERED 1
+#ENV PIP_CONFIG_FILE=/etc/pip.conf
 
 WORKDIR /moto/
 RUN  python3 -m ensurepip && \
