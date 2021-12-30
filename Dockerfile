@@ -28,7 +28,7 @@ RUN     apt-get update \
 RUN     /usr/bin/pip install supervisor
 COPY    tox.ini requirements.txt requirements-bootstrap.txt extra-requirements-yelp.txt /code/
 RUN     cd code && tox -e virtualenv_run
-RUN     cd code && virtualenv_run/bin/pip-custom-platform install -rextra-requirements-yelp.txt
+RUN     cd code && virtualenv_run/bin/pip install -rextra-requirements-yelp.txt
 
 RUN     mkdir /home/nobody
 ENV     HOME /home/nobody
