@@ -16,7 +16,7 @@ DOCKER_TAG ?= ${PKG_NAME}-dev-$(USER)
 VIRTUALENV_RUN_TARGET = virtualenv_run-dev
 VIRTUALENV_RUN_REQUIREMENTS = requirements.txt requirements-dev.txt
 ifeq ($(findstring .yelpcorp.com,$(shell hostname -f)), .yelpcorp.com)
-	export DOCKER_REGISTRY ?= docker-dev.yelpcorp.com/
+	export DOCKER_REGISTRY ?= docker-dev.yelpcorp.com
 	export XENIAL_IMAGE_NAME ?= xenial_pkgbuild
 	export BIONIC_IMAGE_NAME ?= bionic_pkgbuild
 else

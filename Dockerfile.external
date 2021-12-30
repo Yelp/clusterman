@@ -3,7 +3,7 @@
 
 ARG DOCKER_REGISTRY
 ARG IMAGE_NAME
-FROM ${DOCKER_REGISTRY}${IMAGE_NAME}
+FROM ${DOCKER_REGISTRY}/${IMAGE_NAME}
 
 # python and uwsgi deps
 RUN     apt-get update \

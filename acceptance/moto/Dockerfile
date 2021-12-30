@@ -1,7 +1,7 @@
 ARG DOCKER_REGISTRY
 ARG IMAGE_NAME
 
-FROM ${DOCKER_REGISTRY}${IMAGE_NAME}
+FROM ${DOCKER_REGISTRY}/${IMAGE_NAME}
 
 RUN apt-get -yq update && apt-get install -yq --no-install-recommends \
     gcc \

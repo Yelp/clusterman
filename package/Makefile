@@ -6,7 +6,7 @@ PACKAGE_VERSION ?= $(shell cd $(CURDIR)/.. && python setup.py --version)
 ACCEPTANCE_DIR:=$(CURDIR)/../acceptance
 
 ifeq ($(findstring .yelpcorp.com,$(shell hostname -f)), .yelpcorp.com)
-	export DOCKER_REGISTRY ?= docker-dev.yelpcorp.com/
+	export DOCKER_REGISTRY ?= docker-dev.yelpcorp.com
 	export XENIAL_IMAGE_NAME ?= xenial_pkgbuild
 	export BIONIC_IMAGE_NAME ?= bionic_pkgbuild
 else
