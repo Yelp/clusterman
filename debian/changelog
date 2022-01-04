@@ -1,3 +1,10 @@
+clusterman (4.5.15) xenial bionic; urgency=low
+
+  * Use internal images and pypi packages
+  * Remove pip_custom_platform
+
+ -- Amjad Mashaal <amashaal@yelp.com>  Tue, 04 Jan 2022 05:44:54 -0800
+
 clusterman (4.5.14) xenial bionic; urgency=low
 
   * Add support for r6i/m6a instances types.
