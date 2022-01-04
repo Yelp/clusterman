@@ -1,6 +1,9 @@
 # This is an example Dockerfile to run your service in PaaSTA!
 # It satisfies the PaaSTA contract.
-FROM    ubuntu:bionic
+
+ARG DOCKER_REGISTRY
+ARG IMAGE_NAME
+FROM ${DOCKER_REGISTRY}/${IMAGE_NAME}
 
 # python and uwsgi deps
 RUN     apt-get update \

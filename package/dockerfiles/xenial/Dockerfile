@@ -1,4 +1,7 @@
-FROM    ubuntu:xenial
+ARG DOCKER_REGISTRY
+ARG IMAGE_NAME
+FROM ${DOCKER_REGISTRY}/${IMAGE_NAME}
+
 RUN     apt-get -yq update && apt-get install -yq --no-install-recommends software-properties-common
 RUN     add-apt-repository ppa:deadsnakes/ppa
 RUN     apt-get -yq update && apt-get install -yq --no-install-recommends \

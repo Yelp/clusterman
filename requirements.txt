@@ -13,11 +13,13 @@ future==0.18.0
 google-auth==1.6.3
 humanfriendly==4.18
 idna==2.8
+importlib-metadata==0.23
 jmespath==0.9.4
 jsonpickle==1.4.2
 kiwisolver==1.1.0
 kubernetes==10.0.1
 matplotlib==3.1.1
+more-itertools==7.2.0
 mypy-extensions==0.4.2
 numpy==1.17.2
 oauthlib==3.1.0
@@ -36,7 +38,7 @@ requests-oauthlib==1.2.0
 retry==0.9.2
 rsa==4.6
 s3transfer==0.3.2
-setuptools==41.4.0
+setuptools==49.2.1
 signalfx==1.1.1
 simplejson==3.16.0
 six==1.12.0
@@ -46,3 +48,4 @@ typing-extensions==3.7.4
 urllib3==1.25.9
 websocket-client==0.56.0
 ws4py==0.5.1
+zipp==0.6.0

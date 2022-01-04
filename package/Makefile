@@ -5,6 +5,16 @@ PYTHON_PKG_NAME ?= $(shell cd $(CURDIR)/.. && python setup.py --name)
 PACKAGE_VERSION ?= $(shell cd $(CURDIR)/.. && python setup.py --version)
 ACCEPTANCE_DIR:=$(CURDIR)/../acceptance
 
+ifeq ($(findstring .yelpcorp.com,$(shell hostname -f)), .yelpcorp.com)
+	export DOCKER_REGISTRY ?= docker-dev.yelpcorp.com
+	export XENIAL_IMAGE_NAME ?= xenial_pkgbuild
+	export BIONIC_IMAGE_NAME ?= bionic_pkgbuild
+else
+	export DOCKER_REGISTRY ?= ""
+	export XENIAL_IMAGE_NAME ?= ubuntu:xenial
+	export BIONIC_IMAGE_NAME ?= ubuntu:bionic
+endif
+
 UID:=`id -u`
 GID:=`id -g`
 DOCKER_BUILD_RUN:=docker run -t -e TRAVIS=${TRAVIS} -v $(CURDIR)/..:/src:ro -v $(CURDIR)/dist:/dist:rw
@@ -44,4 +54,4 @@ package_%_external: build_%_docker
 
 build_%_docker:
 	mkdir -p dist
-	cd dockerfiles/$*/ && docker build -t "$(SYSTEM_PKG_NAME)_$*_container" .
+	cd dockerfiles/$*/ && docker build --build-arg DOCKER_REGISTRY=${DOCKER_REGISTRY} --build-arg IMAGE_NAME=$($(shell echo '$*' | tr '[:lower:]' '[:upper:]')_IMAGE_NAME) -t "$(SYSTEM_PKG_NAME)_$*_container" .

@@ -1,6 +1,5 @@
 # This is an example Dockerfile to run your service in PaaSTA!
 # It satisfies the PaaSTA contract.
-
 FROM    docker-dev.yelpcorp.com/bionic_yelp:latest
 
 # python and uwsgi deps
@@ -26,11 +25,10 @@ RUN     apt-get update \
             zk-flock \
         && apt-get clean
 
-ENV     PIP_INDEX_URL=https://pypi.yelpcorp.com/simple
 RUN     /usr/bin/pip install supervisor
 COPY    tox.ini requirements.txt requirements-bootstrap.txt extra-requirements-yelp.txt /code/
 RUN     cd code && tox -e virtualenv_run
-RUN     cd code && virtualenv_run/bin/pip-custom-platform install -rextra-requirements-yelp.txt
+RUN     cd code && virtualenv_run/bin/pip install -rextra-requirements-yelp.txt
 
 RUN     mkdir /home/nobody
 ENV     HOME /home/nobody

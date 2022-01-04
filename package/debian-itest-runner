@@ -1,4 +1,5 @@
 #!/bin/bash
+set -ex
 ACCEPTANCE_DIR=$(pwd)/../acceptance
 
 source ${ACCEPTANCE_DIR}/utils.sh
@@ -7,11 +8,13 @@ trap cleanup SIGINT
 DISTRIB_CODENAME=$1
 PACKAGE_NAME=$2
 PACKAGE_VERSION=$3
+declare -A CODENAME_TO_IMAGE=( ["xenial"]=${XENIAL_IMAGE_NAME} ["bionic"]=${BIONIC_IMAGE_NAME})
+DOCKER_IMAGE=${CODENAME_TO_IMAGE[$DISTRIB_CODENAME]}
 CONTAINER_NAME=clusterman_debian_itest_${DISTRIB_CODENAME}
+
 if [ "${EXTRA_VOLUME_MOUNTS}" ]; then
     EXTRA_FLAGS="-v ${EXTRA_VOLUME_MOUNTS}"
 fi
-
 setup_networks
 
 docker run -t -v "$(pwd)/itest:/itest:rw" -v "$(pwd)/dist:/dist:ro" \
@@ -24,7 +27,7 @@ docker run -t -v "$(pwd)/itest:/itest:rw" -v "$(pwd)/dist:/dist:ro" \
     -v "${ACCEPTANCE_DIR}/${DISTRIB_CODENAME}/clusterman_signals_acceptance.tar.gz:/itest/${DISTRIB_CODENAME}/clusterman_signals_acceptance.tar.gz" \
     ${EXTRA_FLAGS} \
     --name "${CONTAINER_NAME}" \
-    "ubuntu:${DISTRIB_CODENAME}" sleep infinity &
+    "${DOCKER_REGISTRY}/${DOCKER_IMAGE}" sleep infinity &
 
 while [ -z "${CONTAINER}" ]; do CONTAINER=$(docker ps | egrep "${CONTAINER_NAME}" | cut -d' ' -f1); done
 

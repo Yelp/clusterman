@@ -15,6 +15,15 @@ PKG_NAME=clusterman
 DOCKER_TAG ?= ${PKG_NAME}-dev-$(USER)
 VIRTUALENV_RUN_TARGET = virtualenv_run-dev
 VIRTUALENV_RUN_REQUIREMENTS = requirements.txt requirements-dev.txt
+ifeq ($(findstring .yelpcorp.com,$(shell hostname -f)), .yelpcorp.com)
+	export DOCKER_REGISTRY ?= docker-dev.yelpcorp.com
+	export XENIAL_IMAGE_NAME ?= xenial_pkgbuild
+	export BIONIC_IMAGE_NAME ?= bionic_pkgbuild
+else
+	export DOCKER_REGISTRY ?= ""
+	export XENIAL_IMAGE_NAME ?= ubuntu:xenial
+	export BIONIC_IMAGE_NAME ?= ubuntu:bionic
+endif
 
 .PHONY: all
 all: development
@@ -44,7 +53,7 @@ test-external: clean-cache
 .PHONY: itest
 itest: export EXTRA_VOLUME_MOUNTS=/nail/etc/services/services.yaml:/nail/etc/services/services.yaml:ro
 itest: cook-image
-	COMPOSE_PROJECT_NAME=clusterman_bionic PIP_INDEX_URL=https://pypi.yelpcorp.com/simple tox -e acceptance
+	COMPOSE_PROJECT_NAME=clusterman_bionic tox -e acceptance
 	./service-itest-runner clusterman.batch.spot_price_collector "--aws-region=us-west-1 "
 	./service-itest-runner clusterman.batch.cluster_metrics_collector "--cluster=local-dev"
 	./service-itest-runner clusterman.batch.autoscaler_bootstrap "" clusterman.batch.autoscaler
