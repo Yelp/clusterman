@@ -45,7 +45,7 @@ six==1.12.0
 sortedcontainers==2.1.0
 sseclient-py==1.7
 typing-extensions==3.7.4
-urllib3==1.25.9
+urllib3==1.26.5
 websocket-client==0.56.0
 ws4py==0.5.1
 zipp==0.6.0
