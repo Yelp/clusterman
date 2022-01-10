@@ -29,6 +29,7 @@ local-cluster-external: .local-cluster.yaml .local-clusterman-external.yaml .loc
 	docker cp $(KUBECONFIG) $(KIND_CLUSTER)-control-plane:/var/lib/clusterman/clusterman.conf
 	docker exec $(KIND_CLUSTER)-control-plane chmod 644 /var/lib/clusterman/clusterman.conf
 	docker exec $(KIND_CLUSTER)-control-plane sed -i "s/\(.*server: \).*/\1https:\\/\\/127.0.0.1:6443/g" /var/lib/clusterman/clusterman.conf
+	$(DOCKER_COMPOSE) build --build-arg DOCKER_REGISTRY={env:DOCKER_REGISTRY:docker-dev.yelpcorp.com} --build-arg IMAGE_NAME={env:BIONIC_IMAGE_NAME:bionic_pkgbuild} moto-ec2 moto-s3 moto-dynamodb
 	$(DOCKER_COMPOSE) up -d moto-ec2 moto-s3 moto-dynamodb
 	sleep 10  # Give some time for the moto containers to come up
 	ACCEPTANCE_ROOT=. DISTRIB_CODENAME=bionic ../.tox/acceptance/bin/python run_instance.py \
