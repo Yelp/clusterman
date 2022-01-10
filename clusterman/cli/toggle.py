@@ -55,6 +55,10 @@ def disable(args: argparse.Namespace) -> None:
         "timestamp": {"N": str(int(time.time()))},
     }
 
+    if not args.until:
+        print("Default has changed; autoscaler will be re-enabled in 30m since no --until flag was used.")
+        args.until = "30m"
+
     if args.until:
         state["expiration_timestamp"] = {"N": str(parse_time_string(args.until).timestamp)}
 
@@ -102,7 +106,7 @@ def add_cluster_disable_parser(subparser, required_named_args, optional_named_ar
     optional_named_args.add_argument(
         "--until",
         metavar="timestamp",
-        help='time at which to re-enable autoscaling (try "tomorrow", "+5m"; use quotes)',
+        help='time at which to re-enable autoscaling (try "tomorrow", "+5m"; use quotes) (Default: 30m)',
     )
     add_cluster_config_directory_arg(optional_named_args)
 

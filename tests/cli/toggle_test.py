@@ -70,3 +70,30 @@ class TestManageMethods:
 
         with pytest.raises(AccountNumberMistmatchError):
             disable(args)
+
+    @mock.patch("clusterman.cli.toggle.autoscaling_is_paused")
+    @mock.patch("clusterman.cli.toggle.dynamodb")
+    def test_disable_until(
+        self,
+        mock_dynamodb,
+        mock_autoscaling_is_paused,
+        mock_logger,
+        mock_staticconf,
+        mock_sts,
+        args,
+        capsys,
+        *extra_args,
+    ):
+        """Test default until value, and test it shoes a message correctly"""
+        # Note the different values
+        mock_sts.get_caller_identity.return_value = {"Account": "123"}
+        mock_staticconf.read_string.return_value = "123"
+
+        mock_dynamodb.delete_item = mock.Mock()
+
+        mock_autoscaling_is_paused.return_value = True
+
+        disable(args)
+        # https://docs.pytest.org/en/6.2.x/capture.html#accessing-captured-output-from-a-test-function
+        captured = capsys.readouterr()
+        assert "Default has changed; autoscaler" in captured.out
