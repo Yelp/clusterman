@@ -70,12 +70,12 @@ itest-external: cook-image-external
 .PHONY: cook-image
 cook-image:
 	git rev-parse HEAD > version
-	docker build -t $(DOCKER_TAG) .
+	docker build --build-arg DOCKER_REGISTRY=${DOCKER_REGISTRY} --build-arg IMAGE_NAME=${BIONIC_IMAGE_NAME} -t $(DOCKER_TAG) .
 
 .PHONY: cook-image-external
 cook-image-external:
 	git rev-parse HEAD > version
-	docker build -t $(DOCKER_TAG) -f Dockerfile.external .
+	docker build --build-arg DOCKER_REGISTRY=${DOCKER_REGISTRY} --build-arg IMAGE_NAME=${BIONIC_IMAGE_NAME} -t $(DOCKER_TAG) -f Dockerfile.external .
 
 .PHONY: completions
 completions:
