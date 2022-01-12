@@ -1,12 +1,12 @@
 name: CI
 
-# Controls when the action will run.
 on:
   push:
     branches:
       - master
   pull_request:
   release:
+
 jobs:
   tox:
     env:

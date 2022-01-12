@@ -36,7 +36,11 @@ apt-get install -y --force-yes --fix-broken
 
 export ACCEPTANCE_ROOT=/itest
 python3.7 -m pip install boto3 simplejson
-python3.7 /itest/run_instance.py
+python3.7 /itest/run_instance.py \
+    http://moto-ec2:5000/ \
+    http://moto-s3:5000/ \
+    http://moto-dynamodb:5000/ \
+    "${CIDR_BLOCK}"
 
 # Run the critical clusterman CLI commands
 if [ ! "${EXAMPLE}" ]; then
