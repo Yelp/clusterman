@@ -1,3 +1,9 @@
+clusterman (4.5.16) xenial bionic; urgency=low
+
+  * Enable --until by default when disabling auto-scaler for cluster
+
+ -- Jens Langhammer <langj@yelp.com>  Wed, 12 Jan 2022 01:59:15 -0800
+
 clusterman (4.5.15) xenial bionic; urgency=low
 
   * Use internal images and pypi packages
