@@ -57,7 +57,7 @@ if [ ! "${EXAMPLE}" ]; then
     highlight_exec /usr/bin/clusterman disable --cluster local-dev --until tomorrow
     highlight_exec /usr/bin/clusterman enable --cluster local-dev
     highlight_exec /usr/bin/clusterman simulate --cluster local-dev --start-time 2017-12-01T08:00:00Z --end-time 2017-12-01T09:00:00Z --metrics-data-files /itest/metrics.json.gz
-    highlight_exec /usr/bin/clusterman --log-level debug simulate --cluster local-dev --scheduler mesos --autoscaler-config /itest/autoscaler_config.yaml --start-time 2017-12-01T08:00:00Z --end-time 2017-12-01T09:00:00Z --metrics-data-files /itest/metrics.json.gz
+    highlight_exec /usr/bin/clusterman --log-level debug simulate --cluster local-dev --scheduler mesos --autoscaler-config /itest/autoscaler_config.yaml --start-time 2017-12-01T08:00:00Z --end-time 2017-12-01T08:05:00Z --metrics-data-files /itest/metrics.json.gz
 
     highlight "$0:" 'success!'
 else
