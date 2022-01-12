@@ -17,7 +17,7 @@ endif
 
 UID:=`id -u`
 GID:=`id -g`
-DOCKER_BUILD_RUN:=docker run -t -e TRAVIS=${TRAVIS} -v $(CURDIR)/..:/src:ro -v $(CURDIR)/dist:/dist:rw
+DOCKER_BUILD_RUN:=docker run -t -e CI=${CI} -v $(CURDIR)/..:/src:ro -v $(CURDIR)/dist:/dist:rw
 VERSIONED_FILES:=$(shell cd $(CURDIR)/.. && git ls-files -z --cached --modified | xargs -0 -I@ echo -n "'@' ")
 DOCKER_WORKDIR:=mkdir -p /work && cd /src && cp -vP --parents $(VERSIONED_FILES) /work/ && cp -r completions /work/ && cd /work
 
