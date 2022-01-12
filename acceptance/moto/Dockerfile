@@ -15,6 +15,8 @@ ADD . /moto/
 ENV PYTHONUNBUFFERED 1
 
 WORKDIR /moto/
+# Setuptools needs to be installed and up-to-date for install below
+RUN pip3 install -U setuptools pip
      # moto and botocore have mismatched upper-bound pins for python-dateutils
      # which breaks our build.  botocore used to have <3.0.0, but shrunk that to
      # <2.8.1, and moto hasn't updated their pin to match yet.  So until those
