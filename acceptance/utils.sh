@@ -1,6 +1,6 @@
 #!/bin/bash
 
-COMPOSE_CONTAINERS="zookeeper mesosmaster mesosagent moto-ec2 moto-s3 moto-dynamodb"
+COMPOSE_CONTAINERS="zookeeper mesosmaster mesosagent moto-ec2 moto-s3 moto-dynamodb moto-sts"
 
 cleanup() {
     docker kill "${CONTAINER}" > /dev/null

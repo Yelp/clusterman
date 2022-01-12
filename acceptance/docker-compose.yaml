@@ -45,3 +45,8 @@ services:
     ports:
       - 5000
     command: 'dynamodb2'
+  moto-sts:
+    build: ./moto/
+    ports:
+      - 5000
+    command: 'sts'
