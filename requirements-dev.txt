@@ -17,8 +17,8 @@ ecdsa==0.13.3
 entrypoints==0.3
 flake8==3.7.8
 identify==1.4.7
-ipdb==0.12.2
-ipython==7.8.0
+ipdb==0.13.9
+ipython==7.17.0
 ipython-genutils==0.2.0
 jedi==0.15.1
 Jinja2==2.10.3
@@ -54,7 +54,7 @@ pytz==2019.3
 requirements-tools==2.0.0
 responses==0.10.6
 sshpubkeys==3.1.0
-toml==0.10.0
+toml==0.10.2
 traitlets==4.3.3
 typed-ast==1.4.0
 virtualenv==16.7.7
