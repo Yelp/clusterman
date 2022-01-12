@@ -10,6 +10,7 @@ module_config:
 #   to aws.region, if the --cluster argument is passed to the service.
 clusters:
     local-dev:
+        aws_account_number: 123456789012
         aws_region: us-west-2
         mesos_master_fqdn: mesosmaster
         kubeconfig_path: /var/lib/clusterman/clusterman.conf
