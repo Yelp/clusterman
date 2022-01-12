@@ -33,5 +33,4 @@ jobs:
       # GHA won't setup tox for us and we use tox-pip-extensions for venv-update
       - run: pip install tox==3.8.6 tox-pip-extensions==1.6.0
       - run: go install sigs.k8s.io/kind@v0.11.1
-      - run: eval $(make -sC acceptance local-env)
       - run: make ${{ matrix.make_target }}
