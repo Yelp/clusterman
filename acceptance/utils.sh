@@ -14,7 +14,7 @@ setup_networks() {
     if [ "${DISTRIB_CODENAME}" == "xenial" ]; then
         CIDR_BLOCK="10.0.0.0/24"
     else
-        CIDR_BLOCK="11.0.0.0/24"
+        CIDR_BLOCK="10.1.0.0/24"
     fi
     docker network create --ip-range "${CIDR_BLOCK}" --subnet "${CIDR_BLOCK}" "clusterman_${DISTRIB_CODENAME}_acceptance"
     for compose_container in ${COMPOSE_CONTAINERS}; do

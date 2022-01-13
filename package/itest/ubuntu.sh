@@ -38,7 +38,7 @@ apt-get install -y --force-yes --fix-broken
 if [ "${DISTRIB_CODENAME}" = "xenial" ]; then
     CIDR_BLOCK="10.0.0.0/24"
 else
-    CIDR_BLOCK="11.0.0.0/24"
+    CIDR_BLOCK="10.1.0.0/24"
 fi
 
 export ACCEPTANCE_ROOT=/itest
