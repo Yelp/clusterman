@@ -42,6 +42,8 @@ class SimulatedPoolManager(PoolManager):
         self.max_capacity = self.pool_config.read_int("scaling_limits.max_capacity")
         self.max_tasks_to_kill = read_int_or_inf(self.pool_config, "scaling_limits.max_tasks_to_kill")
         self.cluster_connector = SimulatedClusterConnector(self.cluster, self.pool, self.simulator)
+        self.max_weight_to_add = self.pool_config.read_int("scaling_limits.max_weight_to_add")
+        self.max_weight_to_remove = self.pool_config.read_int("scaling_limits.max_weight_to_remove")
 
     def reload_state(self) -> None:
         pass

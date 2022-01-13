@@ -20,7 +20,7 @@ ifeq ($(findstring .yelpcorp.com,$(shell hostname -f)), .yelpcorp.com)
 	export XENIAL_IMAGE_NAME ?= xenial_pkgbuild
 	export BIONIC_IMAGE_NAME ?= bionic_pkgbuild
 else
-	export DOCKER_REGISTRY ?= ""
+	export DOCKER_REGISTRY ?= docker.io
 	export XENIAL_IMAGE_NAME ?= ubuntu:xenial
 	export BIONIC_IMAGE_NAME ?= ubuntu:bionic
 endif
@@ -85,6 +85,10 @@ completions:
 .PHONY: install-hooks
 install-hooks: virtualenv_run
 	./virtualenv_run/bin/pre-commit install -f --install-hooks
+
+.PHONY: run-hooks
+run-pre-commit: virtualenv_run
+	./virtualenv_run/bin/pre-commit run -a
 
 virtualenv_run: $(VIRTUALENV_RUN_REQUIREMENTS)
 	tox -e $(VIRTUALENV_RUN_TARGET)

@@ -10,14 +10,14 @@ ifeq ($(findstring .yelpcorp.com,$(shell hostname -f)), .yelpcorp.com)
 	export XENIAL_IMAGE_NAME ?= xenial_pkgbuild
 	export BIONIC_IMAGE_NAME ?= bionic_pkgbuild
 else
-	export DOCKER_REGISTRY ?= ""
+	export DOCKER_REGISTRY ?= docker.io
 	export XENIAL_IMAGE_NAME ?= ubuntu:xenial
 	export BIONIC_IMAGE_NAME ?= ubuntu:bionic
 endif
 
 UID:=`id -u`
 GID:=`id -g`
-DOCKER_BUILD_RUN:=docker run -t -e TRAVIS=${TRAVIS} -v $(CURDIR)/..:/src:ro -v $(CURDIR)/dist:/dist:rw
+DOCKER_BUILD_RUN:=docker run -t -e CI=${CI} -v $(CURDIR)/..:/src:ro -v $(CURDIR)/dist:/dist:rw
 VERSIONED_FILES:=$(shell cd $(CURDIR)/.. && git ls-files -z --cached --modified | xargs -0 -I@ echo -n "'@' ")
 DOCKER_WORKDIR:=mkdir -p /work && cd /src && cp -vP --parents $(VERSIONED_FILES) /work/ && cp -r completions /work/ && cd /work
 

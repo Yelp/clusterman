@@ -37,6 +37,6 @@ fi
 
 docker network connect "clusterman_${DISTRIB_CODENAME}_default" "${CONTAINER}"
 docker network connect "clusterman_${DISTRIB_CODENAME}_acceptance" "${CONTAINER}"
-docker exec ${EXAMPLE_FLAG} -it "${CONTAINER}" /itest/ubuntu.sh "${PACKAGE_NAME}" "${PACKAGE_VERSION}"
+docker exec ${EXAMPLE_FLAG} "${CONTAINER}" /itest/ubuntu.sh "${PACKAGE_NAME}" "${PACKAGE_VERSION}"
 cleanup
 docker rm "${CONTAINER_NAME}"

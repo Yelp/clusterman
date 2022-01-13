@@ -1,6 +1,6 @@
 #!/usr/bin/make -f
 # -*- makefile -*-
-ifneq ($(shell echo ${TRAVIS}),true)
+ifneq ($(shell echo ${CI}),true)
 	YELP_DH_VIRTUALENV = --preinstall=-rrequirements-bootstrap.txt --extra-pip-arg --only-binary=:all:
 	YELP_DH_INSTALL = install -d completions/usr debian/package/.
 endif

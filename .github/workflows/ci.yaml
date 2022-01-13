@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  release:
+
+jobs:
+  tox:
+    env:
+      PIP_INDEX_URL: https://pypi.python.org/simple
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+      matrix:
+        make_target:
+          - run-pre-commit
+          - test-external
+          - itest-external
+          - itest_xenial-external
+          - itest_bionic-external
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.6
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.7
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.17.3'
+      - uses: azure/setup-kubectl@v1
+        with:
+          version: v1.22.0
+      # GHA won't setup tox for us and we use tox-pip-extensions for venv-update
+      - run: pip install tox==3.8.6 tox-pip-extensions==1.6.0
+      - run: go install sigs.k8s.io/kind@v0.11.1
+      - run: make ${{ matrix.make_target }}

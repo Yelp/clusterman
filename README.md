@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.com/Yelp/clusterman.svg?branch=master)](https://travis-ci.com/Yelp/clusterman)
+[![CI](https://github.com/Yelp/clusterman/actions/workflows/ci.yaml/badge.svg)](https://github.com/Yelp/clusterman/actions/workflows/ci.yaml)
 [![Documentation Status](https://readthedocs.org/projects/clusterman/badge/?version=latest)](https://clusterman.readthedocs.io/en/latest/?badge=latest)
 
 # Clusterman - Autoscale and Manage your compute clusters
