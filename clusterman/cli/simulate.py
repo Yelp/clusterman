@@ -82,7 +82,7 @@ def _populate_autoscaling_events(simulator, start_time, end_time):
         simulator.add_event(AutoscalingEvent(current_time))
         current_time = current_time.shift(
             seconds=splay_event_time(
-                simulator.autoscaler.run_frequency, "simulated-autoscaler", timestamp=current_time.timestamp,
+                simulator.autoscaler.run_frequency, "simulated-autoscaler", timestamp=start_time.timestamp,
             )
         )
 
