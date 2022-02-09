@@ -21,7 +21,9 @@ from typing import Tuple
 from retry import retry
 
 import colorlog
+from botocore.exceptions import ClientError
 from cachetools.func import ttl_cache
+from retry import retry
 
 from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.aws_resource_group import RESOURCE_GROUP_CACHE_SECONDS
@@ -37,10 +39,9 @@ from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.interfaces.types import InstanceMetadata
 from clusterman.util import ClustermanResources
 
-from botocore.exceptions import ClientError
 
 _BATCH_MODIFY_SIZE = 200
-AWS_RATE_LIMIT_TOKEN_SIZE = 105  #https://docs.aws.amazon.com/AWSEC2/latest/APIReference/throttling.html
+AWS_RATE_LIMIT_TOKEN_SIZE = 105  # https://docs.aws.amazon.com/AWSEC2/latest/APIReference/throttling.html
 CLUSTERMAN_STALE_TAG = "clusterman:is_stale"
 
 logger = colorlog.getLogger(__name__)
