@@ -18,6 +18,7 @@ from typing import Mapping
 from typing import Optional
 from typing import Sequence
 from typing import Tuple
+from retry import retry
 
 import colorlog
 from cachetools.func import ttl_cache
@@ -36,7 +37,10 @@ from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.interfaces.types import InstanceMetadata
 from clusterman.util import ClustermanResources
 
+from botocore.exceptions import ClientError
+
 _BATCH_MODIFY_SIZE = 200
+AWS_RATE_LIMIT_TOKEN_SIZE = 105 # Rate Limit token size taken from - https://docs.aws.amazon.com/AWSEC2/latest/APIReference/throttling.html
 CLUSTERMAN_STALE_TAG = "clusterman:is_stale"
 
 logger = colorlog.getLogger(__name__)
@@ -263,6 +267,7 @@ class AutoScalingResourceGroup(AWSResourceGroup):
 
     @classmethod
     @ttl_cache(ttl=RESOURCE_GROUP_CACHE_SECONDS)
+    @retry(ClientError, tries=5, delay=AWS_RATE_LIMIT_TOKEN_SIZE, backoff=2)
     def _get_resource_group_tags(cls, filter_tag: str = "") -> Mapping[str, Mapping[str, str]]:
         """ Retrieves the tags for each ASG """
         asg_id_to_tags = {}
