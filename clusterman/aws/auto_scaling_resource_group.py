@@ -23,7 +23,6 @@ from retry import retry
 import colorlog
 from botocore.exceptions import ClientError
 from cachetools.func import ttl_cache
-from retry import retry
 
 from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.aws_resource_group import RESOURCE_GROUP_CACHE_SECONDS
