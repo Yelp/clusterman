@@ -16,9 +16,9 @@ import socket
 
 import mock
 import pytest
+from botocore.exceptions import ClientError
 from clusterman_metrics import ClustermanMetricsBotoClient
 
-from botocore.exceptions import ClientError
 from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.mesos.metrics_generators import ClusterMetric
 from clusterman.util import All
@@ -169,21 +169,14 @@ def test_run(mock_sensu, mock_running, mock_time, mock_sleep, batch):
     ]
 
 
-def test_load_pool_managers(batch):
-    batch.load_pool_managers.side_effect = ClientError
+def test_load_pool_managers():
+    ClusterMetricsCollector = mock.Mock()
+    batch = ClusterMetricsCollector()
+    batch.load_pool_managers.side_effect = ClientError(
+        {}, "when calling the DescribeTags operation (reached max retries: 4)"
+    )
     batch.run_interval = 10
     batch.metrics_client = mock.MagicMock(spec_set=ClustermanMetricsBotoClient)
     batch.pools = {"mesos": ["pool-1", "pool-2"]}
-
-
-    with mock.patch(
-        "clusterman.batch.cluster_metrics_collector.splay_event_time", mock_splay_event_time,
-    ), mock.patch.object(batch, "write_metrics", autospec=True) as write_metrics, mock.patch(
-        "clusterman.batch.cluster_metrics_collector.PoolManager", autospec=True
-    ), mock.patch(
-        "clusterman.batch.cluster_metrics_collector.logger"
-    ) as mock_logger:
-        with pytest.raises(ClientError):
-            batch.load_pool_managers()
-
-
+    with pytest.raises(ClientError):
+        batch.load_pool_managers()
