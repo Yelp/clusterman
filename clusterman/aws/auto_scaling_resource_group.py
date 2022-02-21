@@ -36,7 +36,6 @@ from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.interfaces.types import InstanceMetadata
 from clusterman.util import ClustermanResources
 
-
 _BATCH_MODIFY_SIZE = 200
 CLUSTERMAN_STALE_TAG = "clusterman:is_stale"
 
