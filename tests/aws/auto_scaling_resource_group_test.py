@@ -231,3 +231,7 @@ def test_get_asg_tags(mock_asrg, mock_asg_config):
     tags = asg_id_to_tags[mock_asg_config["AutoScalingGroupName"]]
     assert "fake_tag_key" in tags
     assert tags["fake_tag_key"] == "fake_tag_value"
+
+
+def test_get_resource_group_tags():
+    pass

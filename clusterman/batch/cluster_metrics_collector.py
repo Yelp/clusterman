@@ -34,6 +34,7 @@ from clusterman_metrics import SYSTEM_METRICS
 from yelp_batch.batch import batch_command_line_arguments
 from yelp_batch.batch import batch_configure
 from yelp_batch.batch_daemon import BatchDaemon
+from botocore.exceptions import ClientError
 
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_cluster_config_directory_arg
@@ -130,6 +131,9 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
                 try:
                     logger.info(f"Loading resource groups for {pool}.{scheduler} on {self.options.cluster}")
                     self.pool_managers[f"{pool}.{scheduler}"] = PoolManager(self.options.cluster, pool, scheduler)
+                except ClientError as error:
+                    logger.exception(error)
+                    raise
                 except Exception as e:
                     logger.exception(e)
                     continue
