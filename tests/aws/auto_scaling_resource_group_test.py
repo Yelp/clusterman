@@ -233,5 +233,3 @@ def test_get_asg_tags(mock_asrg, mock_asg_config):
     assert tags["fake_tag_key"] == "fake_tag_value"
 
 
-def test_get_resource_group_tags():
-    pass
