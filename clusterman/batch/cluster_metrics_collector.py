@@ -27,6 +27,7 @@ from typing import Union
 
 import colorlog
 import staticconf
+from botocore.exceptions import ClientError
 from clusterman_metrics import ClustermanMetricsBotoClient
 from clusterman_metrics import generate_key_with_dimensions
 from clusterman_metrics import METADATA
@@ -34,7 +35,6 @@ from clusterman_metrics import SYSTEM_METRICS
 from yelp_batch.batch import batch_command_line_arguments
 from yelp_batch.batch import batch_configure
 from yelp_batch.batch_daemon import BatchDaemon
-from botocore.exceptions import ClientError
 
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_cluster_config_directory_arg
