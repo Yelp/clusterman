@@ -39,6 +39,7 @@ repos:
             ]
             language_version: python3.7
             additional_dependencies: [setuptools<54]
+            entry: env SETUPTOOLS_USE_DISTUTILS=stdlib reorder-python-imports
     - repo: https://github.com/asottile/pyupgrade
       rev: v1.2.0
       hooks:
