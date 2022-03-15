@@ -34,9 +34,9 @@ from clusterman.kubernetes.util import CachedCoreV1Api
 from clusterman.kubernetes.util import get_node_ip
 from clusterman.kubernetes.util import PodUnschedulableReason
 from clusterman.kubernetes.util import selector_term_matches_requirement
-from clusterman.kubernetes.util import strtobool
 from clusterman.kubernetes.util import total_node_resources
 from clusterman.kubernetes.util import total_pod_resources
+from clusterman.util import strtobool
 
 
 logger = colorlog.getLogger(__name__)
