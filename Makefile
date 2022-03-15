@@ -88,7 +88,7 @@ install-hooks: virtualenv_run
 
 .PHONY: run-hooks
 run-pre-commit: virtualenv_run
-	./virtualenv_run/bin/pre-commit run -a
+	./virtualenv_run/bin/pre-commit run -a || git diff
 
 virtualenv_run: $(VIRTUALENV_RUN_REQUIREMENTS)
 	tox -e $(VIRTUALENV_RUN_TARGET)
