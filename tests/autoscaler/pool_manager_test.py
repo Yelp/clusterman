@@ -13,7 +13,6 @@
 # limitations under the License.
 import mock
 import pytest
-import staticconf
 import staticconf.testing
 
 from clusterman.autoscaler.pool_manager import ClusterNodeMetadata

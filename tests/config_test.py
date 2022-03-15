@@ -16,7 +16,6 @@ import json
 
 import mock
 import pytest
-import staticconf
 import staticconf.testing
 import yaml
 
