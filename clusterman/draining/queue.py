@@ -23,7 +23,7 @@ from typing import Sequence
 from typing import Type
 
 import arrow
-import botocore.exceptions
+from botocore.exceptions import ClientError
 import colorlog
 import staticconf
 
@@ -294,7 +294,7 @@ class DrainingClient:
 def host_from_instance_id(sender: str, receipt_handle: str, instance_id: str,) -> Optional[Host]:
     try:
         instance_data = ec2_describe_instances(instance_ids=[instance_id])
-    except botocore.exceptions.ClientError as e:
+    except ClientError as e:
         logger.warning(f"Couldn't describe instance: {e}")
         return None
     if not instance_data:
