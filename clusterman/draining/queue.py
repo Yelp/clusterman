@@ -23,9 +23,9 @@ from typing import Sequence
 from typing import Type
 
 import arrow
-from botocore.exceptions import ClientError
 import colorlog
 import staticconf
+from botocore.exceptions import ClientError
 
 from clusterman.args import add_cluster_arg
 from clusterman.args import subparser

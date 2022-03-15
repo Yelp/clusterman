@@ -14,10 +14,10 @@
 import socket
 
 import arrow
-from botocore.exceptions import ClientError
 import mock
 import pytest
 import staticconf.testing
+from botocore.exceptions import ClientError
 
 from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
 from clusterman.draining.queue import DrainingClient
