@@ -38,7 +38,7 @@ repos:
                 --remove-import, from __future__ import unicode_literals
             ]
             language_version: python3.7
-            additional_dependencies: [setuptools<60]
+            additional_dependencies: [setuptools<54]
     - repo: https://github.com/asottile/pyupgrade
       rev: v1.2.0
       hooks:
