@@ -29,7 +29,7 @@ repos:
                 '--ignore=E121,E123,E126,E133,E203,E226,E231,E241,E242,E704,W503,W504,W505,W605'
             ]
     - repo: https://github.com/asottile/reorder_python_imports
-      rev: v0.3.5
+      rev: v2.1.0
       hooks:
           - id: reorder-python-imports
             args: [
