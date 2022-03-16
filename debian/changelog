@@ -1,3 +1,9 @@
+clusterman (4.5.17) xenial bionic; urgency=low
+
+  * Handling exception while describe non-exist instance during draining
+
+ -- Ilkin Mammadzada <ilkinmammadzada@yelp.com>  Wed, 16 Mar 2022 04:20:01 -0700
+
 clusterman (4.5.16) xenial bionic; urgency=low
 
   * Enable --until by default when disabling auto-scaler for cluster
