@@ -295,7 +295,7 @@ def host_from_instance_id(sender: str, receipt_handle: str, instance_id: str,) -
     try:
         instance_data = ec2_describe_instances(instance_ids=[instance_id])
     except ClientError as e:
-        logger.warning(f"Couldn't describe instance: {e}")
+        logger.exception(f"Couldn't describe instance: {e}")
         return None
     if not instance_data:
         logger.warning(f"No instance data found for {instance_id}")

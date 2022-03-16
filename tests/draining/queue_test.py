@@ -480,6 +480,7 @@ def test_host_from_instance_id():
         mock_ec2_describe.return_value = [{"InstanceId": "i-123"}]
         assert host_from_instance_id(sender="aws", receipt_handle="rcpt", instance_id="i-123",) is None
 
+        # describe method throws exception when instance doesn't exist
         mock_ec2_describe.side_effect = ClientError({}, "")
         assert host_from_instance_id(sender="aws", receipt_handle="rcpt", instance_id="i-123",) is None
 
