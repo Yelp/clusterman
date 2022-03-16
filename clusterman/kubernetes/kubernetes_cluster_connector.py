@@ -13,7 +13,6 @@
 # limitations under the License.
 import copy
 from collections import defaultdict
-from distutils.util import strtobool
 from typing import List
 from typing import Mapping
 from typing import Optional
@@ -37,6 +36,8 @@ from clusterman.kubernetes.util import PodUnschedulableReason
 from clusterman.kubernetes.util import selector_term_matches_requirement
 from clusterman.kubernetes.util import total_node_resources
 from clusterman.kubernetes.util import total_pod_resources
+from clusterman.util import strtobool
+
 
 logger = colorlog.getLogger(__name__)
 KUBERNETES_SCHEDULED_PHASES = {"Pending", "Running"}
