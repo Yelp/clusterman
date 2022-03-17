@@ -320,6 +320,8 @@ def sensu_checkin(
         logger.info(("Would have sent this event to Sensu:\n" f"{pprint.pformat(sensu_config)}"))
         return
 
+    logger.info(("Sending this event to Sensu:\n" f"{pprint.pformat(sensu_config)}"))
+
     # team and runbook are required entries in srv-configs, so we know this will go to the "right" place
     pysensu_yelp.send_event(**sensu_config)
 
