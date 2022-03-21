@@ -1,3 +1,9 @@
+clusterman (4.5.18) xenial bionic; urgency=low
+
+  * Log contents of Sensu check
+
+ -- Amjad Mashaal <amashaal@yelp.com>  Mon, 21 Mar 2022 06:12:04 -0700
+
 clusterman (4.5.17) xenial bionic; urgency=low
 
   * Handling exception while describe non-exist instance during draining
