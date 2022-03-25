@@ -308,7 +308,8 @@ class Autoscaler:
                 "Non-orphan fulfilled capacity is 0 and current target capacity > 0, not changing target to let the "
                 "new instances join"
             )
-            return current_target_capacity
+            reserve_capacity = self._get_reserve_capacity()
+            return current_target_capacity + reserve_capacity
 
         # If we get here, everything is non-zero and we can use the "normal" logic to determine scaling
         (most_constrained_resource, usage_pct,) = self._get_most_constrained_resource_for_request(
@@ -447,3 +448,7 @@ class Autoscaler:
             latest_non_zero_values[-1][0],
             sum([float(val) for __, val in latest_non_zero_values]) / len(latest_non_zero_values),
         )
+
+    def _get_reserve_capacity(self) -> float:
+        # logic will be implemented
+        return 0
