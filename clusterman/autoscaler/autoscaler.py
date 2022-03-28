@@ -276,7 +276,8 @@ class Autoscaler:
         #       this adds an extra autoscaling cycle before you can get all your resources.
         #
         # 4. If the resource request and the target capacity are non-zero, but the nodes haven't joined
-        #    the cluster yet, we just need to wait until they join before doing anything else.
+        #    the cluster yet, we just need to add one additional resource.
+        #    Because non-joined instance may not initialize and this may cause to stuck indefinitely.
 
         if all(requested_quantity is None for requested_quantity in resource_request):
             logger.info("No data from signal, not changing capacity")
@@ -304,7 +305,7 @@ class Autoscaler:
         elif non_orphan_fulfilled_capacity == 0:
             # Entering the main body of this method with non_orphan_fulfilled_capacity = 0 guarantees that
             # new_target_capacity will be 0, which we do not want (since the resource request is non-zero)
-            current_target_capacity += self._get_reserve_capacity()
+            current_target_capacity += 1
             logger.info(
                 "Non-orphan fulfilled capacity is 0 and current target capacity > 0, not changing target to let the "
                 "new instances join"
@@ -448,12 +449,3 @@ class Autoscaler:
             latest_non_zero_values[-1][0],
             sum([float(val) for __, val in latest_non_zero_values]) / len(latest_non_zero_values),
         )
-
-    def _get_reserve_capacity(self) -> float:
-
-        current_target_capacity = self.pool_manager.target_capacity
-        cluster_total_resources = self.pool_manager.cluster_connector.get_cluster_total_resources()
-        cluster_allocated_resources = self.pool_manager.cluster_connector.get_cluster_allocated_resources()
-        non_orphan_fulfilled_capacity = self.pool_manager.non_orphan_fulfilled_capacity
-
-        return 0
