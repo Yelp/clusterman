@@ -304,12 +304,12 @@ class Autoscaler:
         elif non_orphan_fulfilled_capacity == 0:
             # Entering the main body of this method with non_orphan_fulfilled_capacity = 0 guarantees that
             # new_target_capacity will be 0, which we do not want (since the resource request is non-zero)
+            current_target_capacity += self._get_reserve_capacity()
             logger.info(
                 "Non-orphan fulfilled capacity is 0 and current target capacity > 0, not changing target to let the "
                 "new instances join"
             )
-            reserve_capacity = self._get_reserve_capacity()
-            return current_target_capacity + reserve_capacity
+            return current_target_capacity
 
         # If we get here, everything is non-zero and we can use the "normal" logic to determine scaling
         (most_constrained_resource, usage_pct,) = self._get_most_constrained_resource_for_request(
@@ -450,5 +450,10 @@ class Autoscaler:
         )
 
     def _get_reserve_capacity(self) -> float:
-        # logic will be implemented
+
+        current_target_capacity = self.pool_manager.target_capacity
+        cluster_total_resources = self.pool_manager.cluster_connector.get_cluster_total_resources()
+        cluster_allocated_resources = self.pool_manager.cluster_connector.get_cluster_allocated_resources()
+        non_orphan_fulfilled_capacity = self.pool_manager.non_orphan_fulfilled_capacity
+
         return 0
