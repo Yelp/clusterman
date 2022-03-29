@@ -39,7 +39,7 @@ parso==0.5.1
 pexpect==4.7.0
 pickleshare==0.7.5
 pluggy==0.13.0
-pre-commit==1.18.3
+pre-commit==2.17.0
 prompt-toolkit==2.0.10
 ptyprocess==0.6.0
 pycodestyle==2.5.0
