@@ -307,8 +307,7 @@ class Autoscaler:
             # new_target_capacity will be 0, which we do not want (since the resource request is non-zero)
             current_target_capacity += 1
             logger.info(
-                "Non-orphan fulfilled capacity is 0 and current target capacity > 0, not changing target to let the "
-                "new instances join"
+                "Non-orphan fulfilled capacity is 0 and current target capacity > 0, increase target by one"
             )
             return current_target_capacity
 
