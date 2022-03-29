@@ -250,7 +250,8 @@ class TestComputeTargetCapacity:
         new_target_capacity = mock_autoscaler._compute_target_capacity(
             SignalResourceRequest(cpus=10, mem=500, disk=1000, gpus=0),
         )
-        assert new_target_capacity == mock_autoscaler.pool_manager.target_capacity
+        # autoscaler increase target capacity by one to avoid stucking
+        assert new_target_capacity == mock_autoscaler.pool_manager.target_capacity + 1
 
     def test_scale_most_constrained_resource(self, mock_autoscaler):
         resource_request = SignalResourceRequest(cpus=500, mem=30000, disk=19000, gpus=0)
