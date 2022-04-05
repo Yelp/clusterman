@@ -203,6 +203,10 @@ class PoolManager:
             for instance_metadata in group.get_instance_metadatas(state_filter)
         ]
 
+    def terminate_expired_orphan_resources(self) -> None:
+        # list resources, filter resources to find expired orphan resources, terminate them
+        return
+
     # currently dead code, so don't count towards coverage metrics
     def _filter_scale_up_options_for_pod(
         self, pod: KubernetesPod, scale_up_options: Mapping[str, List[ClusterNodeMetadata]],
