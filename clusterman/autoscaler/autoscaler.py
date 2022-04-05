@@ -174,6 +174,7 @@ class Autoscaler:
             self.target_capacity_gauge.set(new_target_capacity, {"dry_run": dry_run})
             self._emit_requested_resource_metrics(resource_request, dry_run=dry_run)
 
+        self.pool_manager.terminate_expired_orphan_resources()
         self.pool_manager.modify_target_capacity(new_target_capacity, dry_run=dry_run, no_scale_down=no_scale_down)
 
         if exception:
