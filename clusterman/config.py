@@ -62,7 +62,7 @@ def setup_config(args: argparse.Namespace) -> None:
     elif cluster:
         aws_region = staticconf.read_string(f"clusters.{cluster}.aws_region", default=None)
         if pool:
-            load_cluster_pool_config(cluster, pool, scheduler, signals_branch_or_tag)
+            load_cluster_pool_config(cluster, pool, str(scheduler), signals_branch_or_tag)
 
     staticconf.DictConfiguration({"aws": {"region": aws_region}})
 

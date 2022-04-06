@@ -15,6 +15,7 @@ import os
 import subprocess
 import time
 import traceback
+import typing
 import xmlrpc.client
 
 import colorlog
@@ -52,7 +53,7 @@ def wait_for_process(
     while True:
         try:
             states = [
-                rpc.supervisor.getProcessInfo(f"{process_name}:{process_name}_{i}")["statename"]
+                typing.cast(typing.Dict[str, typing.Any], rpc.supervisor.getProcessInfo(f"{process_name}:{process_name}_{i}"))["statename"]
                 for i in range(num_procs)
             ]
         except OSError:
