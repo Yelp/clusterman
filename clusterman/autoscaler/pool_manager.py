@@ -17,6 +17,7 @@ from collections import defaultdict
 from typing import cast
 from typing import Collection
 from typing import Dict
+from typing import Iterable
 from typing import List
 from typing import Mapping
 from typing import MutableMapping
@@ -42,6 +43,7 @@ from clusterman.interfaces.cluster_connector import ClusterConnector
 from clusterman.interfaces.resource_group import ResourceGroup
 from clusterman.interfaces.types import AgentState
 from clusterman.interfaces.types import ClusterNodeMetadata
+from clusterman.interfaces.types import InstanceMetadata
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
 from clusterman.kubernetes.util import total_pod_resources
 from clusterman.monitoring_lib import get_monitoring_client
@@ -203,9 +205,28 @@ class PoolManager:
             for instance_metadata in group.get_instance_metadatas(state_filter)
         ]
 
-    def terminate_expired_orphan_resources(self) -> None:
-        # list resources, filter resources to find expired orphan resources, terminate them
-        return
+    def terminate_expired_orphan_instances(self) -> None:
+        expired_orphan_instances = self._get_expired_orphan_instances(self.get_node_metadatas(), self.resource_groups.values())
+
+        for group_id in expired_orphan_instances:
+            self.resource_groups[group_id].terminate_instances_by_id(expired_orphan_instances[group_id])
+
+    def _get_expired_orphan_instances(
+            self, groups: Iterable[ResourceGroup], node_metadatas: Sequence[ClusterNodeMetadata]
+    ) -> Mapping[str, List[str]]:
+        expired_orphan_instances: Mapping[str, List[str]] = defaultdict[list]
+
+        for group in groups:
+            expired_orphan_instances[group.id].append(
+                metadata.instance.instance_id for metadata in node_metadatas if (metadata.instance.group_id == group.id and self._is_expired_orphan_instance(metadata.instance))
+            )
+
+        return expired_orphan_instances
+
+    def _is_expired_orphan_instance(self, instance: InstanceMetadata) -> bool:
+        if instance.state == 'AgentState.ORPHANED' and instance.uptime.total_seconds() > 1800:
+            return True
+        return False
 
     # currently dead code, so don't count towards coverage metrics
     def _filter_scale_up_options_for_pod(
