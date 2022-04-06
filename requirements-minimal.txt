@@ -2,8 +2,8 @@ arrow<=0.14.6  # need to restrict for now because of https://github.com/crsmithd
 boto3
 botocore
 cachetools
-colorlog
 colorama
+colorlog
 humanfriendly
 jsonpickle
 kubernetes

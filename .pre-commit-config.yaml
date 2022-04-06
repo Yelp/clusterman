@@ -3,52 +3,64 @@ repos:
       rev: v0.9.4
       hooks:
           - id: trailing-whitespace
-            language_version: python3.6
+            language_version: python3.8
           - id: end-of-file-fixer
-            language_version: python3.6
+            language_version: python3.8
             exclude: ^\.activate\.sh$
           - id: check-yaml
-            language_version: python3.6
+            language_version: python3.8
           - id: debug-statements
-            language_version: python3.6
+            language_version: python3.8
             exclude: ^itests/environment.py$
           - id: name-tests-test
-            language_version: python3.6
+            language_version: python3.8
           - id: check-added-large-files
-            language_version: python3.6
+            language_version: python3.8
             exclude: ^(\.activate\.sh|.*clusterman_signals_acceptance\.tar\.gz)$
           - id: check-byte-order-marker
-            language_version: python3.6
+            language_version: python3.8
           - id: fix-encoding-pragma
-            args: [--remove]
-            language_version: python3.6
+            args: [
+                --remove]
+            language_version: python3.8
           - id: flake8
-            language_version: python3.6
+            language_version: python3.8
             exclude: ^docs/.*
             args: [
-                '--ignore=E121,E123,E126,E133,E203,E226,E231,E241,E242,E704,W503,W504,W505,W605'
-            ]
+                '--ignore=E121,E123,E126,E133,E203,E226,E231,E241,E242,E704,W503,W504,W505,W605']
     - repo: https://github.com/asottile/reorder_python_imports
       rev: v0.3.5
       hooks:
           - id: reorder-python-imports
             args: [
-                --remove-import, from __future__ import absolute_import,
-                --remove-import, from __future__ import print_function,
-                --remove-import, from __future__ import unicode_literals
-            ]
-            language_version: python3.7
+                --remove-import,
+                from
+                      __future__
+                      import
+                      absolute_import,
+                --remove-import,
+                from
+                      __future__
+                      import
+                      print_function,
+                --remove-import,
+                from
+                      __future__
+                      import
+                      unicode_literals]
+            language_version: python3.8
     - repo: https://github.com/asottile/pyupgrade
       rev: v1.2.0
       hooks:
           - id: pyupgrade
-            args: [--py3-plus]
-            language_version: python3.6
+            args: [
+                --py3-plus]
+            language_version: python3.8
     - repo: http://github.com/psf/black
       rev: 19.10b0
       hooks:
           - id: black
-            language_version: python3.7
+            language_version: python3.8
             args:
                 - --target-version
                 - py37
