@@ -205,8 +205,15 @@ class PoolManager:
             for instance_metadata in group.get_instance_metadatas(state_filter)
         ]
 
-    def terminate_expired_orphan_instances(self) -> None:
+    def terminate_expired_orphan_instances(self, dry_run: bool = False) -> None:
+        if dry_run:
+            logger.warning('Running in "dry-run" mode; cluster state will not be modified')
+
         expired_orphan_instances = self._get_expired_orphan_instances(self.get_node_metadatas(), self.resource_groups.values())
+        logger.info(f"Terminating expired orphan instances: \n{expired_orphan_instances}")
+
+        if dry_run:
+            return
 
         for group_id in expired_orphan_instances:
             self.resource_groups[group_id].terminate_instances_by_id(expired_orphan_instances[group_id])
