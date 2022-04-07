@@ -209,7 +209,8 @@ class PoolManager:
         if dry_run:
             logger.warning('Running in "dry-run" mode; cluster state will not be modified')
 
-        expired_orphan_instances = self._get_expired_orphan_instances(self.get_node_metadatas(), self.resource_groups.values())
+        expired_orphan_instances = self._get_expired_orphan_instances(self.get_node_metadatas(),
+                                                                      self.resource_groups.values())
         logger.info(f"Terminating expired orphan instances: \n{expired_orphan_instances}")
 
         if dry_run:
@@ -231,7 +232,11 @@ class PoolManager:
         return expired_orphan_instances
 
     def _is_expired_orphan_instance(self, metadata: ClusterNodeMetadata) -> bool:
-        if metadata.agent.state == 'AgentState.ORPHANED' and metadata.instance.uptime.total_seconds() > 1800:
+        if (
+            metadata.agent.state == 'AgentState.ORPHANED'
+            and metadata.instance.uptime.total_seconds() > 1800
+            and metadata.instance.state == 'running'
+        ):
             return True
         return False
 
