@@ -4,6 +4,7 @@ botocore
 cachetools
 colorama
 colorlog
+docker
 humanfriendly
 jsonpickle
 kubernetes

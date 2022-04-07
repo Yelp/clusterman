@@ -83,9 +83,12 @@ class ClustermanResources(NamedTuple):
             gpus=self.gpus - other.gpus,
         )
 
-    def __mul__(self, scalar: float) -> "ClustermanResources": # type: ignore[override]
+    def __mul__(self, scalar: float) -> "ClustermanResources":  # type: ignore[override]
         return ClustermanResources(
-            cpus=self.cpus * scalar, mem=self.mem * scalar, disk=self.disk * scalar, gpus=self.gpus * scalar,
+            cpus=self.cpus * scalar,
+            mem=self.mem * scalar,
+            disk=self.disk * scalar,
+            gpus=self.gpus * scalar,
         )
 
     def __lt__(self, other) -> bool:
@@ -166,7 +169,7 @@ def any_of(*choices) -> Callable[[_T], bool]:
 
 
 def ask_for_confirmation(prompt="Are you sure? ", default=True):
-    """ Display a prompt asking for confirmation from the user before continuing; accepts any form of "yes"/"no"
+    """Display a prompt asking for confirmation from the user before continuing; accepts any form of "yes"/"no"
 
     :param prompt: the prompt to display before accepting input
     :param default: the default value if CR pressed with no input
@@ -202,7 +205,10 @@ def ask_for_choice(prompt, choices):
 
 
 def color_conditions(
-    input_obj: _T, prefix: Optional[str] = None, postfix: Optional[str] = None, **kwargs: Callable[[_T], bool],
+    input_obj: _T,
+    prefix: Optional[str] = None,
+    postfix: Optional[str] = None,
+    **kwargs: Callable[[_T], bool],
 ) -> str:
     prefix = prefix or ""
     postfix = postfix or ""
@@ -215,7 +221,7 @@ def color_conditions(
 
 
 def parse_time_string(time_str, tz="US/Pacific"):
-    """ Convert a date or time string into an arrow object in UTC
+    """Convert a date or time string into an arrow object in UTC
 
     :param time_str: the string to convert
     :param tz: what timezone to interpret the time_str as *if no tz is specified*
@@ -241,7 +247,7 @@ def parse_time_string(time_str, tz="US/Pacific"):
 
 
 def parse_time_interval_seconds(time_str):
-    """ Convert a given time interval (e.g. '5m') into the number of seconds in that interval
+    """Convert a given time interval (e.g. '5m') into the number of seconds in that interval
 
     :param time_str: the string to parse
     :returns: the number of seconds in the interval
@@ -310,7 +316,13 @@ def sensu_checkin(
     )
 
     sensu_config.update(
-        {"name": check_name, "output": output, "source": source, "status": status.value, "page": page,}
+        {
+            "name": check_name,
+            "output": output,
+            "source": source,
+            "status": status.value,
+            "page": page,
+        }
     )
     # values passed in to this function override config file values (is this really correct??)
     sensu_config.update(kwargs)
@@ -327,7 +339,7 @@ def sensu_checkin(
 
 
 def splay_event_time(frequency: int, key: str, timestamp: float = None) -> float:
-    """ Return the length of time until the next event should trigger based on the given frequency;
+    """Return the length of time until the next event should trigger based on the given frequency;
     randomly splay out the 'initial' start time based on some key, to prevent events with the same
     frequency from all triggering at once
 
@@ -376,7 +388,10 @@ def get_cluster_dimensions(cluster: str, pool: str, scheduler: Optional[str]) ->
 def autoscaling_is_paused(cluster: str, pool: str, scheduler: str, timestamp: arrow.Arrow) -> bool:
     response = dynamodb.get_item(
         TableName=CLUSTERMAN_STATE_TABLE,
-        Key={"state": {"S": AUTOSCALER_PAUSED}, "entity": {"S": f"{cluster}.{pool}.{scheduler}"},},
+        Key={
+            "state": {"S": AUTOSCALER_PAUSED},
+            "entity": {"S": f"{cluster}.{pool}.{scheduler}"},
+        },
         ConsistentRead=True,
     )
     if "Item" not in response:

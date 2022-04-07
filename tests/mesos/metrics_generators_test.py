@@ -43,12 +43,26 @@ def mock_pool_manager():
 @pytest.fixture
 def simple_metadata_expected_metrics(mock_pool_manager):
     return [
-        ClusterMetric(metric_name="cpus_total", value=20, dimensions={"cluster": "mesos-test", "pool": "bar.mesos"},),
-        ClusterMetric(metric_name="mem_total", value=2000, dimensions={"cluster": "mesos-test", "pool": "bar.mesos"},),
         ClusterMetric(
-            metric_name="disk_total", value=20000, dimensions={"cluster": "mesos-test", "pool": "bar.mesos"},
+            metric_name="cpus_total",
+            value=20,
+            dimensions={"cluster": "mesos-test", "pool": "bar.mesos"},
         ),
-        ClusterMetric(metric_name="gpus_total", value=0, dimensions={"cluster": "mesos-test", "pool": "bar.mesos"},),
+        ClusterMetric(
+            metric_name="mem_total",
+            value=2000,
+            dimensions={"cluster": "mesos-test", "pool": "bar.mesos"},
+        ),
+        ClusterMetric(
+            metric_name="disk_total",
+            value=20000,
+            dimensions={"cluster": "mesos-test", "pool": "bar.mesos"},
+        ),
+        ClusterMetric(
+            metric_name="gpus_total",
+            value=0,
+            dimensions={"cluster": "mesos-test", "pool": "bar.mesos"},
+        ),
         ClusterMetric(
             metric_name="target_capacity",
             value=mock_pool_manager.target_capacity,
@@ -73,16 +87,24 @@ def test_generate_system_metrics(mock_pool_manager):
 
     expected_metrics = [
         ClusterMetric(
-            metric_name="cpus_allocated", value=10, dimensions={"cluster": "mesos-test", "pool": "bar.mesos"},
+            metric_name="cpus_allocated",
+            value=10,
+            dimensions={"cluster": "mesos-test", "pool": "bar.mesos"},
         ),
         ClusterMetric(
-            metric_name="mem_allocated", value=1000, dimensions={"cluster": "mesos-test", "pool": "bar.mesos"},
+            metric_name="mem_allocated",
+            value=1000,
+            dimensions={"cluster": "mesos-test", "pool": "bar.mesos"},
         ),
         ClusterMetric(
-            metric_name="disk_allocated", value=10000, dimensions={"cluster": "mesos-test", "pool": "bar.mesos"},
+            metric_name="disk_allocated",
+            value=10000,
+            dimensions={"cluster": "mesos-test", "pool": "bar.mesos"},
         ),
         ClusterMetric(
-            metric_name="gpus_allocated", value=0, dimensions={"cluster": "mesos-test", "pool": "bar.mesos"},
+            metric_name="gpus_allocated",
+            value=0,
+            dimensions={"cluster": "mesos-test", "pool": "bar.mesos"},
         ),
     ]
     assert sorted(generate_system_metrics(mock_pool_manager)) == sorted(expected_metrics)

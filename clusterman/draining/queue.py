@@ -68,14 +68,22 @@ class DrainingClient:
         self.drain_queue_url = staticconf.read_string(f"clusters.{cluster_name}.drain_queue_url")
         self.termination_queue_url = staticconf.read_string(f"clusters.{cluster_name}.termination_queue_url")
         self.draining_host_ttl_cache: Dict[str, arrow.Arrow] = {}
-        self.warning_queue_url = staticconf.read_string(f"clusters.{cluster_name}.warning_queue_url", default=None,)
+        self.warning_queue_url = staticconf.read_string(
+            f"clusters.{cluster_name}.warning_queue_url",
+            default=None,
+        )
 
     def submit_instance_for_draining(
         self, instance: InstanceMetadata, sender: Type[AWSResourceGroup], scheduler: str
     ) -> None:
         return self.client.send_message(
             QueueUrl=self.drain_queue_url,
-            MessageAttributes={"Sender": {"DataType": "String", "StringValue": RESOURCE_GROUPS_REV[sender],},},
+            MessageAttributes={
+                "Sender": {
+                    "DataType": "String",
+                    "StringValue": RESOURCE_GROUPS_REV[sender],
+                },
+            },
             MessageBody=json.dumps(
                 {
                     "instance_id": instance.instance_id,
@@ -90,7 +98,12 @@ class DrainingClient:
     def submit_host_for_draining(self, host: Host) -> None:
         return self.client.send_message(
             QueueUrl=self.drain_queue_url,
-            MessageAttributes={"Sender": {"DataType": "String", "StringValue": host.sender,},},
+            MessageAttributes={
+                "Sender": {
+                    "DataType": "String",
+                    "StringValue": host.sender,
+                },
+            },
             MessageBody=json.dumps(
                 {
                     "instance_id": host.instance_id,
@@ -112,7 +125,12 @@ class DrainingClient:
         return self.client.send_message(
             QueueUrl=self.termination_queue_url,
             DelaySeconds=delay_seconds,
-            MessageAttributes={"Sender": {"DataType": "String", "StringValue": host.sender,},},
+            MessageAttributes={
+                "Sender": {
+                    "DataType": "String",
+                    "StringValue": host.sender,
+                },
+            },
             MessageBody=json.dumps(
                 {
                     "instance_id": host.instance_id,
@@ -126,7 +144,9 @@ class DrainingClient:
 
     def get_host_to_drain(self) -> Optional[Host]:
         messages = self.client.receive_message(
-            QueueUrl=self.drain_queue_url, MessageAttributeNames=["Sender"], MaxNumberOfMessages=1,
+            QueueUrl=self.drain_queue_url,
+            MessageAttributeNames=["Sender"],
+            MaxNumberOfMessages=1,
         ).get("Messages", [])
         if messages:
             host_data = json.loads(messages[0]["Body"])
@@ -141,7 +161,9 @@ class DrainingClient:
         if self.warning_queue_url is None:
             return None
         messages = self.client.receive_message(
-            QueueUrl=self.warning_queue_url, MessageAttributeNames=["Sender"], MaxNumberOfMessages=1,
+            QueueUrl=self.warning_queue_url,
+            MessageAttributeNames=["Sender"],
+            MaxNumberOfMessages=1,
         ).get("Messages", [])
         if messages:
             event_data = json.loads(messages[0]["Body"])
@@ -158,7 +180,8 @@ class DrainingClient:
                     "Couldn't derive host data from instance id {} skipping".format(event_data["detail"]["instance-id"])
                 )
                 self.client.delete_message(
-                    QueueUrl=self.warning_queue_url, ReceiptHandle=messages[0]["ReceiptHandle"],
+                    QueueUrl=self.warning_queue_url,
+                    ReceiptHandle=messages[0]["ReceiptHandle"],
                 )
             else:
                 return host
@@ -166,7 +189,9 @@ class DrainingClient:
 
     def get_host_to_terminate(self) -> Optional[Host]:
         messages = self.client.receive_message(
-            QueueUrl=self.termination_queue_url, MessageAttributeNames=["Sender"], MaxNumberOfMessages=1,
+            QueueUrl=self.termination_queue_url,
+            MessageAttributeNames=["Sender"],
+            MaxNumberOfMessages=1,
         ).get("Messages", [])
         if messages:
             host_data = json.loads(messages[0]["Body"])
@@ -180,13 +205,15 @@ class DrainingClient:
     def delete_drain_messages(self, hosts: Sequence[Host]) -> None:
         for host in hosts:
             self.client.delete_message(
-                QueueUrl=self.drain_queue_url, ReceiptHandle=host.receipt_handle,
+                QueueUrl=self.drain_queue_url,
+                ReceiptHandle=host.receipt_handle,
             )
 
     def delete_terminate_messages(self, hosts: Sequence[Host]) -> None:
         for host in hosts:
             self.client.delete_message(
-                QueueUrl=self.termination_queue_url, ReceiptHandle=host.receipt_handle,
+                QueueUrl=self.termination_queue_url,
+                ReceiptHandle=host.receipt_handle,
             )
 
     def delete_warning_messages(self, hosts: Sequence[Host]) -> None:
@@ -194,7 +221,8 @@ class DrainingClient:
             return
         for host in hosts:
             self.client.delete_message(
-                QueueUrl=self.warning_queue_url, ReceiptHandle=host.receipt_handle,
+                QueueUrl=self.warning_queue_url,
+                ReceiptHandle=host.receipt_handle,
             )
 
     def process_termination_queue(
@@ -276,7 +304,9 @@ class DrainingClient:
                     spot_fleet_resource_groups.extend(
                         list(
                             SpotFleetResourceGroup.load(
-                                cluster=self.cluster, pool=pool, config=list(resource_group_conf.values())[0],
+                                cluster=self.cluster,
+                                pool=pool,
+                                config=list(resource_group_conf.values())[0],
                             ).keys()
                         )
                     )
@@ -291,7 +321,11 @@ class DrainingClient:
             self.delete_warning_messages([host_to_process])
 
 
-def host_from_instance_id(sender: str, receipt_handle: str, instance_id: str,) -> Optional[Host]:
+def host_from_instance_id(
+    sender: str,
+    receipt_handle: str,
+    instance_id: str,
+) -> Optional[Host]:
     try:
         instance_data = ec2_describe_instances(instance_ids=[instance_id])
     except ClientError as e:
@@ -355,10 +389,12 @@ def process_queues(cluster_name: str) -> None:
         draining_client.clean_processing_hosts_cache()
         draining_client.process_warning_queue()
         draining_client.process_drain_queue(
-            mesos_operator_client=mesos_operator_client, kube_operator_client=kube_operator_client,
+            mesos_operator_client=mesos_operator_client,
+            kube_operator_client=kube_operator_client,
         )
         draining_client.process_termination_queue(
-            mesos_operator_client=mesos_operator_client, kube_operator_client=kube_operator_client,
+            mesos_operator_client=mesos_operator_client,
+            kube_operator_client=kube_operator_client,
         )
         time.sleep(5)
 

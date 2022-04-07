@@ -142,7 +142,12 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
             # self.running is a property from yelp_batch which checks version_checker if a watcher config has changed.
             # If so, the entire batch restarts and configs for the service are reloaded.
             while self.running:
-                time.sleep(splay_event_time(self.run_interval, self.get_name() + self.options.cluster,))
+                time.sleep(
+                    splay_event_time(
+                        self.run_interval,
+                        self.get_name() + self.options.cluster,
+                    )
+                )
 
                 for pool, manager in self.pool_managers.items():
                     logger.info(f"Reloading state for pool manager for pool {pool}")
@@ -176,7 +181,10 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
             ) as writer:
                 try:
                     self.write_metrics(
-                        writer, metric_to_write.generator, metric_to_write.pools, metric_to_write.schedulers,
+                        writer,
+                        metric_to_write.generator,
+                        metric_to_write.pools,
+                        metric_to_write.schedulers,
                     )
                 except socket.timeout:
                     # Try to get metrics for the rest of the clusters, but make sure we know this failed

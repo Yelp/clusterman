@@ -49,7 +49,8 @@ def mock_setup_config():
 
 
 @mock.patch(
-    "clusterman.batch.cluster_metrics_collector.ClustermanMetricsBotoClient", autospec=True,
+    "clusterman.batch.cluster_metrics_collector.ClustermanMetricsBotoClient",
+    autospec=True,
 )
 @mock.patch("clusterman.batch.cluster_metrics_collector.PoolManager", autospec=True)
 @mock.patch("os.listdir")
@@ -98,14 +99,19 @@ def test_write_metrics(batch):
 
     metric_names = [call[0][0][0] for call in writer.send.call_args_list]
     assert sorted(metric_names) == sorted(
-        ["allocated|pool=pool_A.mesos", "allocated|pool=pool_B.mesos", "allocated|pool=pool_B.kubernetes",]
+        [
+            "allocated|pool=pool_A.mesos",
+            "allocated|pool=pool_B.mesos",
+            "allocated|pool=pool_B.kubernetes",
+        ]
     )
 
 
 @mock.patch("time.sleep")
 @mock.patch("time.time")
 @mock.patch(
-    "clusterman.batch.cluster_metrics_collector.ClusterMetricsCollector.running", new_callable=mock.PropertyMock,
+    "clusterman.batch.cluster_metrics_collector.ClusterMetricsCollector.running",
+    new_callable=mock.PropertyMock,
 )
 @mock.patch("clusterman.batch.cluster_metrics_collector.sensu_checkin", autospec=True)
 def test_run(mock_sensu, mock_running, mock_time, mock_sleep, batch):
@@ -124,7 +130,8 @@ def test_run(mock_sensu, mock_running, mock_time, mock_sleep, batch):
         return splay_event_time(frequency, fake_key)
 
     with mock.patch(
-        "clusterman.batch.cluster_metrics_collector.splay_event_time", mock_splay_event_time,
+        "clusterman.batch.cluster_metrics_collector.splay_event_time",
+        mock_splay_event_time,
     ), mock.patch.object(batch, "write_metrics", autospec=True) as write_metrics, mock.patch(
         "clusterman.batch.cluster_metrics_collector.PoolManager", autospec=True
     ), mock.patch(
@@ -151,7 +158,12 @@ def test_run(mock_sensu, mock_running, mock_time, mock_sleep, batch):
         )
 
         expected_write_metrics_calls = [
-            mock.call(writer, metric_to_write.generator, metric_to_write.pools, metric_to_write.schedulers,)
+            mock.call(
+                writer,
+                metric_to_write.generator,
+                metric_to_write.pools,
+                metric_to_write.schedulers,
+            )
             for metric_to_write in METRICS_TO_WRITE
         ] * 4
         assert write_metrics.call_args_list == expected_write_metrics_calls

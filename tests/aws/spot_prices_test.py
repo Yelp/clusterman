@@ -52,15 +52,35 @@ def test_spot_price_generator():
             [
                 {
                     "SpotPriceHistory": [
-                        mock_price_object("m3.xlarge", "fake-az-2b", datetime.datetime(2017, 1, 3, 12, 2, 22), "0.1",),
-                        mock_price_object("c3.xlarge", "fake-az-2a", datetime.datetime(2017, 1, 3, 12, 1, 40), "0.8",),
+                        mock_price_object(
+                            "m3.xlarge",
+                            "fake-az-2b",
+                            datetime.datetime(2017, 1, 3, 12, 2, 22),
+                            "0.1",
+                        ),
+                        mock_price_object(
+                            "c3.xlarge",
+                            "fake-az-2a",
+                            datetime.datetime(2017, 1, 3, 12, 1, 40),
+                            "0.8",
+                        ),
                     ]
                 },
                 {
                     "SpotPriceHistory": [
-                        mock_price_object("m3.xlarge", "fake-az-2b", datetime.datetime(2017, 1, 3, 12, 0, 22), "0.1",),
+                        mock_price_object(
+                            "m3.xlarge",
+                            "fake-az-2b",
+                            datetime.datetime(2017, 1, 3, 12, 0, 22),
+                            "0.1",
+                        ),
                         # Should ignore this last one
-                        mock_price_object("c3.xlarge", "fake-az-2a", datetime.datetime(2017, 1, 3, 12, 0, 4), "0.8",),
+                        mock_price_object(
+                            "c3.xlarge",
+                            "fake-az-2a",
+                            datetime.datetime(2017, 1, 3, 12, 0, 4),
+                            "0.8",
+                        ),
                     ]
                 },
             ]

@@ -50,7 +50,7 @@ class CachedCoreV1Api:
     def __init__(self, kubeconfig_path: str):
         try:
             kubernetes.config.load_kube_config(kubeconfig_path)
-        except TypeError:
+        except kubernetes.config.config_exception.ConfigException:
             error_msg = "Could not load KUBECONFIG; is this running on Kubernetes master?"
             if "yelpcorp" in socket.getfqdn():
                 error_msg += "\nHint: try using the clusterman-k8s-<clustername> wrapper script!"
@@ -123,7 +123,12 @@ def allocated_node_resources(pods: List[KubernetesPod]) -> ClustermanResources:
         disk += sum(ResourceParser.disk(c.resources.requests) for c in pod.spec.containers)
         gpus += sum(ResourceParser.gpus(c.resources.requests) for c in pod.spec.containers)
 
-    return ClustermanResources(cpus=cpus, mem=mem, disk=disk, gpus=gpus,)
+    return ClustermanResources(
+        cpus=cpus,
+        mem=mem,
+        disk=disk,
+        gpus=gpus,
+    )
 
 
 def get_node_ip(node: KubernetesNode) -> str:
@@ -154,7 +159,8 @@ def total_pod_resources(pod: KubernetesPod) -> ClustermanResources:
 
 
 def selector_term_matches_requirement(
-    selector_terms: List[V1NodeSelectorTerm], selector_requirement: V1NodeSelectorRequirement,
+    selector_terms: List[V1NodeSelectorTerm],
+    selector_requirement: V1NodeSelectorRequirement,
 ) -> bool:
     for selector_term in selector_terms:
         if selector_term.match_expressions:

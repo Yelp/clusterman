@@ -55,12 +55,16 @@ def test_get_agent_metadata(mock_cluster_connector):
         get_market_resources(TEST_MARKET).disk * 1000,
     )
     assert mock_cluster_connector.get_agent_metadata(instance.ip_address) == AgentMetadata(
-        agent_id=mock.ANY, state=AgentState.IDLE, total_resources=mesos_resources,
+        agent_id=mock.ANY,
+        state=AgentState.IDLE,
+        total_resources=mesos_resources,
     )
 
 
 def test_get_agent_metadata_unknown(mock_cluster_connector):
-    assert mock_cluster_connector.get_agent_metadata("1.2.3.4") == AgentMetadata(state=AgentState.ORPHANED,)
+    assert mock_cluster_connector.get_agent_metadata("1.2.3.4") == AgentMetadata(
+        state=AgentState.ORPHANED,
+    )
 
 
 def test_simulated_agents(mock_cluster_connector):
