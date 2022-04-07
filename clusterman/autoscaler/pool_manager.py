@@ -225,13 +225,13 @@ class PoolManager:
 
         for group in groups:
             for metadata in node_metadatas:
-                if metadata.instance.group_id == group.id and self._is_expired_orphan_instance(metadata.instance):
+                if metadata.instance.group_id == group.id and self._is_expired_orphan_instance(metadata):
                     expired_orphan_instances[group.id].append(metadata.instance.instance_id)
 
         return expired_orphan_instances
 
-    def _is_expired_orphan_instance(self, instance: InstanceMetadata) -> bool:
-        if instance.state == 'AgentState.ORPHANED' and instance.uptime.total_seconds() > 1800:
+    def _is_expired_orphan_instance(self, metadata: ClusterNodeMetadata) -> bool:
+        if metadata.agent.state == 'AgentState.ORPHANED' and metadata.instance.uptime.total_seconds() > 1800:
             return True
         return False
 
