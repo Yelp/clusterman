@@ -224,9 +224,9 @@ class PoolManager:
         expired_orphan_instances: Mapping[str, List[str]] = defaultdict[list]
 
         for group in groups:
-            expired_orphan_instances[group.id].append(
-                metadata.instance.instance_id for metadata in node_metadatas if (metadata.instance.group_id == group.id and self._is_expired_orphan_instance(metadata.instance))
-            )
+            for metadata in node_metadatas:
+                if metadata.instance.group_id == group.id and self._is_expired_orphan_instance(metadata.instance):
+                    expired_orphan_instances[group.id].append(metadata.instance.instance_id)
 
         return expired_orphan_instances
 
