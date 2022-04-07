@@ -9,7 +9,7 @@ endif
 	dh $@ --with python-virtualenv
 
 override_dh_virtualenv:
-	dh_virtualenv --python python3.7 $(YELP_DH_VIRTUALENV)
+	dh_virtualenv --python python3.8 $(YELP_DH_VIRTUALENV)
 
 override_dh_install:
 	dh_install
