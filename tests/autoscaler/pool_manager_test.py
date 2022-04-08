@@ -38,6 +38,7 @@ def _make_metadata(
     batch_tasks=0,
     is_safe_to_kill=True,
     is_cordoned=False,
+    uptime=1000
 ):
     return ClusterNodeMetadata(
         AgentMetadata(
@@ -56,7 +57,7 @@ def _make_metadata(
             is_stale=is_stale,
             market="market-1",
             state="running",
-            uptime=1000,
+            uptime=uptime,
             weight=weight,
         ),
     )
@@ -553,3 +554,21 @@ def test_instance_kill_order(mock_pool_manager):
     killable_nodes = mock_pool_manager._get_prioritized_killable_nodes()
     killable_instance_ids = [node_metadata.instance.instance_id for node_metadata in killable_nodes]
     assert killable_instance_ids == [f"i-{i}" for i in range(8)]
+
+
+def test_get_expired_orphan_instances(mock_pool_manager):
+
+    mock_pool_manager.get_node_metadatas = mock.Mock(
+        return_value=[
+            _make_metadata("sfr-0", "i-0", agent_state=AgentState.ORPHANED, uptime=2500),
+            _make_metadata("sfr-0", "i-1", agent_state=AgentState.RUNNING, uptime=1500),
+            _make_metadata("sfr-1", "i-2", agent_state=AgentState.ORPHANED, uptime=500),
+            _make_metadata("sfr-1", "i-3", agent_state=AgentState.ORPHANED, uptime=2500),
+            _make_metadata("sfr-2", "i-4", agent_state=AgentState.RUNNING, uptime=2500),
+            _make_metadata("sfr-2", "i-5", agent_state=AgentState.RUNNING, uptime=2500),
+        ]
+    )
+
+    result = mock_pool_manager._get_expired_orphan_instances()
+
+    assert result == {"sfr-0": ["i-0"], "sfr-1": ["i-3"]}
