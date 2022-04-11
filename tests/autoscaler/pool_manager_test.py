@@ -602,6 +602,6 @@ def test_get_expired_orphan_instances(mock_pool_manager):
         ]
     )
 
-    result = mock_pool_manager._get_expired_orphan_instances()
+    result = mock_pool_manager.get_expired_orphan_instances()
 
     assert result == {"sfr-0": ["i-0"], "sfr-1": ["i-3"]}
