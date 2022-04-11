@@ -48,7 +48,10 @@ def mock_setup_config():
 
 @pytest.fixture
 def mock_client_class():
-    with mock.patch("clusterman.batch.spot_price_collector.ClustermanMetricsBotoClient", autospec=True,) as client:
+    with mock.patch(
+        "clusterman.batch.spot_price_collector.ClustermanMetricsBotoClient",
+        autospec=True,
+    ) as client:
         yield client
 
 
@@ -116,7 +119,8 @@ def test_write_prices(mock_write, mock_price_gen, batch):
 @mock.patch("time.time")
 @mock.patch("arrow.utcnow")
 @mock.patch(
-    "clusterman.batch.spot_price_collector.SpotPriceCollector.running", new_callable=mock.PropertyMock,
+    "clusterman.batch.spot_price_collector.SpotPriceCollector.running",
+    new_callable=mock.PropertyMock,
 )
 def test_run(mock_running, mock_now, mock_time, mock_sleep, batch, mock_sensu):
     mock_running.side_effect = [True, True, True, True, False]

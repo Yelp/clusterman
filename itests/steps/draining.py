@@ -36,7 +36,8 @@ def draining_client(context):
     response = ec2.describe_spot_fleet_instances(SpotFleetRequestId=context.sfr_id)
     context.instance_id = response["ActiveInstances"][0]["InstanceId"]
     ec2.create_tags(
-        Resources=[context.instance_id], Tags=[{"Key": "aws:ec2spot:fleet-request-id", "Value": context.sfr_id}],
+        Resources=[context.instance_id],
+        Tags=[{"Key": "aws:ec2spot:fleet-request-id", "Value": context.sfr_id}],
     )
     context.drain_url = sqs.create_queue(QueueName="draining_queue")["QueueUrl"]
     context.termination_url = sqs.create_queue(QueueName="termination_queue")["QueueUrl"]
@@ -60,9 +61,19 @@ def queue_setup(context, queue_name):
     url = context.drain_url if queue_name == "draining" else context.termination_url
     sqs.send_message(
         QueueUrl=url,
-        MessageAttributes={"Sender": {"DataType": "String", "StringValue": "sfr",},},
+        MessageAttributes={
+            "Sender": {
+                "DataType": "String",
+                "StringValue": "sfr",
+            },
+        },
         MessageBody=json.dumps(
-            {"instance_id": context.instance_id, "ip": "1.2.3.4", "hostname": "the-host", "group_id": context.sfr_id,}
+            {
+                "instance_id": context.instance_id,
+                "ip": "1.2.3.4",
+                "hostname": "the-host",
+                "group_id": context.sfr_id,
+            }
         ),
     )
 
@@ -71,7 +82,12 @@ def queue_setup(context, queue_name):
 def warning_queue_setup(context):
     sqs.send_message(
         QueueUrl=context.warning_url,
-        MessageAttributes={"Sender": {"DataType": "String", "StringValue": "aws",},},
+        MessageAttributes={
+            "Sender": {
+                "DataType": "String",
+                "StringValue": "aws",
+            },
+        },
         MessageBody=json.dumps({"detail": {"instance-id": context.instance_id}}),
     )
 
@@ -95,7 +111,8 @@ def warning_queue_process(context):
         "clusterman.aws.spot_fleet_resource_group.SpotFleetResourceGroup.load",
         return_value={context.sfr_id: SpotFleetResourceGroup(context.sfr_id)},
     ), mock.patch("clusterman.aws.spot_fleet_resource_group.load_spot_fleets_from_s3",), mock.patch(
-        "clusterman.draining.queue.get_pool_name_list", return_value=["bar"],
+        "clusterman.draining.queue.get_pool_name_list",
+        return_value=["bar"],
     ):
         context.draining_client.process_warning_queue()
 

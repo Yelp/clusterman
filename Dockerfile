@@ -8,14 +8,14 @@ RUN     apt-get update \
             awscli \
             git \
             libatlas-base-dev \
-            libpython3.7 \
+            libpython3.8 \
             libxml2 \
             libyaml-0-2 \
             lsb-release \
             make \
             openssh-client \
             python3.6 \
-            python3.7 \
+            python3.8 \
             python3-distutils \
             python-pip \
             python-setuptools \

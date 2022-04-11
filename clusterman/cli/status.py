@@ -99,7 +99,8 @@ def _get_agent_json(metadata: ClusterNodeMetadata) -> AgentJsonObject:
 
 
 def _get_resource_groups_json(
-    groups: Iterable[ResourceGroup], node_metadatas: Sequence[ClusterNodeMetadata],
+    groups: Iterable[ResourceGroup],
+    node_metadatas: Sequence[ClusterNodeMetadata],
 ) -> List[ResourceGroupJsonObject]:
     return [
         {
@@ -131,7 +132,9 @@ def _write_resource_group_line(group) -> None:
     # extend to other types of resource groups, so we should figure out what to do about that.
     status_str = color_conditions(
         group["status"],
-        green=any_of("active",),
+        green=any_of(
+            "active",
+        ),
         blue=any_of("modifying", "submitted"),
         red=any_of("cancelled", "failed", "cancelled_running", "cancelled_terminating"),
     )
@@ -141,8 +144,12 @@ def _write_resource_group_line(group) -> None:
 def _write_agent_details(agent: AgentJsonObject) -> None:
     agent_aws_state = color_conditions(
         agent["aws_state"],
-        green=any_of("running",),
-        blue=any_of("pending",),
+        green=any_of(
+            "running",
+        ),
+        blue=any_of(
+            "pending",
+        ),
         red=any_of("shutting-down", "terminated", "stopping", "stopped"),
     )
     print(
@@ -153,8 +160,12 @@ def _write_agent_details(agent: AgentJsonObject) -> None:
 
     agent_state = color_conditions(
         agent["agent_state"],
-        green=any_of(AgentState.RUNNING,),
-        blue=any_of(AgentState.IDLE,),
+        green=any_of(
+            AgentState.RUNNING,
+        ),
+        blue=any_of(
+            AgentState.IDLE,
+        ),
         red=any_of(AgentState.ORPHANED, AgentState.UNKNOWN),
     )
     sys.stdout.write(f"\t   {agent_state} ")
@@ -250,7 +261,9 @@ def add_status_parser(subparser, required_named_args, optional_named_args):  # p
     add_scheduler_arg(required_named_args)
 
     optional_named_args.add_argument(
-        "--only-idle", action="store_true", help="Only show information about idle agents",
+        "--only-idle",
+        action="store_true",
+        help="Only show information about idle agents",
     )
     optional_named_args.add_argument(
         "--only-orphans",

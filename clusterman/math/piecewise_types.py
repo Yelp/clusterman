@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Hashable
 from typing import TypeVar
 
 from typing_extensions import Protocol
@@ -19,7 +20,7 @@ from typing_extensions import Protocol
 T = TypeVar("T")
 
 
-class XValueDiff(Protocol[T]):
+class XValueDiff(Protocol[T], Hashable):
     def __mul__(self, other: int) -> "XValueDiff[T]":
         ...
 
@@ -27,7 +28,7 @@ class XValueDiff(Protocol[T]):
         ...
 
 
-class XValue(Protocol[T]):
+class XValue(Protocol[T], Hashable):
     def __add__(self, other: XValueDiff[T]) -> "XValue[T]":
         ...
 

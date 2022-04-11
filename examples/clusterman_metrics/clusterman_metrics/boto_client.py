@@ -71,7 +71,12 @@ class ClustermanMetricsBotoClient(object):
     Client for interacting with Clusterman metrics directly through the AWS boto API.
     """
 
-    def __init__(self, region_name: str, app_identifier: Optional[str] = None, ttl_days: Optional[int] = None,) -> None:
+    def __init__(
+        self,
+        region_name: str,
+        app_identifier: Optional[str] = None,
+        ttl_days: Optional[int] = None,
+    ) -> None:
         """
         :param region_name: name of AWS region to use instead of the default.
         :param app_identifier: prefix for all application metric names.
@@ -82,7 +87,10 @@ class ClustermanMetricsBotoClient(object):
         self.region_name = region_name
         ttl_days = ttl_days or staticconf.read_int("dynamodb.ttl_days", namespace=CONFIG_NAMESPACE)
 
-        self.ddb = get_metrics_session().resource("dynamodb", region_name=self.region_name,)
+        self.ddb = get_metrics_session().resource(
+            "dynamodb",
+            region_name=self.region_name,
+        )
         self.app_identifier = app_identifier
         if ttl_days == -1:
             # Never expire
@@ -94,7 +102,7 @@ class ClustermanMetricsBotoClient(object):
 
     @contextmanager
     def get_writer(self, metric_type: str):
-        """ Returns a co-routine for writing metrics data.
+        """Returns a co-routine for writing metrics data.
 
         :param metric_type: string, must be one of :ref:`Metric Types`
         :raises: ``ValueError`` if the metric type is not one of :ref:`Metric Types`
@@ -134,7 +142,10 @@ class ClustermanMetricsBotoClient(object):
                     # don't pollute the other tables with useless keys
                     if metric_type == APP_METRICS:
                         item.update(
-                            {GSI_PK: random.randrange(_GSI_PARTITIONS), GSI_SORT: key_prefix + str(timestamp),}
+                            {
+                                GSI_PK: random.randrange(_GSI_PARTITIONS),
+                                GSI_SORT: key_prefix + str(timestamp),
+                            }
                         )
                     if self.ttl_seconds is not None:
                         item["expiration_timestamp"] = timestamp + self.ttl_seconds
@@ -153,7 +164,10 @@ class ClustermanMetricsBotoClient(object):
                                 logger.warning(
                                     'Column "{name}" is reserved; skipping "{name}" with value '
                                     '"{val}" in metric "{key}" at time {ts}'.format(
-                                        name=val_key, val=val_num, key=metric_key, ts=timestamp,
+                                        name=val_key,
+                                        val=val_num,
+                                        key=metric_key,
+                                        ts=timestamp,
                                     )
                                 )
                     else:
@@ -215,7 +229,13 @@ class ClustermanMetricsBotoClient(object):
         new_data: MetricsValuesDict = defaultdict(list)
         if time_start < time_end:  # Skip querying dynamodb if all the metrics were in the cache
             new_data = self._get_new_metric_values(
-                key_prefix, metric_query, metric_type, time_start, time_end, is_regex, extra_dimensions,
+                key_prefix,
+                metric_query,
+                metric_type,
+                time_start,
+                time_end,
+                is_regex,
+                extra_dimensions,
             )
 
         if new_data and use_cache:
@@ -248,7 +268,10 @@ class ClustermanMetricsBotoClient(object):
         """
         logger.info(
             "Querying datastore for {key} between {start} and {end} (is_regex={is_regex})".format(
-                key=metric_query, start=time_start, end=time_end, is_regex=is_regex,
+                key=metric_query,
+                start=time_start,
+                end=time_end,
+                is_regex=is_regex,
             )
         )
         new_data: MetricsValuesDict = defaultdict(list)
@@ -273,7 +296,8 @@ class ClustermanMetricsBotoClient(object):
             # Results are possibly paginated if too large.
             while response.get("LastEvaluatedKey") is not None:
                 response = table.query(
-                    ExclusiveStartKey=response.get("LastEvaluatedKey"), KeyConditionExpression=query_condition,
+                    ExclusiveStartKey=response.get("LastEvaluatedKey"),
+                    KeyConditionExpression=query_condition,
                 )
                 new_data[metric_key].extend(self._extract_timestamp_and_value_from_items(response["Items"]))
 
@@ -298,26 +322,41 @@ class ClustermanMetricsBotoClient(object):
         try:
             res = [(item["timestamp"], item["value"]) for item in items]
         except KeyError:
-            res = [(item["timestamp"], {k: v for k, v in item.items() if k not in RESERVED_KEYS},) for item in items]
+            res = [
+                (
+                    item["timestamp"],
+                    {k: v for k, v in item.items() if k not in RESERVED_KEYS},
+                )
+                for item in items
+            ]
         return res
 
     def _get_keys_from_query(
-        self, key_prefix: str, metric_query: str, time_start: int, time_end: int, table: "boto3.dynamodb.Table",
+        self,
+        key_prefix: str,
+        metric_query: str,
+        time_start: int,
+        time_end: int,
+        table: "boto3.dynamodb.Table",
     ) -> Set[str]:
-        """ Query the global secondary index for any keys matching the metric query """
+        """Query the global secondary index for any keys matching the metric query"""
         metric_keys: Set[str] = set()
 
         for i in range(_GSI_PARTITIONS):
             query_condition = Key(GSI_PK).eq(i) & Key(GSI_SORT).between(
-                key_prefix + str(time_start), key_prefix + str(time_end),
+                key_prefix + str(time_start),
+                key_prefix + str(time_end),
             )
-            response = table.query(IndexName=GSI_NAME, KeyConditionExpression=query_condition,)
+            response = table.query(
+                IndexName=GSI_NAME,
+                KeyConditionExpression=query_condition,
+            )
             metric_keys |= {item["key"] for item in response["Items"] if re.search(metric_query, item["key"])}
 
         return metric_keys
 
     def _cache_lookup(self, metric_query: str, time_start: int, time_end: int) -> Tuple[MetricsValuesDict, int, int]:
-        """ Look up an range of items in the locally-stored metrics cache
+        """Look up an range of items in the locally-stored metrics cache
 
         The cache is stored as a mapping of dictionary -> timeseries lists (i.e., a sorted list of tuples [(time1,
         value1), (time2, value2), ...]), indexed by a metrics query.
@@ -350,7 +389,8 @@ class ClustermanMetricsBotoClient(object):
             # increasing in time_start
             logger.warning(
                 "time_start was before the first cached value; this should not happen ({ts} < {c})".format(
-                    ts=time_start, c=centry.time_start,
+                    ts=time_start,
+                    c=centry.time_start,
                 )
             )
             return defaultdict(list), time_start, time_end
@@ -371,7 +411,9 @@ class ClustermanMetricsBotoClient(object):
                 if num_cache_entries_to_prune > 0:
                     logger.info(
                         "Removing {num} cache entries before {t} for {key}".format(
-                            num=num_cache_entries_to_prune, t=time_start, key=metric_name,
+                            num=num_cache_entries_to_prune,
+                            t=time_start,
+                            key=metric_name,
                         )
                     )
                     del centry.data[metric_name][:cache_start]
@@ -379,7 +421,12 @@ class ClustermanMetricsBotoClient(object):
             centry.data = defaultdict(list, {metric_name: ts for metric_name, ts in centry.data.items() if ts})
 
             if cached_metrics:
-                logger.info("Using cached metrics from {start} to {end}".format(start=min_time, end=max_time,))
+                logger.info(
+                    "Using cached metrics from {start} to {end}".format(
+                        start=min_time,
+                        end=max_time,
+                    )
+                )
 
                 # The first time we need to look up in the datastore is 1 second after the last thing
                 # we retreived from the cache
@@ -387,7 +434,9 @@ class ClustermanMetricsBotoClient(object):
             else:
                 logger.info(
                     "No cached metrics found in range {start} to {end} for {query}".format(
-                        start=time_start, end=time_end, query=metric_query,
+                        start=time_start,
+                        end=time_end,
+                        query=metric_query,
                     )
                 )
                 next_uncached_time = time_start
@@ -396,7 +445,7 @@ class ClustermanMetricsBotoClient(object):
             return cached_metrics, next_uncached_time, time_end
 
     def _cache_store(self, metric_query: str, time_start: int, data: MetricsValuesDict) -> None:
-        """ Store items in the metrics cache; as discussed above, items newer than "five minutes ago" are not stored
+        """Store items in the metrics cache; as discussed above, items newer than "five minutes ago" are not stored
 
         :param metric_query: the metric query to index data by
         :param items: mapping from metric name -> timeseries data, corresponding to the given query
@@ -421,7 +470,8 @@ class ClustermanMetricsBotoClient(object):
                 if len(centry.data[metric_name]) > 0 and ts[0][0] <= centry.data[metric_name][-1][0]:
                     logger.warning(
                         "First new item time {first} is before the last cache entry {last}; ".format(
-                            first=ts[0][0], last=centry.data[metric_name][-1][0],
+                            first=ts[0][0],
+                            last=centry.data[metric_name][-1][0],
                         )
                         + "invalidating the cache"
                     )
@@ -431,7 +481,11 @@ class ClustermanMetricsBotoClient(object):
             self._cache[metric_query] = CacheEntry(time_start, stored_data)
         elif min_time <= max_time:
             logger.info(
-                "Caching entries for {key} between {s} and {t}".format(key=metric_query, s=min_time, t=max_time,)
+                "Caching entries for {key} between {s} and {t}".format(
+                    key=metric_query,
+                    s=min_time,
+                    t=max_time,
+                )
             )
             for metric_name, ts in stored_data.items():
                 centry.data[metric_name] += ts

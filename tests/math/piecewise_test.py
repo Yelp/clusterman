@@ -110,7 +110,12 @@ def test_integrals_multi_points(fn):
 def test_integrals_with_timedeltas(fn):
     for i in range(10):
         fn.add_delta(arrow.get(i * 60), 1)
-    x = fn.integrals(arrow.get(0), arrow.get(10 * 60), timedelta(seconds=60), transform=hour_transform,)
+    x = fn.integrals(
+        arrow.get(0),
+        arrow.get(10 * 60),
+        timedelta(seconds=60),
+        transform=hour_transform,
+    )
     sorteddict_values_assert(x, pytest.approx([60 / 3600 * i for i in range(2, 12)]))
 
 

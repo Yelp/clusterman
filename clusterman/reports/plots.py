@@ -83,17 +83,31 @@ def generate_heatmap_trend_grid(fig, heatmap, trend, months, tz):
 
 def _plot_heatmap(ax, x, y, z, ex, ey, ez, mstart, mend, tz, show_ylabel, **kwargs):
     ax.scatter(  # plot the "valid" points
-        x, y, c=z, alpha=0.5, linewidths=0, s=3, cmap=COLORMAP, **kwargs,
+        x,
+        y,
+        c=z,
+        alpha=0.5,
+        linewidths=0,
+        s=3,
+        cmap=COLORMAP,
+        **kwargs,
     )
     ax.scatter(  # plot the "invalid" (i.e., above/below the threshold) points
-        ex, ey, c=ERROR_COLOR, alpha=0.5, linewidths=0, s=3, **kwargs,
+        ex,
+        ey,
+        c=ERROR_COLOR,
+        alpha=0.5,
+        linewidths=0,
+        s=3,
+        **kwargs,
     )
     # Global plot settings
     ax.patch.set_facecolor("black")
 
     # x-axis settings
     ax.set_xlim(
-        arrow.get(0).replace(tzinfo=tz).datetime, arrow.get(0).replace(tzinfo=tz).ceil("day").datetime,
+        arrow.get(0).replace(tzinfo=tz).datetime,
+        arrow.get(0).replace(tzinfo=tz).ceil("day").datetime,
     )
     ax.xaxis.set_major_formatter(DateFormatter("%H:%M", tz=tz))
     ax.xaxis.set_tick_params(labelsize=TICK_SIZE)
@@ -117,7 +131,12 @@ def _plot_trend(ax, x, q1, y, q3, xlim, ylim, ylabel, ytick_formatter):
     ax.plot(x, fit_fn(x), "--k", dashes=(1, 1), linewidth=0.75)
     if all(q1) and all(q3):
         ax.fill_between(
-            x, q1, q3, facecolor=TREND_RANGE_COLOR, alpha=TREND_RANGE_ALPHA, linewidths=0,
+            x,
+            q1,
+            q3,
+            facecolor=TREND_RANGE_COLOR,
+            alpha=TREND_RANGE_ALPHA,
+            linewidths=0,
         )
 
     # x-axis settings
@@ -146,7 +165,7 @@ def _trend_yaxis_major_formatter(max_ylim, ytick_formatter):
     def format_large_trend_numbers(x, pos):
         if ylim_magnitude == 0:
             return ytick_formatter(x)
-        threshold = 1000 ** ylim_magnitude
+        threshold = 1000**ylim_magnitude
         q, r = divmod(x, threshold)
         return ytick_formatter(int(q) if q != 0 or r == 0 else r / threshold)
 
