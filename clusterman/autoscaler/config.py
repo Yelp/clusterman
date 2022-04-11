@@ -52,5 +52,5 @@ def get_autoscaling_config(config_namespace: str) -> AutoscalingConfig:
             "autoscaling.prevent_scale_down_after_capacity_loss", default=False
         ),
         instance_loss_threshold=reader.read_int("autoscaling.instance_loss_threshold", default=0),
-        recycle_orphan_instances=reader.read_bool("autoscaling.recycle_orphan_instances", default=False)
+        recycle_orphan_instances=reader.read_bool("autoscaling.recycle_orphan_instances", default=False),
     )

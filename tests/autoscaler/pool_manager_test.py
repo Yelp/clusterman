@@ -38,7 +38,7 @@ def _make_metadata(
     batch_tasks=0,
     is_safe_to_kill=True,
     is_cordoned=False,
-    uptime=1000
+    uptime=1000,
 ):
     return ClusterNodeMetadata(
         AgentMetadata(

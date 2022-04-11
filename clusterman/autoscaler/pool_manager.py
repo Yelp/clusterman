@@ -245,10 +245,7 @@ class PoolManager:
         return expired_orphan_instances
 
     def _is_expired_orphan_instance(self, metadata: ClusterNodeMetadata, timeout: int) -> bool:
-        if (
-            metadata.agent.state == AgentState.ORPHANED
-            and metadata.instance.uptime > timeout
-        ):
+        if metadata.agent.state == AgentState.ORPHANED and metadata.instance.uptime > timeout:
             return True
         return False
 
