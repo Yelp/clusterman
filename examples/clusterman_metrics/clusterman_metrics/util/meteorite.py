@@ -20,7 +20,7 @@ from clusterman_metrics.util.constants import CLUSTERMAN_NAME
 
 
 def _parse_dimensions(metric_name):
-    """ Parse out existing dimensions from the metric name """
+    """Parse out existing dimensions from the metric name"""
     try:
         metric_name, dims = metric_name.split("|", 1)
     except ValueError:
@@ -33,7 +33,7 @@ def _parse_dimensions(metric_name):
 
 
 def generate_key_with_dimensions(metric_name: str, dimensions: Optional[Mapping[str, str]] = None) -> str:
-    """ Helper function to generate a key used to reference metric timeseries data in DynamoDB; this key will
+    """Helper function to generate a key used to reference metric timeseries data in DynamoDB; this key will
     be parsed by ``get_meteorite_identifiers`` to store data in SignalFX.
 
     :param metric_name: the name of the metric (can include some pre-existing dimensions)
@@ -52,7 +52,10 @@ def generate_key_with_dimensions(metric_name: str, dimensions: Optional[Mapping[
     for key, value in sorted(new_dimensions.items()):
         dimension_parts.append("{key}={value}".format(key=key, value=value))
 
-    return "{metric_name}|{dim_string}".format(metric_name=metric_name, dim_string=",".join(dimension_parts),)
+    return "{metric_name}|{dim_string}".format(
+        metric_name=metric_name,
+        dim_string=",".join(dimension_parts),
+    )
 
 
 def get_meteorite_identifiers(metric_type: str, metric_key: str) -> Tuple[str, Optional[Mapping[str, str]]]:

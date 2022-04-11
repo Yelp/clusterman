@@ -7,8 +7,8 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
-
-def dumps(obj: Any,
+def dumps(
+    obj: Any,
     skipkeys: bool = ...,
     ensure_ascii: bool = ...,
     check_circular: bool = ...,
@@ -28,10 +28,10 @@ def dumps(obj: Any,
     ignore_nan: bool = ...,
     int_as_string_bitcount: Optional[int] = ...,
     iterable_as_array: bool = ...,
-    **kwds: Any) -> str: ...
-
-
-def loads(s: AnyStr,
+    **kwds: Any,
+) -> str: ...
+def loads(
+    s: AnyStr,
     encoding: Any = ...,
     cls: Any = ...,
     object_hook: Optional[Callable[[Dict], Any]] = ...,
@@ -40,9 +40,10 @@ def loads(s: AnyStr,
     parse_constant: Optional[Callable[[str], Any]] = ...,
     object_pairs_hook: Optional[Callable[[List[Tuple[Any, Any]]], Any]] = ...,
     use_decimal: bool = ...,
-    **kwds: Any) -> Any: ...
-
-def load(fp: IO[str],
+    **kwds: Any,
+) -> Any: ...
+def load(
+    fp: IO[str],
     encoding: Optional[str] = ...,
     cls: Any = ...,
     object_hook: Optional[Callable[[Dict], Any]] = ...,
@@ -53,4 +54,5 @@ def load(fp: IO[str],
     use_decimal: bool = ...,
     namedtuple_as_object: bool = ...,
     tuple_as_array: bool = ...,
-    **kwds: Any) -> Any: ...
+    **kwds: Any,
+) -> Any: ...

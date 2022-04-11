@@ -67,7 +67,10 @@ def pending_pods():
                 ),
                 spec=V1PodSpec(
                     containers=[
-                        V1Container(name="container1", resources=V1ResourceRequirements(requests={"cpu": "1.5"}),),
+                        V1Container(
+                            name="container1",
+                            resources=V1ResourceRequirements(requests={"cpu": "1.5"}),
+                        ),
                         V1Container(
                             name="container1",
                             resources=V1ResourceRequirements(requests={"cpu": "1.5", "mem": "300MB"}),
@@ -81,16 +84,27 @@ def pending_pods():
 
 
 def test_get_resource_request_no_pending_pods(allocated_resources):
-    assert _get_resource_request(allocated_resources) == SignalResourceRequest(cpus=150, mem=1000, disk=500, gpus=0,)
+    assert _get_resource_request(allocated_resources) == SignalResourceRequest(
+        cpus=150,
+        mem=1000,
+        disk=500,
+        gpus=0,
+    )
 
 
 def test_get_resource_request_only_pending_pods(pending_pods):
     assert _get_resource_request(ClustermanResources(), pending_pods) == SignalResourceRequest(
-        cpus=6, mem=1000, disk=0, gpus=0,
+        cpus=6,
+        mem=1000,
+        disk=0,
+        gpus=0,
     )
 
 
 def test_get_resource_request_pending_pods_and_metrics(allocated_resources, pending_pods):
     assert _get_resource_request(allocated_resources, pending_pods) == SignalResourceRequest(
-        cpus=156, mem=2000, disk=500, gpus=0,
+        cpus=156,
+        mem=2000,
+        disk=500,
+        gpus=0,
     )

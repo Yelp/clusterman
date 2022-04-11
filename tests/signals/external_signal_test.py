@@ -101,7 +101,11 @@ def test_evaluate_restart_dead_signal_fails(mock_signal, error):
 
 @mock.patch("clusterman.signals.external_signal.SOCKET_MESG_SIZE", 2)
 @pytest.mark.parametrize(
-    "signal_recv", [[ACK, ACK, b'{"Resources": {"cpus": 5.2}}'], [ACK, b'\x01{"Resources": {"cpus": 5.2}}'],],
+    "signal_recv",
+    [
+        [ACK, ACK, b'{"Resources": {"cpus": 5.2}}'],
+        [ACK, b'\x01{"Resources": {"cpus": 5.2}}'],
+    ],
 )
 def test_evaluate_signal_sending_message(mock_signal, signal_recv):
     metrics = {"cpus_allocated": [(1234, 3.5), (1235, 6)]}
@@ -109,7 +113,8 @@ def test_evaluate_signal_sending_message(mock_signal, signal_recv):
     mock_signal._signal_conn = mock.Mock()
     mock_signal._signal_conn.recv.side_effect = signal_recv
     with mock.patch(
-        "clusterman.signals.external_signal.get_metrics_for_signal", return_value=metrics,
+        "clusterman.signals.external_signal.get_metrics_for_signal",
+        return_value=metrics,
     ):
         resp = mock_signal.evaluate(arrow.get(12345678))
     assert mock_signal._signal_conn.send.call_count == num_messages

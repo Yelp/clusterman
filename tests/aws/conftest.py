@@ -37,5 +37,7 @@ def setup_autoscaling():
 def mock_subnet():
     vpc_response = ec2.create_vpc(CidrBlock="10.0.0.0/24")
     return ec2.create_subnet(
-        CidrBlock="10.0.0.0/24", VpcId=vpc_response["Vpc"]["VpcId"], AvailabilityZone="us-west-2a",
+        CidrBlock="10.0.0.0/24",
+        VpcId=vpc_response["Vpc"]["VpcId"],
+        AvailabilityZone="us-west-2a",
     )

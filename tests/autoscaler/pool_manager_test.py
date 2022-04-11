@@ -87,7 +87,8 @@ def mock_resource_groups():
 @pytest.fixture
 def mock_pool_manager(mock_resource_groups):
     with mock.patch(
-        "clusterman.aws.spot_fleet_resource_group.SpotFleetResourceGroup.load", return_value={},
+        "clusterman.aws.spot_fleet_resource_group.SpotFleetResourceGroup.load",
+        return_value={},
     ), mock.patch("clusterman.autoscaler.pool_manager.DrainingClient", autospec=True,), mock.patch(
         "clusterman.autoscaler.pool_manager.PoolManager.reload_state"
     ), mock.patch(
@@ -115,7 +116,8 @@ def test_pool_manager_init(mock_pool_manager, mock_resource_groups):
         },
         namespace="bar.mesos_config",
     ), mock.patch("clusterman.aws.spot_fleet_resource_group.SpotFleetResourceGroup.load", return_value={},), mock.patch(
-        "clusterman.autoscaler.pool_manager.DrainingClient", autospec=True,
+        "clusterman.autoscaler.pool_manager.DrainingClient",
+        autospec=True,
     ), mock.patch(
         "clusterman.autoscaler.pool_manager.PoolManager.reload_state"
     ):
@@ -187,10 +189,26 @@ class TestPruneExcessFulfilledCapacity:
         mock_pool_manager.draining_enabled = True
         mock_pool_manager.prune_excess_fulfilled_capacity(100)
         assert mock_pool_manager.draining_client.submit_instance_for_draining.call_args_list == [
-            mock.call(mock_nodes_to_prune["sfr-1"][0].instance, sender=AWSResourceGroup, scheduler="mesos",),
-            mock.call(mock_nodes_to_prune["sfr-3"][0].instance, sender=AWSResourceGroup, scheduler="mesos",),
-            mock.call(mock_nodes_to_prune["sfr-3"][1].instance, sender=AWSResourceGroup, scheduler="mesos",),
-            mock.call(mock_nodes_to_prune["sfr-3"][2].instance, sender=AWSResourceGroup, scheduler="mesos",),
+            mock.call(
+                mock_nodes_to_prune["sfr-1"][0].instance,
+                sender=AWSResourceGroup,
+                scheduler="mesos",
+            ),
+            mock.call(
+                mock_nodes_to_prune["sfr-3"][0].instance,
+                sender=AWSResourceGroup,
+                scheduler="mesos",
+            ),
+            mock.call(
+                mock_nodes_to_prune["sfr-3"][1].instance,
+                sender=AWSResourceGroup,
+                scheduler="mesos",
+            ),
+            mock.call(
+                mock_nodes_to_prune["sfr-3"][2].instance,
+                sender=AWSResourceGroup,
+                scheduler="mesos",
+            ),
         ]
 
     def test_terminate_immediately(self, mock_pool_manager):
@@ -203,7 +221,8 @@ class TestPruneExcessFulfilledCapacity:
 class TestReloadResourceGroups:
     def test_malformed_config(self, mock_logger, mock_pool_manager):
         with staticconf.testing.MockConfiguration(
-            {"resource_groups": ["asdf"]}, namespace="bar.mesos_config",
+            {"resource_groups": ["asdf"]},
+            namespace="bar.mesos_config",
         ):
             mock_pool_manager.pool_config = staticconf.NamespaceReaders("bar.mesos_config")
             mock_pool_manager._reload_resource_groups()
@@ -213,7 +232,8 @@ class TestReloadResourceGroups:
 
     def test_unknown_rg_type(self, mock_logger, mock_pool_manager):
         with staticconf.testing.MockConfiguration(
-            {"resource_groups": [{"fake_rg_type": "bar"}]}, namespace="bar.mesos_config",
+            {"resource_groups": [{"fake_rg_type": "bar"}]},
+            namespace="bar.mesos_config",
         ):
             mock_pool_manager.pool_config = staticconf.NamespaceReaders("bar.mesos_config")
             mock_pool_manager._reload_resource_groups()
@@ -226,7 +246,8 @@ class TestReloadResourceGroups:
             "clusterman.autoscaler.pool_manager.RESOURCE_GROUPS",
             {"sfr": mock.Mock(load=mock.Mock(return_value={"rg1": mock.Mock()}))},
         ), staticconf.testing.PatchConfiguration(
-            {"resource_groups": [{"sfr": {"tag": "puppet:role::paasta"}}]}, namespace="bar.mesos_config",
+            {"resource_groups": [{"sfr": {"tag": "puppet:role::paasta"}}]},
+            namespace="bar.mesos_config",
         ):
             mock_pool_manager._reload_resource_groups()
 
@@ -407,7 +428,9 @@ def test_compute_new_resource_group_targets_below_delta_scale_down(mock_pool_man
     assert sorted(list(new_targets.values())) == [1, 3, 5, 5, 5, 5, 6]
 
 
-def test_compute_new_resource_group_targets_above_delta_equal_scale_up(mock_pool_manager,):
+def test_compute_new_resource_group_targets_above_delta_equal_scale_up(
+    mock_pool_manager,
+):
     for group in list(mock_pool_manager.resource_groups.values())[3:]:
         group.target_capacity = 20
 
@@ -415,7 +438,9 @@ def test_compute_new_resource_group_targets_above_delta_equal_scale_up(mock_pool
     assert sorted(list(new_targets.values())) == [6, 7, 7, 20, 20, 20, 20]
 
 
-def test_compute_new_resource_group_targets_below_delta_equal_scale_down(mock_pool_manager,):
+def test_compute_new_resource_group_targets_below_delta_equal_scale_down(
+    mock_pool_manager,
+):
     for group in list(mock_pool_manager.resource_groups.values())[:3]:
         group.target_capacity = 1
 
@@ -423,7 +448,9 @@ def test_compute_new_resource_group_targets_below_delta_equal_scale_down(mock_po
     assert sorted(list(new_targets.values())) == [1, 1, 1, 4, 4, 4, 5]
 
 
-def test_compute_new_resource_group_targets_above_delta_equal_scale_up_2(mock_pool_manager,):
+def test_compute_new_resource_group_targets_above_delta_equal_scale_up_2(
+    mock_pool_manager,
+):
     for group in list(mock_pool_manager.resource_groups.values())[3:]:
         group.target_capacity = 20
 
@@ -431,7 +458,9 @@ def test_compute_new_resource_group_targets_above_delta_equal_scale_up_2(mock_po
     assert sorted(list(new_targets.values())) == [20, 20, 21, 21, 21, 21, 21]
 
 
-def test_compute_new_resource_group_targets_below_delta_equal_scale_down_2(mock_pool_manager,):
+def test_compute_new_resource_group_targets_below_delta_equal_scale_down_2(
+    mock_pool_manager,
+):
     for group in list(mock_pool_manager.resource_groups.values())[:3]:
         group.target_capacity = 1
 
@@ -471,7 +500,9 @@ def test_compute_new_resource_group_targets_min_capacity(mock_pool_manager):
     assert new_targets[constrained_group.id] == 8
 
 
-def test_compute_new_resource_group_targets_all_rgs_have_max_capacity(mock_pool_manager,):
+def test_compute_new_resource_group_targets_all_rgs_have_max_capacity(
+    mock_pool_manager,
+):
     for group in mock_pool_manager.resource_groups.values():
         group.target_capacity = 1
         group.max_capacity = 2
@@ -480,7 +511,9 @@ def test_compute_new_resource_group_targets_all_rgs_have_max_capacity(mock_pool_
     assert list(new_targets.values()) == [2] * 7
 
 
-def test_compute_new_resource_group_targets_all_rgs_have_min_capacity(mock_pool_manager,):
+def test_compute_new_resource_group_targets_all_rgs_have_min_capacity(
+    mock_pool_manager,
+):
     for group in mock_pool_manager.resource_groups.values():
         group.target_capacity = 10
         group.min_capacity = 5

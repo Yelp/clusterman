@@ -52,7 +52,7 @@ class Aggregation:
 
 
 def _make_ts_label(raw_data, tsid, dimensions):
-    """ Make a label for a timeseries data point returned from SignalFX
+    """Make a label for a timeseries data point returned from SignalFX
 
     :param raw_data: a processed data stream from SFX
     :param tsid: the timeseries ID for a datapoint in the SFX stream
@@ -66,7 +66,7 @@ def _make_ts_label(raw_data, tsid, dimensions):
 
 
 def _make_filter_string(filters):
-    """ Create a filter string used to modify a SignalFX query
+    """Create a filter string used to modify a SignalFX query
 
     :param filters: a list of (filter_name, value) tuples
     :returns: a SignalForm filter string -- 'filter("filter_1", "value_1") and filter("filter_2", "value_2")'
@@ -81,7 +81,7 @@ def _make_filter_string(filters):
 
 
 def execute_sfx_program(api_token, program, start_time, end_time, dimensions=None, resolution=60):
-    """ Execute an arbitrary SignalFlow program
+    """Execute an arbitrary SignalFlow program
 
     :param api_token: a valid SFX API query token (you can get this from the SignalFX dashboard)
     :param program: a valid signalflow program to execute
@@ -142,7 +142,7 @@ def basic_sfx_query(
     resolution=60,
     aggregation=Aggregation("sum"),
 ):
-    """ Run the simplest of all SignalFX queries: specify a metric name to query and (optionally) some filters, and sum
+    """Run the simplest of all SignalFX queries: specify a metric name to query and (optionally) some filters, and sum
     the results into a single timeseries.
 
     :param api_token: a valid SFX API query token (you can get this from the SignalFX dashboard)

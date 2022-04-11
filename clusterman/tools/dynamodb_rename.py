@@ -88,7 +88,10 @@ def parse_args():
     add_env_config_path_arg(parser)
     add_region_arg(parser, required=True)
     parser.add_argument(
-        "--metric-type", choices=list(METRIC_TYPES), required=True, help="The type of metric to rename",
+        "--metric-type",
+        choices=list(METRIC_TYPES),
+        required=True,
+        help="The type of metric to rename",
     )
     parser.add_argument(
         "--mapping-file",

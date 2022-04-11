@@ -86,7 +86,10 @@ def mesos_post(url: str, endpoint: str) -> requests.Response:
     request_url = master_url + endpoint
     response = None
     try:
-        response = requests.post(request_url, headers={"user-agent": "clusterman"},)
+        response = requests.post(
+            request_url,
+            headers={"user-agent": "clusterman"},
+        )
         response.raise_for_status()
     except Exception as e:  # there's no one exception class to check for problems with the request :(
         log_message = f"Mesos is unreachable:\n\n" f"{str(e)}\n" f"Querying Mesos URL: {request_url}\n"

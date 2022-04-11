@@ -51,9 +51,11 @@ def mock_sfrs(num, subnet_id):
 @behave.fixture
 def mock_reload_resource_groups(context):
     with mock.patch(
-        "clusterman.aws.auto_scaling_resource_group.AutoScalingResourceGroup.load", return_value={},
+        "clusterman.aws.auto_scaling_resource_group.AutoScalingResourceGroup.load",
+        return_value={},
     ) as mock_asg_load, mock.patch(
-        "clusterman.aws.spot_fleet_resource_group.SpotFleetResourceGroup.load", return_value={},
+        "clusterman.aws.spot_fleet_resource_group.SpotFleetResourceGroup.load",
+        return_value={},
     ) as mock_sfr_load:
         if context.rg_type == "asg":
             if getattr(context, "reload", False):
@@ -95,9 +97,11 @@ def mock_agents_by_ip_and_tasks(context):
         "clusterman.mesos.mesos_cluster_connector.MesosClusterConnector._get_tasks_and_frameworks",
         return_value=([], []),
     ), staticconf.testing.PatchConfiguration(
-        {"scaling_limits": {"max_weight_to_remove": 1000}}, namespace="bar.mesos_config",
+        {"scaling_limits": {"max_weight_to_remove": 1000}},
+        namespace="bar.mesos_config",
     ), mock.patch(
-        "clusterman.aws.aws_resource_group.gethostbyaddr", return_value=("the-host", "", ""),
+        "clusterman.aws.aws_resource_group.gethostbyaddr",
+        return_value=("the-host", "", ""),
     ):
         yield
 
@@ -119,11 +123,14 @@ def external_target_capacity(context, rg_index, capacity):
     rg_index = int(rg_index) - 1
     if context.rg_type == "asg":
         autoscaling.set_desired_capacity(
-            AutoScalingGroupName=f"fake-asg-{rg_index}", DesiredCapacity=int(capacity), HonorCooldown=True,
+            AutoScalingGroupName=f"fake-asg-{rg_index}",
+            DesiredCapacity=int(capacity),
+            HonorCooldown=True,
         )
     elif context.rg_type == "sfr":
         ec2.modify_spot_fleet_request(
-            SpotFleetRequestId=context.rg_ids[rg_index], TargetCapacity=int(capacity),
+            SpotFleetRequestId=context.rg_ids[rg_index],
+            TargetCapacity=int(capacity),
         )
 
     # make sure our non orphan fulfilled capacity is up-to-date
@@ -197,7 +204,8 @@ def check_target_capacity(context, remaining):
         if remaining and i == 0:
             continue
         assert_that(
-            rg.target_capacity, close_to(desired_capacity, 1.0),
+            rg.target_capacity,
+            close_to(desired_capacity, 1.0),
         )
     assert_that(target_capacity, equal_to(context.pool_manager.target_capacity))
 
@@ -205,5 +213,6 @@ def check_target_capacity(context, remaining):
 @behave.then("resource group (?P<rgid>\d+) should have (?P<capacity>\d+) instances")
 def target_capacity_equals(context, rgid, capacity):
     assert_that(
-        len(context.pool_manager.resource_groups[context.rg_ids[int(rgid) - 1]].instance_ids), equal_to(int(capacity)),
+        len(context.pool_manager.resource_groups[context.rg_ids[int(rgid) - 1]].instance_ids),
+        equal_to(int(capacity)),
     )

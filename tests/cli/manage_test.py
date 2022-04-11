@@ -27,7 +27,12 @@ from clusterman.cli.manage import mark_stale
 @pytest.fixture
 def args():
     return Namespace(
-        cluster="foo", pool="bar", scheduler="mesos", target_capacity="123", dry_run=False, mark_stale=True,
+        cluster="foo",
+        pool="bar",
+        scheduler="mesos",
+        target_capacity="123",
+        dry_run=False,
+        mark_stale=True,
     )
 
 
@@ -58,7 +63,11 @@ def test_get_target_capacity_value_invalid():
 class TestManageMethods:
     @pytest.mark.parametrize("dry_run", [True, False])
     def test_change_target_capacity(
-        self, mock_target_capacity, mock_confirm, mock_pool_manager, dry_run,
+        self,
+        mock_target_capacity,
+        mock_confirm,
+        mock_pool_manager,
+        dry_run,
     ):
         args.dry_run = dry_run
         mock_target_capacity.return_value = 123
@@ -70,7 +79,10 @@ class TestManageMethods:
         assert mock_pool_manager.mark_stale.call_count == 0
 
     def test_abort_change_target_capacity(
-        self, mock_target_capacity, mock_confirm, mock_pool_manager,
+        self,
+        mock_target_capacity,
+        mock_confirm,
+        mock_pool_manager,
     ):
         mock_target_capacity.return_value = 123
         mock_confirm.return_value = False
@@ -82,7 +94,11 @@ class TestManageMethods:
 
     @pytest.mark.parametrize("dry_run", [True, False])
     def test_change_mark_stale(
-        self, mock_target_capacity, mock_confirm, mock_pool_manager, dry_run,
+        self,
+        mock_target_capacity,
+        mock_confirm,
+        mock_pool_manager,
+        dry_run,
     ):
         args.dry_run = dry_run
 
@@ -93,7 +109,10 @@ class TestManageMethods:
         assert mock_pool_manager.mark_stale.call_count == 1
 
     def test_abort_mark_stale(
-        self, mock_target_capacity, mock_confirm, mock_pool_manager,
+        self,
+        mock_target_capacity,
+        mock_confirm,
+        mock_pool_manager,
     ):
         mock_confirm.return_value = False
 
@@ -123,7 +142,13 @@ def test_main_error(mock_scribe_stream, mock_stale, mock_change, mock_pool_manag
 @mock.patch("clusterman.cli.manage.get_autoscaler_scribe_stream")
 @pytest.mark.parametrize("non_action", ["mark_stale", "target_capacity"])
 def test_main(
-    mock_scribe_stream, mock_stale, mock_change, mock_pool_manager, mock_logger, args, non_action,
+    mock_scribe_stream,
+    mock_stale,
+    mock_change,
+    mock_pool_manager,
+    mock_logger,
+    args,
+    non_action,
 ):
     setattr(args, non_action, None)
     mock_scribe_stream.return_value = "scribe_stream"
