@@ -220,7 +220,7 @@ class PoolManager:
 
     def _get_expired_orphan_instances(self) -> Dict[str, List[str]]:
         groups = self.resource_groups.values()
-        node_metadatas = self.get_node_metadatas()
+        node_metadatas = self.get_node_metadatas(AWS_RUNNING_STATES)
 
         expired_orphan_instances: Mapping[str, List[str]] = defaultdict(list)
 
@@ -231,11 +231,10 @@ class PoolManager:
 
         return expired_orphan_instances
 
-    def _is_expired_orphan_instance(self, metadata: ClusterNodeMetadata) -> bool:
+    def _is_expired_orphan_instance(self, metadata: ClusterNodeMetadata, timeout: int = 1800) -> bool:
         if (
             metadata.agent.state == AgentState.ORPHANED
-            and metadata.instance.uptime > 1800
-            and metadata.instance.state == 'running'
+            and metadata.instance.uptime > timeout
         ):
             return True
         return False
