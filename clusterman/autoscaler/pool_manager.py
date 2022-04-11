@@ -221,7 +221,7 @@ class PoolManager:
     def _get_expired_orphan_instances(self) -> Dict[str, List[str]]:
         groups = self.resource_groups.values()
         node_metadatas = self.get_node_metadatas()
-        # expired_orphan_instances: Dict[str, List[str]] = {}
+
         expired_orphan_instances: Mapping[str, List[str]] = defaultdict(list)
 
         for group in groups:
