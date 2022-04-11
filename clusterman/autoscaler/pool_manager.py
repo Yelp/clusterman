@@ -247,7 +247,8 @@ class PoolManager:
     def _is_expired_orphan_instance(self, metadata: ClusterNodeMetadata, timeout: int) -> bool:
         if metadata.agent.state == AgentState.ORPHANED and metadata.instance.uptime > timeout:
             return True
-        return False
+        else:
+            return False
 
     # currently dead code, so don't count towards coverage metrics
     def _filter_scale_up_options_for_pod(
