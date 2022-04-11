@@ -233,7 +233,7 @@ class PoolManager:
         for group_id in expired_orphan_instances:
             self.resource_groups[group_id].terminate_instances_by_id(expired_orphan_instances[group_id])
 
-    def get_expired_orphan_instances(self, timeout: int = 1800) -> Dict[str, List[str]]:
+    def get_expired_orphan_instances(self, timeout: int = 1800) -> Mapping[str, List[str]]:
         groups = self.resource_groups.values()
         node_metadatas = self.get_node_metadatas(AWS_RUNNING_STATES)
 
