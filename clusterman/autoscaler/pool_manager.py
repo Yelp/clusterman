@@ -17,7 +17,6 @@ from collections import defaultdict
 from typing import cast
 from typing import Collection
 from typing import Dict
-from typing import Iterable
 from typing import List
 from typing import Mapping
 from typing import MutableMapping
@@ -43,7 +42,6 @@ from clusterman.interfaces.cluster_connector import ClusterConnector
 from clusterman.interfaces.resource_group import ResourceGroup
 from clusterman.interfaces.types import AgentState
 from clusterman.interfaces.types import ClusterNodeMetadata
-from clusterman.interfaces.types import InstanceMetadata
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
 from clusterman.kubernetes.util import total_pod_resources
 from clusterman.monitoring_lib import get_monitoring_client
