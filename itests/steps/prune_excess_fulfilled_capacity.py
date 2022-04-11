@@ -36,8 +36,7 @@ def mock_rg_is_stale(context):
         }
 
     with mock.patch(
-        "clusterman.aws.spot_fleet_resource_group.ec2.describe_spot_fleet_requests",
-        side_effect=mock_describe_sfrs,
+        "clusterman.aws.spot_fleet_resource_group.ec2.describe_spot_fleet_requests", side_effect=mock_describe_sfrs,
     ):
         yield
 
@@ -62,9 +61,7 @@ def no_killable_instances(context):
 def killable_instance_with_weight(context, weight):
     context.pool_manager.resource_groups[context.rg_ids[0]].market_weight = mock.Mock(return_value=int(weight))
     context.pool_manager._get_prioritized_killable_nodes = mock.Mock(
-        return_value=[
-            context.pool_manager.get_node_metadatas()[0],
-        ]
+        return_value=[context.pool_manager.get_node_metadatas()[0],]
     )
 
 
@@ -79,13 +76,7 @@ def killable_instance_with_tasks(context, tasks):
         rg = context.pool_manager.resource_groups[context.rg_ids[0]]
         instances = ec2_describe_instances(instance_ids=rg.instance_ids[:1])
         return (
-            [
-                {
-                    "slave_id": instances[0]["InstanceId"],
-                    "state": "TASK_RUNNING",
-                    "framework_id": "framework_a",
-                }
-            ]
+            [{"slave_id": instances[0]["InstanceId"], "state": "TASK_RUNNING", "framework_id": "framework_a",}]
             * int(tasks),
             {"framework_a": {"name": "framework_a_name"}},
         )
@@ -96,9 +87,7 @@ def killable_instance_with_tasks(context, tasks):
         i["id"]: 0 for i in context.pool_manager.cluster_connector._agents_by_ip.values()
     }
     context.pool_manager._get_prioritized_killable_nodes = mock.Mock(
-        return_value=[
-            context.pool_manager.get_node_metadatas()[0],
-        ]
+        return_value=[context.pool_manager.get_node_metadatas()[0],]
     )
 
 
@@ -135,8 +124,7 @@ def check_n_instances_killed(context, num):
 @behave.then("the killed instances are from resource group (?P<rg_index>\d+)")
 def check_killed_instance_group(context, rg_index):
     assert_that(
-        [n.instance.group_id for n in context.killed_nodes],
-        only_contains(context.rg_ids[int(rg_index) - 1]),
+        [n.instance.group_id for n in context.killed_nodes], only_contains(context.rg_ids[int(rg_index) - 1]),
     )
 
 

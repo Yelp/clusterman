@@ -23,7 +23,7 @@ logger = colorlog.getLogger(__name__)
 
 
 def subparser(command, help, entrypoint):  # pragma: no cover
-    """Function decorator to simplify adding arguments to subcommands
+    """ Function decorator to simplify adding arguments to subcommands
 
     :param command: name of the subcommand to add
     :param help: help string for the subcommand
@@ -68,7 +68,7 @@ def add_branch_or_tag_arg(parser):  # pragma: no cover
 
 
 def add_start_end_args(parser, start_help, end_help):  # pragma: no cover
-    """Add --start-time and --end-time args to a parser
+    """ Add --start-time and --end-time args to a parser
 
     :param start_help: help string for --start-time
     :param end_help: help string for --end-time
@@ -88,25 +88,21 @@ def add_start_end_args(parser, start_help, end_help):  # pragma: no cover
 
 
 def add_region_arg(parser, required=False):  # pragma: no cover
-    """Add an --aws-region argument to a parser"""
+    """ Add an --aws-region argument to a parser """
     parser.add_argument(
-        "--aws-region",
-        required=required,
-        help="AWS region to operate in",
+        "--aws-region", required=required, help="AWS region to operate in",
     )
 
 
 def add_cluster_arg(parser, required=False):  # pragma: no cover
-    """Add --cluster argument to a parser"""
+    """ Add --cluster argument to a parser """
     parser.add_argument(
-        "--cluster",
-        default=os.environ.get("CMAN_CLUSTER", None),
-        help="Name of Mesos cluster to operate on",
+        "--cluster", default=os.environ.get("CMAN_CLUSTER", None), help="Name of Mesos cluster to operate on",
     )
 
 
 def add_pool_arg(parser):  # pragma: no cover
-    """Add --pool argument to a parser"""
+    """ Add --pool argument to a parser """
     parser.add_argument(
         "--pool",
         "--role",
@@ -118,7 +114,7 @@ def add_pool_arg(parser):  # pragma: no cover
 
 
 def add_scheduler_arg(parser):  # pragma: no cover
-    """Add --scheduler argument to a parser"""
+    """ Add --scheduler argument to a parser """
     parser.add_argument(
         "--scheduler",
         default=os.environ.get("CMAN_SCHEDULER", "mesos"),
@@ -128,36 +124,28 @@ def add_scheduler_arg(parser):  # pragma: no cover
 
 
 def add_env_config_path_arg(parser):  # pragma: no cover
-    """Add a --env-config-path argument to a parser"""
+    """ Add a --env-config-path argument to a parser """
     parser.add_argument(
-        "--env-config-path",
-        default="/nail/srv/configs/clusterman.yaml",
-        help="Path to clusterman configuration file",
+        "--env-config-path", default="/nail/srv/configs/clusterman.yaml", help="Path to clusterman configuration file",
     )
 
 
 def add_cluster_config_directory_arg(parser):  # pragma: no cover
     parser.add_argument(
-        "--cluster-config-directory",
-        metavar="directory",
-        help="specify role configuration directory for simulation",
+        "--cluster-config-directory", metavar="directory", help="specify role configuration directory for simulation",
     )
 
 
 def add_disable_sensu_arg(parser):  # pragma: no cover
-    """Add a --disable-sensu argument to a parser"""
+    """ Add a --disable-sensu argument to a parser """
     parser.add_argument(
-        "--disable-sensu",
-        action="store_true",
-        help="Disable sensu checkins",
+        "--disable-sensu", action="store_true", help="Disable sensu checkins",
     )
 
 
 def add_json_arg(parser):  # pragma: no cover
     parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Return information in JSON format",
+        "--json", action="store_true", help="Return information in JSON format",
     )
 
 
@@ -201,9 +189,7 @@ def get_parser(description=""):  # pragma: no cover
     root_parser = argparse.ArgumentParser(prog="clusterman", description=description, formatter_class=help_formatter)
     add_env_config_path_arg(root_parser)
     root_parser.add_argument(
-        "--log-level",
-        default="warning",
-        choices=["debug", "info", "warning", "error", "critical"],
+        "--log-level", default="warning", choices=["debug", "info", "warning", "error", "critical"],
     )
     root_parser.add_argument("-v", "--version", action="version", version="clusterman " + __version__)
 

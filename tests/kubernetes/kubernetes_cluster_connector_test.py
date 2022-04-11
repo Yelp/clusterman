@@ -45,12 +45,7 @@ def running_pod_1():
         metadata=V1ObjectMeta(name="running_pod_1"),
         status=V1PodStatus(phase="Running", host_ip="10.10.10.2"),
         spec=V1PodSpec(
-            containers=[
-                V1Container(
-                    name="container1",
-                    resources=V1ResourceRequirements(requests={"cpu": "1.5"}),
-                )
-            ],
+            containers=[V1Container(name="container1", resources=V1ResourceRequirements(requests={"cpu": "1.5"}),)],
             node_selector={"clusterman.com/pool": "bar"},
         ),
     )
@@ -62,12 +57,7 @@ def running_pod_2():
         metadata=V1ObjectMeta(name="running_pod_2", owner_references=[]),
         status=V1PodStatus(phase="Running", host_ip="10.10.10.3"),
         spec=V1PodSpec(
-            containers=[
-                V1Container(
-                    name="container1",
-                    resources=V1ResourceRequirements(requests={"cpu": "1.5"}),
-                )
-            ],
+            containers=[V1Container(name="container1", resources=V1ResourceRequirements(requests={"cpu": "1.5"}),)],
             node_selector={"clusterman.com/pool": "bar"},
         ),
     )
@@ -79,12 +69,7 @@ def running_pod_on_nonexistent_node():
         metadata=V1ObjectMeta(name="running_pod_on_nonexistent_node", owner_references=[]),
         status=V1PodStatus(phase="Running", host_ip="10.10.10.4"),
         spec=V1PodSpec(
-            containers=[
-                V1Container(
-                    name="container1",
-                    resources=V1ResourceRequirements(requests={"cpu": "1.5"}),
-                )
-            ],
+            containers=[V1Container(name="container1", resources=V1ResourceRequirements(requests={"cpu": "1.5"}),)],
             node_selector={"clusterman.com/pool": "bar"},
         ),
     )
@@ -94,18 +79,11 @@ def running_pod_on_nonexistent_node():
 def unevictable_pod():
     return V1Pod(
         metadata=V1ObjectMeta(
-            name="unevictable_pod",
-            annotations={"clusterman.com/safe_to_evict": "false"},
-            owner_references=[],
+            name="unevictable_pod", annotations={"clusterman.com/safe_to_evict": "false"}, owner_references=[],
         ),
         status=V1PodStatus(phase="Running", host_ip="10.10.10.2"),
         spec=V1PodSpec(
-            containers=[
-                V1Container(
-                    name="container1",
-                    resources=V1ResourceRequirements(requests={"cpu": "1.5"}),
-                )
-            ]
+            containers=[V1Container(name="container1", resources=V1ResourceRequirements(requests={"cpu": "1.5"}),)]
         ),
     )
 
@@ -115,16 +93,10 @@ def unschedulable_pod():
     return V1Pod(
         metadata=V1ObjectMeta(name="unschedulable_pod", annotations=dict(), owner_references=[]),
         status=V1PodStatus(
-            phase="Pending",
-            conditions=[V1PodCondition(status="False", type="PodScheduled", reason="Unschedulable")],
+            phase="Pending", conditions=[V1PodCondition(status="False", type="PodScheduled", reason="Unschedulable")],
         ),
         spec=V1PodSpec(
-            containers=[
-                V1Container(
-                    name="container2",
-                    resources=V1ResourceRequirements(requests={"cpu": "1.5"}),
-                )
-            ],
+            containers=[V1Container(name="container2", resources=V1ResourceRequirements(requests={"cpu": "1.5"}),)],
             node_selector={"clusterman.com/pool": "bar"},
         ),
     )
@@ -134,17 +106,9 @@ def unschedulable_pod():
 def pending_pod():
     return V1Pod(
         metadata=V1ObjectMeta(name="pending_pod", annotations=dict(), owner_references=[]),
-        status=V1PodStatus(
-            phase="Pending",
-            conditions=None,
-        ),
+        status=V1PodStatus(phase="Pending", conditions=None,),
         spec=V1PodSpec(
-            containers=[
-                V1Container(
-                    name="container2",
-                    resources=V1ResourceRequirements(requests={"cpu": "1.5"}),
-                )
-            ],
+            containers=[V1Container(name="container2", resources=V1ResourceRequirements(requests={"cpu": "1.5"}),)],
             node_selector={"clusterman.com/pool": "bar"},
         ),
     )
@@ -158,17 +122,9 @@ def daemonset_pod():
             annotations=dict(),
             owner_references=[V1OwnerReference(kind="DaemonSet", api_version="foo", name="daemonset", uid="bar")],
         ),
-        status=V1PodStatus(
-            phase="Running",
-            host_ip="10.10.10.2",
-        ),
+        status=V1PodStatus(phase="Running", host_ip="10.10.10.2",),
         spec=V1PodSpec(
-            containers=[
-                V1Container(
-                    name="container1",
-                    resources=V1ResourceRequirements(requests={"cpu": "1.5"}),
-                )
-            ],
+            containers=[V1Container(name="container1", resources=V1ResourceRequirements(requests={"cpu": "1.5"}),)],
         ),
     )
 
@@ -177,27 +133,17 @@ def daemonset_pod():
 def pod_with_required_affinity():
     return V1Pod(
         status=V1PodStatus(
-            phase="Pending",
-            conditions=[V1PodCondition(status="False", type="PodScheduled", reason="Unschedulable")],
+            phase="Pending", conditions=[V1PodCondition(status="False", type="PodScheduled", reason="Unschedulable")],
         ),
         spec=V1PodSpec(
-            containers=[
-                V1Container(
-                    name="container",
-                    resources=V1ResourceRequirements(requests={"cpu": "1.5"}),
-                )
-            ],
+            containers=[V1Container(name="container", resources=V1ResourceRequirements(requests={"cpu": "1.5"}),)],
             affinity=V1Affinity(
                 node_affinity=V1NodeAffinity(
                     required_during_scheduling_ignored_during_execution=V1NodeSelector(
                         node_selector_terms=[
                             V1NodeSelectorTerm(
                                 match_expressions=[
-                                    V1NodeSelectorRequirement(
-                                        key="clusterman.com/pool",
-                                        operator="In",
-                                        values=["bar"],
-                                    )
+                                    V1NodeSelectorRequirement(key="clusterman.com/pool", operator="In", values=["bar"],)
                                 ]
                             )
                         ]
@@ -212,26 +158,17 @@ def pod_with_required_affinity():
 def pod_with_preferred_affinity():
     return V1Pod(
         status=V1PodStatus(
-            phase="Pending",
-            conditions=[V1PodCondition(status="False", type="PodScheduled", reason="Unschedulable")],
+            phase="Pending", conditions=[V1PodCondition(status="False", type="PodScheduled", reason="Unschedulable")],
         ),
         spec=V1PodSpec(
-            containers=[
-                V1Container(
-                    name="container",
-                    resources=V1ResourceRequirements(requests={"cpu": "1.5"}),
-                )
-            ],
+            containers=[V1Container(name="container", resources=V1ResourceRequirements(requests={"cpu": "1.5"}),)],
             affinity=V1Affinity(
                 node_affinity=V1NodeAffinity(
                     required_during_scheduling_ignored_during_execution=V1NodeSelector(
                         node_selector_terms=[
                             V1NodeSelectorTerm(
                                 match_expressions=[
-                                    V1NodeSelectorRequirement(
-                                        key="clusterman.com/scheduler",
-                                        operator="Exists",
-                                    )
+                                    V1NodeSelectorRequirement(key="clusterman.com/scheduler", operator="Exists",)
                                 ]
                             )
                         ]
@@ -241,11 +178,7 @@ def pod_with_preferred_affinity():
                             weight=10,
                             preference=V1NodeSelectorTerm(
                                 match_expressions=[
-                                    V1NodeSelectorRequirement(
-                                        key="clusterman.com/pool",
-                                        operator="In",
-                                        values=["bar"],
-                                    )
+                                    V1NodeSelectorRequirement(key="clusterman.com/pool", operator="In", values=["bar"],)
                                 ]
                             ),
                         )

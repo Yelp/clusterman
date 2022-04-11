@@ -41,7 +41,7 @@ RESOURCE_GROUP_CACHE_SECONDS = 60
 
 
 def protect_unowned_instances(func):
-    """A decorator that protects instances that are not owned by a particular AWSResourceGroup from being modified
+    """ A decorator that protects instances that are not owned by a particular AWSResourceGroup from being modified
 
     It is assumed that the decorated function takes a list of instance IDs as its first argument; this list
     is modified before the decorated function is called to strip out any unowned instances.  In this case a warning
@@ -77,7 +77,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
             if state_filter and aws_state not in state_filter:
                 continue
 
-            instance_market = get_instance_market(instance_dict)  # type: ignore
+            instance_market = get_instance_market(instance_dict)
             instance_ip = instance_dict.get("PrivateIpAddress")
             hostname = gethostbyaddr(instance_ip)[0] if instance_ip else None
             is_cordoned = self._is_instance_cordoned(instance_dict)
@@ -115,7 +115,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
 
     @protect_unowned_instances
     def terminate_instances_by_id(self, instance_ids: List[str], batch_size: int = 500) -> Sequence[str]:
-        """Terminate instances in this resource group
+        """ Terminate instances in this resource group
 
         :param instance_ids: a list of instance IDs to terminate
         :param batch_size: number of instances to terminate at one time
@@ -127,14 +127,14 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
 
         instance_weights = {}
         for instance in ec2_describe_instances(instance_ids):
-            instance_market = get_instance_market(instance)  # type: ignore
+            instance_market = get_instance_market(instance)
             if not instance_market.az:
                 logger.warning(
                     f"Instance {instance['InstanceId']} missing AZ info, likely already terminated so skipping",
                 )
                 instance_ids.remove(instance["InstanceId"])
                 continue
-            instance_weights[instance["InstanceId"]] = self.market_weight(get_instance_market(instance))  # type: ignore
+            instance_weights[instance["InstanceId"]] = self.market_weight(get_instance_market(instance))
 
         # AWS API recommends not terminating more than 1000 instances at a time, and to
         # terminate larger numbers in batches
@@ -157,7 +157,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
 
     @property
     def id(self) -> str:
-        """A unique identifier for this AWSResourceGroup"""
+        """ A unique identifier for this AWSResourceGroup """
         return self.group_id
 
     @property
@@ -170,7 +170,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
 
     @property
     def target_capacity(self) -> float:
-        """The target (or desired) weighted capacity for this AWSResourceGroup
+        """ The target (or desired) weighted capacity for this AWSResourceGroup
 
         Note that the actual weighted capacity in the AWSResourceGroup may be smaller or larger than the
         target capacity, depending on the state of the AWSResourceGroup, available instance types, and
@@ -183,7 +183,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
         return self._target_capacity
 
     def _get_instances_by_market(self):
-        """Responses from this API call are cached to prevent hitting any AWS request limits"""
+        """ Responses from this API call are cached to prevent hitting any AWS request limits """
         instance_dict: Mapping[InstanceMarket, List[Mapping]] = defaultdict(list)
         for instance in ec2_describe_instances(self.instance_ids):
             instance_dict[get_instance_market(instance)].append(instance)
@@ -195,7 +195,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
 
     @classmethod
     def load(cls, cluster: str, pool: str, config: Any, **kwargs: Any) -> Mapping[str, "AWSResourceGroup"]:
-        """Load a list of corresponding resource groups
+        """ Load a list of corresponding resource groups
 
         :param cluster: a cluster name
         :param pool: a pool name

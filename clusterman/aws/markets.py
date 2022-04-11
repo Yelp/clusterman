@@ -354,7 +354,7 @@ def get_market(instance_type: str, subnet_id: Optional[str]) -> InstanceMarket:
     return InstanceMarket(instance_type, az)
 
 
-def get_instance_market(aws_instance_object: MarketDict) -> InstanceMarket:  # type: ignore[call-arg]
+def get_instance_market(aws_instance_object: MarketDict) -> InstanceMarket:
     instance_type = aws_instance_object["InstanceType"]
     subnet_id = aws_instance_object.get("SubnetId")
     if subnet_id:

@@ -29,21 +29,10 @@ _session = None
 MAX_PAGE_SIZE = 500
 
 FleetInstanceDict = TypedDict(
-    "FleetInstanceDict",
-    {
-        "InstanceId": str,
-        "InstanceType": str,
-        "SpotInstanceRequestId": str,
-        "InstanceHealth": str,
-    },
+    "FleetInstanceDict", {"InstanceId": str, "InstanceType": str, "SpotInstanceRequestId": str, "InstanceHealth": str,},
 )
 
-InstanceStateDict = TypedDict(
-    "InstanceStateDict",
-    {
-        "Name": str,
-    },
-)
+InstanceStateDict = TypedDict("InstanceStateDict", {"Name": str,},)
 
 InstanceDict = TypedDict(
     "InstanceDict",
@@ -87,10 +76,7 @@ class _BotoForwarder(type):
             endpoint_url = staticconf.read_string("aws.endpoint_url", default=None)
             if endpoint_url:
                 endpoint_url = endpoint_url.format(svc=cls.client)
-            cls._client = _session.client(
-                cls.client,
-                endpoint_url=endpoint_url,
-            )
+            cls._client = _session.client(cls.client, endpoint_url=endpoint_url,)
         return getattr(cls._client, key)
 
 

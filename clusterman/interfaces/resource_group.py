@@ -42,14 +42,13 @@ class ResourceGroup(metaclass=ABCMeta):
 
     @abstractmethod
     def get_instance_metadatas(
-        self,
-        state_filter: Optional[Collection[str]] = None,
+        self, state_filter: Optional[Collection[str]] = None,
     ) -> Sequence[InstanceMetadata]:  # pragma: no cover
         pass
 
     @abstractmethod
     def market_weight(self, market: InstanceMarket) -> float:  # pragma: no cover
-        """Return the weighted capacity assigned to a particular market by this resource group
+        """ Return the weighted capacity assigned to a particular market by this resource group
 
         .. note:: market_weight is compared to fulfilled_capacity when scaling down a pool, so it must
         return the same units.
@@ -63,13 +62,8 @@ class ResourceGroup(metaclass=ABCMeta):
         raise NotImplementedError(f"{type(self).__name__} cannot be marked stale")
 
     @abstractmethod
-    def modify_target_capacity(
-        self,
-        target_capacity: float,
-        *,
-        dry_run: bool,
-    ) -> None:  # pragma: no cover
-        """Modify the target capacity for the resource group
+    def modify_target_capacity(self, target_capacity: float, *, dry_run: bool,) -> None:  # pragma: no cover
+        """ Modify the target capacity for the resource group
 
         :param target_capacity: the (weighted) new target capacity for the resource group
         :param dry_run: boolean indicating whether to take action or just write to stdout
@@ -88,11 +82,9 @@ class ResourceGroup(metaclass=ABCMeta):
 
     @abstractmethod
     def terminate_instances_by_id(
-        self,
-        instance_ids: List[str],
-        batch_size: int = 500,
+        self, instance_ids: List[str], batch_size: int = 500,
     ) -> Sequence[str]:  # pragma: no cover
-        """Terminate instances in this resource group
+        """ Terminate instances in this resource group
 
         :param instance_ids: a list of instance IDs to terminate
         :param batch_size: number of instances to terminate at one time
@@ -106,22 +98,22 @@ class ResourceGroup(metaclass=ABCMeta):
 
     @abstractproperty
     def id(self) -> str:  # pragma: no cover
-        """A unique identifier for this ResourceGroup"""
+        """ A unique identifier for this ResourceGroup """
         pass
 
     @abstractproperty
     def instance_ids(self) -> Sequence[str]:  # pragma: no cover
-        """The list of instance IDs belonging to this ResourceGroup"""
+        """ The list of instance IDs belonging to this ResourceGroup """
         pass
 
     @abstractproperty
     def market_capacities(self) -> Mapping[InstanceMarket, float]:  # pragma: no cover
-        """The (weighted) capacities of each market in the resource group"""
+        """ The (weighted) capacities of each market in the resource group """
         pass
 
     @abstractproperty
     def target_capacity(self) -> float:  # pragma: no cover
-        """The target (or desired) weighted capacity for this ResourceGroup
+        """ The target (or desired) weighted capacity for this ResourceGroup
 
         Note that the actual weighted capacity in the ResourceGroup may be smaller or larger than the
         target capacity, depending on the state of the ResourceGroup, available instance types, and
@@ -131,17 +123,17 @@ class ResourceGroup(metaclass=ABCMeta):
 
     @abstractproperty
     def fulfilled_capacity(self) -> float:  # pragma: no cover
-        """The actual weighted capacity for this ResourceGroup"""
+        """ The actual weighted capacity for this ResourceGroup """
         pass
 
     @abstractproperty
     def status(self) -> str:  # pragma: no cover
-        """The status of the ResourceGroup (e.g., running, modifying, terminated, etc.)"""
+        """ The status of the ResourceGroup (e.g., running, modifying, terminated, etc.) """
         pass
 
     @abstractmethod
     def _reload_resource_group(self):  # pragma: no cover
-        """Store any data that the resource group needs to run
+        """ Store any data that the resource group needs to run
 
         This MUST at least populate data needed for self.instance_ids
         """
@@ -154,7 +146,7 @@ class ResourceGroup(metaclass=ABCMeta):
 
     @abstractclassmethod
     def load(cls, cluster: str, pool: str, config: Any) -> Mapping[str, "ResourceGroup"]:  # pragma: no cover
-        """Load a list of corresponding resource groups
+        """ Load a list of corresponding resource groups
 
         :param cluster: a cluster name
         :param pool: a pool name
@@ -165,7 +157,7 @@ class ResourceGroup(metaclass=ABCMeta):
 
     @abstractmethod
     def scale_up_options(self) -> Iterable[ClusterNodeMetadata]:  # pragma: no cover
-        """Generate each of the options for scaling up this resource group. For a spot fleet, this would be one
+        """ Generate each of the options for scaling up this resource group. For a spot fleet, this would be one
         ClustermanResources for each instance type. For a non-spot ASG, this would be a single ClustermanResources that
         represents the instance type the ASG is configured to run.
         """
@@ -173,7 +165,7 @@ class ResourceGroup(metaclass=ABCMeta):
 
     @abstractmethod
     def scale_down_options(self) -> Iterable[ClusterNodeMetadata]:  # pragma: no cover
-        """Generate each of the options for scaling down this resource group, i.e. the list of instance types currently
+        """ Generate each of the options for scaling down this resource group, i.e. the list of instance types currently
         running in this resource group.
         """
         pass

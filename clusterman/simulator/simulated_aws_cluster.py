@@ -50,7 +50,7 @@ class SimulatedAWSCluster:
         return len(self.instances)
 
     def modify_size(self, instances_by_market):
-        """Modify the capacity of the cluster to match a specified state
+        """ Modify the capacity of the cluster to match a specified state
 
         :param instances_by_market: a dict from InstanceMarket -> num, representing the desired number of
             instances in each specified market; unspecified markets are set to 0
@@ -82,7 +82,7 @@ class SimulatedAWSCluster:
         return added_instances, removed_instances
 
     def terminate_instances_by_id(self, ids, batch_size=-1):
-        """Terminate instance in the ids list
+        """ Terminate instance in the ids list
 
         :param ids: a list of IDs to be terminated
         :param batch_size: unused, needed for inheritance compatibility

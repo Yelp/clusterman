@@ -59,12 +59,7 @@ class MetricToWrite(NamedTuple):
 
 
 METRICS_TO_WRITE = [
-    MetricToWrite(
-        generate_system_metrics,
-        SYSTEM_METRICS,
-        aggregate_meteorite_dims=False,
-        pools=All,
-    ),
+    MetricToWrite(generate_system_metrics, SYSTEM_METRICS, aggregate_meteorite_dims=False, pools=All,),
     MetricToWrite(generate_simple_metadata, METADATA, aggregate_meteorite_dims=False, pools=All),
 ]
 
@@ -114,12 +109,7 @@ class ClusterMetricsCollector(BatchRunningSentinelMixin):
         self.make_running_sentinel()
 
         while True:
-            time.sleep(
-                splay_event_time(
-                    self.run_interval,
-                    self.__class__.__name__ + self.options.cluster,
-                )
-            )
+            time.sleep(splay_event_time(self.run_interval, self.__class__.__name__ + self.options.cluster,))
 
             for pool, manager in self.pool_managers.items():
                 logger.info(f"Reloading state for pool manager for pool {pool}")

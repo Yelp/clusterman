@@ -44,13 +44,7 @@ ACK = bytes([1])
 DEFAULT_SIGNALS_BUCKET = "yelp-clusterman-signals"
 SOCKET_MESG_SIZE = 4096
 SOCKET_TIMEOUT_SECONDS = 300
-SIGNAL_LOGGERS: Mapping[
-    str,
-    Tuple[
-        Callable[[str], None],
-        Callable[[str], None],
-    ],
-] = {}
+SIGNAL_LOGGERS: Mapping[str, Tuple[Callable[[str], None], Callable[[str], None],]] = {}
 
 
 class ExternalSignal(Signal):
@@ -64,7 +58,7 @@ class ExternalSignal(Signal):
         metrics_client: ClustermanMetricsBotoClient,
         signal_namespace: str,
     ) -> None:
-        """Create an encapsulation of the Unix sockets via which we communicate with signals
+        """ Create an encapsulation of the Unix sockets via which we communicate with signals
 
         :param cluster: the name of the cluster this signal is for
         :param pool: the name of the pool this signal is for
@@ -87,11 +81,9 @@ class ExternalSignal(Signal):
         self._signal_conn: socket.socket = self._connect_to_signal_process()
 
     def evaluate(
-        self,
-        timestamp: arrow.Arrow,
-        retry_on_broken_pipe: bool = True,
+        self, timestamp: arrow.Arrow, retry_on_broken_pipe: bool = True,
     ) -> Union[SignalResourceRequest, List[SignalResourceRequest]]:
-        """Communicate over a Unix socket with the signal to evaluate its result
+        """ Communicate over a Unix socket with the signal to evaluate its result
 
         :param timestamp: a Unix timestamp to pass to the signal as the "current time"
         :param retry_on_broken_pipe: if the signal socket pipe is broken, restart the signal process and try again
@@ -100,13 +92,7 @@ class ExternalSignal(Signal):
         """
         # Get the required metrics for the signal
         metrics = get_metrics_for_signal(
-            self.cluster,
-            self.pool,
-            self.scheduler,
-            self.app,
-            self.metrics_client,
-            self.required_metrics,
-            timestamp,
+            self.cluster, self.pool, self.scheduler, self.app, self.metrics_client, self.required_metrics, timestamp,
         )
 
         try:
@@ -116,9 +102,7 @@ class ExternalSignal(Signal):
             self._signal_conn.send(len_metrics)
             response = self._signal_conn.recv(SOCKET_MESG_SIZE)
             if response != ACK:
-                raise SignalConnectionError(
-                    "Error occurred sending metric length to signal (response={!r})".format(response)
-                )
+                raise SignalConnectionError(f"Error occurred sending metric length to signal (response={response})")
 
             # Then send the actual metrics data, broken up into chunks
             for i in range(0, len(metric_bytes), SOCKET_MESG_SIZE):
@@ -126,9 +110,7 @@ class ExternalSignal(Signal):
             response = self._signal_conn.recv(SOCKET_MESG_SIZE)
             ack_bit = response[:1]
             if ack_bit != ACK:
-                raise SignalConnectionError(
-                    "Error occurred sending metric data to signal (response={!r})".format(response)
-                )
+                raise SignalConnectionError(f"Error occurred sending metric data to signal (response={response})")
 
             # Sometimes the signal sends the ack and the reponse "too quickly" so when we call
             # recv above it gets both values.  This should handle that case, or call recv again
@@ -151,7 +133,7 @@ class ExternalSignal(Signal):
 
     @retry(exceptions=ConnectionRefusedError, tries=3, delay=5)  # retry signal connection in case it's slow to start
     def _connect_to_signal_process(self) -> socket.socket:
-        """Create a connection to the specified signal over a unix socket
+        """ Create a connection to the specified signal over a unix socket
 
         :returns: a socket connection which can read/write data to the specified signal
         """
@@ -175,19 +157,11 @@ def setup_signals_environment(pool: str, scheduler: str) -> Tuple[int, int]:
         signal_namespaces.append(staticconf.read_string("autoscaling.default_signal_role"))
         app_names.append("__default__")
 
-    app_signal_name = staticconf.read_string(
-        "autoscale_signal.name",
-        namespace=app_namespace,
-        default=None,
-    )
+    app_signal_name = staticconf.read_string("autoscale_signal.name", namespace=app_namespace, default=None,)
     if app_signal_name:
         signal_names.append(app_signal_name)
         signal_versions.append(
-            staticconf.read_string(
-                "autoscale_signal.branch_or_tag",
-                namespace=app_namespace,
-                default=pool,
-            )
+            staticconf.read_string("autoscale_signal.branch_or_tag", namespace=app_namespace, default=pool,)
         )
         signal_namespaces.append(
             staticconf.read_string("autoscale_signal.namespace", namespace=app_namespace, default=pool),

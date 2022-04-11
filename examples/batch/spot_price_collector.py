@@ -77,10 +77,7 @@ class SpotPriceCollector(BatchRunningSentinelMixin):
         self.make_running_sentinel()
         while True:
             time.sleep(
-                splay_event_time(
-                    self.run_interval,
-                    self.__class__.__name__ + staticconf.read_string("aws.region"),
-                )
+                splay_event_time(self.run_interval, self.__class__.__name__ + staticconf.read_string("aws.region"),)
             )
 
             now = arrow.utcnow()

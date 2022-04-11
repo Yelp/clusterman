@@ -25,7 +25,7 @@ SpotMarketConfig = namedtuple("SpotMarketConfig", ["bid_price", "weight"])
 
 
 class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, AWSResourceGroup):
-    """An implementation of a SimulatedAWSCluster designed to model the AWS EC2 Spot Fleet object, which is also a
+    """ An implementation of a SimulatedAWSCluster designed to model the AWS EC2 Spot Fleet object, which is also a
     AWSResourceGroup in a simulated Mesos cluster.
 
     The simulated spot fleet resource group object encapsulates a group of spot instances and attempts to maintain a
@@ -84,7 +84,7 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, AWSResourceGroup):
         return self._instance_types[market].weight
 
     def modify_target_capacity(self, target_capacity, *, dry_run=False):
-        """Modify the requested capacity for a particular spot fleet
+        """ Modify the requested capacity for a particular spot fleet
 
         :param target_capacity: desired capacity after this operation
         """
@@ -97,7 +97,7 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, AWSResourceGroup):
             self._increase_capacity_to_target(target_capacity)
 
     def terminate_instances_by_id(self, ids, batch_size=-1):
-        """Terminate specified instances
+        """ Terminate specified instances
 
         :param ids: desired ids of instances to be terminated
         :returns: a list of the terminated instance ids
@@ -111,7 +111,7 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, AWSResourceGroup):
         return ids
 
     def _increase_capacity_to_target(self, target_capacity):
-        """When current capacity is less than target_capacity, this function would increase capacity to meet
+        """ When current capacity is less than target_capacity, this function would increase capacity to meet
         target_capacity
 
         :returns: the current capacity after filling up
@@ -124,7 +124,7 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, AWSResourceGroup):
         return self.fulfilled_capacity
 
     def _get_new_market_counts(self, target_capacity):
-        """Given a target capacity and current spot market prices, find instances to add to achieve the target capacity
+        """ Given a target capacity and current spot market prices, find instances to add to achieve the target capacity
 
         :param target_capacity: the desired total capacity of the fleet
         :returns: a dictionary suitable for passing to SimulatedAWSCluster.modify_size
@@ -171,7 +171,7 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, AWSResourceGroup):
         return new_market_counts
 
     def _compute_market_residuals(self, target_capacity, markets):
-        """Given a target capacity and list of available markets, compute the residuals needed to bring all markets up
+        """ Given a target capacity and list of available markets, compute the residuals needed to bring all markets up
         to an (approximately) equal capacity such that the total capacity meets or exceeds the target capacity
 
         :param target_capacity: the desired total capacity of the fleet
@@ -192,10 +192,7 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, AWSResourceGroup):
                 self.simulator.instance_prices[market].call(self.simulator.current_time),
             )
 
-        return sorted(
-            [(market, residual(market)) for market in markets],
-            key=residual_sort_key,
-        )
+        return sorted([(market, residual(market)) for market in markets], key=residual_sort_key,)
 
     def _reload_resource_group(self):
         pass  # don't need to do anything here
@@ -233,7 +230,7 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, AWSResourceGroup):
 
     @property
     def fulfilled_capacity(self):
-        """The current actual capacity of the spot fleet
+        """ The current actual capacity of the spot fleet
 
         Note that the actual capacity may be greater than the target capacity if instance weights do not evenly divide
         the given target capacity
@@ -253,14 +250,14 @@ class SimulatedSpotFleetResourceGroup(SimulatedAWSCluster, AWSResourceGroup):
         raise NotImplementedError("Shouldn't be called")
 
     def scale_up_options(self) -> Iterable[ClusterNodeMetadata]:
-        """Generate each of the options for scaling up this resource group. For a spot fleet, this would be one
+        """ Generate each of the options for scaling up this resource group. For a spot fleet, this would be one
         ClustermanResources for each instance type. For a non-spot ASG, this would be a single ClustermanResources that
         represents the instance type the ASG is configured to run.
         """
         raise NotImplementedError()
 
     def scale_down_options(self) -> Iterable[ClusterNodeMetadata]:
-        """Generate each of the options for scaling down this resource group, i.e. the list of instance types currently
+        """ Generate each of the options for scaling down this resource group, i.e. the list of instance types currently
         running in this resource group.
         """
         raise NotImplementedError()

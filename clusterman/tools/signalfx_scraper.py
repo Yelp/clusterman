@@ -25,7 +25,7 @@ from clusterman.util import parse_time_string
 
 
 def _parse_extra_options(opt_array):
-    """Convert any options that can't be parsed by argparse into a kwargs dict; if an option is specified
+    """ Convert any options that can't be parsed by argparse into a kwargs dict; if an option is specified
     multiple times, it will appear as a list in the results
 
     :param opt_array: a list of "option=value" strings
@@ -106,21 +106,14 @@ def get_parser():
         ),
     )
     required_named_args.add_argument(
-        "--api-token",
-        required=True,
-        help="SignalFX API token, from user profile",
+        "--api-token", required=True, help="SignalFX API token, from user profile",
     )
     add_start_end_args(
-        required_named_args,
-        "initial time for queried datapoints",
-        "final time for queried datapoints",
+        required_named_args, "initial time for queried datapoints", "final time for queried datapoints",
     )
 
     optional_named_args.add_argument(
-        "--filter",
-        default=[],
-        nargs="*",
-        help="Filters for SignalFX metrics, as dimension:value strings.",
+        "--filter", default=[], nargs="*", help="Filters for SignalFX metrics, as dimension:value strings.",
     )
     optional_named_args.add_argument(
         "--dest-metric-names",

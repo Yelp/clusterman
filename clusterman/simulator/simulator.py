@@ -63,7 +63,7 @@ class Simulator:
         billing_frequency=timedelta(seconds=1),
         refund_outbid=True,
     ) -> None:
-        """Maintains all of the state for a clusterman simulation
+        """ Maintains all of the state for a clusterman simulation
 
         :param metadata: a SimulationMetadata object
         :param start_time: an arrow object indicating the start of the simulation
@@ -108,7 +108,7 @@ class Simulator:
         heappush(self.event_queue, Event(self.end_time, msg="Simulation ends"))
 
     def add_event(self, evt):
-        """Add a new event to the queue; events outside the simulation time bounds will be ignored
+        """ Add a new event to the queue; events outside the simulation time bounds will be ignored
 
         :param evt: an Event object or subclass
         """
@@ -122,7 +122,7 @@ class Simulator:
         heappush(self.event_queue, evt)
 
     def run(self):
-        """Run the simulation until the end, processing each event in the queue one-at-a-time in priority order"""
+        """ Run the simulation until the end, processing each event in the queue one-at-a-time in priority order """
         print(f"Starting simulation from {self.start_time} to {self.end_time}")
 
         with self.metadata:
@@ -177,7 +177,7 @@ class Simulator:
         end_time: Optional[Arrow] = None,
         step: Optional[timedelta] = None,
     ) -> "SortedDict[Arrow, float]":
-        """Compute the capacity for the cluster in the specified time range, grouped into chunks
+        """ Compute the capacity for the cluster in the specified time range, grouped into chunks
 
         :param key: the type of data to retreive; must correspond to a key in REPORT_TYPES
         :param start_time: the lower bound of the range (if None, use simulation start time)
@@ -213,7 +213,7 @@ class Simulator:
             raise ValueError(f"Data key {key} is not recognized")
 
     def _compute_instance_cost(self, instance):
-        """Adjust the cost-per-hour function to account for the specified instance
+        """ Adjust the cost-per-hour function to account for the specified instance
 
         :param instance: an Instance object to compute costs for; the instance must have a start_time and end_time
         """

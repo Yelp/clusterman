@@ -63,8 +63,7 @@ def mock_autoscaler():
     }
 
     with mock.patch("clusterman.autoscaler.autoscaler.ClustermanMetricsBotoClient", autospec=True,), mock.patch(
-        "clusterman.autoscaler.autoscaler.PoolManager",
-        autospec=True,
+        "clusterman.autoscaler.autoscaler.PoolManager", autospec=True,
     ), mock.patch("clusterman.autoscaler.autoscaler.Autoscaler._get_signal_for_app", autospec=True,), mock.patch(
         "clusterman.autoscaler.autoscaler.get_monitoring_client",
     ), mock.patch(
@@ -79,12 +78,10 @@ def mock_autoscaler():
 
     mock_autoscaler.pool_manager.target_capacity = 300
     mock_autoscaler.pool_manager.min_capacity = staticconf.read_int(
-        "scaling_limits.min_capacity",
-        namespace=POOL_NAMESPACE.format(pool="bar", scheduler="mesos"),
+        "scaling_limits.min_capacity", namespace=POOL_NAMESPACE.format(pool="bar", scheduler="mesos"),
     )
     mock_autoscaler.pool_manager.max_capacity = staticconf.read_int(
-        "scaling_limits.max_capacity",
-        namespace=POOL_NAMESPACE.format(pool="bar", scheduler="mesos"),
+        "scaling_limits.max_capacity", namespace=POOL_NAMESPACE.format(pool="bar", scheduler="mesos"),
     )
     mock_autoscaler.pool_manager.non_orphan_fulfilled_capacity = 0
 
@@ -145,10 +142,9 @@ def test_autoscaler_run(dry_run, mock_autoscaler, run_timestamp):
     mock_autoscaler.signal.evaluate.side_effect = ValueError
     resource_request = SignalResourceRequest(cpus=100000)
     mock_autoscaler.default_signal.evaluate.return_value = resource_request
-    with mock.patch(
-        "clusterman.autoscaler.autoscaler.autoscaling_is_paused",
-        return_value=False,
-    ), pytest.raises(ValueError):
+    with mock.patch("clusterman.autoscaler.autoscaler.autoscaling_is_paused", return_value=False,), pytest.raises(
+        ValueError
+    ):
         mock_autoscaler.run(dry_run=dry_run, timestamp=run_timestamp)
 
     assert mock_autoscaler.target_capacity_gauge.set.call_args == mock.call(100, {"dry_run": dry_run})
@@ -156,8 +152,7 @@ def test_autoscaler_run(dry_run, mock_autoscaler, run_timestamp):
     assert mock_autoscaler.pool_manager.modify_target_capacity.call_count == 1
 
     assert mock_autoscaler.resource_request_gauges["cpus"].set.call_args == mock.call(
-        resource_request.cpus,
-        {"dry_run": dry_run},
+        resource_request.cpus, {"dry_run": dry_run},
     )
     assert mock_autoscaler.resource_request_gauges["mem"].set.call_count == 0
     assert mock_autoscaler.resource_request_gauges["disk"].set.call_count == 0
@@ -168,8 +163,7 @@ def test_autoscaler_run_paused(mock_autoscaler, run_timestamp):
     mock_autoscaler._is_paused = mock.Mock(return_value=True)
 
     with mock.patch(
-        "clusterman.autoscaler.autoscaler.autoscaling_is_paused",
-        return_value=True,
+        "clusterman.autoscaler.autoscaler.autoscaling_is_paused", return_value=True,
     ):
         mock_autoscaler.run(timestamp=run_timestamp)
 
@@ -197,25 +191,15 @@ class TestComputeTargetCapacity:
         ],
     )
     def test_single_resource(
-        self,
-        mock_autoscaler,
-        resource,
-        signal_resource,
-        total_resource,
-        expected_capacity,
+        self, mock_autoscaler, resource, signal_resource, total_resource, expected_capacity,
     ):
         mock_autoscaler.pool_manager.target_capacity = 125
         mock_autoscaler.pool_manager.non_orphan_fulfilled_capacity = 125
         mock_autoscaler.pool_manager.cluster_connector.get_cluster_total_resources.return_value = ClustermanResources(
-            cpus=total_resource,
-            mem=total_resource,
-            disk=total_resource,
-            gpus=total_resource,
+            cpus=total_resource, mem=total_resource, disk=total_resource, gpus=total_resource,
         )
         new_target_capacity = mock_autoscaler._compute_target_capacity(
-            SignalResourceRequest(
-                **{resource: signal_resource},
-            )
+            SignalResourceRequest(**{resource: signal_resource},)
         )
         assert new_target_capacity == pytest.approx(expected_capacity)
 
@@ -318,26 +302,13 @@ def test_get_historical_weighted_resource_value(mock_autoscaler):
         ]
     )
     assert mock_autoscaler._get_historical_weighted_resource_value() == ClustermanResources(
-        cpus=20 / 78,
-        mem=0,
-        disk=0.1 / 78,
-        gpus=1 / 78,
+        cpus=20 / 78, mem=0, disk=0.1 / 78, gpus=1 / 78,
     )
 
 
 def test_get_smoothed_non_zero_metadata(mock_autoscaler):
     mock_autoscaler.metrics_client.get_metric_values.return_value = {
-        "some_metric": [
-            (100, 5),
-            (110, 7),
-            (120, 40),
-            (130, 23),
-            (136, 0),
-            (140, 41),
-            (150, 0),
-            (160, 0),
-            (170, 0),
-        ],
+        "some_metric": [(100, 5), (110, 7), (120, 40), (130, 23), (136, 0), (140, 41), (150, 0), (160, 0), (170, 0),],
     }
     assert mock_autoscaler._get_smoothed_non_zero_metadata("some_metric", 0, 200, smoothing=3) == (
         120,

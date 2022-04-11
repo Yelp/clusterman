@@ -26,7 +26,7 @@ from clusterman.util import parse_time_string
 
 
 def get_values_function(values_conf):
-    """Returns a function to generate metric values based on configuration
+    """ Returns a function to generate metric values based on configuration
 
     There are two modes of operation:
     1. Use functions from the python random library to generate data; the config
@@ -46,7 +46,7 @@ def get_values_function(values_conf):
 
 
 def get_frequency_function(frequency_conf):
-    """Returns a function to compute the next event time for a metric timeseries, based on configuration
+    """ Returns a function to compute the next event time for a metric timeseries, based on configuration
 
     There are two modes of operation:
     1. Fixed frequency intervals; in this case, the config should be a single string that
@@ -69,23 +69,20 @@ def get_frequency_function(frequency_conf):
 
 
 def get_markets_and_values(dict_keys, values_func):
-    """Randomly choose N unique elements from dict_keys, where 1<= N <= len(dict_keys)
-    For each selected elements, assign a value from value_func and return
+    """ Randomly choose N unique elements from dict_keys, where 1<= N <= len(dict_keys)
+        For each selected elements, assign a value from value_func and return
     """
     return {k: values_func() for k in random.sample(dict_keys, random.randint(1, len(dict_keys)))}
 
 
 def get_historical_data(metric_key, metric_type, config, start_time, end_time):
-    """Returns a list of tuples (timestamp, value) based on the historical data in database, in which value is
-    calculated by a*x + b.
+    """ Returns a list of tuples (timestamp, value) based on the historical data in database, in which value is
+        calculated by a*x + b.
     """
     aws_region = config["values"]["aws_region"]
     boto_client = ClustermanMetricsBotoClient(aws_region)
     result_key, result_items = boto_client.get_metric_values(
-        metric_key,
-        metric_type,
-        start_time.timestamp,
-        end_time.timestamp,
+        metric_key, metric_type, start_time.timestamp, end_time.timestamp,
     )
     metric = []
     a = config["values"]["params"]["a"]
@@ -111,7 +108,7 @@ def get_random_data(config, start_time, end_time):
 
 
 def load_experimental_design(inputfile):
-    """Generate metric timeseries data from an experimental design .yaml file
+    """ Generate metric timeseries data from an experimental design .yaml file
 
     The format of this file should be:
     metric_type:
@@ -162,27 +159,15 @@ def main(args):
 
 
 @subparser(
-    "generate-data",
-    "generate data for a simulation based on an experimental design",
-    main,
+    "generate-data", "generate data for a simulation based on an experimental design", main,
 )
 def add_generate_data_parser(subparser, required_named_args, optional_named_args):  # pragma: no coveer
     required_named_args.add_argument(
-        "-i",
-        "--input",
-        required=True,
-        metavar="filename",
-        help="experimental design .yaml file",
+        "-i", "--input", required=True, metavar="filename", help="experimental design .yaml file",
     )
     required_named_args.add_argument(
-        "-o",
-        "--output",
-        default="metrics.json.gz",
-        metavar="filename",
-        help="output file for generated data",
+        "-o", "--output", default="metrics.json.gz", metavar="filename", help="output file for generated data",
     )
     optional_named_args.add_argument(
-        "--seed",
-        default=None,
-        help="seed value for the random number generator",
+        "--seed", default=None, help="seed value for the random number generator",
     )

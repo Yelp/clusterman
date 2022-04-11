@@ -27,7 +27,7 @@ from clusterman.monitoring_lib import yelp_meteorite
 
 @contextmanager
 def mock_open(filename, contents=None):
-    """This function modified from 'Revolution blahg':
+    """ This function modified from 'Revolution blahg':
     https://mapleoin.github.io/perma/mocking-python-file-open
 
     It is licensed under a Creative Commons Attribution 3.0 license
@@ -52,28 +52,13 @@ def mock_open(filename, contents=None):
 @pytest.fixture(autouse=True)
 def main_clusterman_config():
     config = {
-        "aws": {
-            "access_key_file": "/etc/secrets",
-            "region": "us-west-2",
-            "signals_bucket": "the_bucket",
-        },
-        "autoscaling": {
-            "setpoint": 0.7,
-            "target_capacity_margin": 0.1,
-            "default_signal_role": "foo",
-        },
+        "aws": {"access_key_file": "/etc/secrets", "region": "us-west-2", "signals_bucket": "the_bucket",},
+        "autoscaling": {"setpoint": 0.7, "target_capacity_margin": 0.1, "default_signal_role": "foo",},
         "batches": {
-            "spot_prices": {
-                "run_interval_seconds": 120,
-                "dedupe_interval_seconds": 60,
-            },
-            "cluster_metrics": {
-                "run_interval_seconds": 120,
-            },
+            "spot_prices": {"run_interval_seconds": 120, "dedupe_interval_seconds": 60,},
+            "cluster_metrics": {"run_interval_seconds": 120,},
         },
-        "drain_termination_timeout_seconds": {
-            "sfr": 123,
-        },
+        "drain_termination_timeout_seconds": {"sfr": 123,},
         "mesos_maintenance_timeout_seconds": 1,
         "clusters": {
             "mesos-test": {
@@ -84,12 +69,7 @@ def main_clusterman_config():
                 "warning_queue_url": "mesos-test-warning.com",
             },
         },
-        "sensu_config": [
-            {
-                "team": "my_team",
-                "runbook": "y/my-runbook",
-            }
-        ],
+        "sensu_config": [{"team": "my_team", "runbook": "y/my-runbook",}],
         "autoscale_signal": {
             "name": "DefaultSignal",
             "branch_or_tag": "master",
@@ -109,19 +89,8 @@ def main_clusterman_config():
 def clusterman_pool_config():
     config = {
         "resource_groups": [
-            {
-                "sfr": {
-                    "s3": {
-                        "bucket": "fake-bucket",
-                        "prefix": "none",
-                    }
-                },
-            },
-            {
-                "asg": {
-                    "tag": "puppet:role::paasta",
-                },
-            },
+            {"sfr": {"s3": {"bucket": "fake-bucket", "prefix": "none",}},},
+            {"asg": {"tag": "puppet:role::paasta",},},
         ],
         "scaling_limits": {
             "min_capacity": 3,
@@ -129,12 +98,7 @@ def clusterman_pool_config():
             "max_weight_to_add": 200,
             "max_weight_to_remove": 10,
         },
-        "sensu_config": [
-            {
-                "team": "other-team",
-                "runbook": "y/their-runbook",
-            }
-        ],
+        "sensu_config": [{"team": "other-team", "runbook": "y/their-runbook",}],
         "autoscale_signal": {
             "name": "BarSignal3",
             "branch_or_tag": "v42",
@@ -153,19 +117,8 @@ def clusterman_pool_config():
 def clusterman_k8s_pool_config():
     config = {
         "resource_groups": [
-            {
-                "sfr": {
-                    "s3": {
-                        "bucket": "fake-bucket",
-                        "prefix": "none",
-                    }
-                },
-            },
-            {
-                "asg": {
-                    "tag": "puppet:role::paasta",
-                },
-            },
+            {"sfr": {"s3": {"bucket": "fake-bucket", "prefix": "none",}},},
+            {"asg": {"tag": "puppet:role::paasta",},},
         ],
         "scaling_limits": {
             "min_capacity": 3,
@@ -173,12 +126,7 @@ def clusterman_k8s_pool_config():
             "max_weight_to_add": 200,
             "max_weight_to_remove": 10,
         },
-        "sensu_config": [
-            {
-                "team": "other-team",
-                "runbook": "y/their-runbook",
-            }
-        ],
+        "sensu_config": [{"team": "other-team", "runbook": "y/their-runbook",}],
         "autoscale_signal": {
             "name": "BarSignal3",
             "branch_or_tag": "v42",

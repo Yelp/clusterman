@@ -30,8 +30,7 @@ class BatchLoggingMixin:  # pragma: no cover
     def setup_watchers(self):
         self.logger.info(
             "Starting batch {name}; watching {watched_files} for changes".format(
-                name=type(self).__name__,
-                watched_files=[watcher.filename for watcher in self.version_checker.watchers],
+                name=type(self).__name__, watched_files=[watcher.filename for watcher in self.version_checker.watchers],
             )
         )
         yield
