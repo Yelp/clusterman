@@ -29,7 +29,7 @@ export TZ=US/Pacific
 ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 apt-get update && apt-get install -y software-properties-common
-apt-get install -y --force-yes python3.7 python3-pip python3-yaml awscli
+apt-get install -y --force-yes python3.8 python3-pip python3-yaml awscli
 dpkg -i /dist/${DISTRIB_CODENAME}/clusterman_${PACKAGE_VERSION}_amd64.deb || true
 apt-get install -y --force-yes --fix-broken
 
@@ -41,8 +41,8 @@ else
 fi
 
 export ACCEPTANCE_ROOT=/itest
-python3.7 -m pip install boto3 simplejson
-python3.7 /itest/run_instance.py \
+python3.8 -m pip install boto3 simplejson
+python3.8 /itest/run_instance.py \
     http://moto-ec2:5000/ \
     http://moto-s3:5000/ \
     http://moto-dynamodb:5000/ \
