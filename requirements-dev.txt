@@ -21,7 +21,7 @@ ipdb==0.13.9
 ipython==7.17.0
 ipython-genutils==0.2.0
 jedi==0.15.1
-Jinja2==2.10.3
+Jinja2==2.11.3
 jsondiff==1.1.2
 jsonpatch==1.24
 jsonpointer==2.0
