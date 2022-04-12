@@ -55,10 +55,7 @@ def test_invalid_market():
 def test_modify_size(cluster):
     cluster.simulator.current_time.shift(seconds=+76)
     added_instances, removed_instances = cluster.modify_size(
-        {
-            InstanceMarket("m4.4xlarge", "us-west-1a"): 1,
-            InstanceMarket("i2.8xlarge", "us-west-1a"): 4,
-        }
+        {InstanceMarket("m4.4xlarge", "us-west-1a"): 1, InstanceMarket("i2.8xlarge", "us-west-1a"): 4,}
     )
     assert len(added_instances) == 2
     assert len(removed_instances) == 4
@@ -75,10 +72,7 @@ def test_cpu_mem_disk(cluster):
 def test_remove_instances(cluster):
     cluster.simulator.current_time.shift(seconds=+42)
     cluster.modify_size(
-        {
-            InstanceMarket("m4.4xlarge", "us-west-1a"): 1,
-            InstanceMarket("i2.8xlarge", "us-west-1a"): 1,
-        }
+        {InstanceMarket("m4.4xlarge", "us-west-1a"): 1, InstanceMarket("i2.8xlarge", "us-west-1a"): 1,}
     )
 
     assert len(cluster) == 2

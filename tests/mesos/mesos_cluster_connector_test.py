@@ -24,15 +24,8 @@ from clusterman.mesos.mesos_cluster_connector import TaskCount
 def mock_cluster_connector():
     mock_cluster_connector = MesosClusterConnector("mesos-test", "bar")
     mock_cluster_connector._agents_by_ip = {
-        "10.10.10.1": {
-            "id": "idle",
-            "resources": {"cpus": 4, "gpus": 2},
-        },
-        "10.10.10.2": {
-            "id": "no-gpus",
-            "resources": {"cpus": 8},
-            "used_resources": {"cpus": 1.5},
-        },
+        "10.10.10.1": {"id": "idle", "resources": {"cpus": 4, "gpus": 2},},
+        "10.10.10.2": {"id": "no-gpus", "resources": {"cpus": 8}, "used_resources": {"cpus": 1.5},},
     }
     mock_cluster_connector._task_count_per_agent = {
         "idle": TaskCount(all_tasks=0, batch_tasks=0),

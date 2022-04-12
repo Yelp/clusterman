@@ -46,57 +46,23 @@ def setup_configurations(context):
     }
 
     main_clusterman_config = {
-        "aws": {
-            "access_key_file": "/etc/secrets",
-            "region": "us-west-2",
-            "signals_bucket": "the_bucket",
-        },
-        "autoscaling": {
-            "setpoint": 0.7,
-            "target_capacity_margin": 0.1,
-            "default_signal_role": "foo",
-        },
+        "aws": {"access_key_file": "/etc/secrets", "region": "us-west-2", "signals_bucket": "the_bucket",},
+        "autoscaling": {"setpoint": 0.7, "target_capacity_margin": 0.1, "default_signal_role": "foo",},
         "batches": {
-            "spot_prices": {
-                "run_interval_seconds": 120,
-                "dedupe_interval_seconds": 60,
-            },
-            "cluster_metrics": {
-                "run_interval_seconds": 120,
-            },
+            "spot_prices": {"run_interval_seconds": 120, "dedupe_interval_seconds": 60,},
+            "cluster_metrics": {"run_interval_seconds": 120,},
         },
         "clusters": {
-            "mesos-test": {
-                "mesos_master_fqdn": "the.mesos.leader",
-                "aws_region": "us-west-2",
-            },
-            "kube-test": {
-                "aws_region": "us-west-2",
-                "kubeconfig_path": "/foo/bar/admin.conf",
-            },
+            "mesos-test": {"mesos_master_fqdn": "the.mesos.leader", "aws_region": "us-west-2",},
+            "kube-test": {"aws_region": "us-west-2", "kubeconfig_path": "/foo/bar/admin.conf",},
         },
-        "sensu_config": [
-            {
-                "team": "my_team",
-                "runbook": "y/my-runbook",
-            }
-        ],
-        "autoscale_signal": {
-            "name": "FooSignal",
-            "period_minutes": 10,
-        },
+        "sensu_config": [{"team": "my_team", "runbook": "y/my-runbook",}],
+        "autoscale_signal": {"name": "FooSignal", "period_minutes": 10,},
     }
 
     mesos_pool_config = {
         "resource_groups": [
-            {
-                "sfr": {
-                    "s3": {
-                        "bucket": "fake-bucket",
-                        "prefix": "none",
-                    }
-                },
-            },
+            {"sfr": {"s3": {"bucket": "fake-bucket", "prefix": "none",}},},
             {"asg": {"tag": "puppet:role::paasta"}},
         ],
         "scaling_limits": {
@@ -105,12 +71,7 @@ def setup_configurations(context):
             "max_weight_to_add": 200,
             "max_weight_to_remove": 10,
         },
-        "sensu_config": [
-            {
-                "team": "other-team",
-                "runbook": "y/their-runbook",
-            }
-        ],
+        "sensu_config": [{"team": "other-team", "runbook": "y/their-runbook",}],
         "autoscale_signal": {
             "name": "BarSignal3",
             "branch_or_tag": "v42",
@@ -122,26 +83,15 @@ def setup_configurations(context):
         },
     }
     kube_pool_config = {
-        "resource_groups": [
-            {"sfr": {"tag": "puppet:role::paasta"}},
-            {"asg": {"tag": "puppet:role::paasta"}},
-        ],
+        "resource_groups": [{"sfr": {"tag": "puppet:role::paasta"}}, {"asg": {"tag": "puppet:role::paasta"}},],
         "scaling_limits": {
             "min_capacity": 3,
             "max_capacity": 100,
             "max_weight_to_add": 200,
             "max_weight_to_remove": 10,
         },
-        "sensu_config": [
-            {
-                "team": "other-team",
-                "runbook": "y/their-runbook",
-            }
-        ],
-        "autoscale_signal": {
-            "internal": True,
-            "period_minutes": 7,
-        },
+        "sensu_config": [{"team": "other-team", "runbook": "y/their-runbook",}],
+        "autoscale_signal": {"internal": True, "period_minutes": 7,},
     }
     with staticconf.testing.MockConfiguration(
         boto_config, namespace=CREDENTIALS_NAMESPACE
@@ -164,10 +114,7 @@ def make_asg(asg_name, subnet_id):
         )
     return autoscaling.create_auto_scaling_group(
         AutoScalingGroupName=asg_name,
-        LaunchTemplate={
-            "LaunchTemplateName": "fake_launch_template",
-            "Version": "1",
-        },
+        LaunchTemplate={"LaunchTemplateName": "fake_launch_template", "Version": "1",},
         MinSize=1,
         MaxSize=30,
         DesiredCapacity=1,
@@ -175,19 +122,8 @@ def make_asg(asg_name, subnet_id):
         VPCZoneIdentifier=subnet_id,
         NewInstancesProtectedFromScaleIn=False,
         Tags=[
-            {
-                "Key": "puppet:role::paasta",
-                "Value": json.dumps(
-                    {
-                        "paasta_cluster": "mesos-test",
-                        "pool": "bar",
-                    }
-                ),
-            },
-            {
-                "Key": "fake_tag_key",
-                "Value": "fake_tag_value",
-            },
+            {"Key": "puppet:role::paasta", "Value": json.dumps({"paasta_cluster": "mesos-test", "pool": "bar",}),},
+            {"Key": "fake_tag_key", "Value": "fake_tag_value",},
         ],
     )
 
@@ -211,12 +147,7 @@ def make_sfr(subnet_id):
                             "Tags": [
                                 {
                                     "Key": "puppet:role::paasta",
-                                    "Value": json.dumps(
-                                        {
-                                            "paasta_cluster": "mesos-test",
-                                            "pool": "bar",
-                                        }
-                                    ),
+                                    "Value": json.dumps({"paasta_cluster": "mesos-test", "pool": "bar",}),
                                 }
                             ],
                         }
@@ -238,9 +169,7 @@ def boto_patches(context):
     mock_autoscaling_obj.start()
     vpc_response = ec2.create_vpc(CidrBlock="10.0.0.0/24")
     subnet_response = ec2.create_subnet(
-        CidrBlock="10.0.0.0/24",
-        VpcId=vpc_response["Vpc"]["VpcId"],
-        AvailabilityZone="us-west-2a",
+        CidrBlock="10.0.0.0/24", VpcId=vpc_response["Vpc"]["VpcId"], AvailabilityZone="us-west-2a",
     )
     context.subnet_id = subnet_response["Subnet"]["SubnetId"]
     yield

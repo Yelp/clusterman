@@ -60,7 +60,7 @@ class Autoscaler:
         metrics_client: Optional[ClustermanMetricsBotoClient] = None,
         monitoring_enabled: bool = True,
     ) -> None:
-        """Class containing the core logic for autoscaling a cluster
+        """ Class containing the core logic for autoscaling a cluster
 
         :param cluster: the name of the cluster to autoscale
         :param pool: the name of the pool to autoscale
@@ -87,8 +87,7 @@ class Autoscaler:
         self.resource_request_gauges: Dict[str, Any] = {}
         for resource in SignalResourceRequest._fields:
             self.resource_request_gauges[resource] = monitoring_client.create_gauge(
-                RESOURCE_GAUGE_BASE_NAME.format(resource=resource),
-                gauge_dimensions,
+                RESOURCE_GAUGE_BASE_NAME.format(resource=resource), gauge_dimensions,
             )
 
         self.autoscaling_config = get_autoscaling_config(
@@ -129,7 +128,7 @@ class Autoscaler:
         return self.signal.period_minutes * 60
 
     def run(self, dry_run: bool = False, timestamp: Optional[arrow.Arrow] = None) -> None:
-        """Do a single check to scale the fleet up or down if necessary.
+        """ Do a single check to scale the fleet up or down if necessary.
 
         :param dry_run: boolean; if True, don't modify the pool size, just print what would happen
         :param timestamp: an arrow object indicating the current time
@@ -162,8 +161,7 @@ class Autoscaler:
                 logger.warning(
                     "Nodes lost since last autoscaler run is {}"
                     " which is greater than the threshold ({}),".format(
-                        str(num_removed_nodes_before_last_reload),
-                        str(self.autoscaling_config.instance_loss_threshold),
+                        str(num_removed_nodes_before_last_reload), str(self.autoscaling_config.instance_loss_threshold),
                     )
                 )
                 logger.warning("Autoscaler will not kill any nodes on this run.")
@@ -226,9 +224,7 @@ class Autoscaler:
                 pool_namespace,
                 self.metrics_client,
                 signal_namespace=staticconf.read_string(
-                    "autoscale_signal.namespace",
-                    default=app,
-                    namespace=pool_namespace,
+                    "autoscale_signal.namespace", default=app, namespace=pool_namespace,
                 ),
             )
         except NoSignalConfiguredException:
@@ -252,7 +248,7 @@ class Autoscaler:
             return self.default_signal
 
     def _compute_target_capacity(self, resource_request: SignalResourceRequest) -> float:
-        """Compare signal to the resources allocated and compute appropriate capacity change.
+        """ Compare signal to the resources allocated and compute appropriate capacity change.
 
         :param resource_request: a resource_request object from the signal evaluation
         :returns: the new target capacity we should scale to
@@ -322,8 +318,7 @@ class Autoscaler:
 
         # If we get here, everything is non-zero and we can use the "normal" logic to determine scaling
         (most_constrained_resource, usage_pct,) = self._get_most_constrained_resource_for_request(
-            resource_request,
-            cluster_total_resources,
+            resource_request, cluster_total_resources,
         )
         logger.info(
             f"Fulfilling resource request will cause {most_constrained_resource} to be the most constrained resource "
@@ -374,9 +369,7 @@ class Autoscaler:
         return new_target_capacity
 
     def _get_most_constrained_resource_for_request(
-        self,
-        resource_request: SignalResourceRequest,
-        cluster_total_resources: ClustermanResources,
+        self, resource_request: SignalResourceRequest, cluster_total_resources: ClustermanResources,
     ) -> Tuple[str, float]:
         """Determine what would be the most constrained resource if were to fulfill a resource_request without scaling
         the cluster.
@@ -408,7 +401,7 @@ class Autoscaler:
         return max(requested_resource_usage_pcts.items(), key=lambda x: x[1])
 
     def _get_historical_weighted_resource_value(self) -> ClustermanResources:
-        """Compute the weighted value of each type of resource in the cluster
+        """ Compute the weighted value of each type of resource in the cluster
 
         returns: a ClustermanResources object with the weighted resource value, or 0 if it couldn't be determined
         """
@@ -424,9 +417,7 @@ class Autoscaler:
         weighted_resource_dict: MutableMapping[str, float] = {}
         for resource in ClustermanResources._fields:
             resource_history = self._get_smoothed_non_zero_metadata(
-                f"{resource}_total",
-                time_start=time_start,
-                time_end=time_end,
+                f"{resource}_total", time_start=time_start, time_end=time_end,
             )
             if not resource_history:
                 weighted_resource_dict[resource] = 0
@@ -436,13 +427,9 @@ class Autoscaler:
         return ClustermanResources(**weighted_resource_dict)
 
     def _get_smoothed_non_zero_metadata(
-        self,
-        metric_name: str,
-        time_start: arrow.Arrow,
-        time_end: arrow.Arrow,
-        smoothing: int = 5,
+        self, metric_name: str, time_start: arrow.Arrow, time_end: arrow.Arrow, smoothing: int = 5,
     ) -> Optional[Tuple[int, int, float]]:
-        """Compute some smoothed-out historical metrics metadata
+        """ Compute some smoothed-out historical metrics metadata
 
         :param metric_name: the metadata metric to query
         :param time_start: the beginning of the historical time window to query

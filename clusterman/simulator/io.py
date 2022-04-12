@@ -52,7 +52,7 @@ def _register_handlers():
 
 
 def read_object_from_compressed_json(filename, raw_timestamps=False):
-    """Read a Python object from a gzipped JSON file"""
+    """ Read a Python object from a gzipped JSON file """
     _register_handlers()
     with gzip.open(filename) as f:
         if raw_timestamps:
@@ -65,7 +65,7 @@ def read_object_from_compressed_json(filename, raw_timestamps=False):
 
 
 def write_object_to_compressed_json(obj, filename):
-    """Write the Python object to a compressed (gzipped) JSON file
+    """ Write the Python object to a compressed (gzipped) JSON file
 
     :param obj: a Python object to serialize
     :param filename: the file to write to

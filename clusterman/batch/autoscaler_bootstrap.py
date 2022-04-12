@@ -15,7 +15,6 @@ import os
 import subprocess
 import time
 import traceback
-import typing
 import xmlrpc.client
 
 import colorlog
@@ -47,18 +46,13 @@ SUPERVISORD_RUNNING_STATES = ("STARTING", "RUNNING")
 
 
 def wait_for_process(
-    rpc: xmlrpc.client.ServerProxy,
-    process_name: str,
-    num_procs: int = 1,
-    terminal_state: str = "RUNNING",
+    rpc: xmlrpc.client.ServerProxy, process_name: str, num_procs: int = 1, terminal_state: str = "RUNNING",
 ) -> None:
     logger.info(f"waiting for {process_name} to start")
     while True:
         try:
             states = [
-                typing.cast(
-                    typing.Dict[str, typing.Any], rpc.supervisor.getProcessInfo(f"{process_name}:{process_name}_{i}")
-                )["statename"]
+                rpc.supervisor.getProcessInfo(f"{process_name}:{process_name}_{i}")["statename"]
                 for i in range(num_procs)
             ]
         except OSError:
@@ -86,9 +80,7 @@ class AutoscalerBootstrapBatch(BatchDaemon, BatchLoggingMixin):
         add_cluster_config_directory_arg(arg_group)
         add_branch_or_tag_arg(arg_group)
         arg_group.add_argument(
-            "--signal-root-directory",
-            default="/code/signals",
-            help="location of signal artifacts",
+            "--signal-root-directory", default="/code/signals", help="location of signal artifacts",
         )
 
     @batch_configure
@@ -96,8 +88,7 @@ class AutoscalerBootstrapBatch(BatchDaemon, BatchLoggingMixin):
         setup_config(self.options)
         self.logger = logger
         self.fetch_proc_count, self.run_proc_count = setup_signals_environment(
-            self.options.pool,
-            self.options.scheduler,
+            self.options.pool, self.options.scheduler,
         )
         watcher_config = {
             self.options.pool: get_pool_config_path(self.options.cluster, self.options.pool, self.options.scheduler)
@@ -132,10 +123,7 @@ class AutoscalerBootstrapBatch(BatchDaemon, BatchLoggingMixin):
             skip_supervisord_cleanup = False
             try:
                 wait_for_process(
-                    rpc,
-                    "fetch_signals",
-                    num_procs=self.fetch_proc_count,
-                    terminal_state="EXITED",
+                    rpc, "fetch_signals", num_procs=self.fetch_proc_count, terminal_state="EXITED",
                 )
                 rpc.supervisor.startProcessGroup("run_signals")
                 wait_for_process(rpc, "run_signals", num_procs=self.run_proc_count)

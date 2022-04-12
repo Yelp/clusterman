@@ -54,13 +54,7 @@ logger = colorlog.getLogger(__name__)
 
 
 class PoolManager:
-    def __init__(
-        self,
-        cluster: str,
-        pool: str,
-        scheduler: str,
-        fetch_state: bool = True,
-    ) -> None:
+    def __init__(self, cluster: str, pool: str, scheduler: str, fetch_state: bool = True,) -> None:
         self.cluster = cluster
         self.pool = pool
         self.scheduler = scheduler
@@ -79,7 +73,7 @@ class PoolManager:
             self.reload_state()
 
     def reload_state(self) -> None:
-        """Fetch any state that may have changed behind our back, but which we do not want to change during an
+        """ Fetch any state that may have changed behind our back, but which we do not want to change during an
         ``Autoscaler.run()``.
         """
         logger.info("Reloading cluster connector state")
@@ -118,7 +112,7 @@ class PoolManager:
         prune: bool = True,
         no_scale_down: bool = False,
     ) -> float:
-        """Change the desired :attr:`target_capacity` of the resource groups belonging to this pool.
+        """ Change the desired :attr:`target_capacity` of the resource groups belonging to this pool.
 
         Capacity changes are roughly evenly distributed across the resource groups to ensure that
         nodes are diversified in the cluster
@@ -149,14 +143,12 @@ class PoolManager:
 
             try:
                 self.resource_groups[group_id].modify_target_capacity(
-                    target,
-                    dry_run=dry_run,
+                    target, dry_run=dry_run,
                 )
             except ResourceGroupError:
                 logger.critical(traceback.format_exc())
                 rge_counter = get_monitoring_client().create_counter(
-                    SFX_RESOURCE_GROUP_MODIFICATION_FAILED_NAME,
-                    {"cluster": self.cluster, "pool": self.pool},
+                    SFX_RESOURCE_GROUP_MODIFICATION_FAILED_NAME, {"cluster": self.cluster, "pool": self.pool},
                 )
                 rge_counter.count()
                 continue
@@ -167,12 +159,9 @@ class PoolManager:
         return new_target_capacity
 
     def prune_excess_fulfilled_capacity(
-        self,
-        new_target_capacity: float,
-        group_targets: Optional[Mapping[str, float]] = None,
-        dry_run: bool = False,
+        self, new_target_capacity: float, group_targets: Optional[Mapping[str, float]] = None, dry_run: bool = False,
     ) -> None:
-        """Decrease the capacity in the cluster
+        """ Decrease the capacity in the cluster
 
         The number of tasks killed is limited by ``self.max_tasks_to_kill``, and the nodes are terminated in an
         order which (hopefully) reduces the impact on jobs running on the cluster.
@@ -191,10 +180,7 @@ class PoolManager:
                     for node_metadata in node_metadatas:
                         self.draining_client.submit_instance_for_draining(
                             node_metadata.instance,
-                            sender=cast(
-                                Type[AWSResourceGroup],
-                                self.resource_groups[group_id].__class__,
-                            ),
+                            sender=cast(Type[AWSResourceGroup], self.resource_groups[group_id].__class__,),
                             scheduler=self.scheduler,
                         )
             else:
@@ -204,15 +190,14 @@ class PoolManager:
                     )
 
     def get_node_metadatas(self, state_filter: Optional[Collection[str]] = None) -> Sequence[ClusterNodeMetadata]:
-        """Get a list of metadata about the nodes currently in the pool
+        """ Get a list of metadata about the nodes currently in the pool
 
         :param state_filter: only return nodes matching a particular state ('running', 'cancelled', etc)
         :returns: a list of InstanceMetadata objects
         """
         return [
             ClusterNodeMetadata(
-                self.cluster_connector.get_agent_metadata(instance_metadata.ip_address),
-                instance_metadata,
+                self.cluster_connector.get_agent_metadata(instance_metadata.ip_address), instance_metadata,
             )
             for group in self.resource_groups.values()
             for instance_metadata in group.get_instance_metadatas(state_filter)
@@ -249,9 +234,7 @@ class PoolManager:
 
     # currently dead code, so don't count towards coverage metrics
     def _filter_scale_up_options_for_pod(
-        self,
-        pod: KubernetesPod,
-        scale_up_options: Mapping[str, List[ClusterNodeMetadata]],
+        self, pod: KubernetesPod, scale_up_options: Mapping[str, List[ClusterNodeMetadata]],
     ) -> Mapping[str, List[ClusterNodeMetadata]]:  # pragma: no cover
         filtered_options: Mapping[str, List[ClusterNodeMetadata]] = defaultdict(list)
         for group_id, options in scale_up_options.items():
@@ -281,21 +264,16 @@ class PoolManager:
 
             resource_groups.update(
                 resource_group_cls.load(
-                    cluster=self.cluster,
-                    pool=self.pool,
-                    config=list(resource_group_conf.values())[0],
+                    cluster=self.cluster, pool=self.pool, config=list(resource_group_conf.values())[0],
                 )
             )
         self.resource_groups = resource_groups
         logger.info(f"Loaded resource groups: {list(resource_groups)}")
 
     def _constrain_target_capacity(
-        self,
-        requested_target_capacity: float,
-        force: bool = False,
-        no_scale_down: bool = False,
+        self, requested_target_capacity: float, force: bool = False, no_scale_down: bool = False,
     ) -> float:
-        """Signals can return arbitrary values, so make sure we don't add or remove too much capacity"""
+        """ Signals can return arbitrary values, so make sure we don't add or remove too much capacity """
 
         requested_delta = requested_target_capacity - self.target_capacity
 
@@ -340,11 +318,9 @@ class PoolManager:
         return constrained_target_capacity
 
     def _choose_nodes_to_prune(
-        self,
-        new_target_capacity: float,
-        group_targets: Optional[Mapping[str, float]],
+        self, new_target_capacity: float, group_targets: Optional[Mapping[str, float]],
     ) -> Mapping[str, List[ClusterNodeMetadata]]:
-        """Choose nodes to kill in order to decrease the capacity on the cluster.
+        """ Choose nodes to kill in order to decrease the capacity on the cluster.
 
         The number of tasks killed is limited by self.max_tasks_to_kill, and the nodes are terminated in an order
         which (hopefully) reduces the impact on jobs running on the cluster.
@@ -445,7 +421,7 @@ class PoolManager:
         return marked_nodes
 
     def _compute_new_resource_group_targets(self, new_target_capacity: float) -> Mapping[str, float]:
-        """Compute a balanced distribution of target capacities for the resource groups in the cluster
+        """ Compute a balanced distribution of target capacities for the resource groups in the cluster
 
         :param new_target_capacity: the desired new target capacity that needs to be distributed
         :returns: A list of target_capacity values, sorted in order of resource groups
@@ -471,8 +447,7 @@ class PoolManager:
         while sum(targets.values()) * coeff < math.ceil(new_target_capacity) * coeff:
             try:
                 group = sorted(
-                    [g for g in non_stale_groups if not is_constrained(g)],
-                    key=lambda g: (coeff * targets[g.id], g.id),
+                    [g for g in non_stale_groups if not is_constrained(g)], key=lambda g: (coeff * targets[g.id], g.id),
                 )[0]
             except IndexError:
                 logger.warning(
@@ -492,7 +467,7 @@ class PoolManager:
     def get_market_capacities(
         self, market_filter: Optional[Collection[InstanceMarket]] = None
     ) -> Mapping[InstanceMarket, float]:
-        """Return the total (fulfilled) capacities in the cluster across all resource groups
+        """ Return the total (fulfilled) capacities in the cluster across all resource groups
 
         :param market_filter: a set of :py:class:`.InstanceMarket` to filter by
         :returns: the total capacity in each of the specified markets
@@ -528,9 +503,7 @@ class PoolManager:
     def _prioritize_killable_nodes(self, killable_nodes: List[ClusterNodeMetadata]) -> List[ClusterNodeMetadata]:
         """Returns killable_nodes sorted with most-killable things first."""
 
-        def sort_key(
-            node_metadata: ClusterNodeMetadata,
-        ) -> Tuple[int, int, int, int, int]:
+        def sort_key(node_metadata: ClusterNodeMetadata,) -> Tuple[int, int, int, int, int]:
             return (
                 0 if node_metadata.agent.state == AgentState.ORPHANED else 1,
                 0 if node_metadata.agent.state == AgentState.IDLE else 1,
@@ -539,10 +512,7 @@ class PoolManager:
                 node_metadata.agent.task_count,
             )
 
-        return sorted(
-            killable_nodes,
-            key=sort_key,
-        )
+        return sorted(killable_nodes, key=sort_key,)
 
     def _calculate_non_orphan_fulfilled_capacity(self) -> float:
         return sum(
@@ -553,7 +523,7 @@ class PoolManager:
 
     @property
     def target_capacity(self) -> float:
-        """The target capacity is the *desired* weighted capacity for the given Mesos cluster pool.  There is no
+        """ The target capacity is the *desired* weighted capacity for the given Mesos cluster pool.  There is no
         guarantee that the actual capacity will equal the target capacity.
         """
         if not self.resource_groups:
@@ -567,7 +537,7 @@ class PoolManager:
 
     @property
     def fulfilled_capacity(self) -> float:
-        """The fulfilled capacity is the *actual* weighted capacity for the given Mesos cluster pool at a particular
+        """ The fulfilled capacity is the *actual* weighted capacity for the given Mesos cluster pool at a particular
         point in time.  This may be equal to, above, or below the :attr:`target_capacity`, depending on the availability
         and state of AWS at the time.  In general, once the cluster has reached equilibrium, the fulfilled capacity will
         be greater than or equal to the target capacity.

@@ -119,8 +119,6 @@ def add_manager_parser(subparser, required_named_args, optional_named_args):  # 
         ),
     )
     optional_named_args.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Just print what would happen, don't actually add or remove instances",
+        "--dry-run", action="store_true", help="Just print what would happen, don't actually add or remove instances",
     )
     add_cluster_config_directory_arg(optional_named_args)

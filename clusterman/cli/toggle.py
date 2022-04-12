@@ -63,8 +63,7 @@ def disable(args: argparse.Namespace) -> None:
         state["expiration_timestamp"] = {"N": str(parse_time_string(args.until).timestamp)}
 
     dynamodb.put_item(
-        TableName=staticconf.read("aws.state_table", default=CLUSTERMAN_STATE_TABLE),
-        Item=state,
+        TableName=staticconf.read("aws.state_table", default=CLUSTERMAN_STATE_TABLE), Item=state,
     )
 
     time.sleep(1)  # Give DynamoDB some time to settle
@@ -89,10 +88,7 @@ def enable(args: argparse.Namespace) -> None:
 
     dynamodb.delete_item(
         TableName=staticconf.read("aws.state_table", default=CLUSTERMAN_STATE_TABLE),
-        Key={
-            "state": {"S": AUTOSCALER_PAUSED},
-            "entity": {"S": f"{args.cluster}.{args.pool}.{args.scheduler}"},
-        },
+        Key={"state": {"S": AUTOSCALER_PAUSED}, "entity": {"S": f"{args.cluster}.{args.pool}.{args.scheduler}"},},
     )
     time.sleep(1)  # Give DynamoDB some time to settle
     now = parse_time_string("now").to("local")

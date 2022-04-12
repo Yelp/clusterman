@@ -87,10 +87,7 @@ def base_api(mesos_master_fqdn, mesos_secret_path):
         req = Request(method, url, **kwargs)
         prepared = s.prepare_request(req)
         try:
-            resp = s.send(
-                prepared,
-                timeout=timeout,
-            )
+            resp = s.send(prepared, timeout=timeout,)
             resp.raise_for_status()
             return resp
         except HTTPError:

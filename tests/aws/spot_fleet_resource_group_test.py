@@ -41,17 +41,7 @@ def mock_sfr_response(mock_subnet):
                     "EbsOptimized": False,
                     # note that this is not useful until we solve
                     # https://github.com/spulec/moto/issues/1644
-                    "TagSpecifications": [
-                        {
-                            "ResourceType": "instance",
-                            "Tags": [
-                                {
-                                    "Key": "foo",
-                                    "Value": "bar",
-                                }
-                            ],
-                        }
-                    ],
+                    "TagSpecifications": [{"ResourceType": "instance", "Tags": [{"Key": "foo", "Value": "bar",}],}],
                 },
                 {
                     "ImageId": "ami-785db401",  # this image is hard-coded into moto, represents ubuntu xenial
@@ -59,17 +49,7 @@ def mock_sfr_response(mock_subnet):
                     "WeightedCapacity": 1,
                     "InstanceType": "i2.4xlarge",
                     "EbsOptimized": False,
-                    "TagSpecifications": [
-                        {
-                            "ResourceType": "instance",
-                            "Tags": [
-                                {
-                                    "Key": "foo",
-                                    "Value": "bar",
-                                }
-                            ],
-                        }
-                    ],
+                    "TagSpecifications": [{"ResourceType": "instance", "Tags": [{"Key": "foo", "Value": "bar",}],}],
                 },
             ],
             "IamFleetRole": "foo",
@@ -86,8 +66,7 @@ def mock_spot_fleet_resource_group(mock_sfr_response):
 @mock_s3
 def test_load_spot_fleets_from_s3():
     s3.create_bucket(
-        Bucket="fake-clusterman-sfrs",
-        CreateBucketConfiguration={"LocationConstraint": "us-west-2"},
+        Bucket="fake-clusterman-sfrs", CreateBucketConfiguration={"LocationConstraint": "us-west-2"},
     )
     s3.put_object(
         Bucket="fake-clusterman-sfrs",
@@ -111,14 +90,8 @@ def test_load_spot_fleets_from_s3():
         ).encode(),
     )
 
-    with mock.patch(
-        "clusterman.aws.spot_fleet_resource_group.SpotFleetResourceGroup",
-    ):
-        sfrgs = load_spot_fleets_from_s3(
-            bucket="fake-clusterman-sfrs",
-            prefix="fake-region",
-            pool="my-pool",
-        )
+    with mock.patch("clusterman.aws.spot_fleet_resource_group.SpotFleetResourceGroup",):
+        sfrgs = load_spot_fleets_from_s3(bucket="fake-clusterman-sfrs", prefix="fake-region", pool="my-pool",)
         assert len(sfrgs) == 2
         assert {sfr_id for sfr_id in sfrgs} == {"sfr-1", "sfr-2"}
 
@@ -138,13 +111,7 @@ def test_load_spot_fleets():
         spot_fleets = SpotFleetResourceGroup.load(
             cluster="westeros-prod",
             pool="my-pool",
-            config={
-                "tag": "puppet:role::paasta",
-                "s3": {
-                    "bucket": "fake-clusterman-sfrs",
-                    "prefix": "fake-region",
-                },
-            },
+            config={"tag": "puppet:role::paasta", "s3": {"bucket": "fake-clusterman-sfrs", "prefix": "fake-region",},},
         )
         assert {sf for sf in spot_fleets} == {"sfr-1", "sfr-2", "sfr-4"}
 
@@ -178,9 +145,9 @@ def test_modify_target_capacity_up(mock_spot_fleet_resource_group):
     )
     assert (
         len(
-            ec2.describe_spot_fleet_instances(
-                SpotFleetRequestId=mock_spot_fleet_resource_group.group_id,
-            )["ActiveInstances"]
+            ec2.describe_spot_fleet_instances(SpotFleetRequestId=mock_spot_fleet_resource_group.group_id,)[
+                "ActiveInstances"
+            ]
         )
         == 13
     )
@@ -195,9 +162,9 @@ def test_modify_target_capacity_down(mock_spot_fleet_resource_group):
     assert new_config["FulfilledCapacity"] == 11
     assert (
         len(
-            ec2.describe_spot_fleet_instances(
-                SpotFleetRequestId=mock_spot_fleet_resource_group.group_id,
-            )["ActiveInstances"]
+            ec2.describe_spot_fleet_instances(SpotFleetRequestId=mock_spot_fleet_resource_group.group_id,)[
+                "ActiveInstances"
+            ]
         )
         == 7
     )

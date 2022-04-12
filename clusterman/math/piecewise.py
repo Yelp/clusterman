@@ -46,7 +46,7 @@ def piecewise_breakpoint_generator(breakpoints, start_time, end_time):
 
 class PiecewiseConstantFunction(Generic[T]):
     def __init__(self, initial_value: float = 0) -> None:
-        """Initialize the constant function to a particular value
+        """ Initialize the constant function to a particular value
 
         :param initial_value: the starting value for the function
         """
@@ -54,7 +54,7 @@ class PiecewiseConstantFunction(Generic[T]):
         self._initial_value: float = initial_value
 
     def add_breakpoint(self, xval: XValue[T], yval: float, squash: bool = True) -> None:
-        """Add a breakpoint to the function and update the value
+        """ Add a breakpoint to the function and update the value
 
         Let f(x) be the original function, and next_bp be the first breakpoint > xval; after calling
         this method, the function will be modified to f'(x) = yval for x \in [xval, next_bp)
@@ -68,7 +68,7 @@ class PiecewiseConstantFunction(Generic[T]):
         self.breakpoints[xval] = yval
 
     def add_delta(self, xval: XValue[T], delta: float) -> None:
-        """Modify the function value for x >= xval
+        """ Modify the function value for x >= xval
 
         Let f(x) be the original function; After calling this method,
         the function will be modified to f'(x) = f(x) + delta for all x >= xval
@@ -89,7 +89,7 @@ class PiecewiseConstantFunction(Generic[T]):
         self.integrals.cache_clear()
 
     def call(self, xval: XValue[T]) -> float:
-        """Compute the output of the function at a point
+        """ Compute the output of the function at a point
 
         :param xval: the x-position to compute
         :returns: f(xval)
@@ -101,7 +101,7 @@ class PiecewiseConstantFunction(Generic[T]):
             return self.breakpoints.values()[lower_index]
 
     def _breakpoint_info(self, index: Optional[int]) -> Tuple[Optional[int], Optional[XValue[T]], float]:
-        """Helper function for computing breakpoint information
+        """ Helper function for computing breakpoint information
 
         :param index: index of the breakpoint to compute
         :returns: (index, breakpoint, value)
@@ -118,7 +118,7 @@ class PiecewiseConstantFunction(Generic[T]):
 
     @lru_cache(maxsize=_LRU_CACHE_SIZE)  # cache results of calls to this function
     def values(self, start: XValue[T], stop: XValue[T], step: XValueDiff[T]) -> "SortedDict[XValue[T], float]":
-        """Compute a sequence of values of the function
+        """ Compute a sequence of values of the function
 
         This is more efficient than [self.call(xval) for xval in range(start, stop, step)] because each self.call(..)
         takes O(log n) time due to the binary tree structure of self._breakpoints.  This method can compute the range
@@ -161,7 +161,7 @@ class PiecewiseConstantFunction(Generic[T]):
         step: XValueDiff[T],
         transform: Callable[[XValueDiff[T]], float] = lambda x: cast(float, x),
     ) -> "SortedDict[XValue[T], float]":
-        """Compute a sequence of integrals of the function
+        """ Compute a sequence of integrals of the function
 
         :param start: lower bound of integral sequence
         :param stop: upper bound of integral sequence
@@ -215,12 +215,9 @@ class PiecewiseConstantFunction(Generic[T]):
         return sequence
 
     def integral(
-        self,
-        start: XValue[T],
-        stop: XValue[T],
-        transform: Callable[[XValueDiff[T]], float] = lambda x: cast(float, x),
+        self, start: XValue[T], stop: XValue[T], transform: Callable[[XValueDiff[T]], float] = lambda x: cast(float, x),
     ) -> float:
-        """Helper function to compute the integral of the whole specified range
+        """ Helper function to compute the integral of the whole specified range
 
         :param start: lower bound of the integral
         :param stop: upper bound of the integral
@@ -269,8 +266,7 @@ class PiecewiseConstantFunction(Generic[T]):
 
 
 def piecewise_max(
-    fn0: PiecewiseConstantFunction[T],
-    fn1: PiecewiseConstantFunction[T],
+    fn0: PiecewiseConstantFunction[T], fn1: PiecewiseConstantFunction[T],
 ) -> PiecewiseConstantFunction[T]:
     new_func: PiecewiseConstantFunction[T] = PiecewiseConstantFunction(max(fn0._initial_value, fn1._initial_value))
     for xval, y0, y1 in _merged_breakpoints(fn0, fn1):
@@ -279,8 +275,7 @@ def piecewise_max(
 
 
 def _merged_breakpoints(
-    fn0: PiecewiseConstantFunction[T],
-    fn1: PiecewiseConstantFunction[T],
+    fn0: PiecewiseConstantFunction[T], fn1: PiecewiseConstantFunction[T],
 ) -> Iterable[Tuple[XValue[T], float, float]]:
 
     bp0 = zip_longest(fn0.breakpoints.items(), [], fillvalue=0)

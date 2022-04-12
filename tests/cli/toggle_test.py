@@ -24,12 +24,7 @@ from clusterman.exceptions import AccountNumberMistmatchError
 
 @pytest.fixture
 def args():
-    return Namespace(
-        cluster="foo",
-        pool="bar",
-        scheduler="mesos",
-        until=False,
-    )
+    return Namespace(cluster="foo", pool="bar", scheduler="mesos", until=False,)
 
 
 @mock.patch("clusterman.cli.toggle.sts")
@@ -47,14 +42,7 @@ class TestManageMethods:
     @mock.patch("clusterman.cli.toggle.autoscaling_is_paused")
     @mock.patch("clusterman.cli.toggle.dynamodb")
     def test_enable(
-        self,
-        mock_dynamodb,
-        mock_autoscaling_is_paused,
-        mock_logger,
-        mock_staticconf,
-        mock_sts,
-        args,
-        *extra_args,
+        self, mock_dynamodb, mock_autoscaling_is_paused, mock_logger, mock_staticconf, mock_sts, args, *extra_args,
     ):
         # Note the different values
         mock_sts.get_caller_identity.return_value = {"Account": "123"}
@@ -70,14 +58,7 @@ class TestManageMethods:
     @mock.patch("clusterman.cli.toggle.autoscaling_is_paused")
     @mock.patch("clusterman.cli.toggle.dynamodb")
     def test_disable(
-        self,
-        mock_dynamodb,
-        mock_autoscaling_is_paused,
-        mock_logger,
-        mock_staticconf,
-        mock_sts,
-        args,
-        *extra_args,
+        self, mock_dynamodb, mock_autoscaling_is_paused, mock_logger, mock_staticconf, mock_sts, args, *extra_args,
     ):
         # Note the different values
         mock_sts.get_caller_identity.return_value = {"Account": "123"}

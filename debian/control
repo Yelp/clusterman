@@ -4,6 +4,6 @@ Build-Depends:
     dh-virtualenv,
 
 Package: clusterman
-Depends: python3.8, ${misc:Depends}, ${python:Depends}, ${shlibs:Depends}
+Depends: python3.6, ${misc:Depends}, ${python:Depends}, ${shlibs:Depends}
 Architecture: any
 Description: Mesos cluster scaling and management - y/clusterman

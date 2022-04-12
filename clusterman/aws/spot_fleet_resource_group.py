@@ -34,21 +34,9 @@ from clusterman.interfaces.types import ClusterNodeMetadata
 logger = colorlog.getLogger(__name__)
 _CANCELLED_STATES = ("cancelled", "cancelled_terminating")
 
-_S3Config = TypedDict(
-    "_S3Config",
-    {
-        "bucket": str,
-        "prefix": str,
-    },
-)
+_S3Config = TypedDict("_S3Config", {"bucket": str, "prefix": str,})
 
-SpotFleetResourceGroupConfig = TypedDict(
-    "SpotFleetResourceGroupConfig",
-    {
-        "s3": _S3Config,
-        "tag": str,
-    },
-)
+SpotFleetResourceGroupConfig = TypedDict("SpotFleetResourceGroupConfig", {"s3": _S3Config, "tag": str,})
 
 
 class SpotFleetResourceGroup(AWSResourceGroup):
@@ -58,12 +46,7 @@ class SpotFleetResourceGroup(AWSResourceGroup):
     def market_weight(self, market: InstanceMarket) -> float:
         return self._market_weights.get(market, 1)
 
-    def modify_target_capacity(
-        self,
-        target_capacity: float,
-        *,
-        dry_run: bool = False,
-    ) -> None:
+    def modify_target_capacity(self, target_capacity: float, *, dry_run: bool = False,) -> None:
         if self.is_stale:
             logger.info(f"Not modifying spot fleet request since it is in state {self.status}")
             return
@@ -125,12 +108,12 @@ class SpotFleetResourceGroup(AWSResourceGroup):
         }
 
     def _get_sfr_configuration(self):
-        """Responses from this API call are cached to prevent hitting any AWS request limits"""
+        """ Responses from this API call are cached to prevent hitting any AWS request limits """
         fleet_configuration = ec2.describe_spot_fleet_requests(SpotFleetRequestIds=[self.group_id])
         return fleet_configuration["SpotFleetRequestConfigs"][0]
 
     def _get_instance_ids(self) -> Sequence[str]:
-        """Responses from this API call are cached to prevent hitting any AWS request limits"""
+        """ Responses from this API call are cached to prevent hitting any AWS request limits """
         return [
             instance["InstanceId"]
             for page in ec2.get_paginator("describe_spot_fleet_instances").paginate(SpotFleetRequestId=self.group_id)
@@ -146,13 +129,9 @@ class SpotFleetResourceGroup(AWSResourceGroup):
 
     @classmethod
     def load(
-        cls,
-        cluster: str,
-        pool: str,
-        config: SpotFleetResourceGroupConfig,
-        **kwargs: Any,
+        cls, cluster: str, pool: str, config: SpotFleetResourceGroupConfig, **kwargs: Any,
     ) -> Mapping[str, AWSResourceGroup]:
-        """Loads a list of spot fleets in the given cluster and pool
+        """ Loads a list of spot fleets in the given cluster and pool
 
         :param cluster: A cluster name
         :param pool: A pool name
@@ -161,11 +140,7 @@ class SpotFleetResourceGroup(AWSResourceGroup):
         """
         tagged_resource_groups = super().load(cluster, pool, config)
         if "s3" in config:
-            s3_resource_groups = load_spot_fleets_from_s3(
-                config["s3"]["bucket"],
-                config["s3"]["prefix"],
-                pool=pool,
-            )
+            s3_resource_groups = load_spot_fleets_from_s3(config["s3"]["bucket"], config["s3"]["prefix"], pool=pool,)
             logger.info(f"SFRs loaded from s3: {list(s3_resource_groups)}")
         else:
             s3_resource_groups = {}
@@ -181,7 +156,7 @@ class SpotFleetResourceGroup(AWSResourceGroup):
     @classmethod
     @ttl_cache(ttl=RESOURCE_GROUP_CACHE_SECONDS)
     def _get_resource_group_tags(cls, filter_tag: str = "") -> Mapping[str, Mapping[str, str]]:
-        """Gets a dictionary of SFR id -> a dictionary of tags. The tags are taken
+        """ Gets a dictionary of SFR id -> a dictionary of tags. The tags are taken
         from the TagSpecifications for the first LaunchSpecification
         """
         spot_fleet_requests = ec2.describe_spot_fleet_requests()
@@ -200,14 +175,14 @@ class SpotFleetResourceGroup(AWSResourceGroup):
         return sfr_id_to_tags
 
     def scale_up_options(self) -> Iterable[ClusterNodeMetadata]:
-        """Generate each of the options for scaling up this resource group. For a spot fleet, this would be one
+        """ Generate each of the options for scaling up this resource group. For a spot fleet, this would be one
         ClustermanResources for each instance type. For a non-spot ASG, this would be a single ClustermanResources that
         represents the instance type the ASG is configured to run.
         """
         raise NotImplementedError()
 
     def scale_down_options(self) -> Iterable[ClusterNodeMetadata]:
-        """Generate each of the options for scaling down this resource group, i.e. the list of instance types currently
+        """ Generate each of the options for scaling down this resource group, i.e. the list of instance types currently
         running in this resource group.
         """
         raise NotImplementedError()

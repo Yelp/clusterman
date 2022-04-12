@@ -29,46 +29,21 @@ from tests.conftest import mock_open
 def mock_config_files():
     with staticconf.testing.PatchConfiguration({"cluster_config_directory": "/nail/whatever"}), mock_open(
         config.get_pool_config_path("cluster-A", "pool-1", "mesos"),
-        contents=yaml.dump(
-            {
-                "resource_groups": "cluster-A",
-                "other_config": 18,
-            }
-        ),
+        contents=yaml.dump({"resource_groups": "cluster-A", "other_config": 18,}),
     ), mock_open(
         config.get_pool_config_path("cluster-A", "pool-2", "mesos"),
-        contents=yaml.dump(
-            {
-                "resource_groups": "cluster-A",
-                "other_config": 20,
-            }
-        ),
+        contents=yaml.dump({"resource_groups": "cluster-A", "other_config": 20,}),
     ), mock_open(
         config.get_pool_config_path("cluster-A", "pool-2", "kubernetes"),
-        contents=yaml.dump(
-            {
-                "resource_groups": "cluster-A",
-                "other_config": 29,
-            }
-        ),
+        contents=yaml.dump({"resource_groups": "cluster-A", "other_config": 29,}),
     ), mock_open(
         config.get_pool_config_path("cluster-B", "pool-1", "mesos"),
         contents=yaml.dump(
-            {
-                "resource_groups": "cluster-B",
-                "other_config": 200,
-                "autoscale_signal": {"branch_or_tag": "v42"},
-            }
+            {"resource_groups": "cluster-B", "other_config": 200, "autoscale_signal": {"branch_or_tag": "v42"},}
         ),
     ), mock_open(
         "/etc/no_cfg/clusterman.json",
-        contents=json.dumps(
-            {
-                "accessKeyId": "foo",
-                "secretAccessKey": "bar",
-                "region": "nowhere-useful",
-            }
-        ),
+        contents=json.dumps({"accessKeyId": "foo", "secretAccessKey": "bar", "region": "nowhere-useful",}),
     ):
         yield
 
@@ -77,22 +52,13 @@ def mock_config_files():
 def mock_config_namespaces():
     # To avoid polluting staticconf for other tests, and clear out stuff from conftest that mocks configuration
     with staticconf.testing.MockConfiguration(
-        {},
-        namespace=POOL_NAMESPACE.format(pool="pool-1", scheduler="mesos"),
+        {}, namespace=POOL_NAMESPACE.format(pool="pool-1", scheduler="mesos"),
     ), staticconf.testing.MockConfiguration(
-        {},
-        namespace=POOL_NAMESPACE.format(pool="pool-2", scheduler="mesos"),
+        {}, namespace=POOL_NAMESPACE.format(pool="pool-2", scheduler="mesos"),
     ), staticconf.testing.MockConfiguration(
         {
-            "clusters": {
-                "cluster-A": {
-                    "mesos_url_api": "service.leader",
-                    "aws_region": "us-test-3",
-                },
-            },
-            "aws": {
-                "access_key_file": "/etc/no_cfg/clusterman.json",
-            },
+            "clusters": {"cluster-A": {"mesos_url_api": "service.leader", "aws_region": "us-test-3",},},
+            "aws": {"access_key_file": "/etc/no_cfg/clusterman.json",},
         },
         namespace=staticconf.config.DEFAULT,
     ):
@@ -133,21 +99,14 @@ def test_setup_config_cluster(cluster, pool, scheduler, tag, mock_config_files):
 
 
 def test_setup_config_region_and_cluster():
-    args = argparse.Namespace(
-        env_config_path="/nail/etc/config.yaml",
-        cluster="foo",
-        aws_region="bar",
-    )
+    args = argparse.Namespace(env_config_path="/nail/etc/config.yaml", cluster="foo", aws_region="bar",)
     with mock.patch("clusterman.config._load_module_configs"), pytest.raises(argparse.ArgumentError):
         config.setup_config(args)
 
 
 @mock.patch("clusterman.config._load_module_configs")
 def test_setup_config_region(mock_load_module_configs, mock_config_files):
-    args = argparse.Namespace(
-        env_config_path="/nail/etc/config.yaml",
-        aws_region="fake-region-A",
-    )
+    args = argparse.Namespace(env_config_path="/nail/etc/config.yaml", aws_region="fake-region-A",)
     config.setup_config(args)
     assert staticconf.read_string("aws.region") == "fake-region-A"
     assert mock_load_module_configs.call_args == mock.call("/nail/etc/config.yaml")

@@ -75,18 +75,14 @@ def _load_metrics(metrics_data_files, pool):
 def _populate_autoscaling_events(simulator, start_time, end_time):
     current_time = start_time.shift(
         seconds=splay_event_time(
-            simulator.autoscaler.run_frequency,
-            "simulated-autoscaler",
-            timestamp=start_time.timestamp,
+            simulator.autoscaler.run_frequency, "simulated-autoscaler", timestamp=start_time.timestamp,
         )
     )
     while current_time < end_time:
         simulator.add_event(AutoscalingEvent(current_time))
         current_time = current_time.shift(
             seconds=splay_event_time(
-                simulator.autoscaler.run_frequency,
-                "simulated-autoscaler",
-                timestamp=start_time.timestamp,
+                simulator.autoscaler.run_frequency, "simulated-autoscaler", timestamp=start_time.timestamp,
             )
         )
 
@@ -99,9 +95,7 @@ def _populate_cluster_size_events(simulator, start_time, end_time):
         end_time.timestamp,
         use_cache=False,
         extra_dimensions=get_cluster_dimensions(
-            simulator.metadata.cluster,
-            simulator.metadata.pool,
-            simulator.metadata.scheduler,
+            simulator.metadata.cluster, simulator.metadata.pool, simulator.metadata.scheduler,
         ),
     )
     for i, (timestamp, data) in enumerate(capacity_metrics["fulfilled_capacity"]):
@@ -123,9 +117,7 @@ def _populate_allocated_resources(simulator, start_time, end_time):
         end_time.timestamp,
         use_cache=False,
         extra_dimensions=get_cluster_dimensions(
-            simulator.metadata.cluster,
-            simulator.metadata.pool,
-            simulator.metadata.scheduler,
+            simulator.metadata.cluster, simulator.metadata.pool, simulator.metadata.scheduler,
         ),
     )
     # It's OK to just directly set up the timeseries here, instead of using events; if the autoscaler
@@ -145,19 +137,11 @@ def _populate_price_changes(simulator, start_time, end_time, discount):
             start_time.timestamp,
             end_time.timestamp,
             use_cache=False,
-            extra_dimensions={
-                "aws_availability_zone": market.az,
-                "aws_instance_type": market.instance,
-            },
+            extra_dimensions={"aws_availability_zone": market.az, "aws_instance_type": market.instance,},
         )
         for timestamp, price in market_prices["spot_prices"]:
             price = float(price) * (discount or 1.0)
-            simulator.add_event(
-                InstancePriceChangeEvent(
-                    arrow.get(timestamp),
-                    {market: price},
-                )
-            )
+            simulator.add_event(InstancePriceChangeEvent(arrow.get(timestamp), {market: price},))
 
 
 def _run_simulation(args, metrics_client):
@@ -216,20 +200,14 @@ def main(args):
 
         for report in args.reports:
             make_report(
-                report,
-                final_simulator,
-                args.start_time,
-                args.end_time,
-                args.output_prefix,
+                report, final_simulator, args.start_time, args.end_time, args.output_prefix,
             )
 
 
 @subparser("simulate", "simulate the behavior of a cluster", main)
 def add_simulate_parser(subparser, required_named_args, optional_named_args):  # pragma: no cover
     add_start_end_args(
-        required_named_args,
-        "simulation start time",
-        "simulation end time",
+        required_named_args, "simulation start time", "simulation end time",
     )
     add_cluster_arg(required_named_args, required=False)
     add_pool_arg(required_named_args)
@@ -237,14 +215,10 @@ def add_simulate_parser(subparser, required_named_args, optional_named_args):  #
     add_cluster_config_directory_arg(optional_named_args)
     add_branch_or_tag_arg(optional_named_args)
     required_named_args.add_argument(
-        "--name",
-        default="simulation",
-        help="Name for the simulation (helpful when comparing two simulations)",
+        "--name", default="simulation", help="Name for the simulation (helpful when comparing two simulations)",
     )
     optional_named_args.add_argument(
-        "--autoscaler-config",
-        default=None,
-        help="file containing the spot fleet request JSON data for the autoscaler",
+        "--autoscaler-config", default=None, help="file containing the spot fleet request JSON data for the autoscaler",
     )
     optional_named_args.add_argument(
         "--reports",
@@ -260,17 +234,10 @@ def add_simulate_parser(subparser, required_named_args, optional_named_args):  #
         help="provide simulated values for one or more metric time series",
     )
     optional_named_args.add_argument(
-        "--cpus-per-weight",
-        type=int,
-        default=1,
-        help="how many CPUs are present in one unit of weight",
+        "--cpus-per-weight", type=int, default=1, help="how many CPUs are present in one unit of weight",
     )
     optional_named_args.add_argument(
-        "--ebs-volume-size",
-        type=int,
-        metavar="GB",
-        default=0,
-        help="size of EBS volume for EBS-only instances",
+        "--ebs-volume-size", type=int, metavar="GB", default=0, help="size of EBS volume for EBS-only instances",
     )
     optional_named_args.add_argument(
         "--discount",
@@ -288,9 +255,7 @@ def add_simulate_parser(subparser, required_named_args, optional_named_args):  #
         help="parameters to control long to wait before a host joins the cluster (normally distributed)",
     )
     optional_named_args.add_argument(
-        "--output-prefix",
-        default="",
-        help="filename prefix for generated reports",
+        "--output-prefix", default="", help="filename prefix for generated reports",
     )
     optional_named_args.add_argument(
         "--simulation-result-file",
@@ -298,10 +263,7 @@ def add_simulate_parser(subparser, required_named_args, optional_named_args):  #
         help="specify filename to save simulation result for comparison",
     )
     optional_named_args.add_argument(
-        "--compare",
-        metavar="filename",
-        nargs="+",
-        help="specify one or two filenames to compare simulation result",
+        "--compare", metavar="filename", nargs="+", help="specify one or two filenames to compare simulation result",
     )
     optional_named_args.add_argument(
         "--comparison-operator",

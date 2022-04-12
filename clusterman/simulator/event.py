@@ -18,12 +18,12 @@ from clusterman.simulator.util import patch_join_delay
 
 
 class Event(object):
-    """Base event class; does nothing"""
+    """ Base event class; does nothing """
 
     id = itertools.count()
 
     def __init__(self, time, msg=None):
-        """Every subclass should call super().__init__(time, msg) to ensure needed setup is done
+        """ Every subclass should call super().__init__(time, msg) to ensure needed setup is done
 
         :param time: an arrow object indicating the time the event should fire
         :param msg: a message to display; if this is None, just print the class name
@@ -33,17 +33,14 @@ class Event(object):
         self.msg = msg or type(self).__name__
 
     def __lt__(self, other):
-        """Sort order is based on time, then priority"""
-        return (self.time, EVENT_PRIORITIES[self.__class__]) < (
-            other.time,
-            EVENT_PRIORITIES[other.__class__],
-        )
+        """ Sort order is based on time, then priority """
+        return (self.time, EVENT_PRIORITIES[self.__class__]) < (other.time, EVENT_PRIORITIES[other.__class__],)
 
     def __str__(self):
         return f"=== Event {self.id} -- {self.time}\t[{self.msg}]"
 
     def handle(self, simulator):
-        """Subclasses can override this for more complex behaviour
+        """ Subclasses can override this for more complex behaviour
 
         :param simulator: a clusterman Simulator instance which the event can access to change state
         """
@@ -52,7 +49,7 @@ class Event(object):
 
 class AutoscalingEvent(Event):
     def __init__(self, time, msg=None):
-        """Trigger this event whenever the autoscaler should be called"""
+        """ Trigger this event whenever the autoscaler should be called """
         super().__init__(time, msg=msg)
 
     def handle(self, simulator):
@@ -61,7 +58,7 @@ class AutoscalingEvent(Event):
 
 class ModifyClusterSizeEvent(Event):
     def __init__(self, time, instance_types, use_join_delay=True, msg=None):
-        """Directly modify the size of an AWS cluster
+        """ Directly modify the size of an AWS cluster
 
         :param instance_types: a dict of InstanceMarket -> integer indicating the new (desired) size for the market
         :param use_join_delay: if True, instances will use the join delay parameters to postpone when they join the
@@ -87,7 +84,7 @@ class ModifyClusterSizeEvent(Event):
 
 class InstancePriceChangeEvent(Event):
     def __init__(self, time, prices, msg=None):
-        """Trigger this event whenever instance prices change
+        """ Trigger this event whenever instance prices change
 
         :param prices: a dict of InstanceMarket -> float indicating the new instance prices
         """
