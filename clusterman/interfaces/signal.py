@@ -41,16 +41,8 @@ class MetricsConfigDict(TypedDict):
 
 
 class Signal(metaclass=ABCMeta):
-    def __init__(
-        self,
-        name: str,
-        cluster: str,
-        pool: str,
-        scheduler: str,
-        app: str,
-        config_namespace: str,
-    ) -> None:
-        """Create an encapsulation of the Unix sockets via which we communicate with signals
+    def __init__(self, name: str, cluster: str, pool: str, scheduler: str, app: str, config_namespace: str,) -> None:
+        """ Create an encapsulation of the Unix sockets via which we communicate with signals
 
         :param cluster: the name of the cluster this signal is for
         :param pool: the name of the pool this signal is for
@@ -79,20 +71,13 @@ class Signal(metaclass=ABCMeta):
         }
         # Even if cluster and pool were set in parameters, we override them here
         # as we want to preserve a single source of truth
-        self.parameters.update(
-            dict(
-                cluster=self.cluster,
-                pool=self.pool,
-            )
-        )
+        self.parameters.update(dict(cluster=self.cluster, pool=self.pool,))
 
     @abstractmethod
     def evaluate(
-        self,
-        timestamp: arrow.Arrow,
-        retry_on_broken_pipe: bool = True,
+        self, timestamp: arrow.Arrow, retry_on_broken_pipe: bool = True,
     ) -> Union[SignalResourceRequest, List[KubernetesPod]]:  # pragma: no cover
-        """Compute a signal and return either a single response (representing an aggregate resource request), or a
+        """ Compute a signal and return either a single response (representing an aggregate resource request), or a
         list of responses (representing per-pod resource requests)
 
         :param timestamp: a Unix timestamp to pass to the signal as the "current time"
@@ -112,7 +97,7 @@ def get_metrics_for_signal(
     required_metrics: List[MetricsConfigDict],
     end_time: arrow.Arrow,
 ) -> MetricsValuesDict:
-    """Get the metrics required for a signal"""
+    """ Get the metrics required for a signal """
 
     metrics: MetricsValuesDict = defaultdict(list)
     for metric_dict in required_metrics:

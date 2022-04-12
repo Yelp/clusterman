@@ -97,11 +97,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
         self.logger = logger
 
         self.apps = [self.options.pool]  # TODO (CLUSTERMAN-126) someday these should not be the same thing
-        pool_manager = PoolManager(
-            self.options.cluster,
-            self.options.pool,
-            self.options.scheduler,
-        )
+        pool_manager = PoolManager(self.options.cluster, self.options.pool, self.options.scheduler,)
         self.autoscaler = Autoscaler(
             self.options.cluster,
             self.options.pool,
@@ -125,10 +121,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
     @sensu_alert_triage()
     def _autoscale(self):
         time.sleep(
-            splay_event_time(
-                self.autoscaler.run_frequency,
-                self.get_name() + self.options.cluster + self.options.pool,
-            )
+            splay_event_time(self.autoscaler.run_frequency, self.get_name() + self.options.cluster + self.options.pool,)
         )
         with suppress_request_limit_exceeded():
             self.autoscaler.run(dry_run=self.options.dry_run)

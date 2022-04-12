@@ -35,30 +35,10 @@ def spot_fleet_request_config():
     return {
         "AllocationStrategy": "diversified",
         "LaunchSpecifications": [
-            {
-                "InstanceType": "c3.4xlarge",
-                "SpotPrice": 1.01,
-                "WeightedCapacity": 1,
-                "SubnetId": "us-west-1a",
-            },
-            {
-                "InstanceType": "c3.4xlarge",
-                "SpotPrice": 1.01,
-                "WeightedCapacity": 2,
-                "SubnetId": "us-west-1b",
-            },
-            {
-                "InstanceType": "i2.8xlarge",
-                "SpotPrice": 0.27,
-                "WeightedCapacity": 3,
-                "SubnetId": "us-west-2a",
-            },
-            {
-                "InstanceType": "m4.4xlarge",
-                "SpotPrice": 0.42,
-                "WeightedCapacity": 0.5,
-                "SubnetId": "us-west-2b",
-            },
+            {"InstanceType": "c3.4xlarge", "SpotPrice": 1.01, "WeightedCapacity": 1, "SubnetId": "us-west-1a",},
+            {"InstanceType": "c3.4xlarge", "SpotPrice": 1.01, "WeightedCapacity": 2, "SubnetId": "us-west-1b",},
+            {"InstanceType": "i2.8xlarge", "SpotPrice": 0.27, "WeightedCapacity": 3, "SubnetId": "us-west-2a",},
+            {"InstanceType": "m4.4xlarge", "SpotPrice": 0.42, "WeightedCapacity": 0.5, "SubnetId": "us-west-2b",},
         ],
     }
 
@@ -99,25 +79,16 @@ def test_instances_by_market():
         # no overflow -- all weights evenly divide residuals
         ([(MARKETS[0], 4), (MARKETS[3], 3)], {MARKETS[0]: 4.0, MARKETS[3]: 6.0}),
         # weight of MARKETS[0] does not divide its residual
-        (
-            [(MARKETS[0], 2.5), (MARKETS[3], 3), (MARKETS[1], 4.5)],
-            {MARKETS[0]: 3.0, MARKETS[1]: 2.0, MARKETS[3]: 6.0},
-        ),
+        ([(MARKETS[0], 2.5), (MARKETS[3], 3), (MARKETS[1], 4.5)], {MARKETS[0]: 3.0, MARKETS[1]: 2.0, MARKETS[3]: 6.0},),
         # MARKETS[0] residual is covered by overflow
-        (
-            [(MARKETS[2], 7), (MARKETS[1], 5), (MARKETS[0], 1)],
-            {MARKETS[1]: 2.0, MARKETS[2]: 3.0},
-        ),
+        ([(MARKETS[2], 7), (MARKETS[1], 5), (MARKETS[0], 1)], {MARKETS[1]: 2.0, MARKETS[2]: 3.0},),
         # MARKETS[0] residual goes negative because of overflow
         (
             [(MARKETS[1], 9), (MARKETS[2], 7), (MARKETS[0], 1), (MARKETS[3], 3)],
             {MARKETS[1]: 5.0, MARKETS[2]: 3.0, MARKETS[3]: 3.0},
         ),
         # MARKET[0] residual is negative, MARKET[1] residual goes negative because of overflow
-        (
-            [(MARKETS[0], -6), (MARKETS[1], 1), (MARKETS[2], 3), (MARKETS[3], 6)],
-            {MARKETS[2]: 1.0, MARKETS[3]: 2.0},
-        ),
+        ([(MARKETS[0], -6), (MARKETS[1], 1), (MARKETS[2], 3), (MARKETS[3], 6)], {MARKETS[2]: 1.0, MARKETS[3]: 2.0},),
     ],
 )
 def test_get_new_market_counts(residuals, result, spot_fleet):

@@ -13,10 +13,7 @@ from clusterman.interfaces.signal import get_metrics_for_signal
 @pytest.mark.parametrize("end_time", [arrow.get(3600), arrow.get(10000), arrow.get(35000)])
 def test_get_metrics(end_time):
 
-    required_metrics = staticconf.read_list(
-        "autoscale_signal.required_metrics",
-        namespace="bar.mesos_config",
-    )
+    required_metrics = staticconf.read_list("autoscale_signal.required_metrics", namespace="bar.mesos_config",)
     metrics_client = mock.Mock()
     metrics_client.get_metric_values.side_effect = [
         {"cpus_allocated": [(1, 2), (3, 4)]},

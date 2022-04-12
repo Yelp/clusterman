@@ -30,13 +30,7 @@ from clusterman.util import read_int_or_inf
 
 
 class SimulatedPoolManager(PoolManager):
-    def __init__(
-        self,
-        cluster: str,
-        pool: str,
-        configs: Sequence,
-        simulator: "simulator.Simulator",
-    ) -> None:
+    def __init__(self, cluster: str, pool: str, configs: Sequence, simulator: "simulator.Simulator",) -> None:
         self.draining_enabled = False
         self.cluster = cluster
         self.pool = pool
@@ -54,10 +48,7 @@ class SimulatedPoolManager(PoolManager):
     def reload_state(self) -> None:
         pass
 
-    def get_node_metadatas(
-        self,
-        aws_state_filter: Optional[Collection[str]] = None,
-    ) -> Sequence[ClusterNodeMetadata]:
+    def get_node_metadatas(self, aws_state_filter: Optional[Collection[str]] = None,) -> Sequence[ClusterNodeMetadata]:
         agent_metadatas = []
         for group in self.resource_groups.values():
             for instance in cast(SimulatedAWSCluster, group).instances.values():

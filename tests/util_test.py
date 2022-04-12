@@ -59,19 +59,11 @@ def test_ask_for_choice():
 
 
 @pytest.mark.parametrize(
-    "input_str,color",
-    [("foo", Fore.GREEN), ("baz", Fore.BLUE), ("hjkl", Fore.RED), ("qwerty", "")],
+    "input_str,color", [("foo", Fore.GREEN), ("baz", Fore.BLUE), ("hjkl", Fore.RED), ("qwerty", "")],
 )
 def test_color_conditions(input_str, color):
     assert (
-        color_conditions(
-            input_str,
-            green=any_of("foo", "bar"),
-            blue=any_of("baz", "asdf"),
-            red=any_of(
-                "hjkl",
-            ),
-        )
+        color_conditions(input_str, green=any_of("foo", "bar"), blue=any_of("baz", "asdf"), red=any_of("hjkl",),)
         == color + input_str + Style.RESET_ALL
     )
 
@@ -120,10 +112,7 @@ class TestSensu:
     @pytest.mark.parametrize("noop", [True, False])
     def test_sensu_checkin(self, mock_sensu, noop):
         sensu_checkin(
-            check_name="my_check",
-            output="output",
-            source="my_source",
-            noop=noop,
+            check_name="my_check", output="output", source="my_source", noop=noop,
         )
 
         if noop:
@@ -163,10 +152,7 @@ class TestSensu:
 
     def test_fallback(self, mock_sensu):
         sensu_checkin(
-            check_name="my_check",
-            output="output",
-            source="my_source",
-            app="non-existent",
+            check_name="my_check", output="output", source="my_source", app="non-existent",
         )
         assert mock_sensu.return_value.send_event.call_args == mock.call(
             name="my_check",
@@ -183,12 +169,8 @@ def test_get_cluster_name_list():
     with staticconf.testing.MockConfiguration(
         {
             "clusters": {
-                "cluster-A": {
-                    "mesos_api_url": "service.leader",
-                },
-                "cluster-B": {
-                    "mesos_api_url": "service.leader",
-                },
+                "cluster-A": {"mesos_api_url": "service.leader",},
+                "cluster-B": {"mesos_api_url": "service.leader",},
             },
         },
         namespace=staticconf.config.DEFAULT,
@@ -224,10 +206,7 @@ def test_is_paused_with_expiration_timestamp(exp_timestamp):
     with mock.patch("clusterman.util.dynamodb") as mock_dynamo:
         mock_dynamo.get_item.return_value = {
             "ResponseMetadata": {"foo": "asdf"},
-            "Item": {
-                "state": {"S": "autoscaler_paused"},
-                "entity": {"S": "mesos-test.bar.mesos"},
-            },
+            "Item": {"state": {"S": "autoscaler_paused"}, "entity": {"S": "mesos-test.bar.mesos"},},
         }
         if exp_timestamp:
             mock_dynamo.get_item.return_value["Item"]["expiration_timestamp"] = {"N": exp_timestamp}

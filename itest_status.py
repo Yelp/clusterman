@@ -16,11 +16,7 @@ from subprocess import run
 
 
 def get_pid(batch_name):
-    output = run(
-        f'ps -ef | egrep "python -m {batch_name}(\s+|$)"',
-        shell=True,
-        capture_output=True,
-    )
+    output = run(f'ps -ef | egrep "python -m {batch_name}(\s+|$)"', shell=True, capture_output=True,)
 
     return output.stdout.split()[1].decode()
 

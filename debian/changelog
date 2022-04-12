@@ -1,8 +1,8 @@
-clusterman (4.6.0) xenial bionic; urgency=low
+clusterman (4.5.19) xenial bionic; urgency=low
 
-  * Upgrade clusterman to Python 3.8
+  * Revert to py3.6
 
- -- Amjad Mashaal <amashaal@yelp.com>  Fri, 08 Apr 2022 07:34:56 -0700
+ -- Jen Patague <jfong@yelp.com>  Mon, 11 Apr 2022 13:07:11 -0700
 
 clusterman (4.5.18) xenial bionic; urgency=low
 

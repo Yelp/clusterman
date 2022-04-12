@@ -16,7 +16,7 @@ import numpy as np
 
 
 def transform_heatmap_data(data, error_threshold_fn, months, tz):
-    """Transform input data into positions and values for heatmap plotting
+    """ Transform input data into positions and values for heatmap plotting
 
     :param data: a SortedDict mapping from timestamp -> value
     :param error_threshold_fn: a function that takes an (x, y) pair and returns True if y is outside the threshold at x
@@ -56,7 +56,7 @@ def transform_heatmap_data(data, error_threshold_fn, months, tz):
 
 
 def transform_trend_data(data, months, trend_rollup):
-    """Transform input data into (x,y) values aggregated over each day of the month
+    """ Transform input data into (x,y) values aggregated over each day of the month
 
     :param data: a SortedDict mapping from timestamp -> value
     :param months: a list of (mstart, mend) tuples for grouping the output data

@@ -73,52 +73,33 @@ class MockResourceGroup(AWSResourceGroup):
             "sfr-123": {
                 "some": "tag",
                 "paasta": "true",
-                "puppet:role::paasta": json.dumps(
-                    {
-                        "pool": "default",
-                        "paasta_cluster": "westeros-prod",
-                    }
-                ),
+                "puppet:role::paasta": json.dumps({"pool": "default", "paasta_cluster": "westeros-prod",}),
             },
             "sfr-456": {
                 "some": "tag",
                 "paasta": "true",
-                "puppet:role::paasta": json.dumps(
-                    {
-                        "pool": "another",
-                        "paasta_cluster": "westeros-prod",
-                    }
-                ),
+                "puppet:role::paasta": json.dumps({"pool": "another", "paasta_cluster": "westeros-prod",}),
             },
             "sfr-789": {
                 "some": "tag",
                 "paasta": "true",
-                "puppet:role::paasta": json.dumps(
-                    {
-                        "paasta_cluster": "westeros-prod",
-                    }
-                ),
+                "puppet:role::paasta": json.dumps({"paasta_cluster": "westeros-prod",}),
             },
             "sfr-abc": {
                 "paasta": "false",
-                "puppet:role::riice": json.dumps(
-                    {
-                        "pool": "default",
-                        "paasta_cluster": "westeros-prod",
-                    }
-                ),
+                "puppet:role::riice": json.dumps({"pool": "default", "paasta_cluster": "westeros-prod",}),
             },
         }
 
     def scale_up_options(self) -> Iterable[ClusterNodeMetadata]:
-        """Generate each of the options for scaling up this resource group. For a spot fleet, this would be one
+        """ Generate each of the options for scaling up this resource group. For a spot fleet, this would be one
         ClustermanResources for each instance type. For a non-spot ASG, this would be a single ClustermanResources that
         represents the instance type the ASG is configured to run.
         """
         raise NotImplementedError()
 
     def scale_down_options(self) -> Iterable[ClusterNodeMetadata]:
-        """Generate each of the options for scaling down this resource group, i.e. the list of instance types currently
+        """ Generate each of the options for scaling down this resource group, i.e. the list of instance types currently
         running in this resource group.
         """
         raise NotImplementedError()
@@ -127,10 +108,7 @@ class MockResourceGroup(AWSResourceGroup):
 @pytest.fixture
 def mock_resource_groups(mock_subnet):
     return MockResourceGroup.load(
-        cluster="westeros-prod",
-        pool="default",
-        config={"tag": "puppet:role::paasta"},
-        subnet=mock_subnet,
+        cluster="westeros-prod", pool="default", config={"tag": "puppet:role::paasta"}, subnet=mock_subnet,
     )
 
 
@@ -178,8 +156,7 @@ def test_terminate_instance_missing_subnet(mock_logger, mock_resource_group):
 def test_terminate_all_instances_by_id_small_batch(mock_resource_group):
     instance_ids = mock_resource_group.instance_ids
     with mock.patch(
-        "clusterman.aws.aws_resource_group.ec2.terminate_instances",
-        wraps=ec2.terminate_instances,
+        "clusterman.aws.aws_resource_group.ec2.terminate_instances", wraps=ec2.terminate_instances,
     ) as mock_terminate:
         terminated_ids = mock_resource_group.terminate_instances_by_id(instance_ids, batch_size=1)
         assert mock_terminate.call_count == 5
@@ -192,9 +169,7 @@ def test_terminate_some_instances_missing(mock_logger, mock_resource_group):
         mock_terminate.return_value = {
             "TerminatingInstances": [{"InstanceId": i} for i in mock_resource_group.instance_ids[:3]]
         }
-        instances = mock_resource_group.terminate_instances_by_id(
-            mock_resource_group.instance_ids,
-        )
+        instances = mock_resource_group.terminate_instances_by_id(mock_resource_group.instance_ids,)
 
         assert len(instances) == 3
         assert mock_logger.warning.call_count == 2
@@ -218,8 +193,7 @@ def test_market_capacities(mock_resource_group):
 @pytest.mark.parametrize("is_stale", [True, False])
 def test_target_capacity(mock_resource_group, is_stale):
     with mock.patch(
-        f"{__name__}.MockResourceGroup.is_stale",
-        mock.PropertyMock(return_value=is_stale),
+        f"{__name__}.MockResourceGroup.is_stale", mock.PropertyMock(return_value=is_stale),
     ):
         assert mock_resource_group.target_capacity == 0 if is_stale else 5
 
