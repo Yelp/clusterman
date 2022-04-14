@@ -213,8 +213,8 @@ class PoolManager:
         if dry_run:
             return
 
-        for group_id in group_id_to_instance_ids:
-            self.resource_groups[group_id].terminate_instances_by_id(group_id_to_instance_ids[group_id])
+        for group_id, instance_ids in group_id_to_instance_ids.items():
+            self.resource_groups[group_id].terminate_instances_by_id(instance_ids)
 
     def get_expired_orphan_instances(self, timeout: int = 1800) -> Dict[str, List[str]]:
         known_group_ids = {group.id for group in self.resource_groups.values()}
