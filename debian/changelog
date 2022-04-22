@@ -1,3 +1,9 @@
+clusterman (4.6.1) xenial bionic; urgency=low
+
+  * Uptime calculation of the instance was fixed
+
+ -- Ilkin Mammadzada <ilkinmammadzada@yelp.com>  Fri, 22 Apr 2022 02:20:36 -0700
+
 clusterman (4.6.0) xenial bionic; urgency=low
 
   * Terminating expired orphan instances
