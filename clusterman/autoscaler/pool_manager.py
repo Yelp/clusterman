@@ -203,11 +203,11 @@ class PoolManager:
             for instance_metadata in group.get_instance_metadatas(state_filter)
         ]
 
-    def terminate_expired_orphan_instances(self, dry_run: bool = False) -> None:
+    def terminate_expired_orphan_instances(self, timeout_seconds: int, dry_run: bool = False) -> None:
         if dry_run:
             logger.warning('Running in "dry-run" mode; cluster state will not be modified')
 
-        group_id_to_instance_ids = self.get_expired_orphan_instances()
+        group_id_to_instance_ids = self.get_expired_orphan_instances(timeout_seconds)
         logger.info(f"Terminating expired orphan instances: \n{group_id_to_instance_ids}")
 
         if dry_run:
@@ -216,7 +216,7 @@ class PoolManager:
         for group_id, instance_ids in group_id_to_instance_ids.items():
             self.resource_groups[group_id].terminate_instances_by_id(instance_ids)
 
-    def get_expired_orphan_instances(self, timeout: int = 1800) -> Dict[str, List[str]]:
+    def get_expired_orphan_instances(self, timeout_seconds: int) -> Dict[str, List[str]]:
         known_group_ids = {group.id for group in self.resource_groups.values()}
         node_metadatas = self.get_node_metadatas(AWS_RUNNING_STATES)
 
@@ -224,7 +224,7 @@ class PoolManager:
 
         for metadata in node_metadatas:
             group_id = metadata.instance.group_id
-            if group_id in known_group_ids and self._is_expired_orphan_instance(metadata, timeout):
+            if group_id in known_group_ids and self._is_expired_orphan_instance(metadata, timeout_seconds):
                 if group_id not in group_id_to_instance_ids:
                     group_id_to_instance_ids[group_id] = []
                 group_id_to_instance_ids[group_id].append(metadata.instance.instance_id)
