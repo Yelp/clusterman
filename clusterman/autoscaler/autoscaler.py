@@ -177,7 +177,7 @@ class Autoscaler:
         if self.autoscaling_config.recycle_orphan_instances:
             try:
                 self.pool_manager.terminate_expired_orphan_instances(
-                    self.autoscaling_config.orphan_instance_timeout_threshold_seconds, dry_run=dry_run
+                    self.autoscaling_config.orphan_instance_uptime_threshold_seconds, dry_run=dry_run
                 )
             except Exception as e:
                 logger.error(f"Orphan instances termination failed: {e}")
