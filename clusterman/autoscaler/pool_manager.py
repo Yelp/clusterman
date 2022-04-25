@@ -208,7 +208,9 @@ class PoolManager:
             logger.warning('Running in "dry-run" mode; cluster state will not be modified')
 
         group_id_to_instance_ids = self.get_expired_orphan_instances(timeout_seconds)
-        logger.info(f"Terminating expired orphan instances: \n{group_id_to_instance_ids}")
+
+        if len(group_id_to_instance_ids) > 0:
+            logger.info(f"Terminating expired orphan instances: \n{group_id_to_instance_ids}")
 
         if dry_run:
             return
