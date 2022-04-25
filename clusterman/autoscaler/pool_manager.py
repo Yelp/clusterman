@@ -233,8 +233,10 @@ class PoolManager:
 
         return group_id_to_instance_ids
 
-    def _is_expired_orphan_instance(self, metadata: ClusterNodeMetadata, threshold: int) -> bool:
-        return metadata.agent.state == AgentState.ORPHANED and metadata.instance.uptime.total_seconds() > threshold
+    def _is_expired_orphan_instance(self, metadata: ClusterNodeMetadata, threshold_seconds: int) -> bool:
+        return (
+                metadata.agent.state == AgentState.ORPHANED and metadata.instance.uptime.total_seconds() > threshold_seconds
+        )
 
     # currently dead code, so don't count towards coverage metrics
     def _filter_scale_up_options_for_pod(
