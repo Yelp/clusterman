@@ -1,3 +1,9 @@
+clusterman (4.7.0) xenial bionic; urgency=low
+
+  * Default behaviour of the orphan instances termination was changed
+
+ -- Ilkin Mammadzada <ilkinmammadzada@yelp.com>  Mon, 09 May 2022 02:44:53 -0700
+
 clusterman (4.6.2) xenial bionic; urgency=low
 
   * Expired orphan node uptime threshold was made configurable
