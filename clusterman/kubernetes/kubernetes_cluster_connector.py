@@ -21,10 +21,13 @@ from typing import Tuple
 import colorlog
 import kubernetes
 import staticconf
-from kubernetes.client.models.v1_node import V1Node as KubernetesNode
-from kubernetes.client.models.v1_node_selector_requirement import V1NodeSelectorRequirement
-from kubernetes.client.models.v1_node_selector_term import V1NodeSelectorTerm
-from kubernetes.client.models.v1_pod import V1Pod as KubernetesPod
+from kubernetes.client.models import V1beta1Eviction
+from kubernetes.client.models import V1DeleteOptions
+from kubernetes.client.models import V1Node as KubernetesNode
+from kubernetes.client.models import V1NodeSelectorRequirement
+from kubernetes.client.models import V1NodeSelectorTerm
+from kubernetes.client.models import V1ObjectMeta
+from kubernetes.client.models import V1Pod as KubernetesPod
 
 from clusterman.interfaces.cluster_connector import ClusterConnector
 from clusterman.interfaces.types import AgentMetadata
@@ -61,6 +64,46 @@ class KubernetesClusterConnector(ClusterConnector):
             default="cluster-autoscaler.kubernetes.io/safe-to-evict",
         )
         self._nodes_by_ip = {}
+
+    def _cordon_node(self, hostname: str) -> None:
+        self._core_api.patch_node(
+            name=hostname, body={"spec": {"unschedulable": True,},},
+        )
+
+    def _list_all_pods_on_node(self, hostname: str) -> List[KubernetesPod]:
+        return self._core_api.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={hostname}")
+
+    def _evict_tasks_from_node(self, hostname: str) -> None:
+        pods_to_evict = [
+            pod
+            for pod in self._list_all_pods_on_node(hostname)
+            if not self._pod_belongs_to_daemonset(pod) and pod.status and pod.status.phase == "Running"
+        ]
+
+        for pod in pods_to_evict:
+            if pod.metadata is None:
+                logger.error(f"Impossible state encountered - pod with no metadata (will skip): {pod}")
+                continue
+
+            self._core_api.create_namespaced_pod_eviction(
+                name=pod.metadata.name,
+                namespace=pod.metadata.namespace,
+                body=V1beta1Eviction(
+                    metadata=V1ObjectMeta(name=pod.metadata.name, namespace=pod.metadata.namespace,),
+                    delete_options=V1DeleteOptions(
+                        # we don't want to block on eviction as we're potentially evicting a ton of pods
+                        # AND there's a delay before we go ahead and terminate
+                        # AND at Yelp we run a script on shutdown that will also try to drain one final time.
+                        propagation_policy="Background",
+                    ),
+                ),
+            )
+
+    def drain_node(self, hostname: str) -> None:
+        logger.info(f"Cordoning {hostname}...")
+        self._cordon_node(hostname)
+        logger.info(f"Draining {hostname}...")
+        self._evict_tasks_from_node(hostname)
 
     def reload_state(self) -> None:
         logger.info("Reloading nodes")

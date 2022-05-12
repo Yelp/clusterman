@@ -20,6 +20,7 @@ from typing import Dict
 from typing import NamedTuple
 from typing import Optional
 from typing import Sequence
+from typing import Set
 from typing import Type
 
 import arrow
@@ -29,6 +30,7 @@ from botocore.exceptions import ClientError
 
 from clusterman.args import add_cluster_arg
 from clusterman.args import subparser
+from clusterman.aws.auto_scaling_resource_group import AutoScalingResourceGroup
 from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.client import sqs
@@ -38,8 +40,9 @@ from clusterman.aws.util import RESOURCE_GROUPS_REV
 from clusterman.config import load_cluster_pool_config
 from clusterman.config import POOL_NAMESPACE
 from clusterman.config import setup_config
+from clusterman.draining.kubernetes import drain as k8s_drain
 from clusterman.draining.mesos import down
-from clusterman.draining.mesos import drain
+from clusterman.draining.mesos import drain as mesos_drain
 from clusterman.draining.mesos import operator_api
 from clusterman.draining.mesos import up
 from clusterman.interfaces.resource_group import InstanceMetadata
@@ -236,7 +239,7 @@ class DrainingClient:
             if host_to_process.scheduler == "mesos":
                 logger.info(f"Mesos host to drain and submit for termination: {host_to_process}")
                 try:
-                    drain(
+                    mesos_drain(
                         mesos_operator_client,
                         [f"{host_to_process.hostname}|{host_to_process.ip}"],
                         arrow.now().timestamp * 1000000000,
@@ -248,7 +251,20 @@ class DrainingClient:
                     self.submit_host_for_termination(host_to_process)
             elif host_to_process.scheduler == "kubernetes":
                 logger.info(f"Kubernetes host to drain and submit for termination: {host_to_process}")
-                self.submit_host_for_termination(host_to_process, delay=0)
+                try:
+                    if kube_operator_client:
+                        k8s_drain(
+                            kube_operator_client, host_to_process.hostname,
+                        )
+                    else:
+                        logger.info(
+                            f"Unable to drain {host_to_process.hostname} (no Kubernetes connector configured) - "
+                            "continuing to terminate anyway!",
+                        )
+                except Exception as e:
+                    logger.error(f"Failed to drain {host_to_process.hostname} continuing to terminate anyway: {e}")
+                finally:
+                    self.submit_host_for_termination(host_to_process)
             else:
                 logger.info(f"Host to submit for termination immediately: {host_to_process}")
                 self.submit_host_for_termination(host_to_process, delay=0)
@@ -269,21 +285,34 @@ class DrainingClient:
         host_to_process = self.get_warned_host()
         if host_to_process:
             logger.info(f"Processing spot warning for {host_to_process.hostname}")
-            spot_fleet_resource_groups = []
-            for pool in get_pool_name_list(self.cluster, "mesos"):  # draining only supported for Mesos clusters
+            spot_fleet_resource_groups: Set[str] = set()
+            autoscaling_resource_groups: Set[str] = set()
+            # we do this in two loops since we only use SFRs for Mesos, but we use Spot
+            # ASGs for Kubernetes
+            for pool in get_pool_name_list(self.cluster, "mesos"):
                 pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=pool, scheduler="mesos"))
                 for resource_group_conf in pool_config.read_list("resource_groups"):
-                    spot_fleet_resource_groups.extend(
-                        list(
-                            SpotFleetResourceGroup.load(
-                                cluster=self.cluster, pool=pool, config=list(resource_group_conf.values())[0],
-                            ).keys()
-                        )
+                    spot_fleet_resource_groups |= set(
+                        SpotFleetResourceGroup.load(
+                            cluster=self.cluster, pool=pool, config=list(resource_group_conf.values())[0],
+                        ).keys()
+                    )
+
+            for pool in get_pool_name_list(self.cluster, "kubernetes"):
+                pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=pool, scheduler="kubernetes"))
+                for resource_group_conf in pool_config.read_list("resource_groups"):
+                    autoscaling_resource_groups |= set(
+                        AutoScalingResourceGroup.load(
+                            cluster=self.cluster, pool=pool, config=list(resource_group_conf.values())[0],
+                        ).keys()
                     )
 
             # we should definitely ignore termination warnings that aren't from this
             # cluster or maybe not even paasta instances...
-            if host_to_process.group_id in spot_fleet_resource_groups:
+            if (
+                host_to_process.group_id in spot_fleet_resource_groups
+                or host_to_process.group_id in autoscaling_resource_groups
+            ):
                 logger.info(f"Sending spot warned host to drain: {host_to_process.hostname}")
                 self.submit_host_for_draining(host_to_process)
             else:
@@ -301,17 +330,21 @@ def host_from_instance_id(sender: str, receipt_handle: str, instance_id: str,) -
         logger.warning(f"No instance data found for {instance_id}")
         return None
     try:
-        sfr_ids = [tag["Value"] for tag in instance_data[0]["Tags"] if tag["Key"] == "aws:ec2spot:fleet-request-id"]
+        group_ids = [
+            tag["Value"]
+            for tag in instance_data[0]["Tags"]
+            if tag["Key"] in {"aws:ec2spot:fleet-request-id", "aws:ec2:fleet-id",}
+        ]
         scheduler = "mesos"
         for tag in instance_data[0]["Tags"]:
             if tag["Key"] == "KubernetesCluster":
                 scheduler = "kubernetes"
                 break
     except KeyError as e:
-        logger.warning(f"SFR tag key not found: {e}")
-        sfr_ids = []
-    if not sfr_ids:
-        logger.warning(f"No SFR ID found for {instance_id}")
+        logger.warning(f"SFR/SF tag key not found: {e}")
+        group_ids = []
+    if not group_ids:
+        logger.warning(f"No SFR/SF ID found for {instance_id}")
         return None
     try:
         ip = instance_data[0]["PrivateIpAddress"]
@@ -328,7 +361,7 @@ def host_from_instance_id(sender: str, receipt_handle: str, instance_id: str,) -
         receipt_handle=receipt_handle,
         instance_id=instance_id,
         hostname=hostnames[0],
-        group_id=sfr_ids[0],
+        group_id=group_ids[0],
         ip=ip,
         scheduler=scheduler,
     )
