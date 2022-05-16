@@ -333,7 +333,9 @@ def test_process_termination_queue(mock_draining_client):
 
 
 def test_process_drain_queue(mock_draining_client):
-    with mock.patch("clusterman.draining.queue.drain", autospec=True,) as mock_drain, mock.patch(
+    with mock.patch("clusterman.draining.queue.mesos_drain", autospec=True,) as mock_mesos_drain, mock.patch(
+        "clusterman.draining.queue.k8s_drain", autospec=True,
+    ) as mock_k8s_drain, mock.patch(
         "clusterman.draining.queue.DrainingClient.get_host_to_drain", autospec=True,
     ) as mock_get_host_to_drain, mock.patch(
         "clusterman.draining.queue.DrainingClient.delete_drain_messages", autospec=True,
@@ -348,7 +350,8 @@ def test_process_drain_queue(mock_draining_client):
         mock_get_host_to_drain.return_value = None
         mock_draining_client.process_drain_queue(mock_mesos_client, mock_kubernetes_client)
         assert mock_draining_client.get_host_to_drain.called
-        assert not mock_drain.called
+        assert not mock_mesos_drain.called
+        assert not mock_k8s_drain.called
         assert not mock_submit_host_for_termination.called
 
         mock_host = mock.Mock(hostname="")
@@ -356,7 +359,8 @@ def test_process_drain_queue(mock_draining_client):
         mock_draining_client.process_drain_queue(mock_mesos_client, mock_kubernetes_client)
         mock_submit_host_for_termination.assert_called_with(mock_draining_client, mock_host, delay=0)
         mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
-        assert not mock_drain.called
+        assert not mock_mesos_drain.called
+        assert not mock_k8s_drain.called
 
         mock_host = Host(
             hostname="host1", ip="10.1.1.1", group_id="sfr1", instance_id="i123", sender="mmb", receipt_handle="aaaaa",
@@ -364,7 +368,8 @@ def test_process_drain_queue(mock_draining_client):
         mock_get_host_to_drain.return_value = mock_host
         mock_draining_client.process_drain_queue(mock_mesos_client, mock_kubernetes_client)
         assert mock_draining_client.get_host_to_drain.called
-        mock_drain.assert_called_with(
+        assert not mock_k8s_drain.called
+        mock_mesos_drain.assert_called_with(
             mock_mesos_client, ["host1|10.1.1.1"], 1000000000, 1000000000,
         )
         mock_submit_host_for_termination.assert_called_with(mock_draining_client, mock_host)
@@ -374,12 +379,13 @@ def test_process_drain_queue(mock_draining_client):
         mock_host = Host(
             hostname="host1", ip="10.1.1.1", group_id="sfr1", instance_id="i123", sender="mmb", receipt_handle="bbb",
         )
-        mock_drain.reset_mock()
+        mock_mesos_drain.reset_mock()
         mock_submit_host_for_termination.reset_mock()
         mock_get_host_to_drain.return_value = mock_host
         mock_draining_client.process_drain_queue(mock_mesos_client, mock_kubernetes_client)
         assert mock_draining_client.get_host_to_drain.called
-        assert not mock_drain.called
+        assert not mock_mesos_drain.called
+        assert not mock_k8s_drain.called
         assert not mock_submit_host_for_termination.called
         mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
 
