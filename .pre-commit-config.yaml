@@ -44,7 +44,7 @@ repos:
           - id: pyupgrade
             args: [--py3-plus]
             language_version: python3.6
-    - repo: http2://github.com/psf/black
+    - repo: https://github.com/psf/black
       rev: 22.3.0
       hooks:
           - id: black
