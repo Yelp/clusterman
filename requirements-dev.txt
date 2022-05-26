@@ -5,6 +5,7 @@ attrs==19.2.0
 aws-sam-translator==1.15.1
 aws-xray-sdk==2.4.2
 backcall==0.1.0
+backports.entry-points-selectable==1.1.0
 behave==1.2.6
 boto==2.49.0
 cffi==1.12.3
@@ -12,11 +13,13 @@ cfgv==2.0.1
 cfn-lint==0.24.4
 coverage==4.5.4
 cryptography==2.7
+distlib==0.3.4
 docker==4.1.0
 ecdsa==0.13.3
 entrypoints==0.3
+filelock==3.0.12
 flake8==3.7.8
-identify==1.4.7
+identify==2.5.1
 ipdb==0.13.9
 ipython==7.17.0
 ipython-genutils==0.2.0
@@ -38,8 +41,9 @@ parse-type==0.5.2
 parso==0.5.1
 pexpect==4.7.0
 pickleshare==0.7.5
+platformdirs==2.5.2
 pluggy==0.13.0
-pre-commit==1.18.3
+pre-commit==2.9.2
 prompt-toolkit==2.0.10
 ptyprocess==0.6.0
 pycodestyle==2.5.0
