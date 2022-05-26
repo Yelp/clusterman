@@ -22,8 +22,8 @@ def _get_resource_request(
     allocated_resources: ClustermanResources,
     pending_pods: Optional[List[Tuple[KubernetesPod, PodUnschedulableReason]]] = None,
 ) -> SignalResourceRequest:
-    """ Given a list of metrics, construct a resource request based on the most recent
-    data for allocated and pending pods """
+    """Given a list of metrics, construct a resource request based on the most recent
+    data for allocated and pending pods"""
 
     resource_request = SignalResourceRequest()
     pending_pods = pending_pods or []
@@ -53,7 +53,9 @@ class PendingPodsSignal(Signal):
         self.cluster_connector = cluster_connector
 
     def evaluate(
-        self, timestamp: arrow.Arrow, retry_on_broken_pipe: bool = True,
+        self,
+        timestamp: arrow.Arrow,
+        retry_on_broken_pipe: bool = True,
     ) -> Union[SignalResourceRequest, List[KubernetesPod]]:
         allocated_resources = self.cluster_connector.get_cluster_allocated_resources()
         pending_pods = self.cluster_connector.get_unschedulable_pods()

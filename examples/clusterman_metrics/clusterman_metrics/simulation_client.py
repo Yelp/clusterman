@@ -36,7 +36,10 @@ def _validate_metrics_object(obj):
 
     if not set(obj).issubset(METRIC_TYPES):
         raise ValueError(
-            "Invalid metric type in {gen}; valid choices are {valid}".format(gen=list(obj), valid=list(METRIC_TYPES),)
+            "Invalid metric type in {gen}; valid choices are {valid}".format(
+                gen=list(obj),
+                valid=list(METRIC_TYPES),
+            )
         )
 
     for metric in obj.values():
@@ -129,5 +132,11 @@ class ClustermanMetricsSimulationClient(ClustermanMetricsBotoClient):
             return metrics
         else:
             return super(ClustermanMetricsSimulationClient, self)._get_new_metric_values(
-                key_prefix, metric_query, metric_type, time_start, time_end, is_regex, extra_dimensions,
+                key_prefix,
+                metric_query,
+                metric_type,
+                time_start,
+                time_end,
+                is_regex,
+                extra_dimensions,
             )

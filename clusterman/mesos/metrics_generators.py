@@ -57,13 +57,17 @@ class ClusterMetric(NamedTuple):
     dimensions: Dict[str, str]  # clusterman_metrics wants a Dict here
 
 
-def generate_system_metrics(manager: PoolManager,) -> Generator[ClusterMetric, None, None]:
+def generate_system_metrics(
+    manager: PoolManager,
+) -> Generator[ClusterMetric, None, None]:
     dimensions = get_cluster_dimensions(manager.cluster, manager.pool, manager.scheduler)
     for metric_name, value_method in SYSTEM_METRICS.items():
         yield ClusterMetric(metric_name, value_method(manager), dimensions=dimensions)
 
 
-def generate_simple_metadata(manager: PoolManager,) -> Generator[ClusterMetric, None, None]:
+def generate_simple_metadata(
+    manager: PoolManager,
+) -> Generator[ClusterMetric, None, None]:
     dimensions = get_cluster_dimensions(manager.cluster, manager.pool, manager.scheduler)
     for metric_name, value_method in SIMPLE_METADATA.items():
         try:
@@ -75,7 +79,9 @@ def generate_simple_metadata(manager: PoolManager,) -> Generator[ClusterMetric, 
         yield ClusterMetric(metric_name, result, dimensions=dimensions)
 
 
-def generate_kubernetes_metrics(manager: PoolManager,) -> Generator[ClusterMetric, None, None]:
+def generate_kubernetes_metrics(
+    manager: PoolManager,
+) -> Generator[ClusterMetric, None, None]:
     dimensions = get_cluster_dimensions(manager.cluster, manager.pool, manager.scheduler)
     for metric_name, value_method in KUBERNETES_METRICS.items():
         yield ClusterMetric(metric_name, value_method(manager), dimensions=dimensions)

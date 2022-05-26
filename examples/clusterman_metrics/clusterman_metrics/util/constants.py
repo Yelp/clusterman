@@ -21,4 +21,10 @@ SYSTEM_METRICS = "system_metrics"  #: metrics collected about the cluster state 
 APP_METRICS = "app_metrics"  #: metrics collected from client applications (e.g., number of application runs)
 METADATA = "metadata"  #: metrics collected about the cluster (e.g., current spot prices, instance types present)
 
-METRIC_TYPES = frozenset([SYSTEM_METRICS, APP_METRICS, METADATA,])
+METRIC_TYPES = frozenset(
+    [
+        SYSTEM_METRICS,
+        APP_METRICS,
+        METADATA,
+    ]
+)

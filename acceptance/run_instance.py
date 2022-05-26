@@ -32,7 +32,9 @@ dynamodb = session.client("dynamodb", endpoint_url=ddb_url)
 
 vpc_response = ec2.create_vpc(CidrBlock=cidr_block)
 subnet_response = ec2.create_subnet(
-    CidrBlock=cidr_block, VpcId=vpc_response["Vpc"]["VpcId"], AvailabilityZone="us-west-2a",
+    CidrBlock=cidr_block,
+    VpcId=vpc_response["Vpc"]["VpcId"],
+    AvailabilityZone="us-west-2a",
 )
 subnet_id = subnet_response["Subnet"]["SubnetId"]
 with open("{root}/autoscaler_config.tmpl".format(root=root)) as config_template:
@@ -57,7 +59,17 @@ sfr_response = ec2.request_spot_fleet(
                 "EbsOptimized": False,
                 # note that this is not useful until we solve
                 # https://github.com/spulec/moto/issues/1644
-                "TagSpecifications": [{"ResourceType": "instance", "Tags": [{"Key": "foo", "Value": "bar",}],}],
+                "TagSpecifications": [
+                    {
+                        "ResourceType": "instance",
+                        "Tags": [
+                            {
+                                "Key": "foo",
+                                "Value": "bar",
+                            }
+                        ],
+                    }
+                ],
             },
         ],
         "IamFleetRole": "foo",
@@ -73,7 +85,10 @@ s3.put_object(
     Body=json.dumps(
         {
             "cluster_autoscaling_resources": {
-                "aws_spot_fleet_request.local-dev": {"id": sfr_response["SpotFleetRequestId"], "pool": "default",}
+                "aws_spot_fleet_request.local-dev": {
+                    "id": sfr_response["SpotFleetRequestId"],
+                    "pool": "default",
+                }
             }
         }
     ).encode(),
@@ -81,7 +96,11 @@ s3.put_object(
 
 s3.create_bucket(Bucket="clusterman-signals")
 with open(
-    "{root}/{env}/clusterman_signals_acceptance.tar.gz".format(root=root, env=os.environ["DISTRIB_CODENAME"],), "rb",
+    "{root}/{env}/clusterman_signals_acceptance.tar.gz".format(
+        root=root,
+        env=os.environ["DISTRIB_CODENAME"],
+    ),
+    "rb",
 ) as f:
     s3.put_object(
         Bucket="clusterman-signals",
@@ -92,7 +111,10 @@ with open(
 try:
     dynamodb.create_table(
         TableName="clusterman_cluster_state",
-        KeySchema=[{"AttributeName": "state", "KeyType": "HASH"}, {"AttributeName": "entity", "KeyType": "SORT"},],
+        KeySchema=[
+            {"AttributeName": "state", "KeyType": "HASH"},
+            {"AttributeName": "entity", "KeyType": "SORT"},
+        ],
         AttributeDefinitions=[
             {"AttributeName": "state", "AttributeType": "S"},
             {"AttributeName": "entity", "AttributeType": "S"},

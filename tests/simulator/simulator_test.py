@@ -66,7 +66,15 @@ def test_compute_instance_cost_one_breakpoint(simulator, mock_instance, fn, bp_t
     assert simulator.total_cost == fn.call(arrow.get(0))
 
 
-@pytest.mark.parametrize("early_bp,late_bp", [(False, False), (False, True), (True, False), (True, True),])
+@pytest.mark.parametrize(
+    "early_bp,late_bp",
+    [
+        (False, False),
+        (False, True),
+        (True, False),
+        (True, True),
+    ],
+)
 def test_compute_instance_cost_multi_breakpoints(simulator, mock_instance, fn, early_bp, late_bp):
     fn.add_breakpoint(arrow.get(300), 3)
     fn.add_breakpoint(arrow.get(600), 5)
