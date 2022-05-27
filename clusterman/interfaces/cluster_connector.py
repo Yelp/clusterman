@@ -32,11 +32,11 @@ class ClusterConnector(metaclass=ABCMeta):
 
     @abstractmethod
     def reload_state(self) -> None:  # pragma: no cover
-        """ Refresh any state that needs to be stored at the start of an autoscaling run """
+        """Refresh any state that needs to be stored at the start of an autoscaling run"""
         pass
 
     def get_agent_metadata(self, ip_address: Optional[str]) -> AgentMetadata:
-        """ Get metadata about a cluster agent given an IP address
+        """Get metadata about a cluster agent given an IP address
 
         :param ip_address: the IP address of the agent in question; it's possible for this IP value to
             be None, which will return an object with UNKNOWN state.
@@ -92,7 +92,7 @@ class ClusterConnector(metaclass=ABCMeta):
 
     @staticmethod
     def load(cluster: str, pool: str, scheduler: str) -> "ClusterConnector":
-        """ Load the cluster connector for the given cluster and pool """
+        """Load the cluster connector for the given cluster and pool"""
         if scheduler == "mesos":
             from clusterman.mesos.mesos_cluster_connector import MesosClusterConnector
 

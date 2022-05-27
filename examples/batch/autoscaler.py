@@ -57,7 +57,11 @@ class AutoscalerBatch(BatchRunningSentinelMixin):
 
         self.apps = [self.options.pool]  # TODO (CLUSTERMAN-126) someday these should not be the same thing
 
-        pool_manager = PoolManager(self.options.cluster, self.options.pool, self.options.scheduler,)
+        pool_manager = PoolManager(
+            self.options.cluster,
+            self.options.pool,
+            self.options.scheduler,
+        )
         self.autoscaler = Autoscaler(
             self.options.cluster,
             self.options.pool,
@@ -71,7 +75,8 @@ class AutoscalerBatch(BatchRunningSentinelMixin):
         assert self.autoscaler
         time.sleep(
             splay_event_time(
-                self.autoscaler.run_frequency, self.__class__.__name__ + self.options.cluster + self.options.pool,
+                self.autoscaler.run_frequency,
+                self.__class__.__name__ + self.options.cluster + self.options.pool,
             )
         )
         with suppress_request_limit_exceeded():

@@ -62,7 +62,8 @@ def mock_pool_manager():
 @mock.patch("time.sleep")
 @mock.patch("time.time")
 @mock.patch(
-    "clusterman.batch.autoscaler.AutoscalerBatch.running", new_callable=mock.PropertyMock,
+    "clusterman.batch.autoscaler.AutoscalerBatch.running",
+    new_callable=mock.PropertyMock,
 )
 @mock.patch("clusterman.batch.autoscaler.sensu_checkin", autospec=True)
 @pytest.mark.parametrize("dry_run", [True, False])
@@ -83,7 +84,8 @@ def test_run_ok(mock_sensu, mock_running, mock_time, mock_sleep, dry_run):
 
 
 @mock.patch(
-    "clusterman.batch.autoscaler.AutoscalerBatch.running", new_callable=mock.PropertyMock,
+    "clusterman.batch.autoscaler.AutoscalerBatch.running",
+    new_callable=mock.PropertyMock,
 )
 @pytest.mark.parametrize("exc", [PoolConnectionError, EndpointConnectionError(endpoint_url="")])
 def test_run_connection_error(mock_running, exc):

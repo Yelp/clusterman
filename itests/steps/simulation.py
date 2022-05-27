@@ -78,12 +78,17 @@ def run_simulator(context, hours, per_second_billing):
         refund_outbid=refund_outbid,
     )
     with staticconf.testing.PatchConfiguration(
-        {"join_delay_mean_seconds": getattr(context, "join_delay_seconds", 0), "join_delay_stdev_seconds": 0,}
+        {
+            "join_delay_mean_seconds": getattr(context, "join_delay_seconds", 0),
+            "join_delay_stdev_seconds": 0,
+        }
     ):
         for join_time, market_counts in context.market_counts:
             context.simulator.add_event(
                 ModifyClusterSizeEvent(
-                    arrow.get(join_time), market_counts, use_join_delay=getattr(context, "use_join_delay", True),
+                    arrow.get(join_time),
+                    market_counts,
+                    use_join_delay=getattr(context, "use_join_delay", True),
                 )
             )
         for market_id, prices in getattr(context, "markets", {}).items():
@@ -113,5 +118,9 @@ def check_cluster_cpus_empty(context):
 @behave.then("instances should join the Mesos cluster")
 def check_cluster_cpus(context):
     assert_that(
-        list(context.simulator.mesos_cpus.breakpoints.items()), contains((arrow.get(300), 32), (arrow.get(1800), 0),),
+        list(context.simulator.mesos_cpus.breakpoints.items()),
+        contains(
+            (arrow.get(300), 32),
+            (arrow.get(1800), 0),
+        ),
     )

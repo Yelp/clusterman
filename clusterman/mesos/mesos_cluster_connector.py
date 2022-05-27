@@ -50,7 +50,8 @@ class MesosClusterConnector(ClusterConnector):
         super().__init__(cluster, pool)
         mesos_master_fqdn = staticconf.read_string(f"clusters.{self.cluster}.mesos_master_fqdn")
         self.non_batch_framework_prefixes = self.pool_config.read_list(
-            "non_batch_framework_prefixes", default=["marathon"],
+            "non_batch_framework_prefixes",
+            default=["marathon"],
         )
         self.api_endpoint = f"http://{mesos_master_fqdn}:5050/"
         logger.info(f"Connecting to Mesos masters at {self.api_endpoint}")
@@ -109,7 +110,9 @@ class MesosClusterConnector(ClusterConnector):
             if agent_dict.get("attributes", {}).get("pool", "default") == self.pool
         }
 
-    def _get_tasks_and_frameworks(self,) -> Tuple[Sequence[MesosTaskDict], Mapping[str, MesosFrameworkDict]]:
+    def _get_tasks_and_frameworks(
+        self,
+    ) -> Tuple[Sequence[MesosTaskDict], Mapping[str, MesosFrameworkDict]]:
         response: MesosFrameworks = mesos_post(self.api_endpoint, "master/frameworks").json()
         running_frameworks = {framework["id"]: framework for framework in response["frameworks"]}
 

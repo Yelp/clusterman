@@ -48,7 +48,10 @@ def _make_mock_simulator():
     instance_prices[_MARKETS[5]].add_breakpoint(arrow.get(0), 0.75)
     instance_prices[_MARKETS[6]].add_breakpoint(arrow.get(0), 0.8)
     instance_prices[_MARKETS[7]].add_breakpoint(arrow.get(0), 0.9)
-    return mock.Mock(instance_prices=instance_prices, current_time=arrow.get(0),)
+    return mock.Mock(
+        instance_prices=instance_prices,
+        current_time=arrow.get(0),
+    )
 
 
 @behave.given("a simulated spot fleet resource group")
@@ -56,14 +59,54 @@ def sfrg(context):
     spot_fleet_request_config = {
         "AllocationStrategy": "diversified",
         "LaunchSpecifications": [
-            {"InstanceType": "c3.4xlarge", "SpotPrice": 1.01, "WeightedCapacity": 1, "SubnetId": "us-west-1a",},
-            {"InstanceType": "c3.4xlarge", "SpotPrice": 0.41, "WeightedCapacity": 2, "SubnetId": "us-west-1b",},
-            {"InstanceType": "i2.8xlarge", "SpotPrice": 0.57, "WeightedCapacity": 3, "SubnetId": "us-west-2a",},
-            {"InstanceType": "m4.4xlarge", "SpotPrice": 2.02, "WeightedCapacity": 0.5, "SubnetId": "us-west-2b",},
-            {"InstanceType": "r4.2xlarge", "SpotPrice": 1.2, "WeightedCapacity": 1, "SubnetId": "us-west-1c",},
-            {"InstanceType": "d2.2xlarge", "SpotPrice": 0.6, "WeightedCapacity": 1.5, "SubnetId": "us-west-1c",},
-            {"InstanceType": "r4.4xlarge", "SpotPrice": 0.57, "WeightedCapacity": 2, "SubnetId": "us-west-2c",},
-            {"InstanceType": "d2.4xlarge", "SpotPrice": 1.5, "WeightedCapacity": 0.8, "SubnetId": "us-west-2c",},
+            {
+                "InstanceType": "c3.4xlarge",
+                "SpotPrice": 1.01,
+                "WeightedCapacity": 1,
+                "SubnetId": "us-west-1a",
+            },
+            {
+                "InstanceType": "c3.4xlarge",
+                "SpotPrice": 0.41,
+                "WeightedCapacity": 2,
+                "SubnetId": "us-west-1b",
+            },
+            {
+                "InstanceType": "i2.8xlarge",
+                "SpotPrice": 0.57,
+                "WeightedCapacity": 3,
+                "SubnetId": "us-west-2a",
+            },
+            {
+                "InstanceType": "m4.4xlarge",
+                "SpotPrice": 2.02,
+                "WeightedCapacity": 0.5,
+                "SubnetId": "us-west-2b",
+            },
+            {
+                "InstanceType": "r4.2xlarge",
+                "SpotPrice": 1.2,
+                "WeightedCapacity": 1,
+                "SubnetId": "us-west-1c",
+            },
+            {
+                "InstanceType": "d2.2xlarge",
+                "SpotPrice": 0.6,
+                "WeightedCapacity": 1.5,
+                "SubnetId": "us-west-1c",
+            },
+            {
+                "InstanceType": "r4.4xlarge",
+                "SpotPrice": 0.57,
+                "WeightedCapacity": 2,
+                "SubnetId": "us-west-2c",
+            },
+            {
+                "InstanceType": "d2.4xlarge",
+                "SpotPrice": 1.5,
+                "WeightedCapacity": 0.8,
+                "SubnetId": "us-west-2c",
+            },
         ],
     }
     with mock.patch(
@@ -106,19 +149,22 @@ def check_diversification(context):
 @behave.then("the fulfilled capacity should be above the target capacity")
 def check_fulfilled_capacity(context):
     assert_that(
-        context.spot_fleet.fulfilled_capacity, greater_than_or_equal_to(context.spot_fleet.target_capacity),
+        context.spot_fleet.fulfilled_capacity,
+        greater_than_or_equal_to(context.spot_fleet.target_capacity),
     )
 
 
 @behave.then("the spot fleet should have no instances from the empty market")
 def empty_market_is_empty(context):
     assert_that(
-        context.spot_fleet.market_size(_MARKETS[context.outbid_market]), equal_to(0),
+        context.spot_fleet.market_size(_MARKETS[context.outbid_market]),
+        equal_to(0),
     )
 
 
 @behave.then("the spot fleet should not add instances from the high market")
 def high_market_is_high(context):
     assert_that(
-        context.spot_fleet.market_size(_MARKETS[context.high_capacity_market]), equal_to(100),
+        context.spot_fleet.market_size(_MARKETS[context.high_capacity_market]),
+        equal_to(100),
     )

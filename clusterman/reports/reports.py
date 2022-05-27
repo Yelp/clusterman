@@ -36,7 +36,7 @@ from clusterman.reports.report_types import REPORT_TYPES
 
 
 def _get_error_threshold_function(error_threshold, simulator):
-    """ Returns a boolean-valued function that indicates whether a particular (x,y) pair is
+    """Returns a boolean-valued function that indicates whether a particular (x,y) pair is
     outside a specified threshold
 
     :param error_threshold: can be None or a string; if this is a string, the first character MAY be '+' or '-', to
@@ -73,7 +73,8 @@ def _make_report_title(fig, report, sim_metadata, months):
     report_title = f"{report.title} "
     if len(months) > 1:
         report_title += "from {start} to {end}".format(
-            start=months[0][0].format("MMMM YYYY"), end=months[-1][0].format("MMMM YYYY"),
+            start=months[0][0].format("MMMM YYYY"),
+            end=months[-1][0].format("MMMM YYYY"),
         )
     else:
         report_title += "for {month}".format(month=months[0][0].format("MMMM YYYY"))
@@ -114,8 +115,20 @@ def _make_legend(fig, heatmap_range, has_errors, legend_formatter):
     fig.legend(handles=handles, loc="upper left", fontsize=6)
 
     trend_line = Line2D([0, 1], [0, 0], color=TREND_LINE_COLOR, label="average")
-    bestfit_line = Line2D([0, 1], [0, 0], color="black", dashes=(1, 1), linewidth=0.75, label="best fit line",)
-    trend_patch = Patch(color=TREND_RANGE_COLOR, alpha=TREND_RANGE_ALPHA, label="interquartile range", linewidth=0,)
+    bestfit_line = Line2D(
+        [0, 1],
+        [0, 0],
+        color="black",
+        dashes=(1, 1),
+        linewidth=0.75,
+        label="best fit line",
+    )
+    trend_patch = Patch(
+        color=TREND_RANGE_COLOR,
+        alpha=TREND_RANGE_ALPHA,
+        label="interquartile range",
+        linewidth=0,
+    )
     fig.legend(handles=[trend_line, bestfit_line, trend_patch], loc="upper right", fontsize=6)
 
 
@@ -129,7 +142,7 @@ def _make_axis_titles(report, report_data, months):
 
 
 def make_report(name, simulator, start_time, end_time, output_prefix="", tz="US/Pacific"):
-    """ Create a report for a clusterman simulation run
+    """Create a report for a clusterman simulation run
 
     The layout for this report is a set of rows (one for each month in the time range)
     with [heatmap, trend_line] charts in each row.  The overall cost for each month is printed
@@ -160,7 +173,12 @@ def make_report(name, simulator, start_time, end_time, output_prefix="", tz="US/
     heatmap_data, error_data, *heatmap_range = transform_heatmap_data(report_data, error_threshold_fn, months, tz)
     trend_data, *trend_range = transform_trend_data(report_data, months, report.trend_rollup)
 
-    heatmap = PlotStruct(heatmap_data, error_data, heatmap_range, _make_axis_titles(report, report_data, months),)
+    heatmap = PlotStruct(
+        heatmap_data,
+        error_data,
+        heatmap_range,
+        _make_axis_titles(report, report_data, months),
+    )
     trend = PlotStruct(trend_data, None, trend_range, report.trend_label, report.trend_axis_formatter)
 
     generate_heatmap_trend_grid(fig, heatmap, trend, months, tz)

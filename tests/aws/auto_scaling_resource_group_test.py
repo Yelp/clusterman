@@ -58,15 +58,24 @@ def mock_pool():
 def mock_asg_config(mock_subnet, mock_launch_template, mock_asg_name, mock_cluster, mock_pool):
     asg = {
         "AutoScalingGroupName": mock_asg_name,
-        "LaunchTemplate": {"LaunchTemplateName": "fake_launch_template", "Version": "1",},
+        "LaunchTemplate": {
+            "LaunchTemplateName": "fake_launch_template",
+            "Version": "1",
+        },
         "MinSize": 1,
         "MaxSize": 30,
         "DesiredCapacity": 10,
         "AvailabilityZones": ["us-west-2a"],
         "VPCZoneIdentifier": mock_subnet["Subnet"]["SubnetId"],
         "Tags": [
-            {"Key": "puppet:role::paasta", "Value": json.dumps({"pool": mock_pool, "paasta_cluster": mock_cluster}),},
-            {"Key": "fake_tag_key", "Value": "fake_tag_value",},
+            {
+                "Key": "puppet:role::paasta",
+                "Value": json.dumps({"pool": mock_pool, "paasta_cluster": mock_cluster}),
+            },
+            {
+                "Key": "fake_tag_key",
+                "Value": "fake_tag_value",
+            },
         ],
         "NewInstancesProtectedFromScaleIn": True,
     }
@@ -90,7 +99,14 @@ def test_market_weight(mock_asrg, instance_type):
 def test_mark_stale(mock_asrg, dry_run):
     mock_asrg.mark_stale(dry_run)
     for inst in mock_asrg.instance_ids:
-        tags = ec2.describe_tags(Filters=[{"Name": "resource-id", "Values": [inst],}],)
+        tags = ec2.describe_tags(
+            Filters=[
+                {
+                    "Name": "resource-id",
+                    "Values": [inst],
+                }
+            ],
+        )
         stale_tags = [tag for tag in tags["Tags"] if tag["Key"] == CLUSTERMAN_STALE_TAG]
         if dry_run:
             assert not stale_tags
@@ -107,7 +123,9 @@ def test_modify_target_capacity_up(mock_asrg, stale_instances):
     ):
 
         mock_asrg.modify_target_capacity(
-            new_desired_capacity, dry_run=False, honor_cooldown=False,
+            new_desired_capacity,
+            dry_run=False,
+            honor_cooldown=False,
         )
 
         new_config = mock_asrg._get_auto_scaling_group_config()
@@ -124,7 +142,9 @@ def test_modify_target_capacity_down(mock_asrg, stale_instances):
         mock.PropertyMock(return_value=mock_asrg.instance_ids[:stale_instances]),
     ):
         mock_asrg.modify_target_capacity(
-            new_target_capacity, dry_run=False, honor_cooldown=False,
+            new_target_capacity,
+            dry_run=False,
+            honor_cooldown=False,
         )
 
         new_config = mock_asrg._get_auto_scaling_group_config()
@@ -135,10 +155,14 @@ def test_modify_target_capacity_down(mock_asrg, stale_instances):
 
 @pytest.mark.parametrize("new_desired_capacity", [0, 100])
 def test_modify_target_capacity_min_max(
-    mock_asrg, mock_asg_config, new_desired_capacity,
+    mock_asrg,
+    mock_asg_config,
+    new_desired_capacity,
 ):
     mock_asrg.modify_target_capacity(
-        new_desired_capacity, dry_run=False, honor_cooldown=False,
+        new_desired_capacity,
+        dry_run=False,
+        honor_cooldown=False,
     )
 
     new_config = mock_asrg._get_auto_scaling_group_config()
@@ -172,8 +196,14 @@ def test_get_launch_template_and_overrides_no_overrides(mock_asrg):
 
 def test_get_launch_template_and_overrides_with_overrides(mock_asrg):
     expected_overrides = [
-        {"InstanceType": "t2.2xlarge", "WeightedCapacity": 400,},
-        {"InstanceType": "m5.12xlarge", "WeightedCapacity": 12345,},
+        {
+            "InstanceType": "t2.2xlarge",
+            "WeightedCapacity": 400,
+        },
+        {
+            "InstanceType": "m5.12xlarge",
+            "WeightedCapacity": 12345,
+        },
     ]
     mock_asrg._group_config["MixedInstancesPolicy"] = {
         "LaunchTemplate": {
@@ -199,7 +229,12 @@ def test_get_options_for_instance_type(mock_asrg):
     assert all(
         [
             r.agent.total_resources
-            == ClustermanResources(cpus=16, mem=64 * 1024, disk=DEFAULT_VOLUME_SIZE_GB * 1024, gpus=0,)
+            == ClustermanResources(
+                cpus=16,
+                mem=64 * 1024,
+                disk=DEFAULT_VOLUME_SIZE_GB * 1024,
+                gpus=0,
+            )
             for r in result
         ]
     )

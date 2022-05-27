@@ -94,7 +94,8 @@ def autoscaler_patches(context):
     with staticconf.testing.PatchConfiguration({"autoscaling": {"default_signal_role": "bar"}},), mock.patch(
         "clusterman.autoscaler.autoscaler.get_monitoring_client",
     ), mock.patch("clusterman.aws.util.SpotFleetResourceGroup.load", return_value=resource_groups,), mock.patch(
-        "clusterman.autoscaler.pool_manager.PoolManager", wraps=PoolManager,
+        "clusterman.autoscaler.pool_manager.PoolManager",
+        wraps=PoolManager,
     ), mock.patch(
         "clusterman.autoscaler.autoscaler.PoolManager.prune_excess_fulfilled_capacity",
     ), mock.patch(
@@ -109,7 +110,10 @@ def autoscaler_patches(context):
     ) as mock_metrics, mock_dynamodb2():
         dynamodb.create_table(
             TableName=CLUSTERMAN_STATE_TABLE,
-            KeySchema=[{"AttributeName": "state", "KeyType": "HASH"}, {"AttributeName": "entity", "KeyType": "SORT"},],
+            KeySchema=[
+                {"AttributeName": "state", "KeyType": "HASH"},
+                {"AttributeName": "entity", "KeyType": "SORT"},
+            ],
             AttributeDefinitions=[
                 {"AttributeName": "state", "AttributeType": "S"},
                 {"AttributeName": "entity", "AttributeType": "S"},
@@ -181,7 +185,13 @@ def mock_historical_metrics(metric_name, metric_type, time_start, time_end, extr
 
 def make_mock_scaling_metrics(allocated_cpus, boost_factor):
     def mock_scaling_metrics(
-        metric_name, metric_type, time_start, time_end, extra_dimensions, is_regex, app_identifier,
+        metric_name,
+        metric_type,
+        time_start,
+        time_end,
+        extra_dimensions,
+        is_regex,
+        app_identifier,
     ):
         if metric_name == "cpus_allocated":
             return {
@@ -244,7 +254,8 @@ def mesos_autoscaler(context):
     behave.use_fixture(autoscaler_patches, context)
     if hasattr(context, "allocated_cpus"):
         context.autoscaler.metrics_client.get_metric_values.side_effect = make_mock_scaling_metrics(
-            context.allocated_cpus, context.boost,
+            context.allocated_cpus,
+            context.boost,
         )
     context.autoscaler = Autoscaler(
         cluster="mesos-test",
@@ -274,8 +285,8 @@ def create_k8s_autoscaler(context, prevent_scale_down_after_capacity_loss=False)
     )
     context.mock_cluster_connector._pending_pods = []
     if float(context.pending_cpus) > 0:
-        context.mock_cluster_connector.get_unschedulable_pods = lambda: KubernetesClusterConnector.get_unschedulable_pods(  # noqa
-            context.mock_cluster_connector
+        context.mock_cluster_connector.get_unschedulable_pods = (
+            lambda: KubernetesClusterConnector.get_unschedulable_pods(context.mock_cluster_connector)  # noqa
         )
         context.mock_cluster_connector._get_pod_unschedulable_reason.side_effect = lambda pod: (
             PodUnschedulableReason.InsufficientResources
@@ -292,7 +303,8 @@ def create_k8s_autoscaler(context, prevent_scale_down_after_capacity_loss=False)
                 spec=V1PodSpec(
                     containers=[
                         V1Container(
-                            name="container1", resources=V1ResourceRequirements(requests={"cpu": context.pending_cpus}),
+                            name="container1",
+                            resources=V1ResourceRequirements(requests={"cpu": context.pending_cpus}),
                         ),
                     ]
                 ),
@@ -306,7 +318,8 @@ def create_k8s_autoscaler(context, prevent_scale_down_after_capacity_loss=False)
                 spec=V1PodSpec(
                     containers=[
                         V1Container(
-                            name="container1", resources=V1ResourceRequirements(requests={"cpu": context.pending_cpus}),
+                            name="container1",
+                            resources=V1ResourceRequirements(requests={"cpu": context.pending_cpus}),
                         ),
                     ]
                 ),
@@ -372,7 +385,11 @@ def signal_resource_request(context, value):
     else:
         n, t = value.split(" ")
         resources = '{"' + t + '":' + n + "}"
-    context.autoscaler.signal._signal_conn.recv.side_effect = [ACK, ACK, '{"Resources": ' + resources + "}",] * 2
+    context.autoscaler.signal._signal_conn.recv.side_effect = [
+        ACK,
+        ACK,
+        '{"Resources": ' + resources + "}",
+    ] * 2
 
 
 @behave.when("the autoscaler runs")
@@ -429,7 +446,10 @@ def rg_capacity_change(context, rg, target):
     groups = list(context.autoscaler.pool_manager.resource_groups.values())
     if int(target) != groups[int(rg) - 1].target_capacity:
         assert_that(
-            groups[int(rg) - 1].modify_target_capacity.call_args_list, has_item(mock.call(int(target), dry_run=False),),
+            groups[int(rg) - 1].modify_target_capacity.call_args_list,
+            has_item(
+                mock.call(int(target), dry_run=False),
+            ),
         )
     else:
         assert_that(groups[int(rg) - 1].modify_target_capacity.call_count, equal_to(0))

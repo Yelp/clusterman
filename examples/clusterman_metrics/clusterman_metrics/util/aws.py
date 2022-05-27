@@ -25,7 +25,8 @@ def _setup_session():
     with open(staticconf.read_string("access_key_file", namespace=CONFIG_NAMESPACE)) as boto_cfg_file:
         boto_cfg = json.load(boto_cfg_file)
         _session = boto3.session.Session(
-            aws_access_key_id=boto_cfg["accessKeyId"], aws_secret_access_key=boto_cfg["secretAccessKey"],
+            aws_access_key_id=boto_cfg["accessKeyId"],
+            aws_secret_access_key=boto_cfg["secretAccessKey"],
         )
     return _session
 

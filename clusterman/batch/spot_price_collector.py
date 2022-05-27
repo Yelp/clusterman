@@ -82,7 +82,12 @@ class SpotPriceCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMix
 
     def run(self):
         while self.running:
-            time.sleep(splay_event_time(self.run_interval, self.get_name() + staticconf.read_string("aws.region"),))
+            time.sleep(
+                splay_event_time(
+                    self.run_interval,
+                    self.get_name() + staticconf.read_string("aws.region"),
+                )
+            )
 
             now = arrow.utcnow()
             with self.metrics_client.get_writer(METADATA) as writer:

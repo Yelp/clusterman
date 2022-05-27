@@ -81,7 +81,8 @@ def load_cluster_pool_config(cluster: str, pool: str, scheduler: str, signals_br
     staticconf.YamlConfiguration(pool_config_file, namespace=pool_namespace)
     if signals_branch_or_tag:
         staticconf.DictConfiguration(
-            {"autoscale_signal": {"branch_or_tag": signals_branch_or_tag}}, namespace=pool_namespace,
+            {"autoscale_signal": {"branch_or_tag": signals_branch_or_tag}},
+            namespace=pool_namespace,
         )
 
 
