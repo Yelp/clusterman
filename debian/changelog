@@ -1,3 +1,9 @@
+clusterman (4.7.1) xenial bionic; urgency=low
+
+  * Add definitions of the m6id and c6id instance type families
+
+ -- Timmy Zhu <tzhu@yelp.com>  Tue, 31 May 2022 12:18:36 -0700
+
 clusterman (4.7.0) xenial bionic; urgency=low
 
   * Default behaviour of the orphan instances termination was changed
