@@ -43,6 +43,7 @@ from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.batch.util import BatchLoggingMixin
 from clusterman.batch.util import BatchRunningSentinelMixin
 from clusterman.batch.util import suppress_request_limit_exceeded
+from clusterman.clusterman.tools.rookout import enable_rookout
 from clusterman.config import get_pool_config_path
 from clusterman.config import load_cluster_pool_config
 from clusterman.config import setup_config
@@ -217,4 +218,5 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
 
 if __name__ == "__main__":
     setup_logging()
+    enable_rookout()
     ClusterMetricsCollector().start()

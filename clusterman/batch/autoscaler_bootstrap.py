@@ -29,6 +29,7 @@ from clusterman.args import add_env_config_path_arg
 from clusterman.args import add_pool_arg
 from clusterman.args import add_scheduler_arg
 from clusterman.batch.util import BatchLoggingMixin
+from clusterman.clusterman.tools.rookout import enable_rookout
 from clusterman.config import get_pool_config_path
 from clusterman.config import setup_config
 from clusterman.signals.external_signal import setup_signals_environment
@@ -157,4 +158,5 @@ class AutoscalerBootstrapBatch(BatchDaemon, BatchLoggingMixin):
 
 if __name__ == "__main__":
     setup_logging()
+    enable_rookout()
     AutoscalerBootstrapBatch().start()

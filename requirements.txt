@@ -49,3 +49,7 @@ urllib3==1.25.9
 websocket-client==0.56.0
 ws4py==0.5.1
 zipp==0.6.0
+rook==0.1.160
+distro==1.7.0
+funcsigs==1.0.2
+psutil==5.9.1
