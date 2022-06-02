@@ -19,7 +19,4 @@ signalfx
 simplejson
 sortedcontainers
 typing-extensions
-rook==0.1.160
-distro==1.7.0
-funcsigs==1.0.2
-psutil==5.9.1
+rook
