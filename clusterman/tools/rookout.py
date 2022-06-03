@@ -14,7 +14,7 @@
 from os import getenv
 
 
-def enable_rookout():
+def enable_rookout() -> None:
     """Enable rookout if environment variables are set"""
     if getenv("ROOKOUT_ENABLE", "") != "1":
         return
