@@ -29,10 +29,10 @@ from clusterman.args import add_env_config_path_arg
 from clusterman.args import add_pool_arg
 from clusterman.args import add_scheduler_arg
 from clusterman.batch.util import BatchLoggingMixin
-from clusterman.clusterman.tools.rookout import enable_rookout
 from clusterman.config import get_pool_config_path
 from clusterman.config import setup_config
 from clusterman.signals.external_signal import setup_signals_environment
+from clusterman.tools.rookout import enable_rookout
 from clusterman.util import get_autoscaler_scribe_stream
 from clusterman.util import setup_logging
 
