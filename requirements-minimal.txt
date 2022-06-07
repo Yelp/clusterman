@@ -19,3 +19,4 @@ signalfx
 simplejson
 sortedcontainers
 typing-extensions
+rook

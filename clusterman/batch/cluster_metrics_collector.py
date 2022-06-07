@@ -50,6 +50,7 @@ from clusterman.mesos.metrics_generators import ClusterMetric
 from clusterman.mesos.metrics_generators import generate_kubernetes_metrics
 from clusterman.mesos.metrics_generators import generate_simple_metadata
 from clusterman.mesos.metrics_generators import generate_system_metrics
+from clusterman.tools.rookout import enable_rookout
 from clusterman.util import All
 from clusterman.util import get_pool_name_list
 from clusterman.util import sensu_checkin
@@ -217,4 +218,5 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
 
 if __name__ == "__main__":
     setup_logging()
+    enable_rookout()
     ClusterMetricsCollector().start()
