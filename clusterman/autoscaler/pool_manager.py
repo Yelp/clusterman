@@ -242,6 +242,9 @@ class PoolManager:
         for metadata in node_metadatas:
             group_id = metadata.instance.group_id
             if group_id in known_group_ids and self._is_expired_orphan_instance(metadata, threshold_seconds):
+                if metadata.instance.is_cordoned:
+                    logger.info(f"Not terminating cordoned expired orphan instance {metadata.instance.instance_id}")
+                    continue
                 if group_id not in group_id_to_instance_ids:
                     group_id_to_instance_ids[group_id] = []
                 group_id_to_instance_ids[group_id].append(metadata.instance.instance_id)
