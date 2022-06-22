@@ -600,6 +600,7 @@ def test_get_expired_orphan_instances(mock_pool_manager):
             _make_metadata("sfr-1", "i-3", agent_state=AgentState.ORPHANED, uptime=2500),
             _make_metadata("sfr-2", "i-4", agent_state=AgentState.RUNNING, uptime=2500),
             _make_metadata("sfr-2", "i-5", agent_state=AgentState.RUNNING, uptime=2500),
+            _make_metadata("sfr-2", "i-6", agent_state=AgentState.ORPHANED, uptime=2500, is_cordoned=True),
         ]
     )
 
