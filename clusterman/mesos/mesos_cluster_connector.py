@@ -126,3 +126,6 @@ class MesosClusterConnector(ClusterConnector):
         """If the framework matches any of the prefixes in self.non_batch_framework_prefixes
         this will return False, otherwise we assume the task to be a batch task"""
         return not any([framework_name.startswith(prefix) for prefix in self.non_batch_framework_prefixes])
+
+    def _get_task_count_realtime(self, agent: AgentMetadata) -> int:
+        return agent.task_count

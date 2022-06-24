@@ -46,6 +46,12 @@ class ClusterConnector(metaclass=ABCMeta):
             return AgentMetadata()
         return self._get_agent_metadata(ip_address)
 
+    def get_task_count_realtime(self, agent: Optional[AgentMetadata]) -> int:
+        #TODO add description here
+        if not agent:
+            return 0
+        return self._get_task_count_realtime(agent)
+
     @abstractmethod
     def get_resource_allocation(self, resource_name: str) -> float:  # pragma: no cover
         """Get the total amount of the given resource currently allocated for this pool.
@@ -88,6 +94,10 @@ class ClusterConnector(metaclass=ABCMeta):
 
     @abstractmethod
     def _get_agent_metadata(self, ip_address: str) -> AgentMetadata:  # pragma: no cover
+        pass
+
+    @abstractmethod
+    def _get_task_count_realtime(self, agent: AgentMetadata) -> int:
         pass
 
     @staticmethod

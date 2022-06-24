@@ -241,6 +241,10 @@ class KubernetesClusterConnector(ClusterConnector):
                     break
         return count
 
+    def _get_task_count_realtime(self, agent: AgentMetadata) -> int:
+        # TODO should be implemented: describe node and get information here if possible
+        return 0
+
     @property
     def pool_label_key(self):
         return self.pool_config.read_string("pool_label_key", default="clusterman.com/pool")
