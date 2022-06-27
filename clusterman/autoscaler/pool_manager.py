@@ -424,7 +424,13 @@ class PoolManager:
                 continue
 
             task_count_realtime = self.cluster_connector.get_task_count_realtime(node_metadata.agent)
-            if killed_task_count + task_count_realtime > self.max_tasks_to_kill:  # case 2
+
+            if (
+                killed_task_count + node_metadata.agent.task_count > self.max_tasks_to_kill or
+                killed_task_count + self.cluster_connector.get_task_count_realtime(
+                    node_metadata.agent) > self.max_tasks_to_kill
+            ):  # case 2
+                # fix log to write correct count
                 logger.info(
                     f"Killing instance {instance_id} with {node_metadata.agent.task_count} tasks would take us "
                     f"over our max_tasks_to_kill of {self.max_tasks_to_kill}. Skipping this instance."
@@ -440,7 +446,9 @@ class PoolManager:
                     continue
 
             logger.info(f"marking {instance_id} for termination")
-            #TODO taint node - noschedule ---
+
+            self.cluster_connector.freeze_agent(node_metadata.agent)
+
             marked_nodes[group_id].append(node_metadata)
             rem_group_capacities[group_id] -= instance_weight
             curr_capacity -= instance_weight
