@@ -219,15 +219,14 @@ class KubernetesClusterConnector(ClusterConnector):
             "exclude_daemonset_pods",
             default=staticconf.read_bool("exclude_daemonset_pods", default=False),
         )
-        all_pods = self._core_api.list_pod_for_all_namespaces().items
+        all_pods = self.get_all_pods_for_the_pool()
         for pod in all_pods:
-            if self._pod_belongs_to_pool(pod):
-                if exclude_daemonset_pods and self._pod_belongs_to_daemonset(pod):
-                    excluded_pods_by_ip[pod.status.host_ip].append(pod)
-                elif pod.status.phase == "Running":
-                    pods_by_ip[pod.status.host_ip].append(pod)
-                else:
-                    pending_pods.append(pod)
+            if exclude_daemonset_pods and self._pod_belongs_to_daemonset(pod):
+                excluded_pods_by_ip[pod.status.host_ip].append(pod)
+            elif pod.status.phase == "Running":
+                pods_by_ip[pod.status.host_ip].append(pod)
+            else:
+                pending_pods.append(pod)
         return pods_by_ip, pending_pods, excluded_pods_by_ip
 
     def _count_batch_tasks(self, node_ip: str) -> int:
@@ -240,6 +239,22 @@ class KubernetesClusterConnector(ClusterConnector):
                     count += not strtobool(value)  # if it's safe to evict, it's NOT a batch task
                     break
         return count
+
+    def get_all_namespaces(self) -> [str]:
+        total_namespaces = []
+        namespaces_in_cluster = self._core_api.list_namespace().items
+        for data in namespaces_in_cluster:
+            total_namespaces.append(data.metadata.name)
+        return total_namespaces
+
+    def get_all_pods_for_the_pool(self) -> List[KubernetesPod]:
+        all_pods = []
+        pool_label_selector = self.pool_config.read_string("pool_label_key", default="clusterman.com/pool")
+        label_selector="{0}={1}".format(pool_label_selector, self.pool)
+        for namespace in self.get_all_namespaces():
+            pods_with_pool_labels = self._core_api.list_namespaced_pod(namespace=namespace, label_selector=label_selector)
+            all_pods = all_pods + pods_with_pool_labels
+        return all_pods
 
     @property
     def pool_label_key(self):
