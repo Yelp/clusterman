@@ -219,8 +219,7 @@ class KubernetesClusterConnector(ClusterConnector):
             "exclude_daemonset_pods",
             default=staticconf.read_bool("exclude_daemonset_pods", default=False),
         )
-        all_pods = self.get_all_pods_for_the_pool()
-        for pod in all_pods:
+        for pod in self.get_all_pods_for_the_pool():
             if exclude_daemonset_pods and self._pod_belongs_to_daemonset(pod):
                 excluded_pods_by_ip[pod.status.host_ip].append(pod)
             elif pod.status.phase == "Running":
@@ -241,14 +240,16 @@ class KubernetesClusterConnector(ClusterConnector):
         return count
 
     def get_all_namespaces(self) -> List[str]:
-        total_namespaces = []
+        total_namespaces: List[str] = []
+        
         namespaces_in_cluster = self._core_api.list_namespace().items
         for data in namespaces_in_cluster:
             total_namespaces.append(data.metadata.name)
         return total_namespaces
 
     def get_all_pods_for_the_pool(self) -> List[KubernetesPod]:
-        all_pods = []
+        all_pods: List[KubernetesPod] = []
+
         pool_label_selector = self.pool_config.read_string("pool_label_key", default="clusterman.com/pool")
         label_selector="{0}={1}".format(pool_label_selector, self.pool)
         for namespace in self.get_all_namespaces():
