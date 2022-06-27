@@ -423,8 +423,6 @@ class PoolManager:
                 logger.info(f"Resource group {group_id} is at target capacity; skipping {instance_id}")
                 continue
 
-            task_count_realtime = self.cluster_connector.get_task_count_realtime(node_metadata.agent)
-
             if (
                 killed_task_count + node_metadata.agent.task_count > self.max_tasks_to_kill or
                 killed_task_count + self.cluster_connector.get_task_count_realtime(
