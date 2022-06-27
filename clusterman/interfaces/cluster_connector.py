@@ -52,6 +52,11 @@ class ClusterConnector(metaclass=ABCMeta):
             return 0
         return self._get_task_count_realtime(agent)
 
+    def freeze_agent(self, agent: Optional[AgentMetadata]) -> None:
+        #TODO add description here
+        if agent:
+            self._freeze_agent(agent)
+
     @abstractmethod
     def get_resource_allocation(self, resource_name: str) -> float:  # pragma: no cover
         """Get the total amount of the given resource currently allocated for this pool.
@@ -98,6 +103,10 @@ class ClusterConnector(metaclass=ABCMeta):
 
     @abstractmethod
     def _get_task_count_realtime(self, agent: AgentMetadata) -> int:
+        pass
+
+    @abstractmethod
+    def _freeze_agent(self, agent: AgentMetadata) -> None:
         pass
 
     @staticmethod

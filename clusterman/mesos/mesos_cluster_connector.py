@@ -129,3 +129,6 @@ class MesosClusterConnector(ClusterConnector):
 
     def _get_task_count_realtime(self, agent: AgentMetadata) -> int:
         return agent.task_count
+
+    def _freeze_agent(self, agent: AgentMetadata) -> None:
+        return
