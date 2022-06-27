@@ -240,7 +240,7 @@ class KubernetesClusterConnector(ClusterConnector):
                     break
         return count
 
-    def get_all_namespaces(self) -> [str]:
+    def get_all_namespaces(self) -> List[str]:
         total_namespaces = []
         namespaces_in_cluster = self._core_api.list_namespace().items
         for data in namespaces_in_cluster:
