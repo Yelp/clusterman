@@ -406,7 +406,8 @@ class PoolManager:
             #  1) The resource group the node belongs to can't be reduced further.
             #  2) Killing the node's tasks would take over the maximum number of tasks we are willing to kill.
             #  3) Killing the node would bring us under our target_capacity of non-orphaned nodes.
-            #  4) agent.task_count may be outdated date (case 3), and pods may be terminated unintentionally.
+            #  4) Killing the node's tasks would take over the maximum number of tasks per node we are willing to kill.
+            #     But agent.task_count may be outdated date, and pods may be terminated unintentionally.
             #     Therefore, double-checking task count from kube-api to avoid that case.
             # In each of the cases, the node has been removed from consideration and we jump to the next iteration.
 
