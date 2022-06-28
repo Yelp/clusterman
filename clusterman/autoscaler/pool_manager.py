@@ -444,6 +444,7 @@ class PoolManager:
             self.cluster_connector.freeze_agent(node_metadata.agent)
 
             task_count_realtime = self.cluster_connector.get_task_count_realtime(node_metadata.agent)
+            #node_metadata.agent.task_count = task_count_realtime not sure yet
             if killed_task_count + task_count_realtime > self.max_tasks_to_kill:  # case 4
                 logger.info(
                     f"Killing instance {instance_id} with {task_count_realtime} tasks (realtime) would take us "
