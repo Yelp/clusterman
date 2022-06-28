@@ -444,16 +444,17 @@ class PoolManager:
             logger.info(f"freezing {instance_id} for termination")
             self.cluster_connector.freeze_agent(node_metadata.agent)
 
-            task_count_realtime = self.cluster_connector.get_task_count_realtime(node_metadata.agent)
-            #node_metadata.agent.task_count = task_count_realtime not sure yet
-            if task_count_realtime > self.max_tasks_per_node_to_kill:  # case 4
-                logger.info(
-                    f"Killing instance {instance_id} with {task_count_realtime} tasks  would take us "
-                    f"over our max_tasks_per_node_to_kill of {self.max_tasks_per_node_to_kill}. Skipping this instance."
-                )
-                logger.info(f"unfreezing {instance_id} for termination")
-                self.cluster_connector.unfreeze_agent(node_metadata.agent)
-                continue
+            if self.max_tasks_per_node_to_kill != float("inf"):
+                task_count_realtime = self.cluster_connector.get_task_count_realtime(node_metadata.agent)
+                #node_metadata.agent.task_count = task_count_realtime not sure yet
+                if task_count_realtime > self.max_tasks_per_node_to_kill:  # case 4
+                    logger.info(
+                        f"Killing instance {instance_id} with {task_count_realtime} tasks  would take us "
+                        f"over our max_tasks_per_node_to_kill of {self.max_tasks_per_node_to_kill}. Skipping this instance."
+                    )
+                    logger.info(f"unfreezing {instance_id} for termination")
+                    self.cluster_connector.unfreeze_agent(node_metadata.agent)
+                    continue
 
             logger.info(f"marking {instance_id} for termination")
             marked_nodes[group_id].append(node_metadata)
