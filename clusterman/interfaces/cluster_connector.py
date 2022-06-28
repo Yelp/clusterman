@@ -57,6 +57,11 @@ class ClusterConnector(metaclass=ABCMeta):
         if agent:
             self._freeze_agent(agent)
 
+    def unfreeze_agent(self, agent: Optional[AgentMetadata]) -> None:
+        #TODO add description here
+        if agent:
+            self._unfreeze_agent(agent)
+
     @abstractmethod
     def get_resource_allocation(self, resource_name: str) -> float:  # pragma: no cover
         """Get the total amount of the given resource currently allocated for this pool.
@@ -107,6 +112,10 @@ class ClusterConnector(metaclass=ABCMeta):
 
     @abstractmethod
     def _freeze_agent(self, agent: AgentMetadata) -> None:
+        pass
+
+    @abstractmethod
+    def _unfreeze_agent(self, agent: AgentMetadata) -> None:
         pass
 
     @staticmethod

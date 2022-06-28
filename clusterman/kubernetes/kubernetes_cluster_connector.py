@@ -254,6 +254,14 @@ class KubernetesClusterConnector(ClusterConnector):
     def _freeze_agent(self, agent: AgentMetadata) -> None:
         body = {
             "spec": {
+                "unschedulable": True
+            }
+        }
+        self._core_api.patch_node(agent.agent_id, body)
+
+    def _unfreeze_agent(self, agent: AgentMetadata) -> None:
+        body = {
+            "spec": {
                 "unschedulable": False
             }
         }
