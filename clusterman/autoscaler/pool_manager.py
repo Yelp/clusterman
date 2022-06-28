@@ -405,6 +405,8 @@ class PoolManager:
             #  1) The resource group the node belongs to can't be reduced further.
             #  2) Killing the node's tasks would take over the maximum number of tasks we are willing to kill.
             #  3) Killing the node would bring us under our target_capacity of non-orphaned nodes.
+            #  4) agent.task_count may be outdated date (case 3), and pods may be terminated unintentionally.
+            #     Therefore, double-checking task count from kube-api to avoid that case.
             # In each of the cases, the node has been removed from consideration and we jump to the next iteration.
 
             instance_id = node_metadata.instance.instance_id
@@ -423,12 +425,7 @@ class PoolManager:
                 logger.info(f"Resource group {group_id} is at target capacity; skipping {instance_id}")
                 continue
 
-            if (
-                killed_task_count + node_metadata.agent.task_count > self.max_tasks_to_kill or
-                killed_task_count + self.cluster_connector.get_task_count_realtime(
-                    node_metadata.agent) > self.max_tasks_to_kill
-            ):  # case 2
-                # fix log to write correct count
+            if killed_task_count + node_metadata.agent.task_count > self.max_tasks_to_kill:  # case 2
                 logger.info(
                     f"Killing instance {instance_id} with {node_metadata.agent.task_count} tasks would take us "
                     f"over our max_tasks_to_kill of {self.max_tasks_to_kill}. Skipping this instance."
@@ -442,6 +439,14 @@ class PoolManager:
                         f"our target_capacity for non-orphan boxes. Skipping this instance."
                     )
                     continue
+
+            task_count_realtime = self.cluster_connector.get_task_count_realtime(node_metadata.agent)
+            if killed_task_count + task_count_realtime > self.max_tasks_to_kill:  # case 4
+                logger.info(
+                    f"Killing instance {instance_id} with {task_count_realtime} tasks (realtime) would take us "
+                    f"over our max_tasks_to_kill of {self.max_tasks_to_kill}. Skipping this instance."
+                )
+                continue
 
             logger.info(f"marking {instance_id} for termination")
 
