@@ -72,6 +72,7 @@ class PoolManager:
         self.min_capacity = self.pool_config.read_int("scaling_limits.min_capacity")
         self.max_capacity = self.pool_config.read_int("scaling_limits.max_capacity")
         self.max_tasks_to_kill = read_int_or_inf(self.pool_config, "scaling_limits.max_tasks_to_kill")
+        self.max_tasks_per_node_to_kill = read_int_or_inf(self.pool_config, "scaling_limits.max_tasks_per_node_to_kill")
         self.max_weight_to_add = self.pool_config.read_int("scaling_limits.max_weight_to_add")
         self.max_weight_to_remove = self.pool_config.read_int("scaling_limits.max_weight_to_remove")
 
@@ -445,10 +446,10 @@ class PoolManager:
 
             task_count_realtime = self.cluster_connector.get_task_count_realtime(node_metadata.agent)
             #node_metadata.agent.task_count = task_count_realtime not sure yet
-            if killed_task_count + task_count_realtime > self.max_tasks_to_kill:  # case 4
+            if task_count_realtime > self.max_tasks_per_node_to_kill:  # case 4
                 logger.info(
-                    f"Killing instance {instance_id} with {task_count_realtime} tasks (realtime) would take us "
-                    f"over our max_tasks_to_kill of {self.max_tasks_to_kill}. Skipping this instance."
+                    f"Killing instance {instance_id} with {task_count_realtime} tasks  would take us "
+                    f"over our max_tasks_per_node_to_kill of {self.max_tasks_per_node_to_kill}. Skipping this instance."
                 )
                 logger.info(f"unfreezing {instance_id} for termination")
                 self.cluster_connector.unfreeze_agent(node_metadata.agent)
@@ -544,6 +545,8 @@ class PoolManager:
         elif not node_metadata.agent.is_safe_to_kill:
             return False
         elif node_metadata.instance.is_cordoned:
+            return False
+        elif self.max_tasks_per_node_to_kill < node_metadata.agent.task_count:
             return False
         elif self.max_tasks_to_kill > node_metadata.agent.task_count:
             return True
