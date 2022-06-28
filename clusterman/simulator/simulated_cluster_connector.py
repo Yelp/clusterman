@@ -67,3 +67,6 @@ class SimulatedClusterConnector(ClusterConnector):
 
     def _freeze_agent(self, agent: AgentMetadata) -> None:
         return
+
+    def _unfreeze_agent(self, agent: AgentMetadata) -> None:
+        return
