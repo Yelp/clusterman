@@ -452,6 +452,7 @@ class PoolManager:
                         f"Killing instance {instance_id} with {task_count_realtime} tasks  would take us "
                         f"over our max_tasks_per_node_to_kill of {self.max_tasks_per_node_to_kill}. Skipping this instance."
                     )
+                    # not sure if we need unfreeze or not, maybe it should be terminated in next try.
                     logger.info(f"unfreezing {instance_id} for termination")
                     self.cluster_connector.unfreeze_agent(node_metadata.agent)
                     continue
