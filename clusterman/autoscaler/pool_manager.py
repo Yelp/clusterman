@@ -443,18 +443,21 @@ class PoolManager:
 
             logger.info(f"freezing {instance_id} for termination")
             self.cluster_connector.freeze_agent(node_metadata.agent)
+            # maybe freezed log ?
 
-            task_count_realtime = self.cluster_connector.get_task_count_realtime(node_metadata.agent)
-            #node_metadata.agent.task_count = task_count_realtime not sure yet
-            if killed_task_count + task_count_realtime > self.max_tasks_to_kill:  # case 4
-                logger.info(
-                    f"Killing instance {instance_id} with {task_count_realtime} tasks  would take us "
-                    f"over our max_tasks_to_kill of {self.max_tasks_to_kill}. Skipping this instance."
-                )
-                # not sure if we need unfreeze or not, maybe it should be terminated in next try.
-                logger.info(f"unfreezing {instance_id} for termination")
-                self.cluster_connector.unfreeze_agent(node_metadata.agent)
-                continue
+            # We need to be precise only with '0' max_tasks_to_kill due to high-cost API requests
+            if node_metadata.agent.task_count == 0 and self.max_tasks_to_kill == 0:
+                task_count_realtime = self.cluster_connector.get_task_count_realtime(node_metadata.agent)
+                #node_metadata.agent.task_count = task_count_realtime not sure yet
+                if killed_task_count + task_count_realtime > self.max_tasks_to_kill:  # case 4
+                    logger.info(
+                        f"Killing instance {instance_id} with {task_count_realtime} tasks  would take us "
+                        f"over our max_tasks_to_kill of {self.max_tasks_to_kill}. Skipping this instance."
+                    )
+                    # not sure if we need unfreeze or not, maybe it should be terminated in next try.
+                    logger.info(f"unfreezing {instance_id} for termination")
+                    self.cluster_connector.unfreeze_agent(node_metadata.agent)
+                    continue
 
             logger.info(f"marking {instance_id} for termination")
             marked_nodes[group_id].append(node_metadata)
