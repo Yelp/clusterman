@@ -531,8 +531,6 @@ class PoolManager:
             return False
         elif node_metadata.instance.is_cordoned:
             return False
-        elif self.max_tasks_per_node_to_kill < node_metadata.agent.task_count:
-            return False
         elif self.max_tasks_to_kill > node_metadata.agent.task_count:
             return True
         else:
