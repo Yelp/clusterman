@@ -47,7 +47,10 @@ class ClusterConnector(metaclass=ABCMeta):
         return self._get_agent_metadata(ip_address)
 
     def freeze_agent(self, agent_id: Optional[str]) -> None:
-        #TODO add description here
+        """Stop new tasks scheduling to agent
+
+        :param agent_id: agent identifier.
+        """
         if agent_id:
             self._freeze_agent(agent_id)
 
