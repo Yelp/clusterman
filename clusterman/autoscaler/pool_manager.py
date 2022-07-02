@@ -72,7 +72,6 @@ class PoolManager:
         self.min_capacity = self.pool_config.read_int("scaling_limits.min_capacity")
         self.max_capacity = self.pool_config.read_int("scaling_limits.max_capacity")
         self.max_tasks_to_kill = read_int_or_inf(self.pool_config, "scaling_limits.max_tasks_to_kill")
-        self.max_tasks_per_node_to_kill = read_int_or_inf(self.pool_config, "scaling_limits.max_tasks_per_node_to_kill")
         self.max_weight_to_add = self.pool_config.read_int("scaling_limits.max_weight_to_add")
         self.max_weight_to_remove = self.pool_config.read_int("scaling_limits.max_weight_to_remove")
 
@@ -406,9 +405,6 @@ class PoolManager:
             #  1) The resource group the node belongs to can't be reduced further.
             #  2) Killing the node's tasks would take over the maximum number of tasks we are willing to kill.
             #  3) Killing the node would bring us under our target_capacity of non-orphaned nodes.
-            #  4) Killing the node's tasks would take over the maximum number of tasks per node we are willing to kill.
-            #     But agent.task_count may be outdated date, and pods may be terminated unintentionally.
-            #     Therefore, double-checking task count from kube-api to avoid that case.
             # In each of the cases, the node has been removed from consideration and we jump to the next iteration.
 
             instance_id = node_metadata.instance.instance_id
@@ -444,20 +440,6 @@ class PoolManager:
 
             logger.info(f"freezing {instance_id} for termination")
             self.cluster_connector.freeze_agent(node_metadata.agent)
-
-            if self.max_tasks_per_node_to_kill != float("inf"):
-                task_count_realtime = self.cluster_connector.get_task_count_realtime(node_metadata.agent)
-                #node_metadata.agent.task_count = task_count_realtime not sure yet
-                if task_count_realtime > self.max_tasks_per_node_to_kill:  # case 4
-                    logger.info(
-                        f"Killing instance {instance_id} with {task_count_realtime} tasks  would take us "
-                        f"over our max_tasks_per_node_to_kill of {self.max_tasks_per_node_to_kill}. Skipping this instance."
-                    )
-                    # not sure if we need unfreeze or not, maybe it should be terminated in next try.
-                    logger.info(f"unfreezing {instance_id} for termination")
-                    self.cluster_connector.unfreeze_agent(node_metadata.agent)
-                    continue
-
             logger.info(f"marking {instance_id} for termination")
             marked_nodes[group_id].append(node_metadata)
             rem_group_capacities[group_id] -= instance_weight
