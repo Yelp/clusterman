@@ -242,11 +242,7 @@ class KubernetesClusterConnector(ClusterConnector):
         return count
 
     def _freeze_agent(self, agent_id: str) -> None:
-        body = {
-            "spec": {
-                "unschedulable": True
-            }
-        }
+        body = {"spec": {"unschedulable": True}}
         self._core_api.patch_node(agent_id, body)
 
     @property
