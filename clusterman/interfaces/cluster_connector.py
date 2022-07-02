@@ -46,21 +46,10 @@ class ClusterConnector(metaclass=ABCMeta):
             return AgentMetadata()
         return self._get_agent_metadata(ip_address)
 
-    def get_task_count_realtime(self, agent: Optional[AgentMetadata]) -> int:
+    def freeze_agent(self, agent_id: Optional[str]) -> None:
         #TODO add description here
-        if not agent:
-            return 0
-        return self._get_task_count_realtime(agent)
-
-    def freeze_agent(self, agent: Optional[AgentMetadata]) -> None:
-        #TODO add description here
-        if agent:
-            self._freeze_agent(agent)
-
-    def unfreeze_agent(self, agent: Optional[AgentMetadata]) -> None:
-        #TODO add description here
-        if agent:
-            self._unfreeze_agent(agent)
+        if agent_id:
+            self._freeze_agent(agent_id)
 
     @abstractmethod
     def get_resource_allocation(self, resource_name: str) -> float:  # pragma: no cover
@@ -107,15 +96,7 @@ class ClusterConnector(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def _get_task_count_realtime(self, agent: AgentMetadata) -> int:
-        pass
-
-    @abstractmethod
-    def _freeze_agent(self, agent: AgentMetadata) -> None:
-        pass
-
-    @abstractmethod
-    def _unfreeze_agent(self, agent: AgentMetadata) -> None:
+    def _freeze_agent(self, agent_id: str) -> None:
         pass
 
     @staticmethod

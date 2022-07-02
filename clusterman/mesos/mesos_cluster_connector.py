@@ -127,11 +127,5 @@ class MesosClusterConnector(ClusterConnector):
         this will return False, otherwise we assume the task to be a batch task"""
         return not any([framework_name.startswith(prefix) for prefix in self.non_batch_framework_prefixes])
 
-    def _get_task_count_realtime(self, agent: AgentMetadata) -> int:
-        return agent.task_count
-
-    def _freeze_agent(self, agent: AgentMetadata) -> None:
-        return
-
-    def _unfreeze_agent(self, agent: AgentMetadata) -> None:
+    def _freeze_agent(self, agent_id: str) -> None:
         return

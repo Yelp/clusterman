@@ -241,31 +241,13 @@ class KubernetesClusterConnector(ClusterConnector):
                     break
         return count
 
-    def _get_task_count_realtime(self, agent: AgentMetadata) -> int:
-        kwargs = dict(
-            field_selector=f"spec.nodeName={agent.agent_id}"
-        )
-        exclude_daemonset_pods = True
-        node_pods = self._core_api.list_pod_for_all_namespaces(**kwargs).items
-
-        filtered_pods = [pod for pod in node_pods if ((not exclude_daemonset_pods or not self._pod_belongs_to_daemonset(pod)) and pod.status.phase == "Running")]
-        return len(filtered_pods)
-
-    def _freeze_agent(self, agent: AgentMetadata) -> None:
+    def _freeze_agent(self, agent_id: str) -> None:
         body = {
             "spec": {
                 "unschedulable": True
             }
         }
-        self._core_api.patch_node(agent.agent_id, body)
-
-    def _unfreeze_agent(self, agent: AgentMetadata) -> None:
-        body = {
-            "spec": {
-                "unschedulable": False
-            }
-        }
-        self._core_api.patch_node(agent.agent_id, body)
+        self._core_api.patch_node(agent_id, body)
 
     @property
     def pool_label_key(self):

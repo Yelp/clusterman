@@ -62,11 +62,5 @@ class SimulatedClusterConnector(ClusterConnector):
         # if we don't know the given IP then it's orphaned
         return AgentMetadata(state=AgentState.ORPHANED)
 
-    def _get_task_count_realtime(self, agent: AgentMetadata) -> int:
-        return agent.task_count
-
-    def _freeze_agent(self, agent: AgentMetadata) -> None:
-        return
-
-    def _unfreeze_agent(self, agent: AgentMetadata) -> None:
+    def _freeze_agent(self, agent_id: str) -> None:
         return
