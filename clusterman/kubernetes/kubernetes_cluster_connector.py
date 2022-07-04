@@ -220,6 +220,9 @@ class KubernetesClusterConnector(ClusterConnector):
             default=staticconf.read_bool("exclude_daemonset_pods", default=False),
         )
         for pod in self.get_all_pods_for_the_pool().items:
+            if pod.status.phase not in KUBERNETES_SCHEDULED_PHASES:
+                continue
+
             if exclude_daemonset_pods and self._pod_belongs_to_daemonset(pod):
                 excluded_pods_by_ip[pod.status.host_ip].append(pod)
             elif pod.status.phase == "Running":
