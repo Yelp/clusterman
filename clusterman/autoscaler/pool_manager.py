@@ -543,7 +543,7 @@ class PoolManager:
 
         def sort_key(
             node_metadata: ClusterNodeMetadata,
-        ) -> Tuple[int, int, int, int, int]:
+        ) -> Tuple[int, int, int, int, int, int]:
             return (
                 0 if node_metadata.agent.is_freezed else 1,
                 0 if node_metadata.agent.state == AgentState.ORPHANED else 1,
