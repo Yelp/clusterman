@@ -182,7 +182,7 @@ class PoolManager:
         :param dry_run: if True, do not modify the state of the cluster, just log actions
         """
 
-        marked_nodes_by_group = self._choose_nodes_to_prune(new_target_capacity, group_targets)
+        marked_nodes_by_group = self._choose_nodes_to_prune(new_target_capacity, group_targets, dry_run)
 
         if not dry_run:
             if self.draining_enabled:
@@ -352,6 +352,7 @@ class PoolManager:
         self,
         new_target_capacity: float,
         group_targets: Optional[Mapping[str, float]],
+        dry_run: bool = False,
     ) -> Mapping[str, List[ClusterNodeMetadata]]:
         """Choose nodes to kill in order to decrease the capacity on the cluster.
 
@@ -439,7 +440,8 @@ class PoolManager:
                     continue
 
             logger.info(f"freezing {instance_id} for termination")
-            self.cluster_connector.freeze_agent(node_metadata.agent.agent_id)
+            if not dry_run:
+                self.cluster_connector.freeze_agent(node_metadata.agent.agent_id)
             logger.info(f"marking {instance_id} for termination")
             marked_nodes[group_id].append(node_metadata)
             rem_group_capacities[group_id] -= instance_weight
