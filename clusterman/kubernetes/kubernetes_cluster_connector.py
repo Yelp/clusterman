@@ -128,6 +128,10 @@ class KubernetesClusterConnector(ClusterConnector):
                 unschedulable_pods.append((pod, self._get_pod_unschedulable_reason(pod)))
         return unschedulable_pods
 
+    def freeze_agent(self, agent_id: str) -> None:
+        body = {"spec": {"unschedulable": True}}
+        self._core_api.patch_node(agent_id, body)
+
     def _pod_belongs_to_daemonset(self, pod: KubernetesPod) -> bool:
         return pod.metadata.owner_references and any(
             [owner_reference.kind == "DaemonSet" for owner_reference in pod.metadata.owner_references]
@@ -240,10 +244,6 @@ class KubernetesClusterConnector(ClusterConnector):
                     count += not strtobool(value)  # if it's safe to evict, it's NOT a batch task
                     break
         return count
-
-    def _freeze_agent(self, agent_id: str) -> None:
-        body = {"spec": {"unschedulable": True}}
-        self._core_api.patch_node(agent_id, body)
 
     @property
     def pool_label_key(self):

@@ -46,13 +46,13 @@ class ClusterConnector(metaclass=ABCMeta):
             return AgentMetadata()
         return self._get_agent_metadata(ip_address)
 
-    def freeze_agent(self, agent_id: Optional[str]) -> None:
+    @abstractmethod
+    def freeze_agent(self, agent_id: str) -> None:
         """Stop new tasks scheduling to agent
 
         :param agent_id: agent identifier.
         """
-        if agent_id:
-            self._freeze_agent(agent_id)
+        pass
 
     @abstractmethod
     def get_resource_allocation(self, resource_name: str) -> float:  # pragma: no cover
@@ -96,10 +96,6 @@ class ClusterConnector(metaclass=ABCMeta):
 
     @abstractmethod
     def _get_agent_metadata(self, ip_address: str) -> AgentMetadata:  # pragma: no cover
-        pass
-
-    @abstractmethod
-    def _freeze_agent(self, agent_id: str) -> None:
         pass
 
     @staticmethod

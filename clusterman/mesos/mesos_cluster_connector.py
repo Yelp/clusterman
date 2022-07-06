@@ -73,6 +73,9 @@ class MesosClusterConnector(ClusterConnector):
     def get_resource_total(self, resource_name: str) -> float:
         return sum(getattr(total_agent_resources(agent), resource_name) for agent in self._agents_by_ip.values())
 
+    def freeze_agent(self, agent_id: str) -> None:
+        return
+
     def _get_agent_metadata(self, instance_ip: str) -> AgentMetadata:
         agent_dict = self._agents_by_ip.get(instance_ip)
         if not agent_dict:
@@ -126,6 +129,3 @@ class MesosClusterConnector(ClusterConnector):
         """If the framework matches any of the prefixes in self.non_batch_framework_prefixes
         this will return False, otherwise we assume the task to be a batch task"""
         return not any([framework_name.startswith(prefix) for prefix in self.non_batch_framework_prefixes])
-
-    def _freeze_agent(self, agent_id: str) -> None:
-        return
