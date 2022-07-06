@@ -545,7 +545,7 @@ class PoolManager:
             node_metadata: ClusterNodeMetadata,
         ) -> Tuple[int, int, int, int, int, int]:
             return (
-                0 if node_metadata.agent.is_freezed else 1,
+                0 if node_metadata.agent.is_frozen else 1,
                 0 if node_metadata.agent.state == AgentState.ORPHANED else 1,
                 0 if node_metadata.agent.state == AgentState.IDLE else 1,
                 0 if node_metadata.instance.is_stale else 1,

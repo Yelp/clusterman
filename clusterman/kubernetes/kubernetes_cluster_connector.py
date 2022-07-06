@@ -197,14 +197,14 @@ class KubernetesClusterConnector(ClusterConnector):
             agent_id=node.metadata.name,
             allocated_resources=allocated_node_resources(self._pods_by_ip[node_ip]),
             is_safe_to_kill=self._is_node_safe_to_kill(node_ip),
-            is_freezed=self._is_node_freezed(node),
+            is_frozen=self._is_node_frozen(node),
             batch_task_count=self._count_batch_tasks(node_ip),
             state=(AgentState.RUNNING if self._pods_by_ip[node_ip] else AgentState.IDLE),
             task_count=len(self._pods_by_ip[node_ip]),
             total_resources=total_node_resources(node, self._excluded_pods_by_ip.get(node_ip, [])),
         )
 
-    def _is_node_freezed(self, node: KubernetesNode) -> bool:
+    def _is_node_frozen(self, node: KubernetesNode) -> bool:
         if not node.spec:
             return False
 
