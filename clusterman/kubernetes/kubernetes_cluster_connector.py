@@ -25,6 +25,7 @@ from kubernetes.client.models.v1_node import V1Node as KubernetesNode
 from kubernetes.client.models.v1_node_selector_requirement import V1NodeSelectorRequirement
 from kubernetes.client.models.v1_node_selector_term import V1NodeSelectorTerm
 from kubernetes.client.models.v1_pod import V1Pod as KubernetesPod
+from kubernetes.client.rest import ApiException
 
 from clusterman.interfaces.cluster_connector import ClusterConnector
 from clusterman.interfaces.types import AgentMetadata
@@ -129,8 +130,12 @@ class KubernetesClusterConnector(ClusterConnector):
         return unschedulable_pods
 
     def freeze_agent(self, agent_id: str) -> None:
-        body = {"spec": {"unschedulable": True}}
-        self._core_api.patch_node(agent_id, body)
+        try:
+            body = {"spec": {"taints": [{"effect": "NoSchedule", "key": "clusterman.yelp.com/terminating", "value": "True"}]}}
+            self._core_api.patch_node(agent_id, body)
+        except ApiException as e:
+            logger.warning(f"Failed to patch {agent_id}: {e}")
+
 
     def _pod_belongs_to_daemonset(self, pod: KubernetesPod) -> bool:
         return pod.metadata.owner_references and any(
