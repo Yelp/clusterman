@@ -18,6 +18,7 @@ from typing import Mapping
 from typing import Optional
 from typing import Tuple
 
+import arrow
 import colorlog
 import kubernetes
 import staticconf
@@ -42,6 +43,7 @@ from clusterman.util import strtobool
 
 logger = colorlog.getLogger(__name__)
 KUBERNETES_SCHEDULED_PHASES = {"Pending", "Running"}
+CLUSTERMAN_TERMINATION_TAINT_KEY = "clusterman.yelp.com/terminating"
 
 
 class KubernetesClusterConnector(ClusterConnector):
@@ -130,15 +132,16 @@ class KubernetesClusterConnector(ClusterConnector):
         return unschedulable_pods
 
     def freeze_agent(self, agent_id: str) -> None:
+        now = str(int(arrow.now().timestamp()))
         try:
             body = {
                 "spec": {
-                    "taints": [{"effect": "NoSchedule", "key": "clusterman.yelp.com/terminating", "value": "True"}]
+                    "taints": [{"effect": "NoSchedule", "key": CLUSTERMAN_TERMINATION_TAINT_KEY, "value": now}]
                 }
             }
             self._core_api.patch_node(agent_id, body)
         except ApiException as e:
-            logger.warning(f"Failed to patch {agent_id}: {e}")
+            logger.warning(f"Failed to freeze {agent_id}: {e}")
 
     def _pod_belongs_to_daemonset(self, pod: KubernetesPod) -> bool:
         return pod.metadata.owner_references and any(
@@ -196,11 +199,22 @@ class KubernetesClusterConnector(ClusterConnector):
             agent_id=node.metadata.name,
             allocated_resources=allocated_node_resources(self._pods_by_ip[node_ip]),
             is_safe_to_kill=self._is_node_safe_to_kill(node_ip),
+            is_freezed=self._is_node_freezed(node),
             batch_task_count=self._count_batch_tasks(node_ip),
             state=(AgentState.RUNNING if self._pods_by_ip[node_ip] else AgentState.IDLE),
             task_count=len(self._pods_by_ip[node_ip]),
             total_resources=total_node_resources(node, self._excluded_pods_by_ip.get(node_ip, [])),
         )
+
+    def _is_node_freezed(self, node: KubernetesNode) -> bool:
+        if not node.spec:
+            return False
+
+        if node.spec.taints:
+            for taint in node.spec.taints:
+                if taint.key == CLUSTERMAN_TERMINATION_TAINT_KEY:
+                    return True
+        return False
 
     def _is_node_safe_to_kill(self, node_ip: str) -> bool:
         for pod in self._pods_by_ip[node_ip]:
