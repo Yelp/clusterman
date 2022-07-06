@@ -131,11 +131,14 @@ class KubernetesClusterConnector(ClusterConnector):
 
     def freeze_agent(self, agent_id: str) -> None:
         try:
-            body = {"spec": {"taints": [{"effect": "NoSchedule", "key": "clusterman.yelp.com/terminating", "value": "True"}]}}
+            body = {
+                "spec": {
+                    "taints": [{"effect": "NoSchedule", "key": "clusterman.yelp.com/terminating", "value": "True"}]
+                }
+            }
             self._core_api.patch_node(agent_id, body)
         except ApiException as e:
             logger.warning(f"Failed to patch {agent_id}: {e}")
-
 
     def _pod_belongs_to_daemonset(self, pod: KubernetesPod) -> bool:
         return pod.metadata.owner_references and any(
