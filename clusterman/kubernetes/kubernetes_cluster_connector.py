@@ -135,9 +135,7 @@ class KubernetesClusterConnector(ClusterConnector):
         now = str(int(arrow.now().timestamp()))
         try:
             body = {
-                "spec": {
-                    "taints": [{"effect": "NoSchedule", "key": CLUSTERMAN_TERMINATION_TAINT_KEY, "value": now}]
-                }
+                "spec": {"taints": [{"effect": "NoSchedule", "key": CLUSTERMAN_TERMINATION_TAINT_KEY, "value": now}]}
             }
             self._core_api.patch_node(agent_id, body)
         except ApiException as e:
