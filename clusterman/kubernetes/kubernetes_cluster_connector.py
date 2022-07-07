@@ -205,9 +205,6 @@ class KubernetesClusterConnector(ClusterConnector):
         )
 
     def _is_node_frozen(self, node: KubernetesNode) -> bool:
-        if not node.spec:
-            return False
-
         if node.spec.taints:
             for taint in node.spec.taints:
                 if taint.key == CLUSTERMAN_TERMINATION_TAINT_KEY:
