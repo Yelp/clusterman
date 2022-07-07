@@ -6,6 +6,8 @@ types: [paasta, debian]
 overrides:
   paasta:
     chatChannels: ['#clusterman']
+    globalEnvVars:
+      PAASTA_ENV: YELP
   debian:
     platforms: [xenial, bionic]
 host_type: bionic
