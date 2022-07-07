@@ -22,8 +22,6 @@ else
 endif
 
 ifeq ($(PAASTA_ENV),YELP)
-	export PIP_INDEX_URL ?= https://pypi.yelpcorp.com/simple
-	export NPM_CONFIG_REGISTRY ?= https://npm.yelpcorp.com/
 	export DOCKER_REGISTRY ?= docker-dev.yelpcorp.com
 	export XENIAL_IMAGE_NAME ?= xenial_pkgbuild
 	export BIONIC_IMAGE_NAME ?= bionic_pkgbuild
