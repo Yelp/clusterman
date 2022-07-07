@@ -1,3 +1,9 @@
+clusterman (4.9.0) xenial bionic; urgency=low
+
+  * Freeze agent while marking for termination
+
+ -- Ilkin Mammadzada <ilkinmammadzada@yelp.com>  Thu, 07 Jul 2022 01:27:15 -0700
+
 clusterman (4.8.1) xenial bionic; urgency=low
 
   * Add definitions of the r6id instance type family
