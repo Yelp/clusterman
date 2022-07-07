@@ -73,6 +73,10 @@ class MesosClusterConnector(ClusterConnector):
     def get_resource_total(self, resource_name: str) -> float:
         return sum(getattr(total_agent_resources(agent), resource_name) for agent in self._agents_by_ip.values())
 
+    def freeze_agent(self, agent_id: str) -> None:
+        logger.info("Skipping freeze process because scheduler is mesos")
+        return
+
     def _get_agent_metadata(self, instance_ip: str) -> AgentMetadata:
         agent_dict = self._agents_by_ip.get(instance_ip)
         if not agent_dict:
