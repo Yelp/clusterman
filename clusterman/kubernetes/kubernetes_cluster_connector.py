@@ -132,7 +132,7 @@ class KubernetesClusterConnector(ClusterConnector):
         return unschedulable_pods
 
     def freeze_agent(self, agent_id: str) -> None:
-        now = str(int(arrow.now().timestamp()))
+        now = str(arrow.now().timestamp)
         try:
             body = {
                 "spec": {"taints": [{"effect": "NoSchedule", "key": CLUSTERMAN_TERMINATION_TAINT_KEY, "value": now}]}
