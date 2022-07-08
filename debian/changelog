@@ -1,3 +1,9 @@
+clusterman (4.9.2) xenial bionic; urgency=low
+
+  * Orphan freezing bug fix
+
+ -- Ilkin Mammadzada <ilkinmammadzada@yelp.com>  Fri, 08 Jul 2022 09:27:43 -0700
+
 clusterman (4.9.1) xenial bionic; urgency=low
 
   * Arrow bug fix for freezing agent
