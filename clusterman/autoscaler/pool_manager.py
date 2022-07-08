@@ -439,9 +439,12 @@ class PoolManager:
                     )
                     continue
 
-            logger.info(f"freezing {instance_id} for termination")
-            if not dry_run:
-                self.cluster_connector.freeze_agent(node_metadata.agent.agent_id)
+            # Orphaned instances don't have agent information
+            if node_metadata.agent.state != AgentState.ORPHANED:
+                logger.info(f"freezing {node_metadata.agent.agent_id} for termination")
+                if not dry_run:
+                    self.cluster_connector.freeze_agent(node_metadata.agent.agent_id)
+
             logger.info(f"marking {instance_id} for termination")
             marked_nodes[group_id].append(node_metadata)
             rem_group_capacities[group_id] -= instance_weight
