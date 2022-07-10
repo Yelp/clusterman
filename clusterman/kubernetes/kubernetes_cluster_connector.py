@@ -273,6 +273,7 @@ class KubernetesClusterConnector(ClusterConnector):
         for condition in pod.status.conditions:
             if condition.type == "PodScheduled" and condition.reason == "Unschedulable":
                 return True
+        return False
 
     @property
     def pool_label_key(self):
