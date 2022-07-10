@@ -264,6 +264,7 @@ class KubernetesClusterConnector(ClusterConnector):
         for condition in pod.status.conditions:
             if condition.type == "PodScheduled" and condition.status == 'True':
                 return True
+        return False
 
     def _is_pod_unschedulable(self, pod: KubernetesPod) -> bool:
         if pod.status.phase != "Pending":
