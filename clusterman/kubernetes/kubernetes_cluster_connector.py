@@ -258,7 +258,7 @@ class KubernetesClusterConnector(ClusterConnector):
 
     def _is_recently_scheduled(self, pod: KubernetesPod) -> bool:
         # To find pods which in pending phase but already scheduled to the node.
-        # The phase of these nodes is changed to running asap,
+        # The phase of these pods is changed to running asap,
         # Therefore, we should consider these pods for our next steps.
         if pod.status.phase != "Pending":
             return False
