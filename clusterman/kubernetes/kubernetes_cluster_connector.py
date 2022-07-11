@@ -227,7 +227,7 @@ class KubernetesClusterConnector(ClusterConnector):
         self,
     ) -> Tuple[Mapping[str, List[KubernetesPod]], List[KubernetesPod], Mapping[str, List[KubernetesPod]],]:
         pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
-        unschedulable_pending_pods: List[KubernetesPod] = []
+        pending_pods: List[KubernetesPod] = []
         excluded_pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
 
         exclude_daemonset_pods = self.pool_config.read_bool(
@@ -239,11 +239,11 @@ class KubernetesClusterConnector(ClusterConnector):
             if self._pod_belongs_to_pool(pod):
                 if exclude_daemonset_pods and self._pod_belongs_to_daemonset(pod):
                     excluded_pods_by_ip[pod.status.host_ip].append(pod)
-                elif pod.status.phase == "Running" or self._is_pod_pending_scheduled(pod):
+                elif pod.status.phase == "Running" or self._is_pod_scheduled(pod):
                     pods_by_ip[pod.status.host_ip].append(pod)
                 elif self._is_pod_unschedulable(pod):
-                    unschedulable_pending_pods.append(pod)
-        return pods_by_ip, unschedulable_pending_pods, excluded_pods_by_ip
+                    pending_pods.append(pod)
+        return pods_by_ip, pending_pods, excluded_pods_by_ip
 
     def _count_batch_tasks(self, node_ip: str) -> int:
         count = 0
@@ -256,13 +256,16 @@ class KubernetesClusterConnector(ClusterConnector):
                     break
         return count
 
-    def _is_pod_pending_scheduled(self, pod: KubernetesPod) -> bool:
+    def _is_pod_scheduled(self, pod: KubernetesPod) -> bool:
+        # To find pods which in pending phase but already scheduled to the node.
+        # The phase of these nodes is changed to running asap,
+        # Therefore, we should consider these nodes for our next steps.
         if pod.status.phase != "Pending":
             return False
         if not pod.status or not pod.status.conditions:
             return False
         for condition in pod.status.conditions:
-            if condition.type == "PodScheduled" and condition.status == 'True':
+            if condition.type == "PodScheduled" and condition.status == "True":
                 return True
         return False
 
