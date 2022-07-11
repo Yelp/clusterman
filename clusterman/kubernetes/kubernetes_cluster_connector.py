@@ -239,9 +239,9 @@ class KubernetesClusterConnector(ClusterConnector):
             if self._pod_belongs_to_pool(pod):
                 if exclude_daemonset_pods and self._pod_belongs_to_daemonset(pod):
                     excluded_pods_by_ip[pod.status.host_ip].append(pod)
-                elif pod.status.phase == "Running" or self._is_pod_scheduled(pod):
+                elif pod.status.phase == "Running" or self._is_recently_scheduled(pod):
                     pods_by_ip[pod.status.host_ip].append(pod)
-                elif self._is_pod_unschedulable(pod):
+                elif self._is_unschedulable(pod):
                     pending_pods.append(pod)
         return pods_by_ip, pending_pods, excluded_pods_by_ip
 
@@ -256,10 +256,10 @@ class KubernetesClusterConnector(ClusterConnector):
                     break
         return count
 
-    def _is_pod_scheduled(self, pod: KubernetesPod) -> bool:
+    def _is_recently_scheduled(self, pod: KubernetesPod) -> bool:
         # To find pods which in pending phase but already scheduled to the node.
         # The phase of these nodes is changed to running asap,
-        # Therefore, we should consider these nodes for our next steps.
+        # Therefore, we should consider these pods for our next steps.
         if pod.status.phase != "Pending":
             return False
         if not pod.status or not pod.status.conditions:
@@ -269,7 +269,7 @@ class KubernetesClusterConnector(ClusterConnector):
                 return True
         return False
 
-    def _is_pod_unschedulable(self, pod: KubernetesPod) -> bool:
+    def _is_unschedulable(self, pod: KubernetesPod) -> bool:
         if pod.status.phase != "Pending":
             return False
         if not pod.status or not pod.status.conditions:
