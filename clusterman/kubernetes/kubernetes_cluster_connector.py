@@ -73,6 +73,7 @@ class KubernetesClusterConnector(ClusterConnector):
         # store the previous _nodes_by_ip for use in get_removed_nodes_before_last_reload()
         self._prev_nodes_by_ip = copy.deepcopy(self._nodes_by_ip)
         self._nodes_by_ip = self._get_nodes_by_ip()
+        logger.info("Reloading pods")
         (
             self._pods_by_ip,
             self._unschedulable_pods,
@@ -243,6 +244,8 @@ class KubernetesClusterConnector(ClusterConnector):
                     pods_by_ip[pod.status.host_ip].append(pod)
                 elif self._is_unschedulable(pod):
                     unschedulable_pods.append(pod)
+                else:
+                    logger.info(f"Skipping {pod.metadata.name} pod ({pod.status.phase})")
         return pods_by_ip, unschedulable_pods, excluded_pods_by_ip
 
     def _count_batch_tasks(self, node_ip: str) -> int:
