@@ -75,9 +75,9 @@ class KubernetesClusterConnector(ClusterConnector):
         self._nodes_by_ip = self._get_nodes_by_ip()
         (
             self._pods_by_ip,
-            self._unschedulable_pending_pods,
+            self._pending_pods,
             self._excluded_pods_by_ip,
-        ) = self._get_pods_information()
+        ) = self._get_pods_by_ip_or_pending()
 
     def get_num_removed_nodes_before_last_reload(self) -> int:
         previous_nodes = self._prev_nodes_by_ip
@@ -118,7 +118,7 @@ class KubernetesClusterConnector(ClusterConnector):
         self,
     ) -> List[Tuple[KubernetesPod, PodUnschedulableReason]]:
         unschedulable_pods = []
-        for pod in self._unschedulable_pending_pods:
+        for pod in self._pending_pods:
             unschedulable_pods.append((pod, self._get_pod_unschedulable_reason(pod)))
         return unschedulable_pods
 
@@ -223,7 +223,7 @@ class KubernetesClusterConnector(ClusterConnector):
             if not self.pool or node.metadata.labels.get(pool_label_selector, None) == self.pool
         }
 
-    def _get_pods_information(
+    def _get_pods_by_ip_or_pending(
         self,
     ) -> Tuple[Mapping[str, List[KubernetesPod]], List[KubernetesPod], Mapping[str, List[KubernetesPod]],]:
         pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
