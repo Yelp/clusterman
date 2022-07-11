@@ -52,7 +52,7 @@ class KubernetesClusterConnector(ClusterConnector):
     _pods: List[KubernetesPod]
     _prev_nodes_by_ip: Mapping[str, KubernetesNode]
     _nodes_by_ip: Mapping[str, KubernetesNode]
-    _pending_pods: List[KubernetesPod]
+    _unschedulable_pods: List[KubernetesPod]
     _excluded_pods_by_ip: Mapping[str, List[KubernetesPod]]
     _pods_by_ip: Mapping[str, List[KubernetesPod]]
 
@@ -75,9 +75,9 @@ class KubernetesClusterConnector(ClusterConnector):
         self._nodes_by_ip = self._get_nodes_by_ip()
         (
             self._pods_by_ip,
-            self._pending_pods,
+            self._unschedulable_pods,
             self._excluded_pods_by_ip,
-        ) = self._get_pods_by_ip_or_pending()
+        ) = self._get_pods_info()
 
     def get_num_removed_nodes_before_last_reload(self) -> int:
         previous_nodes = self._prev_nodes_by_ip
@@ -118,7 +118,7 @@ class KubernetesClusterConnector(ClusterConnector):
         self,
     ) -> List[Tuple[KubernetesPod, PodUnschedulableReason]]:
         unschedulable_pods = []
-        for pod in self._pending_pods:
+        for pod in self._unschedulable_pods:
             unschedulable_pods.append((pod, self._get_pod_unschedulable_reason(pod)))
         return unschedulable_pods
 
@@ -223,11 +223,11 @@ class KubernetesClusterConnector(ClusterConnector):
             if not self.pool or node.metadata.labels.get(pool_label_selector, None) == self.pool
         }
 
-    def _get_pods_by_ip_or_pending(
+    def _get_pods_info(
         self,
     ) -> Tuple[Mapping[str, List[KubernetesPod]], List[KubernetesPod], Mapping[str, List[KubernetesPod]],]:
         pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
-        pending_pods: List[KubernetesPod] = []
+        unschedulable_pods: List[KubernetesPod] = []
         excluded_pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
 
         exclude_daemonset_pods = self.pool_config.read_bool(
@@ -242,8 +242,8 @@ class KubernetesClusterConnector(ClusterConnector):
                 elif pod.status.phase == "Running" or self._is_recently_scheduled(pod):
                     pods_by_ip[pod.status.host_ip].append(pod)
                 elif self._is_unschedulable(pod):
-                    pending_pods.append(pod)
-        return pods_by_ip, pending_pods, excluded_pods_by_ip
+                    unschedulable_pods.append(pod)
+        return pods_by_ip, unschedulable_pods, excluded_pods_by_ip
 
     def _count_batch_tasks(self, node_ip: str) -> int:
         count = 0
