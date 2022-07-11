@@ -1,3 +1,9 @@
+clusterman (4.9.3) xenial bionic; urgency=low
+
+  * Considering recently scheduled pending pods
+
+ -- Ilkin Mammadzada <ilkinmammadzada@yelp.com>  Mon, 11 Jul 2022 14:44:08 -0700
+
 clusterman (4.9.2) xenial bionic; urgency=low
 
   * Orphan freezing bug fix
