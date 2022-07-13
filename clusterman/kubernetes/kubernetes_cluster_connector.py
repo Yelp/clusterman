@@ -244,7 +244,7 @@ class KubernetesClusterConnector(ClusterConnector):
 
             if exclude_daemonset_pods and self._pod_belongs_to_daemonset(pod):
                 excluded_pods_by_ip[pod.status.host_ip].append(pod)
-            elif pod.status.phase == "Running" or self._is_recently_scheduled(pod)
+            elif pod.status.phase == "Running" or self._is_recently_scheduled(pod):
                 pods_by_ip[pod.status.host_ip].append(pod)
             elif self._is_unschedulable(pod):
                 unschedulable_pods.append(pod)
