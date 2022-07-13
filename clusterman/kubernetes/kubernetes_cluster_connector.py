@@ -244,11 +244,13 @@ class KubernetesClusterConnector(ClusterConnector):
 
             if exclude_daemonset_pods and self._pod_belongs_to_daemonset(pod):
                 excluded_pods_by_ip[pod.status.host_ip].append(pod)
-            elif pod.status.phase == "Running":
+            elif pod.status.phase == "Running" or self._is_recently_scheduled(pod)
                 pods_by_ip[pod.status.host_ip].append(pod)
+            elif self._is_unschedulable(pod):
+                unschedulable_pods.append(pod)
             else:
-                pending_pods.append(pod)
-        return pods_by_ip, pending_pods, excluded_pods_by_ip
+                logger.info(f"Skipping {pod.metadata.name} pod ({pod.status.phase})")
+        return pods_by_ip, unschedulable_pods, excluded_pods_by_ip
 
     def _count_batch_tasks(self, node_ip: str) -> int:
         count = 0
