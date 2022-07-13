@@ -283,7 +283,7 @@ def create_k8s_autoscaler(context, prevent_scale_down_after_capacity_loss=False)
     context.mock_cluster_connector.get_cluster_allocated_resources.return_value = ClustermanResources(
         cpus=context.allocated_cpus,
     )
-    context.mock_cluster_connector._pending_pods = []
+    context.mock_cluster_connector._unschedulable_pods = []
     if float(context.pending_cpus) > 0:
         context.mock_cluster_connector.get_unschedulable_pods = (
             lambda: KubernetesClusterConnector.get_unschedulable_pods(context.mock_cluster_connector)  # noqa
@@ -293,7 +293,7 @@ def create_k8s_autoscaler(context, prevent_scale_down_after_capacity_loss=False)
             if pod.metadata.name == "pod1"
             else PodUnschedulableReason.Unknown
         )
-        context.mock_cluster_connector._pending_pods = [
+        context.mock_cluster_connector._unschedulable_pods = [
             V1Pod(
                 metadata=V1ObjectMeta(name="pod1"),
                 status=V1PodStatus(

@@ -44,6 +44,9 @@ class SimulatedClusterConnector(ClusterConnector):
                 total += getattr(i.resources, resource_name)
         return total
 
+    def freeze_agent(self, agent_id: str) -> None:
+        return
+
     def _get_agent_metadata(self, instance_ip: str) -> AgentMetadata:
         for c in self.simulator.aws_clusters:
             for i in c.instances.values():

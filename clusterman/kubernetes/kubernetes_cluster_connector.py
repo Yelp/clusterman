@@ -18,6 +18,7 @@ from typing import Mapping
 from typing import Optional
 from typing import Tuple
 
+import arrow
 import colorlog
 import kubernetes
 import staticconf
@@ -25,6 +26,7 @@ from kubernetes.client.models.v1_node import V1Node as KubernetesNode
 from kubernetes.client.models.v1_node_selector_requirement import V1NodeSelectorRequirement
 from kubernetes.client.models.v1_node_selector_term import V1NodeSelectorTerm
 from kubernetes.client.models.v1_pod import V1Pod as KubernetesPod
+from kubernetes.client.rest import ApiException
 
 from clusterman.interfaces.cluster_connector import ClusterConnector
 from clusterman.interfaces.types import AgentMetadata
@@ -41,6 +43,7 @@ from clusterman.util import strtobool
 
 logger = colorlog.getLogger(__name__)
 KUBERNETES_SCHEDULED_PHASES = {"Pending", "Running"}
+CLUSTERMAN_TERMINATION_TAINT_KEY = "clusterman.yelp.com/terminating"
 
 
 class KubernetesClusterConnector(ClusterConnector):
@@ -49,7 +52,7 @@ class KubernetesClusterConnector(ClusterConnector):
     _pods: List[KubernetesPod]
     _prev_nodes_by_ip: Mapping[str, KubernetesNode]
     _nodes_by_ip: Mapping[str, KubernetesNode]
-    _pending_pods: List[KubernetesPod]
+    _unschedulable_pods: List[KubernetesPod]
     _excluded_pods_by_ip: Mapping[str, List[KubernetesPod]]
     _pods_by_ip: Mapping[str, List[KubernetesPod]]
 
@@ -70,11 +73,12 @@ class KubernetesClusterConnector(ClusterConnector):
         # store the previous _nodes_by_ip for use in get_removed_nodes_before_last_reload()
         self._prev_nodes_by_ip = copy.deepcopy(self._nodes_by_ip)
         self._nodes_by_ip = self._get_nodes_by_ip()
+        logger.info("Reloading pods")
         (
             self._pods_by_ip,
-            self._pending_pods,
+            self._unschedulable_pods,
             self._excluded_pods_by_ip,
-        ) = self._get_pods_by_ip_or_pending()
+        ) = self._get_pods_info()
 
     def get_num_removed_nodes_before_last_reload(self) -> int:
         previous_nodes = self._prev_nodes_by_ip
@@ -115,18 +119,19 @@ class KubernetesClusterConnector(ClusterConnector):
         self,
     ) -> List[Tuple[KubernetesPod, PodUnschedulableReason]]:
         unschedulable_pods = []
-        for pod in self._pending_pods:
-            is_unschedulable = False
-            if not pod.status or not pod.status.conditions:
-                logger.info("No conditions in pod status, skipping")
-                continue
-
-            for condition in pod.status.conditions:
-                if condition.reason == "Unschedulable":
-                    is_unschedulable = True
-            if is_unschedulable:
-                unschedulable_pods.append((pod, self._get_pod_unschedulable_reason(pod)))
+        for pod in self._unschedulable_pods:
+            unschedulable_pods.append((pod, self._get_pod_unschedulable_reason(pod)))
         return unschedulable_pods
+
+    def freeze_agent(self, agent_id: str) -> None:
+        now = str(arrow.now().timestamp)
+        try:
+            body = {
+                "spec": {"taints": [{"effect": "NoSchedule", "key": CLUSTERMAN_TERMINATION_TAINT_KEY, "value": now}]}
+            }
+            self._core_api.patch_node(agent_id, body)
+        except ApiException as e:
+            logger.warning(f"Failed to freeze {agent_id}: {e}")
 
     def _pod_belongs_to_daemonset(self, pod: KubernetesPod) -> bool:
         return pod.metadata.owner_references and any(
@@ -184,11 +189,22 @@ class KubernetesClusterConnector(ClusterConnector):
             agent_id=node.metadata.name,
             allocated_resources=allocated_node_resources(self._pods_by_ip[node_ip]),
             is_safe_to_kill=self._is_node_safe_to_kill(node_ip),
+            is_frozen=self._is_node_frozen(node),
             batch_task_count=self._count_batch_tasks(node_ip),
             state=(AgentState.RUNNING if self._pods_by_ip[node_ip] else AgentState.IDLE),
             task_count=len(self._pods_by_ip[node_ip]),
             total_resources=total_node_resources(node, self._excluded_pods_by_ip.get(node_ip, [])),
         )
+
+    def _is_node_frozen(self, node: KubernetesNode) -> bool:
+        if not node.spec:
+            return False
+
+        if node.spec.taints:
+            for taint in node.spec.taints:
+                if taint.key == CLUSTERMAN_TERMINATION_TAINT_KEY:
+                    return True
+        return False
 
     def _is_node_safe_to_kill(self, node_ip: str) -> bool:
         for pod in self._pods_by_ip[node_ip]:
@@ -208,18 +224,18 @@ class KubernetesClusterConnector(ClusterConnector):
             if not self.pool or node.metadata.labels.get(pool_label_selector, None) == self.pool
         }
 
-    def _get_pods_by_ip_or_pending(
+    def _get_pods_info(
         self,
     ) -> Tuple[Mapping[str, List[KubernetesPod]], List[KubernetesPod], Mapping[str, List[KubernetesPod]],]:
         pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
-        pending_pods: List[KubernetesPod] = []
+        unschedulable_pods: List[KubernetesPod] = []
         excluded_pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
 
         exclude_daemonset_pods = self.pool_config.read_bool(
             "exclude_daemonset_pods",
             default=staticconf.read_bool("exclude_daemonset_pods", default=False),
         )
-
+        
         label_selector = "{}={}".format(self.pool_label_key, self.pool)
 
         for pod in self._core_api.list_pod_for_all_namespaces(label_selector=label_selector).items:
@@ -244,6 +260,29 @@ class KubernetesClusterConnector(ClusterConnector):
                     count += not strtobool(value)  # if it's safe to evict, it's NOT a batch task
                     break
         return count
+
+    def _is_recently_scheduled(self, pod: KubernetesPod) -> bool:
+        # To find pods which in pending phase but already scheduled to the node.
+        # The phase of these pods is changed to running asap,
+        # Therefore, we should consider these pods for our next steps.
+        if pod.status.phase != "Pending":
+            return False
+        if not pod.status or not pod.status.conditions:
+            return False
+        for condition in pod.status.conditions:
+            if condition.type == "PodScheduled" and condition.status == "True":
+                return True
+        return False
+
+    def _is_unschedulable(self, pod: KubernetesPod) -> bool:
+        if pod.status.phase != "Pending":
+            return False
+        if not pod.status or not pod.status.conditions:
+            return False
+        for condition in pod.status.conditions:
+            if condition.type == "PodScheduled" and condition.reason == "Unschedulable":
+                return True
+        return False
 
     @property
     def pool_label_key(self):
