@@ -219,7 +219,10 @@ class KubernetesClusterConnector(ClusterConnector):
             "exclude_daemonset_pods",
             default=staticconf.read_bool("exclude_daemonset_pods", default=False),
         )
-        for pod in self.get_all_pods_for_the_pool().items:
+
+        label_selector="{0}={1}".format(self.pool_label_key, self.pool)
+
+        for pod in self._core_api.list_pod_for_all_namespaces(label_selector=label_selector).items:
             if pod.status.phase not in KUBERNETES_SCHEDULED_PHASES:
                 continue
 
@@ -241,14 +244,6 @@ class KubernetesClusterConnector(ClusterConnector):
                     count += not strtobool(value)  # if it's safe to evict, it's NOT a batch task
                     break
         return count
-
-    def get_all_pods_for_the_pool(self) -> List[KubernetesPod]:
-        all_pods: List[KubernetesPod] = []
-
-        pool_label_selector = self.pool_config.read_string("pool_label_key", default="clusterman.com/pool")
-        label_selector="{0}={1}".format(pool_label_selector, self.pool)
-        all_pods = self._core_api.list_pod_for_all_namespaces(label_selector=label_selector)
-        return all_pods
 
     @property
     def pool_label_key(self):
