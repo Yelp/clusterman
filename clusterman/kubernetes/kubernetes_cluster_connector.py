@@ -235,7 +235,6 @@ class KubernetesClusterConnector(ClusterConnector):
             "exclude_daemonset_pods",
             default=staticconf.read_bool("exclude_daemonset_pods", default=False),
         )
-        
         label_selector = "{}={}".format(self.pool_label_key, self.pool)
 
         for pod in self._core_api.list_pod_for_all_namespaces(label_selector=label_selector).items:
