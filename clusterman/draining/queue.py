@@ -286,7 +286,7 @@ class DrainingClient:
                     if k8s_drain(kube_operator_client, host_to_process.agent_id):
                         self.submit_host_for_termination(host_to_process, delay=0)
                     else:
-                        # add message to queue again from tail to avoid starvation for other messages.
+                        # add message to queue again to avoid starvation for other messages.
                         self.submit_host_for_draining(host_to_process)
                 else:
                     logger.info(f"Unable to drain {host_to_process.agent_id} (no Kubernetes connector configured)")
