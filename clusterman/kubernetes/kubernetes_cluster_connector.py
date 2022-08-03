@@ -215,13 +215,13 @@ class KubernetesClusterConnector(ClusterConnector):
         return True
 
     def _get_nodes_by_ip(self) -> Mapping[str, KubernetesNode]:
-        pool_label_selector = self.pool_config.read_string("pool_label_key", default="clusterman.com/pool")
+        node_label_selector = self.pool_config.read_string("node_label_key", default="clusterman.com/pool")
         pool_nodes = self._core_api.list_node().items
 
         return {
             get_node_ip(node): node
             for node in pool_nodes
-            if not self.pool or node.metadata.labels.get(pool_label_selector, None) == self.pool
+            if not self.pool or node.metadata.labels.get(node_label_selector, None) == self.pool
         }
 
     def _get_pods_info(
