@@ -38,11 +38,13 @@ from clusterman.aws.util import RESOURCE_GROUPS_REV
 from clusterman.config import load_cluster_pool_config
 from clusterman.config import POOL_NAMESPACE
 from clusterman.config import setup_config
+from clusterman.draining.kubernetes import drain as k8s_drain
 from clusterman.draining.mesos import down
-from clusterman.draining.mesos import drain
+from clusterman.draining.mesos import drain as mesos_drain
 from clusterman.draining.mesos import operator_api
 from clusterman.draining.mesos import up
 from clusterman.interfaces.resource_group import InstanceMetadata
+from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
 from clusterman.util import get_pool_name_list
 
@@ -52,6 +54,7 @@ DRAIN_CACHE_SECONDS = 1800
 
 
 class Host(NamedTuple):
+    agent_id: str
     instance_id: str
     hostname: str
     group_id: str
@@ -74,7 +77,7 @@ class DrainingClient:
         )
 
     def submit_instance_for_draining(
-        self, instance: InstanceMetadata, sender: Type[AWSResourceGroup], scheduler: str
+        self, metadata: ClusterNodeMetadata, sender: Type[AWSResourceGroup], scheduler: str
     ) -> None:
         return self.client.send_message(
             QueueUrl=self.drain_queue_url,
@@ -86,16 +89,18 @@ class DrainingClient:
             },
             MessageBody=json.dumps(
                 {
-                    "instance_id": instance.instance_id,
-                    "ip": instance.ip_address,
-                    "hostname": instance.hostname,
-                    "group_id": instance.group_id,
+                    "instance_id": metadata.instance.instance_id,
+                    "ip": metadata.instance.ip_address,
+                    "hostname": metadata.instance.hostname,
+                    "group_id": metadata.instance.group_id,
                     "scheduler": scheduler,
+                    "agent_id": metadata.agent.agent_id,
                 }
             ),
         )
 
     def submit_host_for_draining(self, host: Host) -> None:
+        # TODO this may not work, because we don't have agent_id here. We need agent_id to drain k8s node.
         return self.client.send_message(
             QueueUrl=self.drain_queue_url,
             MessageAttributes={
@@ -264,7 +269,7 @@ class DrainingClient:
             if host_to_process.scheduler == "mesos":
                 logger.info(f"Mesos host to drain and submit for termination: {host_to_process}")
                 try:
-                    drain(
+                    mesos_drain(
                         mesos_operator_client,
                         [f"{host_to_process.hostname}|{host_to_process.ip}"],
                         arrow.now().timestamp * 1000000000,
@@ -276,7 +281,15 @@ class DrainingClient:
                     self.submit_host_for_termination(host_to_process)
             elif host_to_process.scheduler == "kubernetes":
                 logger.info(f"Kubernetes host to drain and submit for termination: {host_to_process}")
-                self.submit_host_for_termination(host_to_process, delay=0)
+
+                if kube_operator_client:
+                    if k8s_drain(kube_operator_client, host_to_process.agent_id):
+                        self.submit_host_for_termination(host_to_process, delay=0)
+                    else:
+                        # add message to queue again from tail to avoid starvation for other messages.
+                        self.submit_host_for_draining(host_to_process)
+                else:
+                    logger.info(f"Unable to drain {host_to_process.agent_id} (no Kubernetes connector configured)")
             else:
                 logger.info(f"Host to submit for termination immediately: {host_to_process}")
                 self.submit_host_for_termination(host_to_process, delay=0)

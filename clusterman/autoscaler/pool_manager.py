@@ -190,7 +190,7 @@ class PoolManager:
                 for group_id, node_metadatas in marked_nodes_by_group.items():
                     for node_metadata in node_metadatas:
                         self.draining_client.submit_instance_for_draining(
-                            node_metadata.instance,
+                            node_metadata,
                             sender=cast(
                                 Type[AWSResourceGroup],
                                 self.resource_groups[group_id].__class__,
