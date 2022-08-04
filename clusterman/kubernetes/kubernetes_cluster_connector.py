@@ -186,10 +186,7 @@ class KubernetesClusterConnector(ClusterConnector):
         label_selector = f"{node_label_selector}={self.pool}"
         pool_nodes = self._core_api.list_node(label_selector=label_selector).items
 
-        return {
-            get_node_ip(node): node
-            for node in pool_nodes
-        }
+        return {get_node_ip(node): node for node in pool_nodes}
 
     def _get_pods_info(
         self,
