@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from copy import deepcopy
-
 import mock
 import pytest
 from kubernetes.client import V1Container
@@ -356,4 +354,3 @@ def test_pending_cpus(mock_cluster_connector):
 def test_pod_belongs_to_daemonset(mock_cluster_connector, running_pod_1, daemonset_pod):
     assert not mock_cluster_connector._pod_belongs_to_daemonset(running_pod_1)
     assert mock_cluster_connector._pod_belongs_to_daemonset(daemonset_pod)
-
