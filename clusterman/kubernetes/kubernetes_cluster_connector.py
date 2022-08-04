@@ -192,7 +192,6 @@ class KubernetesClusterConnector(ClusterConnector):
         return {
             get_node_ip(node): node
             for node in pool_nodes
-            if not self.pool or node.metadata.labels.get(node_label_selector, None) == self.pool
         }
 
     def _get_pods_info(
