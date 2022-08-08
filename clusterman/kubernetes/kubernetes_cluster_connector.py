@@ -181,11 +181,16 @@ class KubernetesClusterConnector(ClusterConnector):
                 return False
         return True
 
-    def _get_nodes_by_ip(self) -> Mapping[str, KubernetesNode]:
-        node_label_selector = self.pool_config.read_string("node_label_key", default="clusterman.com/pool")
+     def _get_nodes_by_ip(self) -> Mapping[str, KubernetesNode]:
+        use_different_label_for_nodes = self.pool_config.read_string("use_different_label_for_nodes", False)
+
+        if use_different_label_for_nodes: 
+            node_label_selector = self.pool_config.read_string("pool_label_key", default="clusterman.com/pool")
+        else:
+            node_label_selector = self.pool_config.read_string("node_label_key", default="clusterman.com/pool")
+
         label_selector = f"{node_label_selector}={self.pool}"
         pool_nodes = self._core_api.list_node(label_selector=label_selector).items
-
         return {
             get_node_ip(node): node
             for node in pool_nodes
