@@ -185,10 +185,8 @@ class KubernetesClusterConnector(ClusterConnector):
         # TODO(CLUSTERMAN-XXX): we'll want to switch to using just pool_label_key once the new label is applied everywhere
         node_label_selector = self.pool_config.read_string(
             "node_label_key", 
-            default=self.pool_config.read_string(
-                "pool_label_key", default="clusterman.com/pool")
-            )  
-
+            default=self.pool_config.read_string("pool_label_key", default="clusterman.com/pool")
+        )
         label_selector = f"{node_label_selector}={self.pool}"
         pool_nodes = self._core_api.list_node(label_selector=label_selector).items
         return {get_node_ip(node): node for node in pool_nodes}
