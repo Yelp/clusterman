@@ -403,7 +403,11 @@ def terminate_host(host: Host) -> None:
     logger.info(f"Terminating: {host.instance_id}")
     resource_group_class = RESOURCE_GROUPS[host.sender]
     resource_group = resource_group_class(host.group_id)
-    resource_group.terminate_instances_by_id([host.instance_id])
+
+    try:
+        resource_group.terminate_instances_by_id([host.instance_id])
+    except Exception:
+        logger.error(f'Failed to terminate host: {host.hostname}, possibly already terminated.')
 
 
 def main(args: argparse.Namespace) -> None:

@@ -558,6 +558,20 @@ def test_terminate_host():
         mock_sfr.return_value.terminate_instances_by_id.assert_called_with(["i123"])
 
 
+def test_terminate_host_failure_no_crash():
+    mock_host = mock.Mock(instance_id='i123', sender='sfr', group_id='sfr123')
+
+    mock_sfr = mock.Mock()
+    mock_sfr.terminate_instances_by_id.side_effect = Exception()
+
+    with mock.patch.dict(
+        'clusterman.draining.queue.RESOURCE_GROUPS', {'sfr': mock_sfr}, clear=True
+    ):
+        terminate_host(mock_host)
+        mock_sfr.assert_called_with('sfr123')
+        mock_sfr.return_value.terminate_instances_by_id.assert_called_with(['i123'])
+
+
 def test_host_from_instance_id():
     with mock.patch(
         "clusterman.draining.queue.ec2_describe_instances",
