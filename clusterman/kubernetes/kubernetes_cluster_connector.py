@@ -158,6 +158,16 @@ class KubernetesClusterConnector(ClusterConnector):
             logger.warning(f"Failed to cordon {node_name}: {e}")
             return False
 
+    def _uncordon_node(self, node_name: str) -> bool:
+        try:
+            self._core_api.patch_node(
+                name=node_name, body={"spec": {"unschedulable": False, }, },
+            )
+            return True
+        except ApiException as e:
+            logger.warning(f"Failed to uncordon {node_name}: {e}")
+            return False
+
     def _evict_tasks_from_node(self, hostname: str) -> bool:
         pods_to_evict = [
             pod
