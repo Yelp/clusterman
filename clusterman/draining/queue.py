@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
+import datetime
 import json
 import socket
 import time
@@ -48,7 +49,6 @@ from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
 from clusterman.util import get_pool_name_list
 
-
 logger = colorlog.getLogger(__name__)
 DRAIN_CACHE_SECONDS = 1800
 
@@ -78,7 +78,7 @@ class DrainingClient:
         )
 
     def submit_instance_for_draining(
-        self, metadata: ClusterNodeMetadata, sender: Type[AWSResourceGroup], scheduler: str
+            self, metadata: ClusterNodeMetadata, sender: Type[AWSResourceGroup], scheduler: str
     ) -> None:
         return self.client.send_message(
             QueueUrl=self.drain_queue_url,
@@ -234,9 +234,9 @@ class DrainingClient:
             )
 
     def process_termination_queue(
-        self,
-        mesos_operator_client: Optional[Callable[..., Callable[[str], Callable[..., None]]]],
-        kube_operator_client: Optional[KubernetesClusterConnector],
+            self,
+            mesos_operator_client: Optional[Callable[..., Callable[[str], Callable[..., None]]]],
+            kube_operator_client: Optional[KubernetesClusterConnector],
     ) -> None:
         host_to_terminate = self.get_host_to_terminate()
         if host_to_terminate:
@@ -262,11 +262,13 @@ class DrainingClient:
             self.delete_terminate_messages([host_to_terminate])
 
     def process_drain_queue(
-        self,
-        mesos_operator_client: Optional[Callable[..., Callable[[str], Callable[..., None]]]],
-        kube_operator_client: Optional[KubernetesClusterConnector],
+            self,
+            mesos_operator_client: Optional[Callable[..., Callable[[str], Callable[..., None]]]],
+            kube_operator_client: Optional[KubernetesClusterConnector],
     ) -> None:
         host_to_process = self.get_host_to_drain()
+        draining_time_threshold = datetime.timedelta(hours=1)
+        draining_spent_time = arrow.now() - host_to_process.draining_start_time
         if host_to_process and host_to_process.instance_id not in self.draining_host_ttl_cache:
             self.draining_host_ttl_cache[host_to_process.instance_id] = arrow.now().shift(seconds=DRAIN_CACHE_SECONDS)
             if host_to_process.scheduler == "mesos":
@@ -286,11 +288,15 @@ class DrainingClient:
                 logger.info(f"Kubernetes host to drain and submit for termination: {host_to_process}")
 
                 if kube_operator_client:
-                    if k8s_drain(kube_operator_client, host_to_process.agent_id):
-                        self.submit_host_for_termination(host_to_process, delay=0)
+                    if draining_time_threshold > draining_spent_time:
+                        # anything to do if uncordon failed?
+                        kube_operator_client.uncordon_node(host_to_process.agent_id)
                     else:
-                        # add message to queue again to avoid starvation for other messages.
-                        self.submit_host_for_draining(host_to_process)
+                        if k8s_drain(kube_operator_client, host_to_process.agent_id):
+                            self.submit_host_for_termination(host_to_process, delay=0)
+                        else:
+                            # add message to queue again to avoid starvation for other messages.
+                            self.submit_host_for_draining(host_to_process)
                 else:
                     logger.info(f"Unable to drain {host_to_process.agent_id} (no Kubernetes connector configured)")
             else:
@@ -338,9 +344,9 @@ class DrainingClient:
 
 
 def host_from_instance_id(
-    sender: str,
-    receipt_handle: str,
-    instance_id: str,
+        sender: str,
+        receipt_handle: str,
+        instance_id: str,
 ) -> Optional[Host]:
     try:
         instance_data = ec2_describe_instances(instance_ids=[instance_id])
@@ -440,8 +446,8 @@ def main(args: argparse.Namespace) -> None:
 
 @subparser("drain", "Drains and terminates instances submitted to SQS by clusterman", main)
 def add_queue_parser(
-    subparser: argparse.ArgumentParser,
-    required_named_args: argparse.Namespace,
-    optional_named_args: argparse.Namespace,
+        subparser: argparse.ArgumentParser,
+        required_named_args: argparse.Namespace,
+        optional_named_args: argparse.Namespace,
 ) -> None:
     add_cluster_arg(required_named_args, required=True)
