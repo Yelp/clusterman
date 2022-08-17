@@ -148,7 +148,7 @@ class KubernetesClusterConnector(ClusterConnector):
             logger.warning(f"Failed to drain {agent_id}: {e}")
             return False
 
-    def _cordon_node(self, node_name: str) -> None:
+    def _cordon_node(self, node_name: str) -> bool:
         try:
             self._core_api.patch_node(
                 name=node_name, body={"spec": {"unschedulable": True, }, },
