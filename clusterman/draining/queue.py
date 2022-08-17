@@ -100,7 +100,6 @@ class DrainingClient:
         )
 
     def submit_host_for_draining(self, host: Host) -> None:
-        # TODO this may not work, because we don't have agent_id here. We need agent_id to drain k8s node.
         return self.client.send_message(
             QueueUrl=self.drain_queue_url,
             MessageAttributes={
@@ -116,6 +115,7 @@ class DrainingClient:
                     "hostname": host.hostname,
                     "group_id": host.group_id,
                     "scheduler": host.scheduler,
+                    "agent_id": host.agent_id,
                 }
             ),
         )
