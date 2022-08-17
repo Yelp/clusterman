@@ -137,7 +137,7 @@ class KubernetesClusterConnector(ClusterConnector):
     def drain_node(self, agent_id: str) -> bool:
         try:
             logger.info(f"Cordoning {agent_id}...")
-            if not self._cordon_node(agent_id):
+            if not self.cordon_node(agent_id):
                 return False
             logger.info(f"Evicting pods on {agent_id}...")
             if not self._evict_tasks_from_node(agent_id):
@@ -148,7 +148,7 @@ class KubernetesClusterConnector(ClusterConnector):
             logger.warning(f"Failed to drain {agent_id}: {e}")
             return False
 
-    def _cordon_node(self, node_name: str) -> bool:
+    def cordon_node(self, node_name: str) -> bool:
         try:
             self._core_api.patch_node(
                 name=node_name, body={"spec": {"unschedulable": True, }, },
@@ -158,7 +158,7 @@ class KubernetesClusterConnector(ClusterConnector):
             logger.warning(f"Failed to cordon {node_name}: {e}")
             return False
 
-    def _uncordon_node(self, node_name: str) -> bool:
+    def uncordon_node(self, node_name: str) -> bool:
         try:
             self._core_api.patch_node(
                 name=node_name, body={"spec": {"unschedulable": False, }, },
