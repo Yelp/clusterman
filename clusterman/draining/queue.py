@@ -61,6 +61,7 @@ class Host(NamedTuple):
     ip: str
     sender: str
     receipt_handle: str
+    draining_start_time: arrow.Arrow
     scheduler: str = "mesos"
 
 
@@ -95,6 +96,7 @@ class DrainingClient:
                     "group_id": metadata.instance.group_id,
                     "scheduler": scheduler,
                     "agent_id": metadata.agent.agent_id,
+                    "draining_start_time": arrow.now()
                 }
             ),
         )
@@ -116,6 +118,7 @@ class DrainingClient:
                     "group_id": host.group_id,
                     "scheduler": host.scheduler,
                     "agent_id": host.agent_id,
+                    "draining_start_time": host.draining_start_time,
                 }
             ),
         )
@@ -384,6 +387,7 @@ def host_from_instance_id(
         ip=ip,
         scheduler=scheduler,
         agent_id=agent_id,
+        draining_start_time=arrow.now(),
     )
 
 

@@ -142,7 +142,7 @@ class KubernetesClusterConnector(ClusterConnector):
             logger.info(f"Evicting pods on {agent_id}...")
             if not self._evict_tasks_from_node(agent_id):
                 return False
-            logger.info(f"Drained  {agent_id}")
+            logger.info(f"Drained {agent_id}")
             return True
         except Exception as e:
             logger.warning(f"Failed to drain {agent_id}: {e}")
