@@ -370,6 +370,11 @@ def host_from_instance_id(
     except socket.error:
         logger.warning(f"Couldn't derive hostname from IP via DNS for {ip}")
         return None
+    try:
+        agent_id = instance_data[0]["PrivateDnsName"]
+    except KeyError:
+        logger.warning(f"No Private Dns Name found for {instance_id}")
+        return None
     return Host(
         sender=sender,
         receipt_handle=receipt_handle,
@@ -378,6 +383,7 @@ def host_from_instance_id(
         group_id=sfr_ids[0],
         ip=ip,
         scheduler=scheduler,
+        agent_id=agent_id,
     )
 
 
