@@ -47,9 +47,9 @@ acceptance-%: local-cluster-%
 	for count in 1 2 3 4 5 6 7 8 9 10; do \
 		echo "Not running yet, waiting 10 seconds and trying again (check $$count of 10)..."; \
 		sleep 10; \
-		$(KUBECTL) describe pods; \
-		$(KUBECTL) logs $$($(KUBECTL) get pods | grep clusterman | cut -f1 -d' '); \
-		if $(KUBECTL) get pods | grep -q clusterman.*Running; then echo "Clusterman running successfully!"; running=0; break; fi; \
+		$(KUBECTL) describe pods -n default; \
+		$(KUBECTL) logs $$($(KUBECTL) get pods -n default | grep clusterman | cut -f1 -d' ') -n default; \
+		if $(KUBECTL) get pods -n default | grep -q clusterman.*Running; then echo "Clusterman running successfully!"; running=0; break; fi; \
 	done; \
 	exit $$running
 
@@ -91,6 +91,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: clusterman
+  namespace: default
   labels:
     app: clusterman
 spec:
