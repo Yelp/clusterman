@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from copy import deepcopy
-
 import mock
 import pytest
 from kubernetes.client import V1Container
@@ -356,36 +354,3 @@ def test_pending_cpus(mock_cluster_connector):
 def test_pod_belongs_to_daemonset(mock_cluster_connector, running_pod_1, daemonset_pod):
     assert not mock_cluster_connector._pod_belongs_to_daemonset(running_pod_1)
     assert mock_cluster_connector._pod_belongs_to_daemonset(daemonset_pod)
-
-
-def test_pod_belongs_to_pool(
-    mock_cluster_connector,
-    running_pod_1,
-    running_pod_2,
-    running_pod_on_nonexistent_node,
-    unevictable_pod,
-    unschedulable_pod,
-    pending_pod,
-    pod_with_required_affinity,
-    pod_with_preferred_affinity,
-):
-    pod_with_node_selector_elsewhere = deepcopy(pending_pod)
-    pod_with_node_selector_elsewhere.spec.node_selector = {"clusterman.com/pool": "not-bar"}
-    pod_with_required_affinity_elsewhere = deepcopy(pod_with_required_affinity)
-    pod_with_required_affinity_elsewhere.spec.affinity.node_affinity.required_during_scheduling_ignored_during_execution.node_selector_terms[  # noqa
-        0
-    ].match_expressions[
-        0
-    ].values = [
-        "not-bar"
-    ]
-    assert mock_cluster_connector._pod_belongs_to_pool(running_pod_1)
-    assert mock_cluster_connector._pod_belongs_to_pool(running_pod_2)
-    assert mock_cluster_connector._pod_belongs_to_pool(running_pod_on_nonexistent_node)
-    assert mock_cluster_connector._pod_belongs_to_pool(unevictable_pod)
-    assert mock_cluster_connector._pod_belongs_to_pool(unschedulable_pod)
-    assert mock_cluster_connector._pod_belongs_to_pool(pending_pod)
-    assert mock_cluster_connector._pod_belongs_to_pool(pod_with_required_affinity)
-    assert mock_cluster_connector._pod_belongs_to_pool(pod_with_preferred_affinity)
-    assert not mock_cluster_connector._pod_belongs_to_pool(pod_with_node_selector_elsewhere)
-    assert not mock_cluster_connector._pod_belongs_to_pool(pod_with_required_affinity_elsewhere)
