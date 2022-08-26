@@ -245,7 +245,7 @@ class KubernetesClusterConnector(ClusterConnector):
                     unschedulable_pods.append(pod)
                 else:
                     logger.info(f"Skipping {pod.metadata.name} pod ({pod.status.phase})")
-        return pods_by_ip, unschedulable_pods, excluded_pods_by_ip    
+        return pods_by_ip, unschedulable_pods, excluded_pods_by_ip
 
     def _get_pods_info_with_label(
         self,

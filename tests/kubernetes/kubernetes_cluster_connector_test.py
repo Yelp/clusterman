@@ -357,6 +357,7 @@ def test_pod_belongs_to_daemonset(mock_cluster_connector, running_pod_1, daemons
     assert not mock_cluster_connector._pod_belongs_to_daemonset(running_pod_1)
     assert mock_cluster_connector._pod_belongs_to_daemonset(daemonset_pod)
 
+
 def test_pod_belongs_to_pool(
     mock_cluster_connector,
     running_pod_1,
