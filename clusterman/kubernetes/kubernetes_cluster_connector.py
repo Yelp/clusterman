@@ -223,7 +223,7 @@ class KubernetesClusterConnector(ClusterConnector):
         pool_nodes = self._core_api.list_node(label_selector=label_selector).items
         return {get_node_ip(node): node for node in pool_nodes}
 
-    def _get_pods_info_no_label(
+    def _get_pods_info(
         self,
     ) -> Tuple[Mapping[str, List[KubernetesPod]], List[KubernetesPod], Mapping[str, List[KubernetesPod]],]:
         pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
@@ -247,7 +247,7 @@ class KubernetesClusterConnector(ClusterConnector):
                     logger.info(f"Skipping {pod.metadata.name} pod ({pod.status.phase})")
         return pods_by_ip, unschedulable_pods, excluded_pods_by_ip    
 
-    def _get_pods_info(
+    def _get_pods_info_with_label(
         self,
     ) -> Tuple[Mapping[str, List[KubernetesPod]], List[KubernetesPod], Mapping[str, List[KubernetesPod]],]:
         pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
