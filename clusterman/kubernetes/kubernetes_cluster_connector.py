@@ -74,11 +74,11 @@ class KubernetesClusterConnector(ClusterConnector):
         self._prev_nodes_by_ip = copy.deepcopy(self._nodes_by_ip)
         self._nodes_by_ip = self._get_nodes_by_ip()
         logger.info("Reloading pods")
-        (
-            self._pods_by_ip,
-            self._unschedulable_pods,
-            self._excluded_pods_by_ip,
-        ) = self._get_pods_info_with_label() if self.pool_config.read_bool("use_labels_for_pods", default=False) else self._get_pods_info()
+        (self._pods_by_ip, self._unschedulable_pods, self._excluded_pods_by_ip,) = (
+            self._get_pods_info_with_label()
+            if self.pool_config.read_bool("use_labels_for_pods", default=False)
+            else self._get_pods_info()
+        )
 
     def get_num_removed_nodes_before_last_reload(self) -> int:
         previous_nodes = self._prev_nodes_by_ip
