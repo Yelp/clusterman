@@ -135,6 +135,36 @@ class KubernetesClusterConnector(ClusterConnector):
             [owner_reference.kind == "DaemonSet" for owner_reference in pod.metadata.owner_references]
         )
 
+    def _pod_belongs_to_pool(self, pod: KubernetesPod) -> bool:
+        # Check if the pod is on a node in the pool -- this should cover most cases
+        if pod.status.phase in KUBERNETES_SCHEDULED_PHASES and pod.status.host_ip in self._nodes_by_ip:
+            return True
+
+        # Otherwise, check if the node selector matches the pool; we'll only get to either of the
+        # following checks if the pod _should_ be running on the cluster, but isn't currently.  (This won't catch things
+        # that have a nodeSelector or nodeAffinity for anything other than "pool name", for example, system-level
+        # DaemonSets like kiam)
+        if pod.spec.node_selector:
+            for key, value in pod.spec.node_selector.items():
+                if key == self.pool_label_key:
+                    return value == self.pool
+
+        # Lastly, check if an affinity rule matches
+        selector_requirement = V1NodeSelectorRequirement(key=self.pool_label_key, operator="In", values=[self.pool])
+
+        if pod.spec.affinity and pod.spec.affinity.node_affinity:
+            node_affinity = pod.spec.affinity.node_affinity
+            terms: List[V1NodeSelectorTerm] = []
+            if node_affinity.required_during_scheduling_ignored_during_execution:
+                terms.extend(node_affinity.required_during_scheduling_ignored_during_execution.node_selector_terms)
+            if node_affinity.preferred_during_scheduling_ignored_during_execution:
+                terms.extend(
+                    [term.preference for term in node_affinity.preferred_during_scheduling_ignored_during_execution]
+                )
+            if selector_term_matches_requirement(terms, selector_requirement):
+                return True
+        return False
+
     def _get_pod_unschedulable_reason(self, pod: KubernetesPod) -> PodUnschedulableReason:
         pod_resource_request = total_pod_resources(pod)
         for node_ip, pods_on_node in self._pods_by_ip.items():
@@ -189,6 +219,30 @@ class KubernetesClusterConnector(ClusterConnector):
         label_selector = f"{node_label_selector}={self.pool}"
         pool_nodes = self._core_api.list_node(label_selector=label_selector).items
         return {get_node_ip(node): node for node in pool_nodes}
+
+    def _get_pods_info_no_label(
+        self,
+    ) -> Tuple[Mapping[str, List[KubernetesPod]], List[KubernetesPod], Mapping[str, List[KubernetesPod]],]:
+        pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
+        unschedulable_pods: List[KubernetesPod] = []
+        excluded_pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
+
+        exclude_daemonset_pods = self.pool_config.read_bool(
+            "exclude_daemonset_pods",
+            default=staticconf.read_bool("exclude_daemonset_pods", default=False),
+        )
+        all_pods = self._core_api.list_pod_for_all_namespaces().items
+        for pod in all_pods:
+            if self._pod_belongs_to_pool(pod):
+                if exclude_daemonset_pods and self._pod_belongs_to_daemonset(pod):
+                    excluded_pods_by_ip[pod.status.host_ip].append(pod)
+                elif pod.status.phase == "Running" or self._is_recently_scheduled(pod):
+                    pods_by_ip[pod.status.host_ip].append(pod)
+                elif self._is_unschedulable(pod):
+                    unschedulable_pods.append(pod)
+                else:
+                    logger.info(f"Skipping {pod.metadata.name} pod ({pod.status.phase})")
+        return pods_by_ip, unschedulable_pods, excluded_pods_by_ip    
 
     def _get_pods_info(
         self,
