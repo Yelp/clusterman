@@ -23,6 +23,8 @@ import colorlog
 import kubernetes
 import staticconf
 from kubernetes.client.models.v1_node import V1Node as KubernetesNode
+from kubernetes.client.models.v1_node_selector_requirement import V1NodeSelectorRequirement
+from kubernetes.client.models.v1_node_selector_term import V1NodeSelectorTerm
 from kubernetes.client.models.v1_pod import V1Pod as KubernetesPod
 from kubernetes.client.rest import ApiException
 
@@ -33,6 +35,7 @@ from clusterman.kubernetes.util import allocated_node_resources
 from clusterman.kubernetes.util import CachedCoreV1Api
 from clusterman.kubernetes.util import get_node_ip
 from clusterman.kubernetes.util import PodUnschedulableReason
+from clusterman.kubernetes.util import selector_term_matches_requirement
 from clusterman.kubernetes.util import total_node_resources
 from clusterman.kubernetes.util import total_pod_resources
 from clusterman.util import strtobool
