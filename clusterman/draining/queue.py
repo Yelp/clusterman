@@ -269,7 +269,6 @@ class DrainingClient:
             kube_operator_client: Optional[KubernetesClusterConnector],
     ) -> None:
         host_to_process = self.get_host_to_drain()
-        draining_time_threshold = datetime.timedelta(hours=1)
         draining_spent_time = arrow.now() - host_to_process.draining_start_time
         if host_to_process and host_to_process.instance_id not in self.draining_host_ttl_cache:
             self.draining_host_ttl_cache[host_to_process.instance_id] = arrow.now().shift(seconds=DRAIN_CACHE_SECONDS)
@@ -289,18 +288,27 @@ class DrainingClient:
             elif host_to_process.scheduler == "kubernetes":
                 logger.info(f"Kubernetes host to drain and submit for termination: {host_to_process}")
 
-                if kube_operator_client:
-                    if draining_time_threshold > draining_spent_time:
-                        # anything to do if uncordon failed?
-                        kube_operator_client.uncordon_node(host_to_process.agent_id)
+                pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=host_to_process.pool, scheduler="kubernetes"))
+                force_terminate = pool_config.read_bool("draining.force_terminate")
+                draining_time_threshold_seconds = pool_config.read_int("draining.draining_time_threshold_seconds")
+                should_resend_to_queue = False
+
+                # need to check/validate kube_operator_client?
+
+                if draining_time_threshold_seconds > draining_spent_time.total_seconds():
+                    if force_terminate:
+                        self.submit_host_for_termination(host_to_process, delay=0)
                     else:
-                        if k8s_drain(kube_operator_client, host_to_process.agent_id):
-                            self.submit_host_for_termination(host_to_process, delay=0)
-                        else:
-                            # add message to queue again to avoid starvation for other messages.
-                            self.submit_host_for_draining(host_to_process)
+                        if not kube_operator_client.uncordon_node(host_to_process.agent_id):
+                            should_resend_to_queue = True
                 else:
-                    logger.info(f"Unable to drain {host_to_process.agent_id} (no Kubernetes connector configured)")
+                    if k8s_drain(kube_operator_client, host_to_process.agent_id):
+                        self.submit_host_for_termination(host_to_process, delay=0)
+                    else:
+                        should_resend_to_queue = True
+
+                if should_resend_to_queue:
+                    self.submit_host_for_draining(host_to_process)
             else:
                 logger.info(f"Host to submit for termination immediately: {host_to_process}")
                 self.submit_host_for_termination(host_to_process, delay=0)
