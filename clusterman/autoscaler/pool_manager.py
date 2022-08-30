@@ -196,6 +196,7 @@ class PoolManager:
                                 self.resource_groups[group_id].__class__,
                             ),
                             scheduler=self.scheduler,
+                            pool=self.pool,
                         )
             else:
                 for group_id, node_metadatas in marked_nodes_by_group.items():

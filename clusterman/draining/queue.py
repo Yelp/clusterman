@@ -61,6 +61,7 @@ class Host(NamedTuple):
     ip: str
     sender: str
     receipt_handle: str
+    pool: str
     draining_start_time: arrow.Arrow
     scheduler: str = "mesos"
 
@@ -78,7 +79,7 @@ class DrainingClient:
         )
 
     def submit_instance_for_draining(
-            self, metadata: ClusterNodeMetadata, sender: Type[AWSResourceGroup], scheduler: str
+            self, metadata: ClusterNodeMetadata, sender: Type[AWSResourceGroup], scheduler: str, pool: str
     ) -> None:
         return self.client.send_message(
             QueueUrl=self.drain_queue_url,
@@ -96,6 +97,7 @@ class DrainingClient:
                     "group_id": metadata.instance.group_id,
                     "scheduler": scheduler,
                     "agent_id": metadata.agent.agent_id,
+                    "pool": pool,
                     "draining_start_time": arrow.now()
                 }
             ),
@@ -384,6 +386,15 @@ def host_from_instance_id(
     except KeyError:
         logger.warning(f"No Private Dns Name found for {instance_id}")
         return None
+    try:
+        for tag in instance_data[0]["Tags"]:
+            if "puppet:role::" in tag["Key"]:
+                puppet_roles = json.loads(tag["Value"])
+                pool = puppet_roles["pool"]
+                break
+    except KeyError:
+        logger.warning(f"No puppet role (pool) found for {instance_id}")
+        return None
     return Host(
         sender=sender,
         receipt_handle=receipt_handle,
@@ -393,6 +404,7 @@ def host_from_instance_id(
         ip=ip,
         scheduler=scheduler,
         agent_id=agent_id,
+        pool=pool,
         draining_start_time=arrow.now(),
     )
 
