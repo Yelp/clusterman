@@ -69,7 +69,7 @@ def test_submit_instance_for_draining(mock_draining_client):
                 "scheduler": "mesos",
                 "agent_id": "agt123",
                 "pool": "default",
-                "draining_start_time": now
+                "draining_start_time": now.for_json()
             }
         )
         mock_draining_client.client.send_message.assert_called_with(
@@ -116,7 +116,7 @@ def test_submit_host_for_draining(mock_draining_client):
                 "scheduler": "kubernetes",
                 "agent_id": "agt123",
                 "pool": "default",
-                "draining_start_time": now,
+                "draining_start_time": now.for_json(),
             }
         )
         mock_draining_client.client.send_message.assert_called_with(
@@ -303,7 +303,7 @@ def test_get_host_to_terminate(mock_draining_client):
             "group_id": "sfr123",
             "pool": "default",
             "agent_id": "agt123",
-            "draining_start_time": now,
+            "draining_start_time": now.for_json(),
         }
 
         assert mock_draining_client.get_host_to_terminate() == Host(
@@ -315,7 +315,7 @@ def test_get_host_to_terminate(mock_draining_client):
             group_id="sfr123",
             agent_id="agt123",
             pool="default",
-            draining_start_time=now,
+            draining_start_time=now.for_json(),
         )
         mock_json.loads.assert_called_with("Helloworld")
         mock_draining_client.client.receive_message.assert_called_with(
@@ -486,7 +486,7 @@ def test_process_drain_queue(mock_draining_client):
             instance_id="i123",
             agent_id="agt123",
             pool="default",
-            draining_start_time=now,
+            draining_start_time=now.for_json(),
             sender="mmb",
             receipt_handle="aaaaa",
         )
@@ -510,7 +510,7 @@ def test_process_drain_queue(mock_draining_client):
             instance_id="i123",
             agent_id="agt123",
             pool="default",
-            draining_start_time=now,
+            draining_start_time=now.for_json(),
             sender="mmb",
             receipt_handle="bbb",
         )
