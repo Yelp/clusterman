@@ -249,6 +249,9 @@ def test_get_host_to_drain(mock_draining_client):
             ip="10.1.1.1",
             hostname="host123",
             group_id="sfr123",
+            agent_id="agt123",
+            pool="default",
+            draining_start_time=arrow.now(),
         )
         mock_json.loads.assert_called_with("Helloworld")
         mock_draining_client.client.receive_message.assert_called_with(
@@ -288,6 +291,9 @@ def test_get_host_to_terminate(mock_draining_client):
             ip="10.1.1.1",
             hostname="host123",
             group_id="sfr123",
+            agent_id="agt123",
+            pool="default",
+            draining_start_time=arrow.now(),
         )
         mock_json.loads.assert_called_with("Helloworld")
         mock_draining_client.client.receive_message.assert_called_with(
@@ -609,6 +615,9 @@ def test_host_from_instance_id():
             hostname=mock_gethostbyaddr.return_value[0],
             group_id="sfr-123",
             ip="10.1.1.1",
+            agent_id="agt123",
+            pool="default",
+            draining_start_time=arrow.now(),
         )
 
         mock_gethostbyaddr.side_effect = socket.error
