@@ -295,7 +295,7 @@ class DrainingClient:
 
                 # need to check/validate kube_operator_client?
 
-                if draining_time_threshold_seconds > draining_spent_time.total_seconds():
+                if draining_spent_time.total_seconds() > draining_time_threshold_seconds:
                     if force_terminate:
                         self.submit_host_for_termination(host_to_process, delay=0)
                     else:
