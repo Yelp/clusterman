@@ -41,7 +41,6 @@ from clusterman.kubernetes.util import total_node_resources
 from clusterman.kubernetes.util import total_pod_resources
 from clusterman.util import strtobool
 
-
 logger = colorlog.getLogger(__name__)
 KUBERNETES_SCHEDULED_PHASES = {"Pending", "Running"}
 CLUSTERMAN_TERMINATION_TAINT_KEY = "clusterman.yelp.com/terminating"
@@ -117,7 +116,7 @@ class KubernetesClusterConnector(ClusterConnector):
         )
 
     def get_unschedulable_pods(
-        self,
+            self,
     ) -> List[Tuple[KubernetesPod, PodUnschedulableReason]]:
         unschedulable_pods = []
         for pod in self._unschedulable_pods:
@@ -195,7 +194,6 @@ class KubernetesClusterConnector(ClusterConnector):
                 return False
 
         return True
-
 
     def _list_all_pods_on_node(self, node_name: str) -> List[KubernetesPod]:
         return self._core_api.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={node_name}")
@@ -292,7 +290,7 @@ class KubernetesClusterConnector(ClusterConnector):
         }
 
     def _get_pods_info(
-        self,
+            self,
     ) -> Tuple[Mapping[str, List[KubernetesPod]], List[KubernetesPod], Mapping[str, List[KubernetesPod]],]:
         pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
         unschedulable_pods: List[KubernetesPod] = []
