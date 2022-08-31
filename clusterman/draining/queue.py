@@ -96,7 +96,7 @@ class DrainingClient:
                     "scheduler": scheduler,
                     "agent_id": agent_id,
                     "pool": pool,
-                    "draining_start_time": draining_start_time
+                    "draining_start_time": draining_start_time.for_json()
                 }
             ),
         )
@@ -119,7 +119,7 @@ class DrainingClient:
                     "scheduler": host.scheduler,
                     "agent_id": host.agent_id,
                     "pool": host.pool,
-                    "draining_start_time": host.draining_start_time,
+                    "draining_start_time": host.draining_start_time.for_json(),
                 }
             ),
         )
