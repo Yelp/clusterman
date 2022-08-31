@@ -266,8 +266,8 @@ class DrainingClient:
             kube_operator_client: Optional[KubernetesClusterConnector],
     ) -> None:
         host_to_process = self.get_host_to_drain()
-        draining_spent_time = arrow.now() - host_to_process.draining_start_time
         if host_to_process and host_to_process.instance_id not in self.draining_host_ttl_cache:
+            draining_spent_time = arrow.now() - host_to_process.draining_start_time
             self.draining_host_ttl_cache[host_to_process.instance_id] = arrow.now().shift(seconds=DRAIN_CACHE_SECONDS)
             if host_to_process.scheduler == "mesos":
                 logger.info(f"Mesos host to drain and submit for termination: {host_to_process}")
@@ -294,7 +294,10 @@ class DrainingClient:
                 if not evict_tasks:
                     self.submit_host_for_termination(host_to_process, delay=0)
                     return
-                # need to check/validate kube_operator_client?
+
+                if not kube_operator_client:
+                    logger.info(f"Unable to drain {host_to_process.hostname} (no Kubernetes connector configured)")
+                    return
 
                 if draining_spent_time.total_seconds() > draining_time_threshold_seconds:
                     if force_terminate:
