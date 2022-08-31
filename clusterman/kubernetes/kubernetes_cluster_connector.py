@@ -22,7 +22,9 @@ import arrow
 import colorlog
 import kubernetes
 import staticconf
-from kubernetes.client import V1beta1Eviction, V1ObjectMeta, V1DeleteOptions
+from kubernetes.client import V1beta1Eviction
+from kubernetes.client import V1DeleteOptions
+from kubernetes.client import V1ObjectMeta
 from kubernetes.client.models.v1_node import V1Node as KubernetesNode
 from kubernetes.client.models.v1_node_selector_requirement import V1NodeSelectorRequirement
 from kubernetes.client.models.v1_node_selector_term import V1NodeSelectorTerm
@@ -116,7 +118,7 @@ class KubernetesClusterConnector(ClusterConnector):
         )
 
     def get_unschedulable_pods(
-            self,
+        self,
     ) -> List[Tuple[KubernetesPod, PodUnschedulableReason]]:
         unschedulable_pods = []
         for pod in self._unschedulable_pods:
@@ -150,7 +152,12 @@ class KubernetesClusterConnector(ClusterConnector):
     def cordon_node(self, node_name: str) -> bool:
         try:
             self._core_api.patch_node(
-                name=node_name, body={"spec": {"unschedulable": True, }, },
+                name=node_name,
+                body={
+                    "spec": {
+                        "unschedulable": True,
+                    },
+                },
             )
             return True
         except ApiException as e:
@@ -160,7 +167,12 @@ class KubernetesClusterConnector(ClusterConnector):
     def uncordon_node(self, node_name: str) -> bool:
         try:
             self._core_api.patch_node(
-                name=node_name, body={"spec": {"unschedulable": False, }, },
+                name=node_name,
+                body={
+                    "spec": {
+                        "unschedulable": False,
+                    },
+                },
             )
             return True
         except ApiException as e:
@@ -169,9 +181,7 @@ class KubernetesClusterConnector(ClusterConnector):
 
     def _evict_tasks_from_node(self, hostname: str) -> bool:
         pods_to_evict = [
-            pod
-            for pod in self._list_all_pods_on_node(hostname)
-            if not self._pod_belongs_to_daemonset(pod)
+            pod for pod in self._list_all_pods_on_node(hostname) if not self._pod_belongs_to_daemonset(pod)
         ]
 
         for pod in pods_to_evict:
@@ -180,7 +190,10 @@ class KubernetesClusterConnector(ClusterConnector):
                     name=pod.metadata.name,
                     namespace=pod.metadata.namespace,
                     body=V1beta1Eviction(
-                        metadata=V1ObjectMeta(name=pod.metadata.name, namespace=pod.metadata.namespace, ),
+                        metadata=V1ObjectMeta(
+                            name=pod.metadata.name,
+                            namespace=pod.metadata.namespace,
+                        ),
                         delete_options=V1DeleteOptions(
                             # we don't want to block on eviction as we're potentially evicting a ton of pods
                             # AND there's a delay before we go ahead and terminate
@@ -290,7 +303,7 @@ class KubernetesClusterConnector(ClusterConnector):
         }
 
     def _get_pods_info(
-            self,
+        self,
     ) -> Tuple[Mapping[str, List[KubernetesPod]], List[KubernetesPod], Mapping[str, List[KubernetesPod]],]:
         pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
         unschedulable_pods: List[KubernetesPod] = []

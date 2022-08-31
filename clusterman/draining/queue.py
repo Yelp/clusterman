@@ -77,7 +77,13 @@ class DrainingClient:
         )
 
     def submit_instance_for_draining(
-            self, instance: InstanceMetadata, sender: Type[AWSResourceGroup], scheduler: str, pool: str, agent_id: str, draining_start_time: arrow.Arrow,
+        self,
+        instance: InstanceMetadata,
+        sender: Type[AWSResourceGroup],
+        scheduler: str,
+        pool: str,
+        agent_id: str,
+        draining_start_time: arrow.Arrow,
     ) -> None:
         return self.client.send_message(
             QueueUrl=self.drain_queue_url,
@@ -96,7 +102,7 @@ class DrainingClient:
                     "scheduler": scheduler,
                     "agent_id": agent_id,
                     "pool": pool,
-                    "draining_start_time": draining_start_time.for_json()
+                    "draining_start_time": draining_start_time.for_json(),
                 }
             ),
         )
@@ -235,9 +241,9 @@ class DrainingClient:
             )
 
     def process_termination_queue(
-            self,
-            mesos_operator_client: Optional[Callable[..., Callable[[str], Callable[..., None]]]],
-            kube_operator_client: Optional[KubernetesClusterConnector],
+        self,
+        mesos_operator_client: Optional[Callable[..., Callable[[str], Callable[..., None]]]],
+        kube_operator_client: Optional[KubernetesClusterConnector],
     ) -> None:
         host_to_terminate = self.get_host_to_terminate()
         if host_to_terminate:
@@ -263,9 +269,9 @@ class DrainingClient:
             self.delete_terminate_messages([host_to_terminate])
 
     def process_drain_queue(
-            self,
-            mesos_operator_client: Optional[Callable[..., Callable[[str], Callable[..., None]]]],
-            kube_operator_client: Optional[KubernetesClusterConnector],
+        self,
+        mesos_operator_client: Optional[Callable[..., Callable[[str], Callable[..., None]]]],
+        kube_operator_client: Optional[KubernetesClusterConnector],
     ) -> None:
         host_to_process = self.get_host_to_drain()
         if host_to_process and host_to_process.instance_id not in self.draining_host_ttl_cache:
@@ -287,7 +293,9 @@ class DrainingClient:
                 logger.info(f"Kubernetes host to drain and submit for termination: {host_to_process}")
 
                 draining_spent_time = arrow.now() - host_to_process.draining_start_time
-                pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=host_to_process.pool, scheduler="kubernetes"))
+                pool_config = staticconf.NamespaceReaders(
+                    POOL_NAMESPACE.format(pool=host_to_process.pool, scheduler="kubernetes")
+                )
                 force_terminate = pool_config.read_bool("draining.force_terminate", False)
                 evict_tasks = pool_config.read_bool("draining.evict_tasks", True)
                 draining_time_threshold_seconds = pool_config.read_int("draining.draining_time_threshold_seconds", 1800)
@@ -360,9 +368,9 @@ class DrainingClient:
 
 
 def host_from_instance_id(
-        sender: str,
-        receipt_handle: str,
-        instance_id: str,
+    sender: str,
+    receipt_handle: str,
+    instance_id: str,
 ) -> Optional[Host]:
     try:
         instance_data = ec2_describe_instances(instance_ids=[instance_id])
@@ -472,8 +480,8 @@ def main(args: argparse.Namespace) -> None:
 
 @subparser("drain", "Drains and terminates instances submitted to SQS by clusterman", main)
 def add_queue_parser(
-        subparser: argparse.ArgumentParser,
-        required_named_args: argparse.Namespace,
-        optional_named_args: argparse.Namespace,
+    subparser: argparse.ArgumentParser,
+    required_named_args: argparse.Namespace,
+    optional_named_args: argparse.Namespace,
 ) -> None:
     add_cluster_arg(required_named_args, required=True)

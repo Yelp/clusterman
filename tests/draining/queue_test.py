@@ -56,7 +56,7 @@ def test_submit_instance_for_draining(mock_draining_client):
                 scheduler="mesos",
                 pool="default",
                 agent_id="agt123",
-                draining_start_time=now
+                draining_start_time=now,
             )
             == mock_draining_client.client.send_message.return_value
         )
@@ -69,7 +69,7 @@ def test_submit_instance_for_draining(mock_draining_client):
                 "scheduler": "mesos",
                 "agent_id": "agt123",
                 "pool": "default",
-                "draining_start_time": now.for_json()
+                "draining_start_time": now.for_json(),
             }
         )
         mock_draining_client.client.send_message.assert_called_with(
@@ -595,7 +595,6 @@ def test_process_drain_queue(mock_draining_client):
         mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
 
 
-
 def test_clean_processing_hosts_cache(mock_draining_client):
     mock_draining_client.draining_host_ttl_cache["i123"] = arrow.get("2018-12-17T16:01:59")
     mock_draining_client.draining_host_ttl_cache["i456"] = arrow.get("2018-12-17T16:02:00")
@@ -676,12 +675,8 @@ def test_host_from_instance_id():
     with mock.patch(
         "clusterman.draining.queue.ec2_describe_instances",
         autospec=True,
-    ) as mock_ec2_describe, mock.patch(
-        "socket.gethostbyaddr",
-        autospec=True,
-    ) as mock_gethostbyaddr, mock.patch(
-        "clusterman.draining.queue.arrow",
-        autospec=False
+    ) as mock_ec2_describe, mock.patch("socket.gethostbyaddr", autospec=True,) as mock_gethostbyaddr, mock.patch(
+        "clusterman.draining.queue.arrow", autospec=False
     ) as mock_arrow:
         mock_ec2_describe.return_value = []
         assert (
@@ -718,7 +713,10 @@ def test_host_from_instance_id():
             {
                 "PrivateIpAddress": "10.1.1.1",
                 "PrivateDnsName": "agt123",
-                "Tags": [{"Key": "aws:ec2spot:fleet-request-id", "Value": "sfr-123"},{"Key": "puppet:role::kube", "Value": '{"pool": "default"}'}],
+                "Tags": [
+                    {"Key": "aws:ec2spot:fleet-request-id", "Value": "sfr-123"},
+                    {"Key": "puppet:role::kube", "Value": '{"pool": "default"}'},
+                ],
             }
         ]
         assert host_from_instance_id(sender="aws", receipt_handle="rcpt", instance_id="i-123",) == Host(

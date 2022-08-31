@@ -188,10 +188,7 @@ class TestPruneExcessFulfilledCapacity:
 
     def test_drain_queue(self, mock_pool_manager, mock_nodes_to_prune):
         now = arrow.now()
-        with mock.patch(
-            "clusterman.autoscaler.pool_manager.arrow",
-            autospec=False
-        ) as mock_arrow:
+        with mock.patch("clusterman.autoscaler.pool_manager.arrow", autospec=False) as mock_arrow:
             mock_arrow.now.return_value = now
             mock_pool_manager.draining_enabled = True
             mock_pool_manager.prune_excess_fulfilled_capacity(100)
