@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
-import datetime
 import json
 import socket
 import time
@@ -39,12 +38,10 @@ from clusterman.aws.util import RESOURCE_GROUPS_REV
 from clusterman.config import load_cluster_pool_config
 from clusterman.config import POOL_NAMESPACE
 from clusterman.config import setup_config
-from clusterman.draining.kubernetes import drain as k8s_drain
 from clusterman.draining.mesos import down
 from clusterman.draining.mesos import drain as mesos_drain
 from clusterman.draining.mesos import operator_api
 from clusterman.draining.mesos import up
-from clusterman.interfaces.resource_group import InstanceMetadata
 from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
 from clusterman.util import get_pool_name_list
@@ -302,7 +299,7 @@ class DrainingClient:
                         if not kube_operator_client.uncordon_node(host_to_process.agent_id):
                             should_resend_to_queue = True
                 else:
-                    if k8s_drain(kube_operator_client, host_to_process.agent_id):
+                    if kube_operator_client.drain_node(host_to_process.agent_id):
                         self.submit_host_for_termination(host_to_process, delay=0)
                     else:
                         should_resend_to_queue = True
