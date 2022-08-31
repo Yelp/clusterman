@@ -25,6 +25,7 @@ from typing import Sequence
 from typing import Tuple
 from typing import Type
 
+import arrow
 import colorlog
 import staticconf
 from kubernetes.client.models.v1_pod import V1Pod as KubernetesPod
@@ -198,6 +199,7 @@ class PoolManager:
                             scheduler=self.scheduler,
                             pool=self.pool,
                             agent_id=node_metadata.agent.agent_id,
+                            draining_start_time=arrow.now(),
                         )
             else:
                 for group_id, node_metadatas in marked_nodes_by_group.items():
