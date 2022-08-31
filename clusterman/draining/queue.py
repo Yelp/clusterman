@@ -42,7 +42,7 @@ from clusterman.draining.mesos import down
 from clusterman.draining.mesos import drain as mesos_drain
 from clusterman.draining.mesos import operator_api
 from clusterman.draining.mesos import up
-from clusterman.interfaces.types import ClusterNodeMetadata
+from clusterman.interfaces.types import InstanceMetadata
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
 from clusterman.util import get_pool_name_list
 
@@ -76,7 +76,7 @@ class DrainingClient:
         )
 
     def submit_instance_for_draining(
-            self, metadata: ClusterNodeMetadata, sender: Type[AWSResourceGroup], scheduler: str, pool: str
+            self, instance: InstanceMetadata, sender: Type[AWSResourceGroup], scheduler: str, pool: str, agent_id: str,
     ) -> None:
         return self.client.send_message(
             QueueUrl=self.drain_queue_url,
@@ -88,12 +88,12 @@ class DrainingClient:
             },
             MessageBody=json.dumps(
                 {
-                    "instance_id": metadata.instance.instance_id,
-                    "ip": metadata.instance.ip_address,
-                    "hostname": metadata.instance.hostname,
-                    "group_id": metadata.instance.group_id,
+                    "instance_id": instance.instance_id,
+                    "ip": instance.ip_address,
+                    "hostname": instance.hostname,
+                    "group_id": instance.group_id,
                     "scheduler": scheduler,
-                    "agent_id": metadata.agent.agent_id,
+                    "agent_id": agent_id,
                     "pool": pool,
                     "draining_start_time": arrow.now()
                 }

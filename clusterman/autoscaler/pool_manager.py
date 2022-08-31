@@ -190,13 +190,14 @@ class PoolManager:
                 for group_id, node_metadatas in marked_nodes_by_group.items():
                     for node_metadata in node_metadatas:
                         self.draining_client.submit_instance_for_draining(
-                            node_metadata,
+                            node_metadata.instance,
                             sender=cast(
                                 Type[AWSResourceGroup],
                                 self.resource_groups[group_id].__class__,
                             ),
                             scheduler=self.scheduler,
                             pool=self.pool,
+                            agent_id=node_metadata.agent.agent_id,
                         )
             else:
                 for group_id, node_metadatas in marked_nodes_by_group.items():

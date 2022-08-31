@@ -53,6 +53,7 @@ def test_submit_instance_for_draining(mock_draining_client):
                 mock_instance,
                 sender=SpotFleetResourceGroup,
                 scheduler="mesos",
+                pool="default",
             )
             == mock_draining_client.client.send_message.return_value
         )
