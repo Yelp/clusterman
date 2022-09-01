@@ -297,18 +297,10 @@ class DrainingClient:
                     POOL_NAMESPACE.format(pool=host_to_process.pool, scheduler="kubernetes")
                 )
                 force_terminate = pool_config.read_bool("draining.force_terminate", False)
-                evict_tasks = pool_config.read_bool("draining.evict_tasks", True)
                 draining_time_threshold_seconds = pool_config.read_int("draining.draining_time_threshold_seconds", 1800)
                 should_resend_to_queue = False
 
-                # feature flag for kubernetes drain node
-                if not evict_tasks:
-                    self.submit_host_for_termination(host_to_process, delay=0)
-                else:
-                    if not kube_operator_client:
-                        logger.info(f"Unable to drain {host_to_process.hostname} (no Kubernetes connector configured)")
-                        return
-
+                if kube_operator_client:
                     if draining_spent_time.total_seconds() > draining_time_threshold_seconds:
                         if force_terminate:
                             self.submit_host_for_termination(host_to_process, delay=0)
@@ -321,8 +313,10 @@ class DrainingClient:
                         else:
                             should_resend_to_queue = True
 
-                    if should_resend_to_queue:
-                        self.submit_host_for_draining(host_to_process)
+                        if should_resend_to_queue:
+                            self.submit_host_for_draining(host_to_process)
+                else:
+                    logger.info(f"Unable to drain {host_to_process.hostname} (no Kubernetes connector configured)")
             else:
                 logger.info(f"Host to submit for termination immediately: {host_to_process}")
                 self.submit_host_for_termination(host_to_process, delay=0)
