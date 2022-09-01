@@ -715,7 +715,7 @@ def test_host_from_instance_id():
                 "PrivateDnsName": "agt123",
                 "Tags": [
                     {"Key": "aws:ec2spot:fleet-request-id", "Value": "sfr-123"},
-                    {"Key": "puppet:role::kube", "Value": '{"pool": "default"}'},
+                    {"Key": "pool", "Value": "default"},
                 ],
             }
         ]

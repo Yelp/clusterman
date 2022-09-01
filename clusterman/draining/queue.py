@@ -410,9 +410,8 @@ def host_from_instance_id(
         return None
     try:
         for tag in instance_data[0]["Tags"]:
-            if "puppet:role::" in tag["Key"]:
-                puppet_roles = json.loads(tag["Value"])
-                pool = puppet_roles["pool"]
+            if tag["Key"] == "pool":
+                pool = tag["Value"]
                 break
     except KeyError:
         logger.warning(f"No puppet role (pool) found for {instance_id}")
