@@ -22,6 +22,9 @@ import arrow
 import colorlog
 import kubernetes
 import staticconf
+from kubernetes.client import V1beta1Eviction
+from kubernetes.client import V1DeleteOptions
+from kubernetes.client import V1ObjectMeta
 from kubernetes.client.models.v1_node import V1Node as KubernetesNode
 from kubernetes.client.models.v1_node_selector_requirement import V1NodeSelectorRequirement
 from kubernetes.client.models.v1_node_selector_term import V1NodeSelectorTerm
@@ -132,6 +135,83 @@ class KubernetesClusterConnector(ClusterConnector):
             self._core_api.patch_node(agent_id, body)
         except ApiException as e:
             logger.warning(f"Failed to freeze {agent_id}: {e}")
+
+    def drain_node(self, agent_id: str) -> bool:
+        try:
+            logger.info(f"Cordoning {agent_id}...")
+            if not self.cordon_node(agent_id):
+                return False
+            logger.info(f"Evicting pods on {agent_id}...")
+            if not self._evict_tasks_from_node(agent_id):
+                return False
+            logger.info(f"Drained {agent_id}")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to drain {agent_id}: {e}")
+            return False
+
+    def cordon_node(self, node_name: str) -> bool:
+        try:
+            self._core_api.patch_node(
+                name=node_name,
+                body={
+                    "spec": {
+                        "unschedulable": True,
+                    },
+                },
+            )
+            return True
+        except ApiException as e:
+            logger.warning(f"Failed to cordon {node_name}: {e}")
+            return False
+
+    def uncordon_node(self, node_name: str) -> bool:
+        try:
+            self._core_api.patch_node(
+                name=node_name,
+                body={
+                    "spec": {
+                        "unschedulable": False,
+                    },
+                },
+            )
+            return True
+        except ApiException as e:
+            logger.warning(f"Failed to uncordon {node_name}: {e}")
+            return False
+
+    def _evict_tasks_from_node(self, hostname: str) -> bool:
+        pods_to_evict = [
+            pod for pod in self._list_all_pods_on_node(hostname) if not self._pod_belongs_to_daemonset(pod)
+        ]
+        logger.info(f"{len(pods_to_evict)} pods being evicted")
+        for pod in pods_to_evict:
+            try:
+                self._core_api.create_namespaced_pod_eviction(
+                    name=pod.metadata.name,
+                    namespace=pod.metadata.namespace,
+                    body=V1beta1Eviction(
+                        metadata=V1ObjectMeta(
+                            name=pod.metadata.name,
+                            namespace=pod.metadata.namespace,
+                        ),
+                        delete_options=V1DeleteOptions(
+                            # we don't want to block on eviction as we're potentially evicting a ton of pods
+                            # AND there's a delay before we go ahead and terminate
+                            # AND at Yelp we run a script on shutdown that will also try to drain one final time.
+                            propagation_policy="Background",
+                        ),
+                    ),
+                )
+                logger.info(f"{pod.metadata.name} ({pod.metadata.namespace}) was evicted")
+            except ApiException as e:
+                logger.warning(f"Failed to evict {pod.metadata.name} ({pod.metadata.namespace}): {e.status}-{e.reason}")
+                return False
+
+        return True
+
+    def _list_all_pods_on_node(self, node_name: str) -> List[KubernetesPod]:
+        return self._core_api.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={node_name}")
 
     def _pod_belongs_to_daemonset(self, pod: KubernetesPod) -> bool:
         return pod.metadata.owner_references and any(
