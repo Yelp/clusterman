@@ -52,14 +52,14 @@ DRAIN_CACHE_SECONDS = 1800
 
 
 class Host(NamedTuple):
-    agent_id: str
     instance_id: str
     hostname: str
     group_id: str
     ip: str
     sender: str
     receipt_handle: str
-    pool: str
+    agent_id: str = ""
+    pool: str = ""
     draining_start_time: arrow.Arrow = arrow.now()
     scheduler: str = "mesos"
 
@@ -397,19 +397,6 @@ def host_from_instance_id(
     except socket.error:
         logger.warning(f"Couldn't derive hostname from IP via DNS for {ip}")
         return None
-    try:
-        agent_id = instance_data[0]["PrivateDnsName"]
-    except KeyError:
-        logger.warning(f"No Private Dns Name found for {instance_id}")
-        return None
-    try:
-        for tag in instance_data[0]["Tags"]:
-            if tag["Key"] == "pool":
-                pool = tag["Value"]
-                break
-    except KeyError:
-        logger.warning(f"No puppet role (pool) found for {instance_id}")
-        return None
     return Host(
         sender=sender,
         receipt_handle=receipt_handle,
@@ -418,8 +405,6 @@ def host_from_instance_id(
         group_id=sfr_ids[0],
         ip=ip,
         scheduler=scheduler,
-        agent_id=agent_id,
-        pool=pool,
         draining_start_time=arrow.now(),
     )
 

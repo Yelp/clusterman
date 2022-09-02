@@ -712,11 +712,7 @@ def test_host_from_instance_id():
         mock_ec2_describe.return_value = [
             {
                 "PrivateIpAddress": "10.1.1.1",
-                "PrivateDnsName": "agt123",
-                "Tags": [
-                    {"Key": "aws:ec2spot:fleet-request-id", "Value": "sfr-123"},
-                    {"Key": "pool", "Value": "default"},
-                ],
+                "Tags": [{"Key": "aws:ec2spot:fleet-request-id", "Value": "sfr-123"}],
             }
         ]
         assert host_from_instance_id(sender="aws", receipt_handle="rcpt", instance_id="i-123",) == Host(
@@ -726,8 +722,8 @@ def test_host_from_instance_id():
             hostname=mock_gethostbyaddr.return_value[0],
             group_id="sfr-123",
             ip="10.1.1.1",
-            agent_id="agt123",
-            pool="default",
+            agent_id="",
+            pool="",
             draining_start_time=now,
         )
 
