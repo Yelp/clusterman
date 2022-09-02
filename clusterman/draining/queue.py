@@ -38,11 +38,13 @@ from clusterman.aws.util import RESOURCE_GROUPS_REV
 from clusterman.config import load_cluster_pool_config
 from clusterman.config import POOL_NAMESPACE
 from clusterman.config import setup_config
+from clusterman.draining.kubernetes import drain as k8s_drain
+from clusterman.draining.kubernetes import uncordon as k8s_uncordon
 from clusterman.draining.mesos import down
-from clusterman.draining.mesos import drain
+from clusterman.draining.mesos import drain as mesos_drain
 from clusterman.draining.mesos import operator_api
 from clusterman.draining.mesos import up
-from clusterman.interfaces.resource_group import InstanceMetadata
+from clusterman.interfaces.types import InstanceMetadata
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
 from clusterman.util import get_pool_name_list
 
@@ -278,11 +280,12 @@ class DrainingClient:
     ) -> None:
         host_to_process = self.get_host_to_drain()
         if host_to_process and host_to_process.instance_id not in self.draining_host_ttl_cache:
+            # Todo We are trying drain k8s several time, cache won't let this.
             self.draining_host_ttl_cache[host_to_process.instance_id] = arrow.now().shift(seconds=DRAIN_CACHE_SECONDS)
             if host_to_process.scheduler == "mesos":
                 logger.info(f"Mesos host to drain and submit for termination: {host_to_process}")
                 try:
-                    drain(
+                    mesos_drain(
                         mesos_operator_client,
                         [f"{host_to_process.hostname}|{host_to_process.ip}"],
                         arrow.now().timestamp * 1000000000,
@@ -294,7 +297,28 @@ class DrainingClient:
                     self.submit_host_for_termination(host_to_process)
             elif host_to_process.scheduler == "kubernetes":
                 logger.info(f"Kubernetes host to drain and submit for termination: {host_to_process}")
-                self.submit_host_for_termination(host_to_process, delay=0)
+                spent_time = arrow.now() - host_to_process.draining_start_time
+                pool_config = staticconf.NamespaceReaders(
+                    POOL_NAMESPACE.format(pool=host_to_process.pool, scheduler="kubernetes")
+                )
+                force_terminate = pool_config.read_bool("draining.force_terminate", False)
+                draining_time_threshold_seconds = pool_config.read_int("draining.draining_time_threshold_seconds", 1800)
+                should_resend_to_queue = False
+
+                if spent_time.total_seconds() > draining_time_threshold_seconds:
+                    if force_terminate:
+                        self.submit_host_for_termination(host_to_process, delay=0)
+                    else:
+                        if not k8s_uncordon(kube_operator_client, host_to_process.agent_id):
+                            should_resend_to_queue = True
+                else:
+                    if k8s_drain(kube_operator_client, host_to_process.agent_id):
+                        self.submit_host_for_termination(host_to_process, delay=0)
+                    else:
+                        should_resend_to_queue = True
+
+                if should_resend_to_queue:
+                    self.submit_host_for_draining(host_to_process)
             else:
                 logger.info(f"Host to submit for termination immediately: {host_to_process}")
                 self.submit_host_for_termination(host_to_process, delay=0)
