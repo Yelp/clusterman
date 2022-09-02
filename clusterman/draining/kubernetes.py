@@ -13,6 +13,7 @@ def drain(connector: KubernetesClusterConnector, agent_id: str) -> bool:
     log.info(f"Preparing to drain {agent_id}...")
     return connector.drain_node(agent_id)
 
+
 def uncordon(connector: KubernetesClusterConnector, agent_id: str) -> bool:
     """Cordons and safely evicts all tasks from a given node.
     :param agent_id: a single node name to uncordon (as would be passed to kubectl uncordon)
