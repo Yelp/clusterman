@@ -187,30 +187,45 @@ class TestPruneExcessFulfilledCapacity:
         assert mock_pool_manager.terminate_instances_by_id.call_count == 0
 
     def test_drain_queue(self, mock_pool_manager, mock_nodes_to_prune):
-        mock_pool_manager.draining_enabled = True
-        mock_pool_manager.prune_excess_fulfilled_capacity(100)
-        assert mock_pool_manager.draining_client.submit_instance_for_draining.call_args_list == [
-            mock.call(
-                mock_nodes_to_prune["sfr-1"][0].instance,
-                sender=AWSResourceGroup,
-                scheduler="mesos",
-            ),
-            mock.call(
-                mock_nodes_to_prune["sfr-3"][0].instance,
-                sender=AWSResourceGroup,
-                scheduler="mesos",
-            ),
-            mock.call(
-                mock_nodes_to_prune["sfr-3"][1].instance,
-                sender=AWSResourceGroup,
-                scheduler="mesos",
-            ),
-            mock.call(
-                mock_nodes_to_prune["sfr-3"][2].instance,
-                sender=AWSResourceGroup,
-                scheduler="mesos",
-            ),
-        ]
+        now = arrow.now()
+        with mock.patch("clusterman.autoscaler.pool_manager.arrow", autospec=False) as mock_arrow:
+            mock_arrow.now.return_value = now
+            mock_pool_manager.draining_enabled = True
+            mock_pool_manager.prune_excess_fulfilled_capacity(100)
+            assert mock_pool_manager.draining_client.submit_instance_for_draining.call_args_list == [
+                mock.call(
+                    mock_nodes_to_prune["sfr-1"][0].instance,
+                    sender=AWSResourceGroup,
+                    scheduler="mesos",
+                    pool="bar",
+                    agent_id=mock_nodes_to_prune["sfr-1"][0].agent.agent_id,
+                    draining_start_time=now,
+                ),
+                mock.call(
+                    mock_nodes_to_prune["sfr-3"][0].instance,
+                    sender=AWSResourceGroup,
+                    scheduler="mesos",
+                    pool="bar",
+                    agent_id=mock_nodes_to_prune["sfr-3"][0].agent.agent_id,
+                    draining_start_time=now,
+                ),
+                mock.call(
+                    mock_nodes_to_prune["sfr-3"][1].instance,
+                    sender=AWSResourceGroup,
+                    scheduler="mesos",
+                    pool="bar",
+                    agent_id=mock_nodes_to_prune["sfr-3"][1].agent.agent_id,
+                    draining_start_time=now,
+                ),
+                mock.call(
+                    mock_nodes_to_prune["sfr-3"][2].instance,
+                    sender=AWSResourceGroup,
+                    scheduler="mesos",
+                    pool="bar",
+                    agent_id=mock_nodes_to_prune["sfr-3"][2].agent.agent_id,
+                    draining_start_time=now,
+                ),
+            ]
 
     def test_terminate_immediately(self, mock_pool_manager):
         mock_pool_manager.prune_excess_fulfilled_capacity(100)

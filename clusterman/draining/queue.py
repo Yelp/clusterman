@@ -79,13 +79,13 @@ class DrainingClient:
         )
 
     def submit_instance_for_draining(
-            self,
-            instance: InstanceMetadata,
-            sender: Type[AWSResourceGroup],
-            scheduler: str,
-            pool: str,
-            agent_id: str,
-            draining_start_time: arrow.Arrow,
+        self,
+        instance: InstanceMetadata,
+        sender: Type[AWSResourceGroup],
+        scheduler: str,
+        pool: str,
+        agent_id: str,
+        draining_start_time: arrow.Arrow,
     ) -> None:
         return self.client.send_message(
             QueueUrl=self.drain_queue_url,
@@ -98,7 +98,7 @@ class DrainingClient:
             MessageBody=json.dumps(
                 {
                     "agent_id": agent_id,
-                    "draining_start_time": draining_start_time,
+                    "draining_start_time": draining_start_time.for_json(),
                     "group_id": instance.group_id,
                     "hostname": instance.hostname,
                     "instance_id": instance.instance_id,
@@ -121,7 +121,7 @@ class DrainingClient:
             MessageBody=json.dumps(
                 {
                     "agent_id": host.agent_id,
-                    "draining_start_time": host.draining_start_time,
+                    "draining_start_time": host.draining_start_time.for_json(),
                     "group_id": host.group_id,
                     "hostname": host.hostname,
                     "instance_id": host.instance_id,
@@ -151,7 +151,7 @@ class DrainingClient:
             MessageBody=json.dumps(
                 {
                     "agent_id": host.agent_id,
-                    "draining_start_time": host.draining_start_time,
+                    "draining_start_time": host.draining_start_time.for_json(),
                     "group_id": host.group_id,
                     "hostname": host.hostname,
                     "instance_id": host.instance_id,
@@ -407,6 +407,7 @@ def host_from_instance_id(
         group_id=sfr_ids[0],
         ip=ip,
         scheduler=scheduler,
+        draining_start_time=arrow.now(),
     )
 
 
