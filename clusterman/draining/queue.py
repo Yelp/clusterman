@@ -301,23 +301,20 @@ class DrainingClient:
                 draining_time_threshold_seconds = pool_config.read_int("draining.draining_time_threshold_seconds", 1800)
                 should_resend_to_queue = False
 
-                if kube_operator_client:
-                    if draining_spent_time.total_seconds() > draining_time_threshold_seconds:
-                        if force_terminate:
-                            self.submit_host_for_termination(host_to_process, delay=0)
-                        else:
-                            if not k8s_uncordon(kube_operator_client, host_to_process.agent_id):
-                                should_resend_to_queue = True
+                if draining_spent_time.total_seconds() > draining_time_threshold_seconds:
+                    if force_terminate:
+                        self.submit_host_for_termination(host_to_process, delay=0)
                     else:
-                        if k8s_drain(kube_operator_client, host_to_process.agent_id):
-                            self.submit_host_for_termination(host_to_process, delay=0)
-                        else:
+                        if not k8s_uncordon(kube_operator_client, host_to_process.agent_id):
                             should_resend_to_queue = True
-
-                    if should_resend_to_queue:
-                        self.submit_host_for_draining(host_to_process)
                 else:
-                    logger.info(f"Unable to drain {host_to_process.hostname} (no Kubernetes connector configured)")
+                    if k8s_drain(kube_operator_client, host_to_process.agent_id):
+                        self.submit_host_for_termination(host_to_process, delay=0)
+                    else:
+                        should_resend_to_queue = True
+
+                if should_resend_to_queue:
+                    self.submit_host_for_draining(host_to_process)
             else:
                 logger.info(f"Host to submit for termination immediately: {host_to_process}")
                 self.submit_host_for_termination(host_to_process, delay=0)
