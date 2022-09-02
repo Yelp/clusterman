@@ -313,8 +313,8 @@ class DrainingClient:
                         else:
                             should_resend_to_queue = True
 
-                        if should_resend_to_queue:
-                            self.submit_host_for_draining(host_to_process)
+                    if should_resend_to_queue:
+                        self.submit_host_for_draining(host_to_process)
                 else:
                     logger.info(f"Unable to drain {host_to_process.hostname} (no Kubernetes connector configured)")
             else:
