@@ -1,3 +1,5 @@
+from typing import Optional
+
 import colorlog
 
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
@@ -5,7 +7,7 @@ from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesCluster
 log = colorlog.getLogger(__name__)
 
 
-def drain(connector: KubernetesClusterConnector, agent_id: str) -> bool:
+def drain(connector: Optional[KubernetesClusterConnector], agent_id: str) -> bool:
     """Cordons and safely evicts all tasks from a given node.
     :param agent_id: a single node name to drain (as would be passed to kubectl drain)
     :returns: None
@@ -18,7 +20,7 @@ def drain(connector: KubernetesClusterConnector, agent_id: str) -> bool:
         return False
 
 
-def uncordon(connector: KubernetesClusterConnector, agent_id: str) -> bool:
+def uncordon(connector: Optional[KubernetesClusterConnector], agent_id: str) -> bool:
     """Cordons and safely evicts all tasks from a given node.
     :param agent_id: a single node name to uncordon (as would be passed to kubectl uncordon)
     :returns: None
