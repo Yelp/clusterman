@@ -58,6 +58,9 @@ class Host(NamedTuple):
     ip: str
     sender: str
     receipt_handle: str
+    agent_id: str = ""
+    pool: str = ""
+    draining_start_time: arrow.Arrow = arrow.now()
     scheduler: str = "mesos"
 
 
@@ -74,7 +77,13 @@ class DrainingClient:
         )
 
     def submit_instance_for_draining(
-        self, instance: InstanceMetadata, sender: Type[AWSResourceGroup], scheduler: str
+            self,
+            instance: InstanceMetadata,
+            sender: Type[AWSResourceGroup],
+            scheduler: str,
+            pool: str,
+            agent_id: str,
+            draining_start_time: arrow.Arrow,
     ) -> None:
         return self.client.send_message(
             QueueUrl=self.drain_queue_url,
@@ -86,10 +95,13 @@ class DrainingClient:
             },
             MessageBody=json.dumps(
                 {
+                    "agent_id": agent_id,
+                    "draining_start_time": draining_start_time,
+                    "group_id": instance.group_id,
+                    "hostname": instance.hostname,
                     "instance_id": instance.instance_id,
                     "ip": instance.ip_address,
-                    "hostname": instance.hostname,
-                    "group_id": instance.group_id,
+                    "pool": pool,
                     "scheduler": scheduler,
                 }
             ),
@@ -106,10 +118,13 @@ class DrainingClient:
             },
             MessageBody=json.dumps(
                 {
+                    "agent_id": host.agent_id,
+                    "draining_start_time": host.draining_start_time,
+                    "group_id": host.group_id,
+                    "hostname": host.hostname,
                     "instance_id": host.instance_id,
                     "ip": host.ip,
-                    "hostname": host.hostname,
-                    "group_id": host.group_id,
+                    "pool": host.pool,
                     "scheduler": host.scheduler,
                 }
             ),
@@ -133,10 +148,13 @@ class DrainingClient:
             },
             MessageBody=json.dumps(
                 {
+                    "agent_id": host.agent_id,
+                    "draining_start_time": host.draining_start_time,
+                    "group_id": host.group_id,
+                    "hostname": host.hostname,
                     "instance_id": host.instance_id,
                     "ip": host.ip,
-                    "hostname": host.hostname,
-                    "group_id": host.group_id,
+                    "pool": host.pool,
                     "scheduler": host.scheduler,
                 }
             ),
