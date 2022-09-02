@@ -39,6 +39,7 @@ from clusterman.config import load_cluster_pool_config
 from clusterman.config import POOL_NAMESPACE
 from clusterman.config import setup_config
 from clusterman.draining.kubernetes import drain as k8s_drain
+from clusterman.draining.kubernetes import uncordon as k8s_uncordon
 from clusterman.draining.mesos import down
 from clusterman.draining.mesos import drain as mesos_drain
 from clusterman.draining.mesos import operator_api
@@ -305,7 +306,7 @@ class DrainingClient:
                         if force_terminate:
                             self.submit_host_for_termination(host_to_process, delay=0)
                         else:
-                            if not kube_operator_client.uncordon_node(host_to_process.agent_id):
+                            if not k8s_uncordon(kube_operator_client, host_to_process.agent_id):
                                 should_resend_to_queue = True
                     else:
                         if k8s_drain(kube_operator_client, host_to_process.agent_id):

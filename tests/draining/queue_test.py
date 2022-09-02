@@ -448,6 +448,9 @@ def test_process_drain_queue(mock_draining_client):
         "clusterman.draining.queue.k8s_drain",
         autospec=True,
     ) as mock_k8s_drain, mock.patch(
+        "clusterman.draining.queue.k8s_uncordon",
+        autospec=True,
+    ) as mock_k8s_uncordon, mock.patch(
         "clusterman.draining.queue.DrainingClient.get_host_to_drain",
         autospec=True,
     ) as mock_get_host_to_drain, mock.patch(
@@ -541,6 +544,7 @@ def test_process_drain_queue(mock_draining_client):
         mock_draining_client.process_drain_queue(mock_mesos_client, mock_kubernetes_client)
         assert mock_draining_client.get_host_to_drain.called
         assert not mock_submit_host_for_draining.called
+        assert not mock_k8s_uncordon.called
         mock_k8s_drain.assert_called_with(
             mock_kubernetes_client,
             "agt123",
@@ -569,6 +573,7 @@ def test_process_drain_queue(mock_draining_client):
         mock_draining_client.process_drain_queue(mock_mesos_client, mock_kubernetes_client)
         assert mock_k8s_drain.called
         assert mock_submit_host_for_draining.called
+        assert not mock_k8s_uncordon.called
         mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
 
         # test kubernetes scheduler for expired draining
@@ -576,7 +581,7 @@ def test_process_drain_queue(mock_draining_client):
             hostname="host1",
             ip="10.1.1.1",
             group_id="sfr1",
-            instance_id="i12345",
+            instance_id="i123456",
             agent_id="agt123",
             pool="default",
             scheduler="kubernetes",
@@ -591,7 +596,7 @@ def test_process_drain_queue(mock_draining_client):
         mock_arrow.now.return_value = now
         mock_draining_client.process_drain_queue(mock_mesos_client, mock_kubernetes_client)
         assert not mock_k8s_drain.called
-        # assert uncordon called!
+        assert mock_k8s_uncordon.called
         mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
 
 
