@@ -42,7 +42,7 @@ from clusterman.util import setup_logging
 class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
     notify_emails = ["compute-infra@yelp.com"]
 
-    POOL_SCHEDULER = "kube"
+    POOL_SCHEDULER = "kubernetes"
     POOL_SETTINGS_PARENT = "node_migration"
     EVENT_FETCH_BATCH = 10
 

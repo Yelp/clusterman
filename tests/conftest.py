@@ -201,7 +201,7 @@ def clusterman_k8s_pool_config():
             "disable_autoscaling": False,
         },
     }
-    with staticconf.testing.MockConfiguration(config, namespace="bar.kube_config"):
+    with staticconf.testing.MockConfiguration(config, namespace="bar.kubernetes_config"):
         yield
 
 
