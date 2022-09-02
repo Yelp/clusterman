@@ -154,6 +154,9 @@ class DrainingClient:
                     "hostname": host.hostname,
                     "group_id": host.group_id,
                     "scheduler": host.scheduler,
+                    "agent_id": host.agent_id,
+                    "pool": host.pool,
+                    "draining_start_time": host.draining_start_time.for_json(),
                 }
             ),
         )

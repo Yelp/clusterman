@@ -165,6 +165,7 @@ def test_get_warned_host_no_warning_queue_url(mock_draining_client):
 
 
 def test_submit_host_for_termination(mock_draining_client):
+    now = arrow.now()
     with mock.patch(
         "clusterman.draining.queue.json",
         autospec=True,
@@ -176,6 +177,9 @@ def test_submit_host_for_termination(mock_draining_client):
             group_id="sfr123",
             sender="clusterman",
             scheduler="kubernetes",
+            agent_id="agt123",
+            pool="default",
+            draing_start_time=now,
         )
         assert (
             mock_draining_client.submit_host_for_termination(
@@ -191,6 +195,9 @@ def test_submit_host_for_termination(mock_draining_client):
                 "hostname": "host123",
                 "group_id": "sfr123",
                 "scheduler": "kubernetes",
+                "agent_id": "agt123",
+                "pool": "default",
+                "draining_start_time": mock_host.draining_start_time.for_json(),
             }
         )
         mock_draining_client.client.send_message.assert_called_with(
@@ -218,6 +225,9 @@ def test_submit_host_for_termination(mock_draining_client):
                 "hostname": "host123",
                 "group_id": "sfr123",
                 "scheduler": "kubernetes",
+                "agent_id": "agt123",
+                "pool": "default",
+                "draining_start_time": mock_host.draining_start_time.for_json(),
             }
         )
         mock_draining_client.client.send_message.assert_called_with(
