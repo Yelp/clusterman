@@ -188,6 +188,18 @@ def clusterman_k8s_pool_config():
                 {"name": "cost", "type": APP_METRICS, "minute_range": 30},
             ],
         },
+        "node_migration": {
+            "trigger": {
+                "event_queue": "https://some-queue.example",
+                "max_uptime": "90d",
+            },
+            "strategy": {
+                "rate": "3%",
+                "prescaling": 1,
+                "precedence": "highest_uptime",
+            },
+            "disable_autoscaling": False,
+        },
     }
     with staticconf.testing.MockConfiguration(config, namespace="bar.kube_config"):
         yield
