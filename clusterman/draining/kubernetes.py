@@ -15,6 +15,7 @@ def drain(connector: KubernetesClusterConnector, agent_id: str) -> bool:
         return connector.drain_node(agent_id)
     else:
         log.info(f"Unable to drain {agent_id} (no Kubernetes connector configured)")
+        return False
 
 
 def uncordon(connector: KubernetesClusterConnector, agent_id: str) -> bool:
@@ -27,3 +28,4 @@ def uncordon(connector: KubernetesClusterConnector, agent_id: str) -> bool:
         return connector.uncordon_node(agent_id)
     else:
         log.info(f"Unable to uncordon {agent_id} (no Kubernetes connector configured)")
+        return False
