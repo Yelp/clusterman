@@ -57,7 +57,7 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
         self.migration_configs = {}
         self.events_in_progress = set()
         self.pools_accepting_events = set()
-        self.cluster_connector = KubernetesClusterConnector(self.options.cluster, init_crd=True)
+        self.cluster_connector = KubernetesClusterConnector(self.options.cluster, None, init_crd=True)
         self.run_interval = staticconf.read_int("batches.node_migration.run_interval_seconds", 60)
         self.event_visibilty_timeout = staticconf.read_int(
             "batches.node_migration.event_visibilty_timeout_seconds", 15 * 60

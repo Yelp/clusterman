@@ -454,3 +454,30 @@ def test_mark_node_migration_resource(mock_cluster_connector_crd):
         name="mesos-test-bar-220912-0",
         body={"metadata": {"labels": {"clusterman.yelp.com/migration_status": "completed"}}},
     )
+
+
+def test_create_node_migration_resource(mock_cluster_connector_crd):
+    mock_cluster_connector_crd.create_node_migration_resource(
+        MigrationEvent(
+            resource_name="mesos-test-bar-111222333",
+            cluster="mesos-test",
+            pool="bar",
+            label_selectors=[],
+            condition=MigrationCondition(ConditionTrait.LSBRELEASE, ConditionOperator.GE, "22.04"),
+        ),
+        MigrationStatus.PENDING,
+    )
+    mock_cluster_connector_crd._migration_crd_api.create_cluster_custom_object.assert_called_once_with(
+        body={
+            "metadata": {
+                "name": "mesos-test-bar-111222333",
+                "labels": {"clusterman.yelp.com/migration_status": "pending"},
+            },
+            "spec": {
+                "cluster": "mesos-test",
+                "pool": "bar",
+                "label_selectors": [],
+                "condition": {"trait": "lsbrelease", "operator": "ge", "target": "22.04"},
+            },
+        },
+    )
