@@ -31,23 +31,23 @@ class MigrationCondition(NamedTuple):
 
 
 class MigrationEvent(NamedTuple):
-    event_id: str
-    event_receipt: str
+    msg_id: str
+    msg_receipt: str
     cluster: str
     pool: str
     condition: MigrationCondition
 
     @classmethod
-    def from_event(cls, event: dict) -> "MigrationEvent":
+    def from_message(cls, message: dict) -> "MigrationEvent":
         """Parse migration trigger event into class instance
 
         :param str event: event data
         """
-        event_data = json.loads(event["Body"])
+        event_data = json.loads(message["Body"])
         cond_key, cond_value = next(iter(event_data["condition"].items()))
         return cls(
-            event_id=event["MessageId"],
-            event_receipt=event["ReceiptHandle"],
+            msg_id=message["MessageId"],
+            msg_receipt=message["ReceiptHandle"],
             cluster=event_data["cluster"],
             pool=event_data["pool"],
             condition=MigrationCondition(ConditionTrait(cond_key), cond_value),

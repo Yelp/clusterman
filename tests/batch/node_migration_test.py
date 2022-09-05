@@ -29,10 +29,13 @@ from clusterman.migration.settings import WorkerSetup
 
 @pytest.fixture(scope="function")
 def migration_batch():
-    with patch("clusterman.batch.node_migration.sqs"), patch("clusterman.batch.node_migration.setup_config"), patch(
-        "clusterman.batch.node_migration.get_pool_name_list"
-    ) as mock_getpool, patch("clusterman.batch.node_migration.load_cluster_pool_config"):
+    with patch("clusterman.batch.node_migration.sqs") as mock_sqs, patch(
+        "clusterman.batch.node_migration.setup_config"
+    ), patch("clusterman.batch.node_migration.get_pool_name_list") as mock_getpool, patch(
+        "clusterman.batch.node_migration.load_cluster_pool_config"
+    ):
         batch = NodeMigration()
+        batch.sqs_client = mock_sqs
         mock_getpool.return_value = ["bar"]
         batch.options = Namespace(cluster="mesos-test", autorestart_interval_minutes=None)
         batch.configure_initial()
@@ -43,8 +46,8 @@ def migration_batch():
 def test_fetch_event_queue(migration_batch: NodeMigration):
     migration_batch.events_in_progress = {
         MigrationEvent(
-            event_id="1",
-            event_receipt="1",
+            msg_id="1",
+            msg_receipt="1",
             cluster="mesos-test",
             pool="bar",
             condition=MigrationCondition(ConditionTrait.KERNEL, "3.2.1"),
@@ -77,29 +80,29 @@ def test_fetch_event_queue(migration_batch: NodeMigration):
     ]
     assert migration_batch.fetch_event_queue() == {
         MigrationEvent(
-            event_id="0",
-            event_receipt="0",
+            msg_id="0",
+            msg_receipt="0",
             cluster="mesos-test",
             pool="bar",
             condition=MigrationCondition(ConditionTrait.KERNEL, "3.2.0"),
         ),
         MigrationEvent(
-            event_id="2",
-            event_receipt="2",
+            msg_id="2",
+            msg_receipt="2",
             cluster="mesos-test",
             pool="bar",
             condition=MigrationCondition(ConditionTrait.KERNEL, "3.2.2"),
         ),
         MigrationEvent(
-            event_id="0",
-            event_receipt="0",
+            msg_id="0",
+            msg_receipt="0",
             cluster="mesos-test",
             pool="bar",
             condition=MigrationCondition(ConditionTrait.LSBRELEASE, "26.00"),
         ),
         MigrationEvent(
-            event_id="1",
-            event_receipt="1",
+            msg_id="1",
+            msg_receipt="1",
             cluster="mesos-test",
             pool="bar",
             condition=MigrationCondition(ConditionTrait.LSBRELEASE, "26.01"),
@@ -127,8 +130,8 @@ def test_fetch_event_queue(migration_batch: NodeMigration):
 def test_run(mock_time, migration_batch):
     mock_time.sleep.side_effect = StopIteration  # hacky way to stop main batch loop
     mock_event = MigrationEvent(
-        event_id="0",
-        event_receipt="0",
+        msg_id="0",
+        msg_receipt="0",
         cluster="mesos-test",
         pool="bar",
         condition=MigrationCondition(ConditionTrait.KERNEL, "3.2.0"),

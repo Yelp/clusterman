@@ -55,7 +55,6 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
     def configure_initial(self):
         setup_config(self.options)
         self.logger = colorlog.getLogger(__name__)
-        self.sqs_client = sqs()
         self.migration_workers = {}
         self.migration_configs = {}
         self.events_in_progress = set()
@@ -83,7 +82,7 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
         """
         try:
             while True:
-                messages = self.sqs_client.receive_message(
+                messages = sqs.receive_message(
                     QueueUrl=self.event_queue,
                     MaxNumberOfMessages=self.EVENT_FETCH_BATCH,
                     VisibilityTimeout=self.event_visibilty_timeout,
@@ -110,7 +109,7 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
 
     def fetch_event_queue(self) -> Collection[MigrationEvent]:
         """Tail a collection of SQS queue for migration trigger events"""
-        events = map(MigrationEvent.from_event, self._fetch_all_from_queue())
+        events = map(MigrationEvent.from_message, self._fetch_all_from_queue())
         return set(events) - self.events_in_progress
 
     def delete_event(self, event: MigrationEvent) -> None:
@@ -119,7 +118,7 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
         :param MigrationEvent event: event to be deleted
         """
         try:
-            self.sqs_client.delete_message(QueueUrl=self.event_queue, ReceiptHandle=event.event_receipt)
+            sqs.delete_message(QueueUrl=self.event_queue, ReceiptHandle=event.msg_receipt)
         except ClientError as e:
             self.logger.exception(f"Error deleting event from {self.event_queue}: {e}")
 
