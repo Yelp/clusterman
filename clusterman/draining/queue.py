@@ -280,8 +280,8 @@ class DrainingClient:
     ) -> None:
         host_to_process = self.get_host_to_drain()
         if host_to_process and host_to_process.instance_id not in self.draining_host_ttl_cache:
-            # Todo We are trying drain k8s several time, cache won't let this.
-            self.draining_host_ttl_cache[host_to_process.instance_id] = arrow.now().shift(seconds=DRAIN_CACHE_SECONDS)
+            # We should add instance_id to cache only if we submit host for termination
+            should_add_to_cache = False
             if host_to_process.scheduler == "mesos":
                 logger.info(f"Mesos host to drain and submit for termination: {host_to_process}")
                 try:
@@ -295,6 +295,7 @@ class DrainingClient:
                     logger.error(f"Failed to drain {host_to_process.hostname} continuing to terminate anyway: {e}")
                 finally:
                     self.submit_host_for_termination(host_to_process)
+                    should_add_to_cache = True
             elif host_to_process.scheduler == "kubernetes":
                 logger.info(f"Kubernetes host to drain and submit for termination: {host_to_process}")
                 spent_time = arrow.now() - host_to_process.draining_start_time
@@ -308,12 +309,14 @@ class DrainingClient:
                 if spent_time.total_seconds() > draining_time_threshold_seconds:
                     if force_terminate:
                         self.submit_host_for_termination(host_to_process, delay=0)
+                        should_add_to_cache = True
                     else:
                         if not k8s_uncordon(kube_operator_client, host_to_process.agent_id):
                             should_resend_to_queue = True
                 else:
                     if k8s_drain(kube_operator_client, host_to_process.agent_id):
                         self.submit_host_for_termination(host_to_process, delay=0)
+                        should_add_to_cache = True
                     else:
                         should_resend_to_queue = True
 
@@ -323,6 +326,12 @@ class DrainingClient:
                 logger.info(f"Host to submit for termination immediately: {host_to_process}")
                 self.submit_host_for_termination(host_to_process, delay=0)
             self.delete_drain_messages([host_to_process])
+
+            if should_add_to_cache:
+                self.draining_host_ttl_cache[host_to_process.instance_id] = arrow.now().shift(
+                    seconds=DRAIN_CACHE_SECONDS
+                )
+
         elif host_to_process:
             logger.warning(f"Host: {host_to_process.hostname} already being processed, skipping...")
             self.delete_drain_messages([host_to_process])
