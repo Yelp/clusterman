@@ -40,7 +40,7 @@ def migration_batch():
         yield batch
 
 
-def test_fetch_event_queues(migration_batch: NodeMigration):
+def test_fetch_event_queue(migration_batch: NodeMigration):
     migration_batch.events_in_progress = {
         MigrationEvent(
             event_id="1",
@@ -50,6 +50,7 @@ def test_fetch_event_queues(migration_batch: NodeMigration):
             condition=MigrationCondition(ConditionTrait.KERNEL, "3.2.1"),
         )
     }
+    migration_batch.EVENT_FETCH_BATCH = 3
     migration_batch.sqs_client.receive_message.side_effect = [
         {
             "Messages": [
@@ -74,7 +75,7 @@ def test_fetch_event_queues(migration_batch: NodeMigration):
             ]
         },
     ]
-    assert migration_batch.fetch_event_queues(["queue1", "queue2"]) == {
+    assert migration_batch.fetch_event_queue() == {
         MigrationEvent(
             event_id="0",
             event_receipt="0",
@@ -106,8 +107,18 @@ def test_fetch_event_queues(migration_batch: NodeMigration):
     }
     migration_batch.sqs_client.receive_message.assert_has_calls(
         [
-            call(MaxNumberOfMessages=10, QueueUrl="queue1", VisibilityTimeout=900, WaitTimeSeconds=10),
-            call(MaxNumberOfMessages=10, QueueUrl="queue2", VisibilityTimeout=900, WaitTimeSeconds=10),
+            call(
+                MaxNumberOfMessages=3,
+                QueueUrl="mesos-test-migration-event.com",
+                VisibilityTimeout=900,
+                WaitTimeSeconds=10,
+            ),
+            call(
+                MaxNumberOfMessages=3,
+                QueueUrl="mesos-test-migration-event.com",
+                VisibilityTimeout=900,
+                WaitTimeSeconds=10,
+            ),
         ]
     )
 
@@ -124,13 +135,13 @@ def test_run(mock_time, migration_batch):
     )
     with patch.object(migration_batch, "spawn_uptime_worker") as mock_uptime_spawn, patch.object(
         migration_batch, "spawn_event_worker"
-    ) as mock_event_spawn, patch.object(migration_batch, "fetch_event_queues") as mock_fetch_event:
+    ) as mock_event_spawn, patch.object(migration_batch, "fetch_event_queue") as mock_fetch_event:
         mock_fetch_event.return_value = {mock_event}
         with pytest.raises(StopIteration):
             migration_batch.run()
         mock_event_spawn.assert_called_once_with(mock_event)
         mock_uptime_spawn.assert_called_once_with("bar", "90d")
-        mock_fetch_event.assert_called_once_with({"https://some-queue.example"})
+        mock_fetch_event.assert_called_once_with()
 
 
 def test_get_worker_setup(migration_batch):

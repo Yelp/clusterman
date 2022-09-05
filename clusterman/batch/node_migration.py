@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import itertools
 from time import time
 from typing import Collection
 from typing import Generator
@@ -60,6 +59,8 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
         self.migration_workers = {}
         self.migration_configs = {}
         self.events_in_progress = set()
+        self.pools_accepting_events = set()
+        self.event_queue = staticconf.read_string(f"clusters.{self.options.cluster}.migration_event_queue_url")
         self.run_interval = staticconf.read_int("batches.node_migration.run_interval_seconds", 60)
         self.event_visibilty_timeout = staticconf.read_int(
             "batches.node_migration.event_visibilty_timeout_seconds", 15 * 60
@@ -71,18 +72,19 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
             if self.POOL_SETTINGS_PARENT in pool_config:
                 self.migration_configs[pool] = pool_config[self.POOL_SETTINGS_PARENT]
                 self.add_watcher({pool: get_pool_config_path(self.options.cluster, pool, self.POOL_SCHEDULER)})
+                if self.migration_configs[pool]["trigger"].get("event_queue", False):
+                    self.pools_accepting_events.add(pool)
         self.logger.info(f"Found node migration configs for pools: {list(self.migration_configs.keys())}")
 
-    def _fetch_all_from_queue(self, queue: str) -> Generator[dict, None, None]:
+    def _fetch_all_from_queue(self) -> Generator[dict, None, None]:
         """Fetch all data from SQS queue
 
-        :param str queue: queue URL
         :return: yields messages
         """
         try:
             while True:
                 messages = self.sqs_client.receive_message(
-                    QueueUrl=queue,
+                    QueueUrl=self.event_queue,
                     MaxNumberOfMessages=self.EVENT_FETCH_BATCH,
                     VisibilityTimeout=self.event_visibilty_timeout,
                     WaitTimeSeconds=10,
@@ -91,7 +93,7 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
                 if len(messages) < self.EVENT_FETCH_BATCH:
                     break
         except ClientError as e:
-            self.logger.exception(f"Issue retrieving events from {queue}: {e}")
+            self.logger.exception(f"Issue retrieving events from {self.event_queue}: {e}")
 
     def _get_worker_setup(self, pool: str) -> Optional[WorkerSetup]:
         """Build worker setup for
@@ -106,24 +108,34 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
             self.logger.exception(f"Bad migration configuration for pool {pool}: {e}")
         return None
 
-    def fetch_event_queues(self, queues: Collection[str]) -> Collection[MigrationEvent]:
-        """Tail a collection of SQS queue for migration trigger events
-
-        :param Collection[str] queues: SQS queue URLs
-        """
-        events = itertools.chain.from_iterable(
-            map(MigrationEvent.from_event, self._fetch_all_from_queue(queue)) for queue in queues
-        )
+    def fetch_event_queue(self) -> Collection[MigrationEvent]:
+        """Tail a collection of SQS queue for migration trigger events"""
+        events = map(MigrationEvent.from_event, self._fetch_all_from_queue())
         return set(events) - self.events_in_progress
+
+    def delete_event(self, event: MigrationEvent) -> None:
+        """Delete event from event queue
+
+        :param MigrationEvent event: event to be deleted
+        """
+        try:
+            self.sqs_client.delete_message(QueueUrl=self.event_queue, ReceiptHandle=event.event_receipt)
+        except ClientError as e:
+            self.logger.exception(f"Error deleting event from {self.event_queue}: {e}")
 
     def spawn_event_worker(self, event: MigrationEvent):
         """Start process recycling nodes in a pool accordingly to some event parameters
 
         :param MigrationEvent event: Event data
         """
+        if event.pool not in self.pools_accepting_events:
+            self.logger.warning(f"Pool {event.pool} not configured to accept migration trigger event, skipping")
+            self.delete_event(event)
+            return
         worker_setup = self._get_worker_setup(event.pool)
         if not worker_setup or event.cluster != self.options.cluster:
             self.logger.warning(f"Event not processable by this batch instance, skipping: {event}")
+            self.delete_event(event)
             return
         self.logger.info(f"Spawning migration worker for event: {event}")
         # TODO: everything
@@ -146,14 +158,11 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
         pass
 
     def run(self):
-        event_queues = set()
         for pool, config in self.migration_configs.items():
-            if "event_queue" in config["trigger"]:
-                event_queues.add(config["trigger"]["event_queue"])
             if "max_uptime" in config["trigger"]:
                 self.spawn_uptime_worker(pool, config["trigger"]["max_uptime"])
         while self.running:
-            events = self.fetch_event_queues(event_queues)
+            events = self.fetch_event_queue()
             for event in events:
                 self.spawn_event_worker(event)
             time.sleep(self.run_interval)
