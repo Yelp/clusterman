@@ -61,7 +61,9 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
         self.migration_configs = {}
         self.events_in_progress = set()
         self.run_interval = staticconf.read_int("batches.node_migration.run_interval_seconds", 60)
-        self.event_visibilty_timeout = staticconf.read_int("batches.node_migration.event_visibilty_timeout", 15 * 60)
+        self.event_visibilty_timeout = staticconf.read_int(
+            "batches.node_migration.event_visibilty_timeout_seconds", 15 * 60
+        )
         for pool in get_pool_name_list(self.options.cluster, self.POOL_SCHEDULER):
             load_cluster_pool_config(self.options.cluster, pool, self.POOL_SCHEDULER, None)
             pool_config_namespace = POOL_NAMESPACE.format(pool=pool, scheduler=self.POOL_SCHEDULER)
