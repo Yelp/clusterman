@@ -307,14 +307,14 @@ class DrainingClient:
                 should_resend_to_queue = False
 
                 if spent_time.total_seconds() > draining_time_threshold_seconds:
-                    if force_terminate:
+                    if not host_to_process.agent_id or force_terminate:
                         self.submit_host_for_termination(host_to_process, delay=0)
                         should_add_to_cache = True
                     else:
                         if not k8s_uncordon(kube_operator_client, host_to_process.agent_id):
                             should_resend_to_queue = True
                 else:
-                    if k8s_drain(kube_operator_client, host_to_process.agent_id):
+                    if not host_to_process.agent_id or k8s_drain(kube_operator_client, host_to_process.agent_id):
                         self.submit_host_for_termination(host_to_process, delay=0)
                         should_add_to_cache = True
                     else:
