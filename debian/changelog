@@ -1,3 +1,9 @@
+clusterman (4.10.0) xenial bionic; urgency=low
+
+  * Add draining feature for kubernetes
+
+ -- Ilkin Mammadzada <ilkinmammadzada@yelp.com>  Tue, 06 Sep 2022 02:31:25 -0700
+
 clusterman (4.9.4) xenial bionic; urgency=low
 
   * Add label selectors for filtering out nodes and pods from kubernetes API
