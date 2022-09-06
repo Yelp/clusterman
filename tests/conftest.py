@@ -82,6 +82,7 @@ def main_clusterman_config():
                 "drain_queue_url": "mesos-test-draining.com",
                 "termination_queue_url": "mesos-test-terminating.com",
                 "warning_queue_url": "mesos-test-warning.com",
+                "migration_event_queue_url": "mesos-test-migration-event.com",
             },
         },
         "sensu_config": [
@@ -188,8 +189,20 @@ def clusterman_k8s_pool_config():
                 {"name": "cost", "type": APP_METRICS, "minute_range": 30},
             ],
         },
+        "node_migration": {
+            "trigger": {
+                "event_queue": True,
+                "max_uptime": "90d",
+            },
+            "strategy": {
+                "rate": "3%",
+                "prescaling": 1,
+                "precedence": "highest_uptime",
+            },
+            "disable_autoscaling": False,
+        },
     }
-    with staticconf.testing.MockConfiguration(config, namespace="bar.kube_config"):
+    with staticconf.testing.MockConfiguration(config, namespace="bar.kubernetes_config"):
         yield
 
 
