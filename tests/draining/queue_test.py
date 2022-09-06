@@ -99,7 +99,7 @@ def test_submit_host_for_draining(mock_draining_client):
             scheduler="kubernetes",
             agent_id="agt123",
             pool="default",
-            draining_start_time=now.for_json(),
+            draining_start_time=now,
         )
         assert (
             mock_draining_client.submit_host_for_draining(
@@ -179,7 +179,7 @@ def test_submit_host_for_termination(mock_draining_client):
             scheduler="kubernetes",
             agent_id="agt123",
             pool="default",
-            draining_start_time=now.for_json(),
+            draing_start_time=now,
         )
         assert (
             mock_draining_client.submit_host_for_termination(
@@ -190,14 +190,14 @@ def test_submit_host_for_termination(mock_draining_client):
         )
         mock_json.dumps.assert_called_with(
             {
-                "agent_id": "agt123",
-                "draining_start_time": now.for_json(),
-                "group_id": "sfr123",
-                "hostname": "host123",
                 "instance_id": "i123",
                 "ip": "10.1.1.1",
-                "pool": "default",
+                "hostname": "host123",
+                "group_id": "sfr123",
                 "scheduler": "kubernetes",
+                "agent_id": "agt123",
+                "pool": "default",
+                "draining_start_time": mock_host.draining_start_time.for_json(),
             }
         )
         mock_draining_client.client.send_message.assert_called_with(
@@ -220,14 +220,14 @@ def test_submit_host_for_termination(mock_draining_client):
         )
         mock_json.dumps.assert_called_with(
             {
-                "agent_id": "agt123",
-                "draining_start_time": now.for_json(),
-                "group_id": "sfr123",
-                "hostname": "host123",
                 "instance_id": "i123",
                 "ip": "10.1.1.1",
-                "pool": "default",
+                "hostname": "host123",
+                "group_id": "sfr123",
                 "scheduler": "kubernetes",
+                "agent_id": "agt123",
+                "pool": "default",
+                "draining_start_time": mock_host.draining_start_time.for_json(),
             }
         )
         mock_draining_client.client.send_message.assert_called_with(
@@ -267,7 +267,7 @@ def test_get_host_to_drain(mock_draining_client):
             "group_id": "sfr123",
             "pool": "default",
             "agent_id": "agt123",
-            "draining_start_time": now.for_json(),
+            "draining_start_time": now,
         }
 
         assert mock_draining_client.get_host_to_drain() == Host(
@@ -279,7 +279,7 @@ def test_get_host_to_drain(mock_draining_client):
             group_id="sfr123",
             agent_id="agt123",
             pool="default",
-            draining_start_time=now.for_json(),
+            draining_start_time=now,
         )
         mock_json.loads.assert_called_with("Helloworld")
         mock_draining_client.client.receive_message.assert_called_with(
@@ -545,13 +545,12 @@ def test_process_drain_queue(mock_draining_client):
             agent_id="agt123",
             pool="default",
             scheduler="kubernetes",
-            draining_start_time=now.for_json(),
+            draining_start_time=now,
             sender="mmb",
             receipt_handle="aaaaa",
         )
         mock_get_host_to_drain.return_value = mock_host
-        mock_arrow.now.return_value = arrow.get(mock_host.draining_start_time)
-        mock_arrow.get.return_value = arrow.get(mock_host.draining_start_time)
+        mock_arrow.now.return_value = now
         mock_draining_client.process_drain_queue(mock_mesos_client, mock_kubernetes_client)
         assert mock_draining_client.get_host_to_drain.called
         assert not mock_submit_host_for_draining.called
@@ -572,7 +571,7 @@ def test_process_drain_queue(mock_draining_client):
             agent_id="agt123",
             pool="default",
             scheduler="kubernetes",
-            draining_start_time=now.for_json(),
+            draining_start_time=now,
             sender="mmb",
             receipt_handle="aaaaa",
         )
@@ -596,7 +595,7 @@ def test_process_drain_queue(mock_draining_client):
             agent_id="agt123",
             pool="default",
             scheduler="kubernetes",
-            draining_start_time=now.for_json(),
+            draining_start_time=now,
             sender="mmb",
             receipt_handle="aaaaa",
         )
@@ -625,7 +624,7 @@ def test_process_drain_queue(mock_draining_client):
             agent_id="agt123",
             pool="default",
             scheduler="kubernetes",
-            draining_start_time=now.for_json(),
+            draining_start_time=now.shift(hours=-10000),
             sender="mmb",
             receipt_handle="aaaaa",
         )
@@ -633,8 +632,7 @@ def test_process_drain_queue(mock_draining_client):
         mock_k8s_drain.reset_mock()
         mock_submit_host_for_draining.reset_mock()
         mock_get_host_to_drain.return_value = mock_host
-        mock_arrow.now.return_value = arrow.get(mock_host.draining_start_time).shift(hours=100)
-        mock_arrow.get.return_value = arrow.get(mock_host.draining_start_time)
+        mock_arrow.now.return_value = now
         mock_draining_client.process_drain_queue(mock_mesos_client, mock_kubernetes_client)
         assert not mock_k8s_drain.called
         assert mock_k8s_uncordon.called
@@ -649,14 +647,13 @@ def test_process_drain_queue(mock_draining_client):
             agent_id="agt123",
             pool="default",
             scheduler="kubernetes",
-            draining_start_time=now.for_json(),
+            draining_start_time=now,
             sender="mmb",
             receipt_handle="aaaaa",
         )
         mock_k8s_uncordon.reset_mock()
         mock_get_host_to_drain.return_value = mock_host
-        mock_arrow.now.return_value = arrow.get(mock_host.draining_start_time)
-        mock_arrow.get.return_value = arrow.get(mock_host.draining_start_time)
+        mock_arrow.now.return_value = now
         mock_draining_client.process_drain_queue(mock_mesos_client, mock_kubernetes_client)
         assert mock_draining_client.get_host_to_drain.called
         assert not mock_submit_host_for_draining.called
@@ -798,7 +795,7 @@ def test_host_from_instance_id():
             ip="10.1.1.1",
             agent_id="",
             pool="",
-            draining_start_time=now.for_json(),
+            draining_start_time=now,
         )
 
         mock_gethostbyaddr.side_effect = socket.error

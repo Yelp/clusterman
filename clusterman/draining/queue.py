@@ -62,7 +62,7 @@ class Host(NamedTuple):
     receipt_handle: str
     agent_id: str = ""
     pool: str = ""
-    draining_start_time: str = arrow.now().for_json()
+    draining_start_time: arrow.Arrow = arrow.now()
     scheduler: str = "mesos"
 
 
@@ -121,7 +121,7 @@ class DrainingClient:
             MessageBody=json.dumps(
                 {
                     "agent_id": host.agent_id,
-                    "draining_start_time": host.draining_start_time,
+                    "draining_start_time": host.draining_start_time.for_json(),
                     "group_id": host.group_id,
                     "hostname": host.hostname,
                     "instance_id": host.instance_id,
@@ -151,7 +151,7 @@ class DrainingClient:
             MessageBody=json.dumps(
                 {
                     "agent_id": host.agent_id,
-                    "draining_start_time": host.draining_start_time,
+                    "draining_start_time": host.draining_start_time.for_json(),
                     "group_id": host.group_id,
                     "hostname": host.hostname,
                     "instance_id": host.instance_id,
@@ -298,7 +298,7 @@ class DrainingClient:
                     should_add_to_cache = True
             elif host_to_process.scheduler == "kubernetes":
                 logger.info(f"Kubernetes host to drain and submit for termination: {host_to_process}")
-                spent_time = arrow.now() - arrow.get(host_to_process.draining_start_time)
+                spent_time = arrow.now() - host_to_process.draining_start_time
                 pool_config = staticconf.NamespaceReaders(
                     POOL_NAMESPACE.format(pool=host_to_process.pool, scheduler="kubernetes")
                 )
@@ -416,7 +416,7 @@ def host_from_instance_id(
         group_id=sfr_ids[0],
         ip=ip,
         scheduler=scheduler,
-        draining_start_time=arrow.now().for_json(),
+        draining_start_time=arrow.now(),
     )
 
 
