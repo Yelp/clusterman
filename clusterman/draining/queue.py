@@ -38,11 +38,13 @@ from clusterman.aws.util import RESOURCE_GROUPS_REV
 from clusterman.config import load_cluster_pool_config
 from clusterman.config import POOL_NAMESPACE
 from clusterman.config import setup_config
+from clusterman.draining.kubernetes import drain as k8s_drain
+from clusterman.draining.kubernetes import uncordon as k8s_uncordon
 from clusterman.draining.mesos import down
-from clusterman.draining.mesos import drain
+from clusterman.draining.mesos import drain as mesos_drain
 from clusterman.draining.mesos import operator_api
 from clusterman.draining.mesos import up
-from clusterman.interfaces.resource_group import InstanceMetadata
+from clusterman.interfaces.types import InstanceMetadata
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
 from clusterman.util import get_pool_name_list
 
@@ -58,6 +60,9 @@ class Host(NamedTuple):
     ip: str
     sender: str
     receipt_handle: str
+    agent_id: str = ""
+    pool: str = ""
+    draining_start_time: arrow.Arrow = arrow.now()
     scheduler: str = "mesos"
 
 
@@ -74,7 +79,13 @@ class DrainingClient:
         )
 
     def submit_instance_for_draining(
-        self, instance: InstanceMetadata, sender: Type[AWSResourceGroup], scheduler: str
+        self,
+        instance: InstanceMetadata,
+        sender: Type[AWSResourceGroup],
+        scheduler: str,
+        pool: str,
+        agent_id: str,
+        draining_start_time: arrow.Arrow,
     ) -> None:
         return self.client.send_message(
             QueueUrl=self.drain_queue_url,
@@ -86,10 +97,13 @@ class DrainingClient:
             },
             MessageBody=json.dumps(
                 {
+                    "agent_id": agent_id,
+                    "draining_start_time": draining_start_time.for_json(),
+                    "group_id": instance.group_id,
+                    "hostname": instance.hostname,
                     "instance_id": instance.instance_id,
                     "ip": instance.ip_address,
-                    "hostname": instance.hostname,
-                    "group_id": instance.group_id,
+                    "pool": pool,
                     "scheduler": scheduler,
                 }
             ),
@@ -106,10 +120,13 @@ class DrainingClient:
             },
             MessageBody=json.dumps(
                 {
+                    "agent_id": host.agent_id,
+                    "draining_start_time": host.draining_start_time.for_json(),
+                    "group_id": host.group_id,
+                    "hostname": host.hostname,
                     "instance_id": host.instance_id,
                     "ip": host.ip,
-                    "hostname": host.hostname,
-                    "group_id": host.group_id,
+                    "pool": host.pool,
                     "scheduler": host.scheduler,
                 }
             ),
@@ -133,10 +150,13 @@ class DrainingClient:
             },
             MessageBody=json.dumps(
                 {
+                    "agent_id": host.agent_id,
+                    "draining_start_time": host.draining_start_time.for_json(),
+                    "group_id": host.group_id,
+                    "hostname": host.hostname,
                     "instance_id": host.instance_id,
                     "ip": host.ip,
-                    "hostname": host.hostname,
-                    "group_id": host.group_id,
+                    "pool": host.pool,
                     "scheduler": host.scheduler,
                 }
             ),
@@ -260,11 +280,12 @@ class DrainingClient:
     ) -> None:
         host_to_process = self.get_host_to_drain()
         if host_to_process and host_to_process.instance_id not in self.draining_host_ttl_cache:
-            self.draining_host_ttl_cache[host_to_process.instance_id] = arrow.now().shift(seconds=DRAIN_CACHE_SECONDS)
+            # We should add instance_id to cache only if we submit host for termination
+            should_add_to_cache = False
             if host_to_process.scheduler == "mesos":
                 logger.info(f"Mesos host to drain and submit for termination: {host_to_process}")
                 try:
-                    drain(
+                    mesos_drain(
                         mesos_operator_client,
                         [f"{host_to_process.hostname}|{host_to_process.ip}"],
                         arrow.now().timestamp * 1000000000,
@@ -274,13 +295,43 @@ class DrainingClient:
                     logger.error(f"Failed to drain {host_to_process.hostname} continuing to terminate anyway: {e}")
                 finally:
                     self.submit_host_for_termination(host_to_process)
+                    should_add_to_cache = True
             elif host_to_process.scheduler == "kubernetes":
                 logger.info(f"Kubernetes host to drain and submit for termination: {host_to_process}")
-                self.submit_host_for_termination(host_to_process, delay=0)
+                spent_time = arrow.now() - host_to_process.draining_start_time
+                pool_config = staticconf.NamespaceReaders(
+                    POOL_NAMESPACE.format(pool=host_to_process.pool, scheduler="kubernetes")
+                )
+                force_terminate = pool_config.read_bool("draining.force_terminate", False)
+                draining_time_threshold_seconds = pool_config.read_int("draining.draining_time_threshold_seconds", 1800)
+                should_resend_to_queue = False
+
+                if spent_time.total_seconds() > draining_time_threshold_seconds:
+                    if not host_to_process.agent_id or force_terminate:
+                        self.submit_host_for_termination(host_to_process, delay=0)
+                        should_add_to_cache = True
+                    else:
+                        if not k8s_uncordon(kube_operator_client, host_to_process.agent_id):
+                            should_resend_to_queue = True
+                else:
+                    if not host_to_process.agent_id or k8s_drain(kube_operator_client, host_to_process.agent_id):
+                        self.submit_host_for_termination(host_to_process, delay=0)
+                        should_add_to_cache = True
+                    else:
+                        should_resend_to_queue = True
+
+                if should_resend_to_queue:
+                    self.submit_host_for_draining(host_to_process)
             else:
                 logger.info(f"Host to submit for termination immediately: {host_to_process}")
                 self.submit_host_for_termination(host_to_process, delay=0)
             self.delete_drain_messages([host_to_process])
+
+            if should_add_to_cache:
+                self.draining_host_ttl_cache[host_to_process.instance_id] = arrow.now().shift(
+                    seconds=DRAIN_CACHE_SECONDS
+                )
+
         elif host_to_process:
             logger.warning(f"Host: {host_to_process.hostname} already being processed, skipping...")
             self.delete_drain_messages([host_to_process])
@@ -365,6 +416,7 @@ def host_from_instance_id(
         group_id=sfr_ids[0],
         ip=ip,
         scheduler=scheduler,
+        draining_start_time=arrow.now(),
     )
 
 

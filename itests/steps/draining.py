@@ -73,6 +73,8 @@ def queue_setup(context, queue_name):
                 "ip": "1.2.3.4",
                 "hostname": "the-host",
                 "group_id": context.sfr_id,
+                "agent_id": "agt123",
+                "pool": "default",
             }
         ),
     )
@@ -94,7 +96,7 @@ def warning_queue_setup(context):
 
 @behave.when("the draining queue is processed")
 def drain_queue_process(context):
-    with mock.patch("clusterman.draining.queue.drain",), staticconf.testing.PatchConfiguration(
+    with mock.patch("clusterman.draining.queue.mesos_drain",), staticconf.testing.PatchConfiguration(
         {"drain_termination_timeout_seconds": {"sfr": 0}},
     ):
         context.draining_client.process_drain_queue(mock.Mock(), mock.Mock())
