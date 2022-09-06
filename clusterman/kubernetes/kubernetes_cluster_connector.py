@@ -181,6 +181,7 @@ class KubernetesClusterConnector(ClusterConnector):
             return False
 
     def _evict_tasks_from_node(self, hostname: str) -> bool:
+        all_evicted = True
         pods_to_evict = [
             pod for pod in self._list_all_pods_on_node(hostname) if not self._pod_belongs_to_daemonset(pod)
         ]
@@ -206,9 +207,9 @@ class KubernetesClusterConnector(ClusterConnector):
                 logger.info(f"{pod.metadata.name} ({pod.metadata.namespace}) was evicted")
             except ApiException as e:
                 logger.warning(f"Failed to evict {pod.metadata.name} ({pod.metadata.namespace}): {e.status}-{e.reason}")
-                return False
+                all_evicted = False
 
-        return True
+        return all_evicted
 
     def _list_all_pods_on_node(self, node_name: str) -> List[KubernetesPod]:
         return self._core_api.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={node_name}")
