@@ -573,21 +573,23 @@ def test_instance_kill_order(mock_pool_manager):
         return_value=[
             _make_metadata("sfr-0", "i-7", batch_tasks=100),
             _make_metadata("sfr-0", "i-0", agent_state=AgentState.ORPHANED),
-            _make_metadata("sfr-0", "i-2", tasks=1, is_stale=True),
-            _make_metadata("sfr-0", "i-1", agent_state=AgentState.IDLE),
+            _make_metadata("sfr-0", "i-1", tasks=1, is_stale=True),
+            _make_metadata("sfr-0", "i-3", agent_state=AgentState.IDLE),
             _make_metadata("sfr-0", "i-4", tasks=1),
             _make_metadata("sfr-0", "i-5", tasks=100),
-            _make_metadata("sfr-0", "i-3", tasks=100, is_stale=True),
+            _make_metadata("sfr-0", "i-2", tasks=100, is_stale=True),
             _make_metadata("sfr-0", "i-6", batch_tasks=1),
-            _make_metadata("sfr-0", "i-8", agent_state=AgentState.UNKNOWN),
-            _make_metadata("sfr-0", "i-9", tasks=100000),
-            _make_metadata("sfr-0", "i-10", is_safe_to_kill=False),
+            _make_metadata("sfr-0", "i-9", agent_state=AgentState.UNKNOWN),
+            _make_metadata("sfr-0", "i-10", tasks=100000),
+            _make_metadata("sfr-0", "i-11", is_safe_to_kill=False),
+            _make_metadata("sfr-0", "i-8", agent_state=AgentState.IDLE, uptime=60),
         ]
     )
     mock_pool_manager.max_tasks_to_kill = 1000
+    mock_pool_manager.min_node_scalein_uptime = 300
     killable_nodes = mock_pool_manager._get_prioritized_killable_nodes()
     killable_instance_ids = [node_metadata.instance.instance_id for node_metadata in killable_nodes]
-    assert killable_instance_ids == [f"i-{i}" for i in range(8)]
+    assert killable_instance_ids == [f"i-{i}" for i in range(9)]
 
 
 def test_get_expired_orphan_instances(mock_pool_manager):

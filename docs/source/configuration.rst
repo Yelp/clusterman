@@ -128,6 +128,7 @@ The following is an example configuration file for a particular Clusterman pool:
         max_weight_to_add: 100
         max_weight_to_remove: 100
         max_tasks_to_kill: 100
+        min_node_scalein_uptime_seconds: 300
 
 
     autoscale_signal:
@@ -156,7 +157,9 @@ The following is an example configuration file for a particular Clusterman pool:
 The ``resource-groups`` section provides information for loading resource groups in the pool manager.
 
 The ``scaling_limits`` section provides global pool-level limits on scaling that the autoscaler and
-other Clusterman commands should respect.
+other Clusterman commands should respect. The field ``min_node_scalein_uptime_seconds`` is an optional
+setting allowing to indicate a timespan in which freshly bootstrapped nodes are deprioritized in the
+selection for termination.
 
 The ``autoscale_signal`` section defines the autoscaling signal used by this pool.  This section is optional. If it is
 not present, then the ``autoscale_signal`` from the service configuration will be used.

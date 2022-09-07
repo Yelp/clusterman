@@ -49,6 +49,7 @@ from clusterman.util import read_int_or_inf
 
 AWS_RUNNING_STATES = ("running",)
 MIN_CAPACITY_PER_GROUP = 1
+MAX_MIN_NODE_SCALEIN_UPTIME_SECONDS = 15 * 60  # 15 minutes
 SFX_RESOURCE_GROUP_MODIFICATION_FAILED_NAME = "clusterman.resource_group_modification_failed"
 logger = colorlog.getLogger(__name__)
 
@@ -74,6 +75,10 @@ class PoolManager:
         self.max_tasks_to_kill = read_int_or_inf(self.pool_config, "scaling_limits.max_tasks_to_kill")
         self.max_weight_to_add = self.pool_config.read_int("scaling_limits.max_weight_to_add")
         self.max_weight_to_remove = self.pool_config.read_int("scaling_limits.max_weight_to_remove")
+        self.min_node_scalein_uptime = min(
+            self.pool_config.read_int("scaling_limits.min_node_scalein_uptime_seconds", default=-1),
+            MAX_MIN_NODE_SCALEIN_UPTIME_SECONDS,
+        )
 
         if fetch_state:
             self.reload_state()
@@ -546,12 +551,13 @@ class PoolManager:
 
         def sort_key(
             node_metadata: ClusterNodeMetadata,
-        ) -> Tuple[int, int, int, int, int, int]:
+        ) -> Tuple[int, int, int, int, int, int, int]:
             return (
                 0 if node_metadata.agent.is_frozen else 1,
                 0 if node_metadata.agent.state == AgentState.ORPHANED else 1,
-                0 if node_metadata.agent.state == AgentState.IDLE else 1,
                 0 if node_metadata.instance.is_stale else 1,
+                0 if node_metadata.instance.uptime.total_seconds() > self.min_node_scalein_uptime else 1,
+                0 if node_metadata.agent.state == AgentState.IDLE else 1,
                 node_metadata.agent.batch_task_count,
                 node_metadata.agent.task_count,
             )
