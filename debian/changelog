@@ -1,3 +1,9 @@
+clusterman (4.10.2) xenial bionic; urgency=low
+
+  * Reloading kubernetes client for draining
+
+ -- Ilkin Mammadzada <ilkinmammadzada@yelp.com>  Wed, 07 Sep 2022 14:51:47 -0700
+
 clusterman (4.10.1) xenial bionic; urgency=low
 
   * Bug fix for training time calculation
