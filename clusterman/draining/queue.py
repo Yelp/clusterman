@@ -438,6 +438,8 @@ def process_queues(cluster_name: str) -> None:
 
     logger.info("Polling SQS for messages every 5s")
     while True:
+        if kube_operator_client:
+            kube_operator_client.reload_client()
         draining_client.clean_processing_hosts_cache()
         draining_client.process_warning_queue()
         draining_client.process_drain_queue(

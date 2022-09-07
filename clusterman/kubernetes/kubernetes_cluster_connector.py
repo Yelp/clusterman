@@ -71,7 +71,7 @@ class KubernetesClusterConnector(ClusterConnector):
     def reload_state(self) -> None:
         logger.info("Reloading nodes")
 
-        self._core_api = CachedCoreV1Api(self.kubeconfig_path)
+        self.reload_client()
 
         # store the previous _nodes_by_ip for use in get_removed_nodes_before_last_reload()
         self._prev_nodes_by_ip = copy.deepcopy(self._nodes_by_ip)
@@ -82,6 +82,10 @@ class KubernetesClusterConnector(ClusterConnector):
             self._unschedulable_pods,
             self._excluded_pods_by_ip,
         ) = self._get_pods_info()
+
+    def reload_client(self) -> None:
+        logger.info("Reloading client")
+        self._core_api = CachedCoreV1Api(self.kubeconfig_path)
 
     def get_num_removed_nodes_before_last_reload(self) -> int:
         previous_nodes = self._prev_nodes_by_ip
@@ -212,7 +216,7 @@ class KubernetesClusterConnector(ClusterConnector):
         return all_evicted
 
     def _list_all_pods_on_node(self, node_name: str) -> List[KubernetesPod]:
-        return self._core_api.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={node_name}")
+        return self._core_api.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={node_name}").items
 
     def _pod_belongs_to_daemonset(self, pod: KubernetesPod) -> bool:
         return pod.metadata.owner_references and any(
