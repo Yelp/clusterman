@@ -319,10 +319,12 @@ class DrainingClient:
                 #  then it should be returned to queue to try again
 
                 if not host_to_process.agent_id:  # case 0
+                    logger.info(f"Instance is Orphan: {host_to_process.instance_id}")
                     self.submit_host_for_termination(host_to_process, delay=0)
                     should_add_to_cache = True
                 elif spent_time.total_seconds() > draining_time_threshold_seconds:
                     if force_terminate:  # case 1
+                        logger.info(f"Draining expired for: {host_to_process.instance_id}")
                         self.submit_host_for_termination(host_to_process, delay=0)
                         should_add_to_cache = True
                     elif not k8s_uncordon(kube_operator_client, host_to_process.agent_id):  # case 2
@@ -336,6 +338,10 @@ class DrainingClient:
                         should_resend_to_queue = True
 
                 if should_resend_to_queue:
+                    logger.info(
+                        f"Delaying re-draining {host_to_process.instance_id} "
+                        f"for {self.drain_reprocessing_timeout_seconds} seconds"
+                    )
                     self.submit_host_for_draining(host_to_process, self.drain_reprocessing_timeout_seconds)
             else:
                 logger.info(f"Host to submit for termination immediately: {host_to_process}")

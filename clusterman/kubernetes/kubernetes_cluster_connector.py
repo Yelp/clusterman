@@ -146,6 +146,7 @@ class KubernetesClusterConnector(ClusterConnector):
                 return False
             logger.info(f"Evicting pods on {agent_id}...")
             if not self._evict_tasks_from_node(agent_id):
+                logger.info("Some pods couldn't be evicted")
                 return False
             logger.info(f"Drained {agent_id}")
             return True
