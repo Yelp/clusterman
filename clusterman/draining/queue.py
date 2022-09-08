@@ -51,6 +51,7 @@ from clusterman.util import get_pool_name_list
 
 logger = colorlog.getLogger(__name__)
 DRAIN_CACHE_SECONDS = 1800
+FORCE_TERMINATION = False
 
 
 class Host(NamedTuple):
@@ -302,7 +303,7 @@ class DrainingClient:
                 pool_config = staticconf.NamespaceReaders(
                     POOL_NAMESPACE.format(pool=host_to_process.pool, scheduler="kubernetes")
                 )
-                force_terminate = pool_config.read_bool("draining.force_terminate", False)
+                force_terminate = pool_config.read_bool("draining.force_terminate", FORCE_TERMINATION)
                 draining_time_threshold_seconds = pool_config.read_int("draining.draining_time_threshold_seconds", 1800)
                 should_resend_to_queue = False
 

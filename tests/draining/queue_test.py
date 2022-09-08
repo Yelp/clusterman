@@ -475,7 +475,10 @@ def test_process_drain_queue(mock_draining_client):
     ) as mock_submit_host_for_draining, mock.patch(
         "clusterman.draining.queue.arrow",
         autospec=False,
-    ) as mock_arrow:
+    ) as mock_arrow, mock.patch(
+        "clusterman.draining.queue.FORCE_TERMINATION",
+        new=False,
+    ):
         mock_arrow.now = mock.Mock(return_value=mock.Mock(timestamp=1))
         mock_mesos_client = mock.Mock()
         mock_kubernetes_client = mock.Mock()
@@ -640,6 +643,33 @@ def test_process_drain_queue(mock_draining_client):
         assert mock_k8s_uncordon.called
         mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
 
+        # test kubernetes scheduler for expired draining, but force_termination is true
+        mock_host = Host(
+            hostname="host1",
+            ip="10.1.1.1",
+            group_id="sfr1",
+            instance_id="i1234567",
+            agent_id="agt123",
+            pool="default",
+            scheduler="kubernetes",
+            draining_start_time=now.for_json(),
+            sender="mmb",
+            receipt_handle="aaaaa",
+        )
+        mock_submit_host_for_termination.reset_mock()
+        mock_k8s_drain.reset_mock()
+        mock_k8s_uncordon.reset_mock()
+        mock_submit_host_for_draining.reset_mock()
+        mock_get_host_to_drain.return_value = mock_host
+        mock_arrow.now.return_value = arrow.get(mock_host.draining_start_time).shift(hours=100)
+        mock_arrow.get.return_value = arrow.get(mock_host.draining_start_time)
+        with mock.patch("clusterman.draining.queue.FORCE_TERMINATION", new=True):
+            mock_draining_client.process_drain_queue(mock_mesos_client, mock_kubernetes_client)
+        assert not mock_k8s_drain.called
+        assert not mock_k8s_uncordon.called
+        mock_submit_host_for_termination.assert_called_with(mock_draining_client, mock_host, delay=0)
+        mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
+
         # test kubernetes scheduler again after uncordon. cache shouldn't block draining
         mock_host = Host(
             hostname="host1",
@@ -665,6 +695,31 @@ def test_process_drain_queue(mock_draining_client):
             mock_kubernetes_client,
             "agt123",
         )
+        mock_submit_host_for_termination.assert_called_with(mock_draining_client, mock_host, delay=0)
+        mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
+
+        # test kubernetes scheduler for orphan instances
+        mock_host = Host(
+            hostname="host1",
+            ip="10.1.1.1",
+            group_id="sfr1",
+            instance_id="i12345678",
+            agent_id="",
+            pool="default",
+            scheduler="kubernetes",
+            draining_start_time=now.for_json(),
+            sender="mmb",
+            receipt_handle="aaaaa",
+        )
+        mock_k8s_drain.reset_mock()
+        mock_get_host_to_drain.return_value = mock_host
+        mock_arrow.now.return_value = arrow.get(mock_host.draining_start_time)
+        mock_arrow.get.return_value = arrow.get(mock_host.draining_start_time)
+        mock_draining_client.process_drain_queue(mock_mesos_client, mock_kubernetes_client)
+        assert mock_draining_client.get_host_to_drain.called
+        assert not mock_submit_host_for_draining.called
+        assert not mock_k8s_uncordon.called
+        assert not mock_k8s_drain.called
         mock_submit_host_for_termination.assert_called_with(mock_draining_client, mock_host, delay=0)
         mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
 
