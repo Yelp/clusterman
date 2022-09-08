@@ -71,6 +71,7 @@ class DrainingClient:
     def __init__(self, cluster_name: str) -> None:
         self.client = sqs
         self.cluster = cluster_name
+        self.drain_reprocessing_timeout_seconds = staticconf.read_int("drain_reprocessing_timeout_seconds", default=15)
         self.drain_queue_url = staticconf.read_string(f"clusters.{cluster_name}.drain_queue_url")
         self.termination_queue_url = staticconf.read_string(f"clusters.{cluster_name}.termination_queue_url")
         self.draining_host_ttl_cache: Dict[str, arrow.Arrow] = {}
@@ -110,9 +111,10 @@ class DrainingClient:
             ),
         )
 
-    def submit_host_for_draining(self, host: Host) -> None:
+    def submit_host_for_draining(self, host: Host, delay: int) -> None:
         return self.client.send_message(
             QueueUrl=self.drain_queue_url,
+            DelaySeconds=delay,
             MessageAttributes={
                 "Sender": {
                     "DataType": "String",
@@ -323,9 +325,9 @@ class DrainingClient:
                     if force_terminate:  # case 1
                         self.submit_host_for_termination(host_to_process, delay=0)
                         should_add_to_cache = True
-                    else:  # case 2
-                        if not k8s_uncordon(kube_operator_client, host_to_process.agent_id):
-                            should_resend_to_queue = True
+                    elif not k8s_uncordon(kube_operator_client, host_to_process.agent_id):  # case 2
+                        # Todo Message can be stay in the queue up to SQS retention period, limit should be added
+                        should_resend_to_queue = True
                 else:
                     if k8s_drain(kube_operator_client, host_to_process.agent_id):  # case 3
                         self.submit_host_for_termination(host_to_process, delay=0)
@@ -334,7 +336,7 @@ class DrainingClient:
                         should_resend_to_queue = True
 
                 if should_resend_to_queue:
-                    self.submit_host_for_draining(host_to_process)
+                    self.submit_host_for_draining(host_to_process, self.drain_reprocessing_timeout_seconds)
             else:
                 logger.info(f"Host to submit for termination immediately: {host_to_process}")
                 self.submit_host_for_termination(host_to_process, delay=0)
@@ -379,7 +381,7 @@ class DrainingClient:
             # cluster or maybe not even paasta instances...
             if host_to_process.group_id in spot_fleet_resource_groups:
                 logger.info(f"Sending spot warned host to drain: {host_to_process.hostname}")
-                self.submit_host_for_draining(host_to_process)
+                self.submit_host_for_draining(host_to_process, delay=0)
             else:
                 logger.info(f"Ignoring spot warned host because not in our SFRs: {host_to_process.hostname}")
             self.delete_warning_messages([host_to_process])

@@ -104,6 +104,7 @@ def test_submit_host_for_draining(mock_draining_client):
         assert (
             mock_draining_client.submit_host_for_draining(
                 mock_host,
+                0,
             )
             == mock_draining_client.client.send_message.return_value
         )
@@ -121,6 +122,7 @@ def test_submit_host_for_draining(mock_draining_client):
         )
         mock_draining_client.client.send_message.assert_called_with(
             QueueUrl=mock_draining_client.drain_queue_url,
+            DelaySeconds=0,
             MessageAttributes={
                 "Sender": {
                     "DataType": "String",
@@ -759,7 +761,7 @@ def test_process_warning_queue(mock_draining_client):
         mock_host = mock.Mock(group_id="sfr-123")
         mock_draining_client.get_warned_host = mock.Mock(return_value=mock_host)
         mock_draining_client.process_warning_queue()
-        mock_submit_host_for_draining.assert_called_with(mock_draining_client, mock_host)
+        mock_submit_host_for_draining.assert_called_with(mock_draining_client, mock_host, 0)
         mock_delete_warning_messages.assert_called_with(mock_draining_client, [mock_host])
 
 
