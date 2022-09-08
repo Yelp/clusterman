@@ -306,21 +306,30 @@ class DrainingClient:
                 draining_time_threshold_seconds = pool_config.read_int("draining.draining_time_threshold_seconds", 1800)
                 should_resend_to_queue = False
 
-                if not host_to_process.agent_id:
+                # Try to drain node; there are a few different possibilities:
+                #  0) Instance is orphan, it should be terminated
+                #  1) threshold expired, it should be terminated since force_terminate is true
+                #  2) threshold expired, it should be uncordoned since force_terminate is false
+                #  if it can't be uncordoned, then it should be returned to queue to try again
+                #  3) threshold not expired, drain and terminate node
+                #  4) threshold not expired, drain failed for any reason(api is unreachable, PDB doesn't allow eviction)
+                #  then it should be returned to queue to try again
+
+                if not host_to_process.agent_id:  # case 0
                     self.submit_host_for_termination(host_to_process, delay=0)
                     should_add_to_cache = True
                 elif spent_time.total_seconds() > draining_time_threshold_seconds:
-                    if force_terminate:
+                    if force_terminate:  # case 1
                         self.submit_host_for_termination(host_to_process, delay=0)
                         should_add_to_cache = True
-                    else:
+                    else:  # case 2
                         if not k8s_uncordon(kube_operator_client, host_to_process.agent_id):
                             should_resend_to_queue = True
                 else:
-                    if k8s_drain(kube_operator_client, host_to_process.agent_id):
+                    if k8s_drain(kube_operator_client, host_to_process.agent_id):  # case 3
                         self.submit_host_for_termination(host_to_process, delay=0)
                         should_add_to_cache = True
-                    else:
+                    else:  # case 4
                         should_resend_to_queue = True
 
                 if should_resend_to_queue:
