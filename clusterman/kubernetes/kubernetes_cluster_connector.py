@@ -84,7 +84,6 @@ class KubernetesClusterConnector(ClusterConnector):
         ) = self._get_pods_info()
 
     def reload_client(self) -> None:
-        logger.info("Reloading client")
         self._core_api = CachedCoreV1Api(self.kubeconfig_path)
 
     def get_num_removed_nodes_before_last_reload(self) -> int:
