@@ -51,7 +51,9 @@ from clusterman.util import get_pool_name_list
 
 logger = colorlog.getLogger(__name__)
 DRAIN_CACHE_SECONDS = 1800
-FORCE_TERMINATION = False
+DEFAULT_FORCE_TERMINATION = False
+DEFAULT_DRAIN_REPROCESSING_DELAY_SECONDS = 15
+DEFAULT_DRAINING_TIME_THRESHOLD_SECONDS = 1800
 
 
 class Host(NamedTuple):
@@ -71,7 +73,10 @@ class DrainingClient:
     def __init__(self, cluster_name: str) -> None:
         self.client = sqs
         self.cluster = cluster_name
-        self.drain_reprocessing_timeout_seconds = staticconf.read_int("drain_reprocessing_timeout_seconds", default=15)
+        self.drain_reprocessing_delay_seconds = staticconf.read_int(
+            "drain_reprocessing_delay_seconds",
+            default=DEFAULT_DRAIN_REPROCESSING_DELAY_SECONDS,
+        )
         self.drain_queue_url = staticconf.read_string(f"clusters.{cluster_name}.drain_queue_url")
         self.termination_queue_url = staticconf.read_string(f"clusters.{cluster_name}.termination_queue_url")
         self.draining_host_ttl_cache: Dict[str, arrow.Arrow] = {}
@@ -111,7 +116,7 @@ class DrainingClient:
             ),
         )
 
-    def submit_host_for_draining(self, host: Host, delay: int) -> None:
+    def submit_host_for_draining(self, host: Host, delay: Optional[int] = 0) -> None:
         return self.client.send_message(
             QueueUrl=self.drain_queue_url,
             DelaySeconds=delay,
@@ -305,8 +310,11 @@ class DrainingClient:
                 pool_config = staticconf.NamespaceReaders(
                     POOL_NAMESPACE.format(pool=host_to_process.pool, scheduler="kubernetes")
                 )
-                force_terminate = pool_config.read_bool("draining.force_terminate", FORCE_TERMINATION)
-                draining_time_threshold_seconds = pool_config.read_int("draining.draining_time_threshold_seconds", 1800)
+                force_terminate = pool_config.read_bool("draining.force_terminate", DEFAULT_FORCE_TERMINATION)
+                draining_time_threshold_seconds = pool_config.read_int(
+                    "draining.draining_time_threshold_seconds",
+                    default=DEFAULT_DRAINING_TIME_THRESHOLD_SECONDS,
+                )
                 should_resend_to_queue = False
 
                 # Try to drain node; there are a few different possibilities:
@@ -340,9 +348,9 @@ class DrainingClient:
                 if should_resend_to_queue:
                     logger.info(
                         f"Delaying re-draining {host_to_process.instance_id} "
-                        f"for {self.drain_reprocessing_timeout_seconds} seconds"
+                        f"for {self.drain_reprocessing_delay_seconds} seconds"
                     )
-                    self.submit_host_for_draining(host_to_process, self.drain_reprocessing_timeout_seconds)
+                    self.submit_host_for_draining(host_to_process, self.drain_reprocessing_delay_seconds)
             else:
                 logger.info(f"Host to submit for termination immediately: {host_to_process}")
                 self.submit_host_for_termination(host_to_process, delay=0)
@@ -387,7 +395,7 @@ class DrainingClient:
             # cluster or maybe not even paasta instances...
             if host_to_process.group_id in spot_fleet_resource_groups:
                 logger.info(f"Sending spot warned host to drain: {host_to_process.hostname}")
-                self.submit_host_for_draining(host_to_process, delay=0)
+                self.submit_host_for_draining(host_to_process)
             else:
                 logger.info(f"Ignoring spot warned host because not in our SFRs: {host_to_process.hostname}")
             self.delete_warning_messages([host_to_process])

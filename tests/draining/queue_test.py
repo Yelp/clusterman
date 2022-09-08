@@ -478,7 +478,7 @@ def test_process_drain_queue(mock_draining_client):
         "clusterman.draining.queue.arrow",
         autospec=False,
     ) as mock_arrow, mock.patch(
-        "clusterman.draining.queue.FORCE_TERMINATION",
+        "clusterman.draining.queue.DEFAULT_FORCE_TERMINATION",
         new=False,
     ):
         mock_arrow.now = mock.Mock(return_value=mock.Mock(timestamp=1))
@@ -665,7 +665,7 @@ def test_process_drain_queue(mock_draining_client):
         mock_get_host_to_drain.return_value = mock_host
         mock_arrow.now.return_value = arrow.get(mock_host.draining_start_time).shift(hours=100)
         mock_arrow.get.return_value = arrow.get(mock_host.draining_start_time)
-        with mock.patch("clusterman.draining.queue.FORCE_TERMINATION", new=True):
+        with mock.patch("clusterman.draining.queue.DEFAULT_FORCE_TERMINATION", new=True):
             mock_draining_client.process_drain_queue(mock_mesos_client, mock_kubernetes_client)
         assert not mock_k8s_drain.called
         assert not mock_k8s_uncordon.called
@@ -761,7 +761,7 @@ def test_process_warning_queue(mock_draining_client):
         mock_host = mock.Mock(group_id="sfr-123")
         mock_draining_client.get_warned_host = mock.Mock(return_value=mock_host)
         mock_draining_client.process_warning_queue()
-        mock_submit_host_for_draining.assert_called_with(mock_draining_client, mock_host, 0)
+        mock_submit_host_for_draining.assert_called_with(mock_draining_client, mock_host)
         mock_delete_warning_messages.assert_called_with(mock_draining_client, [mock_host])
 
 
