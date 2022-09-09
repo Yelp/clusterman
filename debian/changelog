@@ -1,3 +1,9 @@
+clusterman (4.10.4) xenial bionic; urgency=low
+
+  * Refactoring kubernetes drainer
+
+ -- Ilkin Mammadzada <ilkinmammadzada@yelp.com>  Fri, 09 Sep 2022 06:26:18 -0700
+
 clusterman (4.10.3) xenial bionic; urgency=low
 
   * PoolManager: Consider uptime in selecting killable nodes
