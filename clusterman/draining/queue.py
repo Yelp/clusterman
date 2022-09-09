@@ -51,6 +51,9 @@ from clusterman.util import get_pool_name_list
 
 logger = colorlog.getLogger(__name__)
 DRAIN_CACHE_SECONDS = 1800
+DEFAULT_FORCE_TERMINATION = False
+DEFAULT_DRAIN_REPROCESSING_DELAY_SECONDS = 15
+DEFAULT_DRAINING_TIME_THRESHOLD_SECONDS = 1800
 
 
 class Host(NamedTuple):
@@ -70,6 +73,10 @@ class DrainingClient:
     def __init__(self, cluster_name: str) -> None:
         self.client = sqs
         self.cluster = cluster_name
+        self.drain_reprocessing_delay_seconds = staticconf.read_int(
+            "drain_reprocessing_delay_seconds",
+            default=DEFAULT_DRAIN_REPROCESSING_DELAY_SECONDS,
+        )
         self.drain_queue_url = staticconf.read_string(f"clusters.{cluster_name}.drain_queue_url")
         self.termination_queue_url = staticconf.read_string(f"clusters.{cluster_name}.termination_queue_url")
         self.draining_host_ttl_cache: Dict[str, arrow.Arrow] = {}
@@ -109,9 +116,10 @@ class DrainingClient:
             ),
         )
 
-    def submit_host_for_draining(self, host: Host) -> None:
+    def submit_host_for_draining(self, host: Host, delay: Optional[int] = 0) -> None:
         return self.client.send_message(
             QueueUrl=self.drain_queue_url,
+            DelaySeconds=delay,
             MessageAttributes={
                 "Sender": {
                     "DataType": "String",
@@ -302,26 +310,47 @@ class DrainingClient:
                 pool_config = staticconf.NamespaceReaders(
                     POOL_NAMESPACE.format(pool=host_to_process.pool, scheduler="kubernetes")
                 )
-                force_terminate = pool_config.read_bool("draining.force_terminate", False)
-                draining_time_threshold_seconds = pool_config.read_int("draining.draining_time_threshold_seconds", 1800)
+                force_terminate = pool_config.read_bool("draining.force_terminate", DEFAULT_FORCE_TERMINATION)
+                draining_time_threshold_seconds = pool_config.read_int(
+                    "draining.draining_time_threshold_seconds",
+                    default=DEFAULT_DRAINING_TIME_THRESHOLD_SECONDS,
+                )
                 should_resend_to_queue = False
 
-                if spent_time.total_seconds() > draining_time_threshold_seconds:
-                    if not host_to_process.agent_id or force_terminate:
+                # Try to drain node; there are a few different possibilities:
+                #  0) Instance is orphan, it should be terminated
+                #  1) threshold expired, it should be terminated since force_terminate is true
+                #  2) threshold expired, it should be uncordoned since force_terminate is false
+                #  if it can't be uncordoned, then it should be returned to queue to try again
+                #  3) threshold not expired, drain and terminate node
+                #  4) threshold not expired, drain failed for any reason(api is unreachable, PDB doesn't allow eviction)
+                #  then it should be returned to queue to try again
+
+                if not host_to_process.agent_id:  # case 0
+                    logger.info(f"Instance is Orphan: {host_to_process.instance_id}")
+                    self.submit_host_for_termination(host_to_process, delay=0)
+                    should_add_to_cache = True
+                elif spent_time.total_seconds() > draining_time_threshold_seconds:
+                    if force_terminate:  # case 1
+                        logger.info(f"Draining expired for: {host_to_process.instance_id}")
                         self.submit_host_for_termination(host_to_process, delay=0)
                         should_add_to_cache = True
-                    else:
-                        if not k8s_uncordon(kube_operator_client, host_to_process.agent_id):
-                            should_resend_to_queue = True
+                    elif not k8s_uncordon(kube_operator_client, host_to_process.agent_id):  # case 2
+                        # Todo Message can be stay in the queue up to SQS retention period, limit should be added
+                        should_resend_to_queue = True
                 else:
-                    if not host_to_process.agent_id or k8s_drain(kube_operator_client, host_to_process.agent_id):
+                    if k8s_drain(kube_operator_client, host_to_process.agent_id):  # case 3
                         self.submit_host_for_termination(host_to_process, delay=0)
                         should_add_to_cache = True
-                    else:
+                    else:  # case 4
                         should_resend_to_queue = True
 
                 if should_resend_to_queue:
-                    self.submit_host_for_draining(host_to_process)
+                    logger.info(
+                        f"Delaying re-draining {host_to_process.instance_id} "
+                        f"for {self.drain_reprocessing_delay_seconds} seconds"
+                    )
+                    self.submit_host_for_draining(host_to_process, self.drain_reprocessing_delay_seconds)
             else:
                 logger.info(f"Host to submit for termination immediately: {host_to_process}")
                 self.submit_host_for_termination(host_to_process, delay=0)

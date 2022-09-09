@@ -84,7 +84,6 @@ class KubernetesClusterConnector(ClusterConnector):
         ) = self._get_pods_info()
 
     def reload_client(self) -> None:
-        logger.info("Reloading client")
         self._core_api = CachedCoreV1Api(self.kubeconfig_path)
 
     def get_num_removed_nodes_before_last_reload(self) -> int:
@@ -147,6 +146,7 @@ class KubernetesClusterConnector(ClusterConnector):
                 return False
             logger.info(f"Evicting pods on {agent_id}...")
             if not self._evict_tasks_from_node(agent_id):
+                logger.info("Some pods couldn't be evicted")
                 return False
             logger.info(f"Drained {agent_id}")
             return True
