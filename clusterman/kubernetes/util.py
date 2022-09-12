@@ -16,6 +16,7 @@ import socket
 from enum import auto
 from enum import Enum
 from typing import List
+from typing import Type
 
 import colorlog
 import kubernetes
@@ -44,10 +45,13 @@ KUBERNETES_API_CACHE = TTLCache(maxsize=KUBERNETES_API_CACHE_SIZE, ttl=KUBERNETE
 logger = colorlog.getLogger(__name__)
 
 
-class CachedCoreV1Api:
-    CACHED_FUNCTION_CALLS = {"list_node", "list_pod_for_all_namespaces"}
+class KubeApiClientWrapper:
+    def __init__(self, kubeconfig_path: str, client_class: Type) -> None:
+        """Init k8s API client
 
-    def __init__(self, kubeconfig_path: str):
+        :param str kubeconfig_path: k8s configuration path
+        :param Type client_class: k8s client class to initialize
+        """
         try:
             kubernetes.config.load_kube_config(kubeconfig_path)
         except TypeError:
@@ -57,7 +61,17 @@ class CachedCoreV1Api:
             logger.error(error_msg)
             raise
 
-        self._client = kubernetes.client.CoreV1Api()
+        self._client = client_class()
+
+    def __getattr__(self, attr):
+        return getattr(self._client, attr)
+
+
+class CachedCoreV1Api(KubeApiClientWrapper):
+    CACHED_FUNCTION_CALLS = {"list_node", "list_pod_for_all_namespaces"}
+
+    def __init__(self, kubeconfig_path: str):
+        super().__init__(kubeconfig_path, kubernetes.client.CoreV1Api)
 
     def __getattr__(self, attr):
         global KUBERNETES_API_CACHE

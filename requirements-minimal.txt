@@ -10,11 +10,13 @@ kubernetes
 matplotlib>=3.1.1
 mypy-extensions
 numpy>=1.16
+packaging
 parsedatetime
 PyStaticConfiguration
 PyYAML>=5.4
 requests>=2.22.0
 retry
+semver
 signalfx
 simplejson
 sortedcontainers

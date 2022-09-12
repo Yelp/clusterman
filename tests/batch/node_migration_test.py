@@ -11,17 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
 from argparse import Namespace
-from unittest.mock import call
 from unittest.mock import patch
 
 import pytest
 
+from clusterman.batch.node_migration import MigrationStatus
 from clusterman.batch.node_migration import NodeMigration
-from clusterman.migration.event import ConditionTrait
 from clusterman.migration.event import MigrationCondition
 from clusterman.migration.event import MigrationEvent
+from clusterman.migration.event_enums import ConditionOperator
+from clusterman.migration.event_enums import ConditionTrait
 from clusterman.migration.settings import MigrationPrecendence
 from clusterman.migration.settings import PoolPortion
 from clusterman.migration.settings import WorkerSetup
@@ -29,13 +29,12 @@ from clusterman.migration.settings import WorkerSetup
 
 @pytest.fixture(scope="function")
 def migration_batch():
-    with patch("clusterman.batch.node_migration.sqs") as mock_sqs, patch(
+    with patch("clusterman.batch.node_migration.KubernetesClusterConnector"), patch(
         "clusterman.batch.node_migration.setup_config"
     ), patch("clusterman.batch.node_migration.get_pool_name_list") as mock_getpool, patch(
         "clusterman.batch.node_migration.load_cluster_pool_config"
     ):
         batch = NodeMigration()
-        batch.sqs_client = mock_sqs
         mock_getpool.return_value = ["bar"]
         batch.options = Namespace(cluster="mesos-test", autorestart_interval_minutes=None)
         batch.configure_initial()
@@ -43,86 +42,39 @@ def migration_batch():
         yield batch
 
 
-def test_fetch_event_queue(migration_batch: NodeMigration):
+def test_fetch_event_crd(migration_batch: NodeMigration):
     migration_batch.events_in_progress = {
         MigrationEvent(
-            msg_id="1",
-            msg_receipt="1",
+            resource_name="mesos-test-bar-220912-1",
             cluster="mesos-test",
             pool="bar",
-            condition=MigrationCondition(ConditionTrait.KERNEL, "3.2.1"),
+            label_selectors=[],
+            condition=MigrationCondition(ConditionTrait.KERNEL, ConditionOperator.GE, "3.2.1"),
         )
     }
-    migration_batch.EVENT_FETCH_BATCH = 3
-    migration_batch.sqs_client.receive_message.side_effect = [
-        {
-            "Messages": [
-                {
-                    "MessageId": str(i),
-                    "ReceiptHandle": str(i),
-                    "Body": json.dumps({"cluster": "mesos-test", "pool": "bar", "condition": {"kernel": f"3.2.{i}"}}),
-                }
-                for i in range(3)
-            ]
-        },
-        {
-            "Messages": [
-                {
-                    "MessageId": str(i),
-                    "ReceiptHandle": str(i),
-                    "Body": json.dumps(
-                        {"cluster": "mesos-test", "pool": "bar", "condition": {"lsbrelease": f"26.0{i}"}}
-                    ),
-                }
-                for i in range(2)
-            ]
-        },
+    migration_batch.cluster_connector.list_node_migration_resources.return_value = [
+        MigrationEvent(
+            resource_name=f"mesos-test-bar-220912-{i}",
+            cluster="mesos-test",
+            pool="bar",
+            label_selectors=[],
+            condition=MigrationCondition(ConditionTrait.KERNEL, ConditionOperator.GE, f"3.2.{i}"),
+        )
+        for i in range(3)
     ]
-    assert migration_batch.fetch_event_queue() == {
+    assert migration_batch.fetch_event_crd() == {
         MigrationEvent(
-            msg_id="0",
-            msg_receipt="0",
+            resource_name=f"mesos-test-bar-220912-{i}",
             cluster="mesos-test",
             pool="bar",
-            condition=MigrationCondition(ConditionTrait.KERNEL, "3.2.0"),
-        ),
-        MigrationEvent(
-            msg_id="2",
-            msg_receipt="2",
-            cluster="mesos-test",
-            pool="bar",
-            condition=MigrationCondition(ConditionTrait.KERNEL, "3.2.2"),
-        ),
-        MigrationEvent(
-            msg_id="0",
-            msg_receipt="0",
-            cluster="mesos-test",
-            pool="bar",
-            condition=MigrationCondition(ConditionTrait.LSBRELEASE, "26.00"),
-        ),
-        MigrationEvent(
-            msg_id="1",
-            msg_receipt="1",
-            cluster="mesos-test",
-            pool="bar",
-            condition=MigrationCondition(ConditionTrait.LSBRELEASE, "26.01"),
-        ),
+            label_selectors=[],
+            condition=MigrationCondition(ConditionTrait.KERNEL, ConditionOperator.GE, f"3.2.{i}"),
+        )
+        for i in range(3)
+        if i != 1
     }
-    migration_batch.sqs_client.receive_message.assert_has_calls(
-        [
-            call(
-                MaxNumberOfMessages=3,
-                QueueUrl="mesos-test-migration-event.com",
-                VisibilityTimeout=900,
-                WaitTimeSeconds=10,
-            ),
-            call(
-                MaxNumberOfMessages=3,
-                QueueUrl="mesos-test-migration-event.com",
-                VisibilityTimeout=900,
-                WaitTimeSeconds=10,
-            ),
-        ]
+    migration_batch.cluster_connector.list_node_migration_resources.assert_called_once_with(
+        [MigrationStatus.PENDING, MigrationStatus.INPROGRESS],
     )
 
 
@@ -130,15 +82,15 @@ def test_fetch_event_queue(migration_batch: NodeMigration):
 def test_run(mock_time, migration_batch):
     mock_time.sleep.side_effect = StopIteration  # hacky way to stop main batch loop
     mock_event = MigrationEvent(
-        msg_id="0",
-        msg_receipt="0",
+        resource_name="mesos-test-bar-220912-1",
         cluster="mesos-test",
         pool="bar",
-        condition=MigrationCondition(ConditionTrait.KERNEL, "3.2.0"),
+        label_selectors=[],
+        condition=MigrationCondition(ConditionTrait.KERNEL, ConditionOperator.GE, "3.2.0"),
     )
     with patch.object(migration_batch, "spawn_uptime_worker") as mock_uptime_spawn, patch.object(
         migration_batch, "spawn_event_worker"
-    ) as mock_event_spawn, patch.object(migration_batch, "fetch_event_queue") as mock_fetch_event:
+    ) as mock_event_spawn, patch.object(migration_batch, "fetch_event_crd") as mock_fetch_event:
         mock_fetch_event.return_value = {mock_event}
         with pytest.raises(StopIteration):
             migration_batch.run()

@@ -82,7 +82,6 @@ def main_clusterman_config():
                 "drain_queue_url": "mesos-test-draining.com",
                 "termination_queue_url": "mesos-test-terminating.com",
                 "warning_queue_url": "mesos-test-warning.com",
-                "migration_event_queue_url": "mesos-test-migration-event.com",
             },
         },
         "sensu_config": [
@@ -191,7 +190,7 @@ def clusterman_k8s_pool_config():
         },
         "node_migration": {
             "trigger": {
-                "event_queue": True,
+                "event": True,
                 "max_uptime": "90d",
             },
             "strategy": {
