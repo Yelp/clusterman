@@ -18,6 +18,7 @@ from typing import Sequence
 
 import staticconf
 
+from clusterman.autoscaler.pool_manager import MAX_MIN_NODE_SCALEIN_UPTIME_SECONDS
 from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.config import POOL_NAMESPACE
 from clusterman.interfaces.types import ClusterNodeMetadata
@@ -50,6 +51,10 @@ class SimulatedPoolManager(PoolManager):
         self.cluster_connector = SimulatedClusterConnector(self.cluster, self.pool, self.simulator)
         self.max_weight_to_add = self.pool_config.read_int("scaling_limits.max_weight_to_add")
         self.max_weight_to_remove = self.pool_config.read_int("scaling_limits.max_weight_to_remove")
+        self.min_node_scalein_uptime = min(
+            self.pool_config.read_int("scaling_limits.min_node_scalein_uptime_seconds", default=-1),
+            MAX_MIN_NODE_SCALEIN_UPTIME_SECONDS,
+        )
 
     def reload_state(self) -> None:
         pass
