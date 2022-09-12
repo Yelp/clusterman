@@ -29,7 +29,8 @@ export TZ=US/Pacific
 ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 apt-get update && apt-get install -y software-properties-common
-apt-get install -y --force-yes python3.7 python3-pip python3-yaml awscli
+add-apt-repository ppa:deadsnakes/ppa
+apt-get install -y --force-yes python3.7 python3-pip python3-yaml awscli python3.7-distutils
 dpkg -i /dist/${DISTRIB_CODENAME}/clusterman_${PACKAGE_VERSION}_amd64.deb || true
 apt-get install -y --force-yes --fix-broken
 
