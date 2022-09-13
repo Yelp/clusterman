@@ -319,7 +319,7 @@ def mock_cluster_connector(
 @pytest.fixture
 def mock_cluster_connector_crd(mock_cluster_connector):
     mock_cluster_connector._init_crd_client = True
-    with mock.patch.object(mock_cluster_connector, "_crd_api"):
+    with mock.patch.object(mock_cluster_connector, "_migration_crd_api"):
         yield mock_cluster_connector
 
 
@@ -404,7 +404,7 @@ def test_pod_belongs_to_pool(
 
 
 def test_list_node_migration_resources(mock_cluster_connector_crd):
-    mock_cluster_connector_crd._crd_api.list_cluster_custom_object.return_value = {
+    mock_cluster_connector_crd._migration_crd_api.list_cluster_custom_object.return_value = {
         "items": [
             {
                 "metadata": {
@@ -438,10 +438,7 @@ def test_list_node_migration_resources(mock_cluster_connector_crd):
         )
         for i in range(3)
     }
-    mock_cluster_connector_crd._crd_api.list_cluster_custom_object.assert_called_once_with(
-        group="clusterman.yelp.com",
-        plural="nodemigrations",
-        version="v1",
+    mock_cluster_connector_crd._migration_crd_api.list_cluster_custom_object.assert_called_once_with(
         label_selector="clusterman.yelp.com/migration_status in (pending,inprogress)",
     )
 
@@ -453,10 +450,7 @@ def test_list_node_migration_resources_no_init(mock_cluster_connector):
 
 def test_mark_node_migration_resource(mock_cluster_connector_crd):
     mock_cluster_connector_crd.mark_node_migration_resource("mesos-test-bar-220912-0", MigrationStatus.COMPLETED)
-    mock_cluster_connector_crd._crd_api.patch_cluster_custom_object.assert_called_once_with(
-        group="clusterman.yelp.com",
-        plural="nodemigrations",
-        version="v1",
+    mock_cluster_connector_crd._migration_crd_api.patch_cluster_custom_object.assert_called_once_with(
         name="mesos-test-bar-220912-0",
         body={"metadata": {"labels": {"clusterman.yelp.com/migration_status": "completed"}}},
     )

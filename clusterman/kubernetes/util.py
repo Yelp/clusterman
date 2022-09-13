@@ -15,6 +15,7 @@ import os
 import socket
 from enum import auto
 from enum import Enum
+from functools import partial
 from typing import List
 from typing import Type
 
@@ -96,6 +97,22 @@ class CachedCoreV1Api(KubeApiClientWrapper):
             func = decorator(func)
 
         return func
+
+
+class ConciseCRDApi(KubeApiClientWrapper):
+    def __init__(self, kubeconfig_path: str, group: str, version: str, plural: str) -> None:
+        super().__init__(kubeconfig_path, kubernetes.client.CustomObjectsApi)
+        self.group = group
+        self.version = version
+        self.plural = plural
+
+    def __getattr__(self, attr):
+        return partial(
+            getattr(self._client, attr),
+            group=self.group,
+            version=self.version,
+            plural=self.plural,
+        )
 
 
 class ResourceParser:

@@ -6,6 +6,7 @@ from kubernetes.client.models.v1_node_selector_requirement import V1NodeSelector
 from kubernetes.client.models.v1_node_selector_term import V1NodeSelectorTerm
 
 from clusterman.kubernetes.util import CachedCoreV1Api
+from clusterman.kubernetes.util import ConciseCRDApi
 from clusterman.kubernetes.util import ResourceParser
 from clusterman.kubernetes.util import selector_term_matches_requirement
 
@@ -73,3 +74,15 @@ def test_selector_term_matches_requirement():
     ]
     selector_requirement = V1NodeSelectorRequirement(key="clusterman.com/pool", operator="In", values=["bar"])
     assert selector_term_matches_requirement(selector_term, selector_requirement)
+
+
+@mock.patch("clusterman.kubernetes.util.kubernetes")
+def test_concise_crd_api(mock_kube):
+    api = ConciseCRDApi("/foo/bar/admin.conf", "group-x", "v-y", "plur-z")
+    api.list_node_migration_resources(label_selector="foo=bar")
+    mock_kube.client.CustomObjectsApi.return_value.list_node_migration_resources.assert_called_once_with(
+        group="group-x",
+        plural="plur-z",
+        version="v-y",
+        label_selector="foo=bar",
+    )

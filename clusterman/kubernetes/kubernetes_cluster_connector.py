@@ -37,8 +37,8 @@ from clusterman.interfaces.types import AgentMetadata
 from clusterman.interfaces.types import AgentState
 from clusterman.kubernetes.util import allocated_node_resources
 from clusterman.kubernetes.util import CachedCoreV1Api
+from clusterman.kubernetes.util import ConciseCRDApi
 from clusterman.kubernetes.util import get_node_ip
-from clusterman.kubernetes.util import KubeApiClientWrapper
 from clusterman.kubernetes.util import PodUnschedulableReason
 from clusterman.kubernetes.util import selector_term_matches_requirement
 from clusterman.kubernetes.util import total_node_resources
@@ -60,7 +60,7 @@ MIGRATION_CRD_STATUS_LABEL = "clusterman.yelp.com/migration_status"
 class KubernetesClusterConnector(ClusterConnector):
     SCHEDULER = "kubernetes"
     _core_api: kubernetes.client.CoreV1Api
-    _crd_api: Optional[kubernetes.client.CustomObjectsApi]
+    _migration_crd_api: Optional[kubernetes.client.CustomObjectsApi]
     _pods: List[KubernetesPod]
     _prev_nodes_by_ip: Mapping[str, KubernetesNode]
     _nodes_by_ip: Mapping[str, KubernetesNode]
@@ -95,8 +95,13 @@ class KubernetesClusterConnector(ClusterConnector):
 
     def reload_client(self) -> None:
         self._core_api = CachedCoreV1Api(self.kubeconfig_path)
-        self._crd_api = (
-            KubeApiClientWrapper(self.kubeconfig_path, kubernetes.client.CustomObjectsApi)
+        self._migration_crd_api = (
+            ConciseCRDApi(
+                self.kubeconfig_path,
+                group=MIGRATION_CRD_GROUP,
+                version=MIGRATION_CRD_VERSION,
+                plural=MIGRATION_CRD_PLURAL,
+            )
             if self._init_crd_client
             else None
         )
@@ -205,13 +210,10 @@ class KubernetesClusterConnector(ClusterConnector):
         :param List[MigrationStatus] statuses: event status to look for
         :return: collection of migration events
         """
-        assert self._crd_api, "CRD client was not initialized"
+        assert self._migration_crd_api, "CRD client was not initialized"
         try:
             label_filter = ",".join(status.value for status in statuses)
-            resources = self._crd_api.list_cluster_custom_object(
-                group=MIGRATION_CRD_GROUP,
-                version=MIGRATION_CRD_VERSION,
-                plural=MIGRATION_CRD_PLURAL,
+            resources = self._migration_crd_api.list_cluster_custom_object(
                 label_selector=f"{MIGRATION_CRD_STATUS_LABEL} in ({label_filter})",
             )
             return set(map(MigrationEvent.from_crd, resources.get("items", [])))
@@ -225,12 +227,9 @@ class KubernetesClusterConnector(ClusterConnector):
         :param str event_name: name of the resource CRD
         :status MigrationStatus status: status to be set
         """
-        assert self._crd_api, "CRD client was not initialized"
+        assert self._migration_crd_api, "CRD client was not initialized"
         try:
-            self._crd_api.patch_cluster_custom_object(
-                group=MIGRATION_CRD_GROUP,
-                version=MIGRATION_CRD_VERSION,
-                plural=MIGRATION_CRD_PLURAL,
+            self._migration_crd_api.patch_cluster_custom_object(
                 name=event_name,
                 body={
                     "metadata": {
