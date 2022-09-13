@@ -9,7 +9,7 @@ endif
 # system version to the version from which python3-distutils is required (18.04 and higher),
 # and conditionally populate a substitution variable which is referenced in the control file.
 # On bionic, where Ubuntu's python3.7 is used, this is a virtual package for python3-distutils
-# (in bionic-updates). On jammy, this is a real package providing distutils for python3.8 from deadsnakes.
+# (in bionic-updates). On jammy, this is a real package providing distutils for python3.7 from deadsnakes.
 ifeq ($(shell (. /etc/os-release && dpkg --compare-versions $$VERSION_ID "ge" "18.04" && echo yes || echo no)),yes)
     extra_substvars = -VbionicOrLater:Depends="python3.7-distutils"
 else
