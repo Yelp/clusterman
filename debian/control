@@ -9,7 +9,9 @@ Depends:
 # unfortunately needed for numpy to work
     libatlas3-base,
 # needed so that we can grab signals from s3
-    awscli,
+# that said, we have an internal fork that conflicts with this
+# once that's gone, we should re-add this (aws-cli vs awscli)
+#    awscli,
     ${misc:Depends},
     ${python:Depends},
     ${shlibs:Depends},
