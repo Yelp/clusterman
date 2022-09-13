@@ -29,7 +29,11 @@ export TZ=US/Pacific
 ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 apt-get update && apt-get install -y software-properties-common
-add-apt-repository ppa:deadsnakes/ppa
+# we really only need this externally, but we use a python not included
+# by ubuntu - so add the deadsnakes ppa to bring that in
+if [ "${DISTRIB_CODENAME}" = "jammy" ]; then
+    add-apt-repository ppa:deadsnakes/ppa
+fi
 # our debian/control will already install py3.7, but we want to install it ahead of time so that
 # we can also get the right pip version installed as well
 apt-get install -y --force-yes python3.7 python3-pip
