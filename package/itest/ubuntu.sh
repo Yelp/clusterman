@@ -29,8 +29,16 @@ export TZ=US/Pacific
 ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 apt-get update && apt-get install -y software-properties-common
-apt-get install -y --force-yes python3.7 python3-pip python3-yaml awscli
+# we really only need this externally, but we use a python not included
+# by ubuntu - so add the deadsnakes ppa to bring that in
+if [ "${DISTRIB_CODENAME}" = "jammy" ]; then
+    add-apt-repository ppa:deadsnakes/ppa
+fi
+# our debian/control will already install py3.7, but we want to install it ahead of time so that
+# we can also get the right pip version installed as well
+apt-get install -y --force-yes python3.7 python3-pip
 dpkg -i /dist/${DISTRIB_CODENAME}/clusterman_${PACKAGE_VERSION}_amd64.deb || true
+# dpkg -i will have left some dependencies uninstalled, so this will install them
 apt-get install -y --force-yes --fix-broken
 
 # Sometimes our acceptance tests run in parallel on the same box, so we need to use different CIDR ranges
