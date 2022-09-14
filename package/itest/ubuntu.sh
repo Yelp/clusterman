@@ -49,7 +49,7 @@ else
 fi
 
 export ACCEPTANCE_ROOT=/itest
-python3.7 -m pip install boto3 simplejson
+python3.7 -m pip install boto3 simplejson pyyaml
 python3.7 /itest/run_instance.py \
     http://moto-ec2:5000/ \
     http://moto-s3:5000/ \
