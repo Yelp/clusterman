@@ -1,3 +1,10 @@
+clusterman (4.10.5) xenial bionic; urgency=low
+
+  * Build improvements for building on jammy + add missing
+    min_node_scalein_uptime property to simulator
+
+ -- Luis Perez <luisp@yelp.com>  Wed, 14 Sep 2022 14:55:00 -0700
+
 clusterman (4.10.4) xenial bionic; urgency=low
 
   * Refactoring kubernetes drainer
