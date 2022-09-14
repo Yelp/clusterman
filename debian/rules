@@ -23,10 +23,11 @@ ifeq ($(shell (. /etc/os-release && dpkg --compare-versions $$VERSION_ID "ge" "2
     extra_substvars = -VjammyOrLater:Depends="awscli"
 else
 	# aws-cli only exists internally, so lets make sure that we only use it internally
-    ifneq ($(shell echo ${PAASTA_ENV}), YELP)
+    ifeq ($(shell echo ${PAASTA_ENV}), YELP)
+        extra_substvars = -VjammyOrLater:Depends="aws-cli"
+    else
         extra_substvars = -VjammyOrLater:Depends="awscli"
     endif
-    extra_substvars = -VjammyOrLater:Depends="aws-cli"
 endif
 
 
