@@ -37,9 +37,8 @@ fi
 # our debian/control will already install py3.7, but we want to install it ahead of time so that
 # we can also get the right pip version installed as well
 apt-get install -y --force-yes python3.7 python3-pip
-dpkg -i /dist/${DISTRIB_CODENAME}/clusterman_${PACKAGE_VERSION}_amd64.deb || true
-# dpkg -i will have left some dependencies uninstalled, so this will install them
-apt-get install -y --force-yes --fix-broken
+# Install package directly with any needed dependencies
+gdebi -nq /dist/${DISTRIB_CODENAME}/clusterman_${PACKAGE_VERSION}_amd64.deb
 
 # Sometimes our acceptance tests run in parallel on the same box, so we need to use different CIDR ranges
 if [ "${DISTRIB_CODENAME}" = "xenial" ]; then
