@@ -16,5 +16,6 @@ Depends:
     ${python:Depends},
     ${shlibs:Depends},
     ${bionicOrLater:Depends},
+    ${jammyOrLater:Depends},
 Architecture: any
 Description: Cluster scaling and management - y/clusterman
