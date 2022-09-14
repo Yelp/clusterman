@@ -18,6 +18,7 @@ highlight_exec() {
 
 PACKAGE_NAME="$1"
 PACKAGE_VERSION="$2"
+PAASTA_ENV="$3"
 
 # This will get DISTRIB_CODENAME
 source /etc/lsb-release
@@ -31,7 +32,7 @@ ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 apt-get update && apt-get install -y software-properties-common
 # we really only need this externally, but we use a python not included
 # by ubuntu - so add the deadsnakes ppa to bring that in
-if [ "${DISTRIB_CODENAME}" = "jammy" ]; then
+if [ "${PAASTA_ENV}" != "YELP" ]; then
     add-apt-repository ppa:deadsnakes/ppa
 fi
 # our debian/control will already install py3.7, but we want to install it ahead of time so that
