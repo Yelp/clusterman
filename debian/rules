@@ -16,6 +16,20 @@ else
     extra_substvars = -VbionicOrLater:Depends=""
 endif
 
+# and then do the same thing for awscli - of which we used to have a patched version called aws-cli pre-jammy.
+# once jammy boxes are the oldest things we install clusterman on, we can get rid of this and just include this
+# directly in debian/control
+ifeq ($(shell (. /etc/os-release && dpkg --compare-versions $$VERSION_ID "ge" "22.04" && echo yes || echo no)),yes)
+    extra_substvars = -VjammyOrLater:Depends="awscli"
+else
+	# aws-cli only exists internally, so lets make sure that we only use it internally
+    ifeq ($(shell echo ${PAASTA_ENV}), YELP)
+        extra_substvars = -VjammyOrLater:Depends="aws-cli"
+    else
+        extra_substvars = -VjammyOrLater:Depends="awscli"
+    endif
+endif
+
 
 %:
 	dh $@ --with python-virtualenv
