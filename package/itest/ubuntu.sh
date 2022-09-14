@@ -36,8 +36,11 @@ if [ "${PAASTA_ENV}" != "YELP" ]; then
     add-apt-repository ppa:deadsnakes/ppa
 fi
 # our debian/control will already install py3.7, but we want to install it ahead of time so that
-# we can also get the right pip version installed as well
-apt-get install -y --force-yes python3.7 python3-pip
+# we can also get the right pip version installed as well.
+# we also install python3-yaml here to avoid issues on newer ubuntus
+# where distutils has been split into a python3-distutils package
+# and it seems to install to the wrong place (i.e., python3.7 ... doesn't find it)
+apt-get install -y --force-yes python3.7 python3-pip python3-yaml
 # Install package directly with any needed dependencies
 apt-get install -y --force-yes ./dist/${DISTRIB_CODENAME}/clusterman_${PACKAGE_VERSION}_amd64.deb
 
@@ -49,7 +52,7 @@ else
 fi
 
 export ACCEPTANCE_ROOT=/itest
-python3.7 -m pip install boto3 simplejson pyyaml
+python3.7 -m pip install boto3 simplejson
 python3.7 /itest/run_instance.py \
     http://moto-ec2:5000/ \
     http://moto-s3:5000/ \
