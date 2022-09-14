@@ -38,7 +38,7 @@ fi
 # we can also get the right pip version installed as well
 apt-get install -y --force-yes python3.7 python3-pip
 # Install package directly with any needed dependencies
-apt-get install ./dist/${DISTRIB_CODENAME}/clusterman_${PACKAGE_VERSION}_amd64.deb
+apt-get install -y --force-yes ./dist/${DISTRIB_CODENAME}/clusterman_${PACKAGE_VERSION}_amd64.deb
 
 # Sometimes our acceptance tests run in parallel on the same box, so we need to use different CIDR ranges
 if [ "${DISTRIB_CODENAME}" = "xenial" ]; then
