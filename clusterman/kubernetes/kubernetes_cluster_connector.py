@@ -215,7 +215,7 @@ class KubernetesClusterConnector(ClusterConnector):
         return True
 
     def _get_nodes_by_ip(self) -> Mapping[str, KubernetesNode]:
-        # TODO(CLUSTERMAN-659): ${Switch to using just pool_label_key once the new node labels are applied everywhere}
+        # TODO(CLUSTERMAN-659): Switch to using just pool_label_key once the new node labels are applied everywhere
         node_label_selector = self.pool_config.read_string(
             "node_label_key", default=self.pool_config.read_string("pool_label_key", default="clusterman.com/pool")
         )
