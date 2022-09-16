@@ -116,7 +116,7 @@ def warning_queue_process(context):
         "clusterman.draining.queue.get_pool_name_list",
         return_value=["bar"],
     ):
-        context.draining_client.process_warning_queue()
+        context.draining_client.process_warning_queue(mock.Mock())
 
 
 @behave.then("the host should be terminated")

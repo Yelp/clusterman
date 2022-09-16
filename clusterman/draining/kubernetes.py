@@ -33,3 +33,17 @@ def uncordon(connector: Optional[KubernetesClusterConnector], agent_id: str) -> 
     else:
         log.info(f"Unable to uncordon {agent_id} (no Kubernetes connector configured)")
         return False
+
+
+def clean_node(connector: Optional[KubernetesClusterConnector], agent_id: str) -> bool:
+    """Cordons and forcibly delete all tasks from a given node.
+    :param agent_id: a single node name to clean
+    :param connector: a kubernetes connector to connect kubernetes API
+    :returns: bool
+    """
+    if connector:
+        log.info(f"Preparing to clean  on {agent_id}...")
+        return connector.clean_node(agent_id)
+    else:
+        log.info(f"Unable to clean {agent_id} (no Kubernetes connector configured)")
+        return False

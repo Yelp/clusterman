@@ -129,29 +129,46 @@ class KubernetesClusterConnector(ClusterConnector):
             unschedulable_pods.append((pod, self._get_pod_unschedulable_reason(pod)))
         return unschedulable_pods
 
-    def freeze_agent(self, agent_id: str) -> None:
+    def freeze_agent(self, node_name: str) -> None:
         now = str(arrow.now().timestamp)
         try:
             body = {
                 "spec": {"taints": [{"effect": "NoSchedule", "key": CLUSTERMAN_TERMINATION_TAINT_KEY, "value": now}]}
             }
-            self._core_api.patch_node(agent_id, body)
+            self._core_api.patch_node(node_name, body)
         except ApiException as e:
-            logger.warning(f"Failed to freeze {agent_id}: {e}")
+            logger.warning(f"Failed to freeze {node_name}: {e}")
 
-    def drain_node(self, agent_id: str) -> bool:
+    def clean_node(self, node_name: str) -> bool:
         try:
-            logger.info(f"Cordoning {agent_id}...")
-            if not self.cordon_node(agent_id):
+            logger.info(f"Cordoning {node_name}...")
+            self.cordon_node(node_name)
+        except Exception as e:
+            logger.warning(f"Failed to cordon {node_name} continuing to delete pods anyway: {e}")
+        try:
+            logger.info(f"Deleting pods on {node_name}...")
+            if not self._delete_tasks_from_node(node_name):
+                logger.info("Some pods couldn't be deleted")
                 return False
-            logger.info(f"Evicting pods on {agent_id}...")
-            if not self._evict_tasks_from_node(agent_id):
-                logger.info("Some pods couldn't be evicted")
-                return False
-            logger.info(f"Drained {agent_id}")
+            logger.info(f"Cleaned {node_name}")
             return True
         except Exception as e:
-            logger.warning(f"Failed to drain {agent_id}: {e}")
+            logger.warning(f"Failed to clean {node_name}: {e}")
+            return False
+
+    def drain_node(self, node_name: str) -> bool:
+        try:
+            logger.info(f"Cordoning {node_name}...")
+            if not self.cordon_node(node_name):
+                return False
+            logger.info(f"Evicting pods on {node_name}...")
+            if not self._evict_tasks_from_node(node_name):
+                logger.info("Some pods couldn't be evicted")
+                return False
+            logger.info(f"Drained {node_name}")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to drain {node_name}: {e}")
             return False
 
     def cordon_node(self, node_name: str) -> bool:
@@ -184,10 +201,10 @@ class KubernetesClusterConnector(ClusterConnector):
             logger.warning(f"Failed to uncordon {node_name}: {e}")
             return False
 
-    def _evict_tasks_from_node(self, hostname: str) -> bool:
+    def _evict_tasks_from_node(self, node_name: str) -> bool:
         all_evicted = True
         pods_to_evict = [
-            pod for pod in self._list_all_pods_on_node(hostname) if not self._pod_belongs_to_daemonset(pod)
+            pod for pod in self._list_all_pods_on_node(node_name) if not self._pod_belongs_to_daemonset(pod)
         ]
         logger.info(f"{len(pods_to_evict)} pods being evicted")
         for pod in pods_to_evict:
@@ -214,6 +231,26 @@ class KubernetesClusterConnector(ClusterConnector):
                 all_evicted = False
 
         return all_evicted
+
+    def _delete_tasks_from_node(self, node_name: str) -> bool:
+        all_deleted = True
+        pods_to_evict = [
+            pod for pod in self._list_all_pods_on_node(node_name) if not self._pod_belongs_to_daemonset(pod)
+        ]
+        logger.info(f"{len(pods_to_evict)} pods being deleted")
+        for pod in pods_to_evict:
+            try:
+                self._core_api.delete_namespaced_pod(
+                    name=pod.metadata.name,
+                    namespace=pod.metadata.namespace,
+                    propagation_policy="Background",
+                )
+                logger.info(f"{pod.metadata.name} ({pod.metadata.namespace}) was deleted")
+            except ApiException as e:
+                logger.warning(f"Failed to delete {pod.metadata.name} ({pod.metadata.namespace}):{e.status}-{e.reason}")
+                all_deleted = False
+
+        return all_deleted
 
     def _list_all_pods_on_node(self, node_name: str) -> List[KubernetesPod]:
         return self._core_api.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={node_name}").items

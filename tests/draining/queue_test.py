@@ -739,29 +739,52 @@ def test_clean_processing_hosts_cache(mock_draining_client):
 
 
 def test_process_warning_queue(mock_draining_client):
-    with mock.patch("clusterman.draining.queue.SpotFleetResourceGroup.load",) as mock_load_spot, mock.patch(
+    with mock.patch("clusterman.draining.queue.SpotFleetResourceGroup.load",) as mock_srf_load_spot, mock.patch(
         "clusterman.draining.queue.DrainingClient.submit_host_for_draining",
         autospec=True,
     ) as mock_submit_host_for_draining, mock.patch(
+        "clusterman.draining.queue.DrainingClient.submit_host_for_termination",
+        autospec=True,
+    ) as mock_submit_host_for_termination, mock.patch(
         "clusterman.draining.queue.DrainingClient.delete_warning_messages",
         autospec=True,
     ) as mock_delete_warning_messages, mock.patch(
+        "clusterman.draining.queue.k8s_clean_node",
+        autospec=True,
+    ) as mock_k8s_clean_node, mock.patch(
         "clusterman.draining.queue.get_pool_name_list",
         autospec=True,
-    ) as mock_get_pools:
-        mock_load_spot.return_value = {}
+    ) as mock_get_pools, mock.patch(
+        "clusterman.draining.queue.AutoScalingResourceGroup.load",
+    ) as mock_asg_load_spot:
+        mock_srf_load_spot.return_value = {}
+        mock_asg_load_spot.return_value = {}
         mock_get_pools.return_value = ["bar"]
         mock_host = mock.Mock(group_id="sfr-123")
+        mock_kubernetes_client = mock.Mock()
         mock_draining_client.get_warned_host = mock.Mock(return_value=mock_host)
-        mock_draining_client.process_warning_queue()
+        mock_draining_client.process_warning_queue(mock_kubernetes_client)
         assert not mock_submit_host_for_draining.called
+        assert not mock_k8s_clean_node.called
         mock_delete_warning_messages.assert_called_with(mock_draining_client, [mock_host])
 
-        mock_load_spot.return_value = {"sfr-123": {}}
+        mock_srf_load_spot.return_value = {"sfr-123": {}}
         mock_host = mock.Mock(group_id="sfr-123")
         mock_draining_client.get_warned_host = mock.Mock(return_value=mock_host)
-        mock_draining_client.process_warning_queue()
+        mock_draining_client.process_warning_queue(mock_kubernetes_client)
+        assert not mock_k8s_clean_node.called
         mock_submit_host_for_draining.assert_called_with(mock_draining_client, mock_host)
+        mock_delete_warning_messages.assert_called_with(mock_draining_client, [mock_host])
+
+        mock_srf_load_spot.return_value = {}
+        mock_asg_load_spot.return_value = {"sfr-123": {}}
+        mock_host = mock.Mock(group_id="sfr-123", agent_id="agt123")
+        mock_submit_host_for_draining.reset_mock()
+        mock_draining_client.get_warned_host = mock.Mock(return_value=mock_host)
+        mock_draining_client.process_warning_queue(mock_kubernetes_client)
+        assert not mock_submit_host_for_draining.called
+        mock_k8s_clean_node.assert_called_with(mock_kubernetes_client, mock_host.agent_id)
+        mock_submit_host_for_termination.assert_called_with(mock_draining_client, mock_host, 0)
         mock_delete_warning_messages.assert_called_with(mock_draining_client, [mock_host])
 
 
@@ -843,6 +866,7 @@ def test_host_from_instance_id():
         mock_ec2_describe.return_value = [
             {
                 "PrivateIpAddress": "10.1.1.1",
+                "PrivateDnsName": "agt123",
                 "Tags": [{"Key": "aws:ec2spot:fleet-request-id", "Value": "sfr-123"}],
             }
         ]
@@ -853,7 +877,7 @@ def test_host_from_instance_id():
             hostname=mock_gethostbyaddr.return_value[0],
             group_id="sfr-123",
             ip="10.1.1.1",
-            agent_id="",
+            agent_id="agt123",
             pool="",
             draining_start_time=now.for_json(),
         )
