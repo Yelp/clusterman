@@ -37,6 +37,8 @@ from clusterman.interfaces.types import AgentState
 from clusterman.kubernetes.util import allocated_node_resources
 from clusterman.kubernetes.util import CachedCoreV1Api
 from clusterman.kubernetes.util import get_node_ip
+from clusterman.kubernetes.util import get_node_kernel_version
+from clusterman.kubernetes.util import get_node_lsbrelease
 from clusterman.kubernetes.util import PodUnschedulableReason
 from clusterman.kubernetes.util import selector_term_matches_requirement
 from clusterman.kubernetes.util import total_node_resources
@@ -279,6 +281,8 @@ class KubernetesClusterConnector(ClusterConnector):
             state=(AgentState.RUNNING if self._pods_by_ip[node_ip] else AgentState.IDLE),
             task_count=len(self._pods_by_ip[node_ip]),
             total_resources=total_node_resources(node, self._excluded_pods_by_ip.get(node_ip, [])),
+            kernel=get_node_kernel_version(node),
+            lsbrelease=get_node_lsbrelease(node),
         )
 
     def _is_node_frozen(self, node: KubernetesNode) -> bool:
