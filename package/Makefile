@@ -6,28 +6,36 @@ PACKAGE_VERSION ?= $(shell cd $(CURDIR)/.. && python setup.py --version)
 ACCEPTANCE_DIR:=$(CURDIR)/../acceptance
 
 ifeq ($(findstring .yelpcorp.com,$(shell hostname -f)), .yelpcorp.com)
+	PAASTA_ENV ?= YELP
+else
+	PAASTA_ENV ?= $(shell hostname --fqdn)
+endif
+
+ifeq ($(PAASTA_ENV),YELP)
 	export DOCKER_REGISTRY ?= docker-dev.yelpcorp.com
 	export XENIAL_IMAGE_NAME ?= xenial_pkgbuild
 	export BIONIC_IMAGE_NAME ?= bionic_pkgbuild
+	export JAMMY_IMAGE_NAME ?= jammy_pkgbuild
 else
 	export DOCKER_REGISTRY ?= docker.io
 	export XENIAL_IMAGE_NAME ?= ubuntu:xenial
 	export BIONIC_IMAGE_NAME ?= ubuntu:bionic
+	export JAMMY_IMAGE_NAME ?= ubuntu:jammy
 endif
 
 UID:=`id -u`
 GID:=`id -g`
-DOCKER_BUILD_RUN:=docker run -t -e CI=${CI} -v $(CURDIR)/..:/src:ro -v $(CURDIR)/dist:/dist:rw
+DOCKER_BUILD_RUN:=docker run -t -e CI=${CI} -e PAASTA_ENV=${PAASTA_ENV} -v $(CURDIR)/..:/src:ro -v $(CURDIR)/dist:/dist:rw
 VERSIONED_FILES:=$(shell cd $(CURDIR)/.. && git ls-files -z --cached --modified | xargs -0 -I@ echo -n "'@' ")
 DOCKER_WORKDIR:=mkdir -p /work && cd /src && cp -vP --parents $(VERSIONED_FILES) /work/ && cp -r completions /work/ && cd /work
 
 itest_%: export EXTRA_VOLUME_MOUNTS=/nail/etc/services/services.yaml:/nail/etc/services/services.yaml:ro
 itest_%: package_% dist/%/Packages.gz
-	./debian-itest-runner $* $(SYSTEM_PKG_NAME) $(PACKAGE_VERSION)
+	./debian-itest-runner $* $(SYSTEM_PKG_NAME) $(PACKAGE_VERSION) $(PAASTA_ENV)
 
 itest_%-external: export EXTRA_VOLUME_MOUNTS=$(ACCEPTANCE_DIR)/srv-configs/clusterman-external.yaml:/nail/srv/configs/clusterman.yaml:ro
 itest_%-external: package_%_external dist/%/Packages.gz
-	./debian-itest-runner $* $(SYSTEM_PKG_NAME) $(PACKAGE_VERSION)
+	./debian-itest-runner $* $(SYSTEM_PKG_NAME) $(PACKAGE_VERSION) $(PAASTA_ENV)
 
 dist/%/Packages.gz:
 	$(DOCKER_BUILD_RUN) $(SYSTEM_PKG_NAME)_$*_container /bin/bash -c "\

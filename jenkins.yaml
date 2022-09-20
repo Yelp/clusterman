@@ -9,5 +9,7 @@ overrides:
     globalEnvVars:
       PAASTA_ENV: YELP
   debian:
-    platforms: [xenial, bionic]
+    platforms: [xenial, bionic, jammy]
+    globalEnvVars:
+      PAASTA_ENV: YELP
 host_type: bionic

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import re
 import socket
 from enum import auto
 from enum import Enum
@@ -43,6 +44,7 @@ DEFAULT_KUBERNETES_DISK_REQUEST = "0"  # Kubernetes doesn't schedule based on di
 KUBERNETES_API_CACHE_SIZE = 16
 KUBERNETES_API_CACHE_TTL = 60
 KUBERNETES_API_CACHE = TTLCache(maxsize=KUBERNETES_API_CACHE_SIZE, ttl=KUBERNETES_API_CACHE_TTL)
+VERSION_MATCH_EXPR = re.compile(r"(\W|^)(?P<release>\d+\.\d+(\.\d+)?)(\W|$)")
 logger = colorlog.getLogger(__name__)
 
 
@@ -167,6 +169,26 @@ def get_node_ip(node: KubernetesNode) -> str:
         if address.type == "InternalIP":
             return address.address
     raise ValueError('Kubernetes node {node.metadata.name} has no "InternalIP" address')
+
+
+def get_node_kernel_version(node: KubernetesNode) -> str:
+    """Get kernel version from node info
+
+    :param KubernetesNode node: k8s node object
+    :return: kernel version if present
+    """
+    return getattr(node.status.node_info, "kernel_version", "")
+
+
+def get_node_lsbrelease(node: KubernetesNode) -> str:
+    """Get operating system release from node info
+
+    :param KubernetesNode node: k8s node object
+    :return: os release if present
+    """
+    os_image = getattr(node.status.node_info, "os_image", "")
+    m = VERSION_MATCH_EXPR.search(os_image)
+    return m.group("release") if m else ""
 
 
 def total_node_resources(node: KubernetesNode, excluded_pods: List[KubernetesPod]) -> ClustermanResources:
