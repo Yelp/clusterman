@@ -11,9 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from time import time
+import time
+from typing import Callable
 from typing import Collection
+from typing import Dict
 from typing import Optional
+from typing import Union
 
 import colorlog
 import staticconf
@@ -30,18 +33,26 @@ from clusterman.config import load_cluster_pool_config
 from clusterman.config import POOL_NAMESPACE
 from clusterman.config import setup_config
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
+from clusterman.migration.event import load_timespan_target
 from clusterman.migration.event import MigrationEvent
 from clusterman.migration.event_enums import MigrationStatus
 from clusterman.migration.settings import WorkerSetup
+from clusterman.migration.worker import event_migration_worker
+from clusterman.migration.worker import RestartableDaemonProcess
+from clusterman.migration.worker import SUPPORTED_POOL_SCHEDULER
+from clusterman.migration.worker import uptime_migration_worker
 from clusterman.util import get_pool_name_list
 from clusterman.util import setup_logging
+
+
+WorkerProcessLabel = Union[str, MigrationEvent]
 
 
 class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
     notify_emails = ["compute-infra@yelp.com"]
 
-    POOL_SCHEDULER = "kubernetes"
     POOL_SETTINGS_PARENT = "node_migration"
+    MIN_UPTIME_CHURNING_SECONDS = 60 * 60 * 24  # 1 day
 
     @batch_command_line_arguments
     def parse_args(self, parser):
@@ -53,7 +64,7 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
     def configure_initial(self):
         setup_config(self.options)
         self.logger = colorlog.getLogger(__name__)
-        self.migration_workers = {}
+        self.migration_workers: Dict[WorkerProcessLabel, RestartableDaemonProcess] = {}
         self.migration_configs = {}
         self.events_in_progress = set()
         self.pools_accepting_events = set()
@@ -62,13 +73,13 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
         self.event_visibilty_timeout = staticconf.read_int(
             "batches.node_migration.event_visibilty_timeout_seconds", 15 * 60
         )
-        for pool in get_pool_name_list(self.options.cluster, self.POOL_SCHEDULER):
-            load_cluster_pool_config(self.options.cluster, pool, self.POOL_SCHEDULER, None)
-            pool_config_namespace = POOL_NAMESPACE.format(pool=pool, scheduler=self.POOL_SCHEDULER)
+        for pool in get_pool_name_list(self.options.cluster, SUPPORTED_POOL_SCHEDULER):
+            load_cluster_pool_config(self.options.cluster, pool, SUPPORTED_POOL_SCHEDULER, None)
+            pool_config_namespace = POOL_NAMESPACE.format(pool=pool, scheduler=SUPPORTED_POOL_SCHEDULER)
             pool_config = staticconf.config.get_namespace(pool_config_namespace).get_config_dict()
             if self.POOL_SETTINGS_PARENT in pool_config:
                 self.migration_configs[pool] = pool_config[self.POOL_SETTINGS_PARENT]
-                self.add_watcher({pool: get_pool_config_path(self.options.cluster, pool, self.POOL_SCHEDULER)})
+                self.add_watcher({pool: get_pool_config_path(self.options.cluster, pool, SUPPORTED_POOL_SCHEDULER)})
                 if self.migration_configs[pool]["trigger"].get("event", False):
                     self.pools_accepting_events.add(pool)
         self.logger.info(f"Found node migration configs for pools: {list(self.migration_configs.keys())}")
@@ -85,6 +96,20 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
         except Exception as e:
             self.logger.exception(f"Bad migration configuration for pool {pool}: {e}")
         return None
+
+    def _spawn_worker(self, label: WorkerProcessLabel, routine: Callable, *args, **kwargs) -> None:
+        """Start worker process
+
+        :param Callable routine: worker method
+        :param *args: method positional argument
+        :param **kwargs: method keyword arguments
+        """
+        if label in self.migration_workers and self.migration_workers[label].is_alive():
+            self.logger.warning(f"Worker labelled {label} already running, skipping")
+            return
+        proc = RestartableDaemonProcess(target=routine, args=args, kwargs=kwargs)
+        self.migration_workers[label] = proc
+        proc.start()
 
     def fetch_event_crd(self) -> Collection[MigrationEvent]:
         """Fetch migration events from Kubernetes CRDs"""
@@ -117,24 +142,56 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
             self.mark_event(event, MigrationStatus.SKIPPED)
             return
         self.logger.info(f"Spawning migration worker for event: {event}")
-        # TODO: everything
+        self._spawn_worker(
+            label=event,
+            routine=event_migration_worker,
+            migration_event=event,
+            worker_setup=worker_setup,
+        )
+        self.events_in_progress.add(event)
 
-    def spawn_uptime_worker(self, pool: str, uptime: str):
+    def spawn_uptime_worker(self, pool: str, uptime: Union[int, str]):
         """Start process monitoring pool node uptime, and recycling nodes accordingly
 
         :param str pool: name of the pool
         """
+        uptime_seconds = load_timespan_target(str(uptime))
+        if uptime_seconds < self.MIN_UPTIME_CHURNING_SECONDS:
+            self.logger.warning(
+                f"Node migration uptime trigger too low (<{self.MIN_UPTIME_CHURNING_SECONDS} seconds)."
+                " Skipping worker bootstrapping."
+            )
+            return
         worker_setup = self._get_worker_setup(pool)
         if not worker_setup:
             # this can only happen with bad config, which gets logged already
             return
         self.logger.info(f"Spawning uptime migration worker for {pool} pool")
-        # TODO: everything
+        self._spawn_worker(
+            label=f"uptime-{self.options.cluster}-{pool}",
+            routine=uptime_migration_worker,
+            cluster=self.options.cluster,
+            pool=pool,
+            uptime_seconds=uptime_seconds,
+            worker_setup=worker_setup,
+        )
 
     def monitor_workers(self):
         """Check health of migration worker processes"""
-        # TODO: everything
-        pass
+        completed, torestart = [], []
+        for label, proc in self.migration_workers.items():
+            if not proc.is_alive():
+                if proc.exitcode == 0:
+                    completed.append(label)
+                else:
+                    torestart.append(label)
+        for label in completed:
+            if isinstance(label, MigrationEvent):
+                self.mark_event(label, MigrationStatus.COMPLETED)
+                self.events_in_progress.discard(label)
+            del self.migration_workers[label]
+        for label in torestart:
+            self.migration_workers[label].restart()
 
     def run(self):
         for pool, config in self.migration_configs.items():
