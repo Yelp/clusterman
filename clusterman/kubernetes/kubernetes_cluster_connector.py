@@ -13,6 +13,7 @@
 # limitations under the License.
 import copy
 from collections import defaultdict
+from typing import Collection
 from typing import List
 from typing import Mapping
 from typing import Optional
@@ -36,6 +37,7 @@ from clusterman.interfaces.types import AgentMetadata
 from clusterman.interfaces.types import AgentState
 from clusterman.kubernetes.util import allocated_node_resources
 from clusterman.kubernetes.util import CachedCoreV1Api
+from clusterman.kubernetes.util import ConciseCRDApi
 from clusterman.kubernetes.util import get_node_ip
 from clusterman.kubernetes.util import get_node_kernel_version
 from clusterman.kubernetes.util import get_node_lsbrelease
@@ -43,17 +45,24 @@ from clusterman.kubernetes.util import PodUnschedulableReason
 from clusterman.kubernetes.util import selector_term_matches_requirement
 from clusterman.kubernetes.util import total_node_resources
 from clusterman.kubernetes.util import total_pod_resources
+from clusterman.migration.event import MigrationEvent
+from clusterman.migration.event_enums import MigrationStatus
 from clusterman.util import strtobool
 
 
 logger = colorlog.getLogger(__name__)
 KUBERNETES_SCHEDULED_PHASES = {"Pending", "Running"}
 CLUSTERMAN_TERMINATION_TAINT_KEY = "clusterman.yelp.com/terminating"
+MIGRATION_CRD_GROUP = "clusterman.yelp.com"
+MIGRATION_CRD_VERSION = "v1"
+MIGRATION_CRD_PLURAL = "nodemigrations"
+MIGRATION_CRD_STATUS_LABEL = "clusterman.yelp.com/migration_status"
 
 
 class KubernetesClusterConnector(ClusterConnector):
     SCHEDULER = "kubernetes"
     _core_api: kubernetes.client.CoreV1Api
+    _migration_crd_api: Optional[kubernetes.client.CustomObjectsApi]
     _pods: List[KubernetesPod]
     _prev_nodes_by_ip: Mapping[str, KubernetesNode]
     _nodes_by_ip: Mapping[str, KubernetesNode]
@@ -61,7 +70,7 @@ class KubernetesClusterConnector(ClusterConnector):
     _excluded_pods_by_ip: Mapping[str, List[KubernetesPod]]
     _pods_by_ip: Mapping[str, List[KubernetesPod]]
 
-    def __init__(self, cluster: str, pool: Optional[str]) -> None:
+    def __init__(self, cluster: str, pool: Optional[str], init_crd: bool = False) -> None:
         super().__init__(cluster, pool)
         self.kubeconfig_path = staticconf.read_string(f"clusters.{cluster}.kubeconfig_path")
         self._safe_to_evict_annotation = staticconf.read_string(
@@ -69,6 +78,7 @@ class KubernetesClusterConnector(ClusterConnector):
             default="cluster-autoscaler.kubernetes.io/safe-to-evict",
         )
         self._nodes_by_ip = {}
+        self._init_crd_client = init_crd
 
     def reload_state(self) -> None:
         logger.info("Reloading nodes")
@@ -87,6 +97,16 @@ class KubernetesClusterConnector(ClusterConnector):
 
     def reload_client(self) -> None:
         self._core_api = CachedCoreV1Api(self.kubeconfig_path)
+        self._migration_crd_api = (
+            ConciseCRDApi(
+                self.kubeconfig_path,
+                group=MIGRATION_CRD_GROUP,
+                version=MIGRATION_CRD_VERSION,
+                plural=MIGRATION_CRD_PLURAL,
+            )
+            if self._init_crd_client
+            else None
+        )
 
     def get_num_removed_nodes_before_last_reload(self) -> int:
         previous_nodes = self._prev_nodes_by_ip
@@ -185,6 +205,44 @@ class KubernetesClusterConnector(ClusterConnector):
         except ApiException as e:
             logger.warning(f"Failed to uncordon {node_name}: {e}")
             return False
+
+    def list_node_migration_resources(self, statuses: List[MigrationStatus]) -> Collection[MigrationEvent]:
+        """Fetch node migration event resource from k8s CRD
+
+        :param List[MigrationStatus] statuses: event status to look for
+        :return: collection of migration events
+        """
+        assert self._migration_crd_api, "CRD client was not initialized"
+        try:
+            label_filter = ",".join(status.value for status in statuses)
+            resources = self._migration_crd_api.list_cluster_custom_object(
+                label_selector=f"{MIGRATION_CRD_STATUS_LABEL} in ({label_filter})",
+            )
+            return set(map(MigrationEvent.from_crd, resources.get("items", [])))
+        except Exception as e:
+            logger.error(f"Failed fetching migration events: {e}")
+        return set()
+
+    def mark_node_migration_resource(self, event_name: str, status: MigrationStatus) -> None:
+        """Set status for migration event resource
+
+        :param str event_name: name of the resource CRD
+        :status MigrationStatus status: status to be set
+        """
+        assert self._migration_crd_api, "CRD client was not initialized"
+        try:
+            self._migration_crd_api.patch_cluster_custom_object(
+                name=event_name,
+                body={
+                    "metadata": {
+                        "labels": {
+                            MIGRATION_CRD_STATUS_LABEL: status.value,
+                        }
+                    }
+                },
+            )
+        except Exception as e:
+            logger.error(f"Failed updating migration event status: {e}")
 
     def _evict_tasks_from_node(self, hostname: str) -> bool:
         all_evicted = True

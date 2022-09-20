@@ -37,6 +37,11 @@ from staticconf.testing import PatchConfiguration
 from clusterman.config import POOL_NAMESPACE
 from clusterman.interfaces.types import AgentState
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
+from clusterman.migration.event import MigrationCondition
+from clusterman.migration.event import MigrationEvent
+from clusterman.migration.event_enums import ConditionOperator
+from clusterman.migration.event_enums import ConditionTrait
+from clusterman.migration.event_enums import MigrationStatus
 
 
 @pytest.fixture
@@ -256,7 +261,7 @@ def pod_with_preferred_affinity():
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def mock_cluster_connector(
     running_pod_1,
     running_pod_2,
@@ -308,6 +313,13 @@ def mock_cluster_connector(
         ]
         mock_cluster_connector = KubernetesClusterConnector("kubernetes-test", "bar")
         mock_cluster_connector.reload_state()
+        yield mock_cluster_connector
+
+
+@pytest.fixture
+def mock_cluster_connector_crd(mock_cluster_connector):
+    mock_cluster_connector._init_crd_client = True
+    with mock.patch.object(mock_cluster_connector, "_migration_crd_api"):
         yield mock_cluster_connector
 
 
@@ -389,3 +401,56 @@ def test_pod_belongs_to_pool(
     assert mock_cluster_connector._pod_belongs_to_pool(pod_with_preferred_affinity)
     assert not mock_cluster_connector._pod_belongs_to_pool(pod_with_node_selector_elsewhere)
     assert not mock_cluster_connector._pod_belongs_to_pool(pod_with_required_affinity_elsewhere)
+
+
+def test_list_node_migration_resources(mock_cluster_connector_crd):
+    mock_cluster_connector_crd._migration_crd_api.list_cluster_custom_object.return_value = {
+        "items": [
+            {
+                "metadata": {
+                    "name": f"mesos-test-bar-220912-{i}",
+                    "labels": {
+                        "clusterman.yelp.com/migration_status": "pending",
+                    },
+                },
+                "spec": {
+                    "cluster": "mesos-test",
+                    "pool": "bar",
+                    "condition": {
+                        "trait": "uptime",
+                        "operator": "lt",
+                        "target": f"9{i}d",
+                    },
+                },
+            }
+            for i in range(3)
+        ]
+    }
+    assert mock_cluster_connector_crd.list_node_migration_resources(
+        [MigrationStatus.PENDING, MigrationStatus.INPROGRESS]
+    ) == {
+        MigrationEvent(
+            resource_name=f"mesos-test-bar-220912-{i}",
+            cluster="mesos-test",
+            pool="bar",
+            label_selectors=[],
+            condition=MigrationCondition(ConditionTrait.UPTIME, ConditionOperator.LT, (90 + i) * 24 * 60 * 60),
+        )
+        for i in range(3)
+    }
+    mock_cluster_connector_crd._migration_crd_api.list_cluster_custom_object.assert_called_once_with(
+        label_selector="clusterman.yelp.com/migration_status in (pending,inprogress)",
+    )
+
+
+def test_list_node_migration_resources_no_init(mock_cluster_connector):
+    with pytest.raises(AssertionError):
+        mock_cluster_connector.list_node_migration_resources([MigrationStatus.PENDING])
+
+
+def test_mark_node_migration_resource(mock_cluster_connector_crd):
+    mock_cluster_connector_crd.mark_node_migration_resource("mesos-test-bar-220912-0", MigrationStatus.COMPLETED)
+    mock_cluster_connector_crd._migration_crd_api.patch_cluster_custom_object.assert_called_once_with(
+        name="mesos-test-bar-220912-0",
+        body={"metadata": {"labels": {"clusterman.yelp.com/migration_status": "completed"}}},
+    )
