@@ -244,6 +244,21 @@ class KubernetesClusterConnector(ClusterConnector):
         except Exception as e:
             logger.error(f"Failed updating migration event status: {e}")
 
+    def create_node_migration_resource(
+        self, event: MigrationEvent, status: MigrationStatus = MigrationStatus.PENDING
+    ) -> None:
+        """Create CRD resource for node migration
+
+        :param MigrationEvent event: event to submit
+        :param MigrationStatus status: event status (pending by default)
+        """
+        assert self._migration_crd_api, "CRD client was not initialized"
+        try:
+            body = event.to_crd_body(labels={MIGRATION_CRD_STATUS_LABEL: status.value})
+            self._migration_crd_api.create_cluster_custom_object(body=body)
+        except Exception as e:
+            logger.error(f"Failed creating migration event resource: {e}")
+
     def _evict_tasks_from_node(self, hostname: str) -> bool:
         all_evicted = True
         pods_to_evict = [

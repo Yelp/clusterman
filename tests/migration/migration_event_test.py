@@ -20,6 +20,7 @@ import semver
 from clusterman.migration.event import ConditionOperator
 from clusterman.migration.event import ConditionTrait
 from clusterman.migration.event import MigrationCondition
+from clusterman.migration.event import MigrationEvent
 
 
 @pytest.mark.parametrize(
@@ -64,6 +65,51 @@ def test_condition_from_dict(trait: str, operator: str, target: str, expected: M
         ("uptime", "in", "1337", ValueError),
     ),
 )
-def test_condition_from_input_error(trait: str, operator: str, target: str, error: Type[Exception]):
+def test_condition_from_dict_error(trait: str, operator: str, target: str, error: Type[Exception]):
     with pytest.raises(error):
         MigrationCondition.from_dict({"trait": trait, "operator": operator, "target": target})
+
+
+@pytest.mark.parametrize(
+    "condition,expected",
+    (
+        (
+            MigrationCondition(ConditionTrait.LSBRELEASE, ConditionOperator.GE, packaging.version.parse("1.2")),
+            {"trait": "lsbrelease", "operator": "ge", "target": "1.2"},
+        ),
+        (
+            MigrationCondition(ConditionTrait.LSBRELEASE, ConditionOperator.GE, semver.parse_version_info("1.2.3")),
+            {"trait": "lsbrelease", "operator": "ge", "target": "1.2.3"},
+        ),
+        (
+            MigrationCondition(ConditionTrait.INSTANCE_TYPE, ConditionOperator.IN, ["m5.4xlarge", "r5.2xlarge"]),
+            {"trait": "instance_type", "operator": "in", "target": "m5.4xlarge,r5.2xlarge"},
+        ),
+        (
+            MigrationCondition(ConditionTrait.UPTIME, ConditionOperator.LT, 1337),
+            {"trait": "uptime", "operator": "lt", "target": "1337"},
+        ),
+    ),
+)
+def test_condition_to_dict(condition, expected):
+    assert condition.to_dict() == expected
+
+
+def test_event_to_crd_body():
+    assert MigrationEvent(
+        resource_name="mesos-test-bar-111222333",
+        cluster="mesos-test",
+        pool="bar",
+        label_selectors=[],
+        condition=MigrationCondition(
+            ConditionTrait.LSBRELEASE, ConditionOperator.GE, semver.parse_version_info("1.2.3")
+        ),
+    ).to_crd_body({"foo": "bar"}) == {
+        "metadata": {"labels": {"foo": "bar"}, "name": "mesos-test-bar-111222333"},
+        "spec": {
+            "cluster": "mesos-test",
+            "condition": {"operator": "ge", "target": "1.2.3", "trait": "lsbrelease"},
+            "label_selectors": [],
+            "pool": "bar",
+        },
+    }

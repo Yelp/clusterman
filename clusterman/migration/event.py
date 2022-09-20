@@ -15,6 +15,7 @@ from typing import Callable
 from typing import Dict
 from typing import List
 from typing import NamedTuple
+from typing import Optional
 from typing import Union
 
 import packaging.version
@@ -104,6 +105,13 @@ class MigrationCondition(NamedTuple):
             ),
         )
 
+    def to_dict(self) -> dict:
+        return {
+            "trait": self.trait.value,
+            "operator": self.operator.value,
+            "target": (",".join(map(str, self.target)) if isinstance(self.target, list) else str(self.target)),
+        }
+
 
 class MigrationEvent(NamedTuple):
     resource_name: str
@@ -115,6 +123,26 @@ class MigrationEvent(NamedTuple):
     def __hash__(self) -> int:
         """Simplified object hash since resource_name should be unique"""
         return self[:3].__hash__()
+
+    def to_crd_body(self, labels: Optional[dict] = None) -> dict:
+        """Pack event data into a CRD payload
+
+        :return: payload dictionary
+        """
+        body = {
+            "metadata": {
+                "name": self.resource_name,
+            },
+            "spec": {
+                "cluster": self.cluster,
+                "pool": self.pool,
+                "label_selectors": self.label_selectors,
+                "condition": self.condition.to_dict(),
+            },
+        }
+        if labels:
+            body["metadata"]["labels"] = labels.copy()  # type: ignore
+        return body
 
     @classmethod
     def from_crd(cls, crd: dict) -> "MigrationEvent":
