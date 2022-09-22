@@ -338,6 +338,15 @@ def test_get_agent_metadata(mock_cluster_connector, ip_address, expected_state):
     assert agent_metadata.state == expected_state
 
 
+def test_get_nodes_by_ip(mock_cluster_connector):
+    mock_cluster_connector._core_api.list_node.reset_mock()
+    mock_cluster_connector.set_label_selectors(["foobar.clusterman.com/something=stuff"], add_to_existing=True)
+    mock_cluster_connector._get_nodes_by_ip()
+    mock_cluster_connector._core_api.list_node.assert_called_once_with(
+        label_selector="clusterman.com/pool=bar,foobar.clusterman.com/something=stuff",
+    )
+
+
 def test_allocation(mock_cluster_connector):
     assert mock_cluster_connector.get_resource_allocation("cpus") == 7.5
 
