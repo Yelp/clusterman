@@ -49,7 +49,7 @@ def _load_version_target(target: str) -> ComparableVersion:
     return parsed
 
 
-def _load_timespan_target(target: str) -> int:
+def load_timespan_target(target: str) -> int:
     """Validate and parse input timespan
 
     :param str target: either seconds or human readable span (e.g. 5d)
@@ -73,7 +73,7 @@ def _load_instance_type_target(target: str) -> str:
 CONDITION_TARGET_LOADERS: Dict[ConditionTrait, Callable[[str], Union[str, int, List[str]]]] = {
     ConditionTrait.KERNEL: _load_version_target,
     ConditionTrait.LSBRELEASE: _load_version_target,
-    ConditionTrait.UPTIME: _load_timespan_target,
+    ConditionTrait.UPTIME: load_timespan_target,
     ConditionTrait.INSTANCE_TYPE: _load_instance_type_target,
 }
 

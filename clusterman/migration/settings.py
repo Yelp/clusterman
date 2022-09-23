@@ -16,6 +16,7 @@ from typing import cast
 from typing import NamedTuple
 from typing import Union
 
+from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.util import parse_time_interval_seconds
 
 
@@ -32,6 +33,14 @@ class MigrationPrecendence(enum.Enum):
     @classmethod
     def default(cls) -> str:
         return cls.UPTIME.value
+
+    def sort_key(self, node: ClusterNodeMetadata) -> int:
+        """Key function to be passed to sorting routines"""
+        if self == MigrationPrecendence.UPTIME:
+            return -node.instance.uptime.total_seconds()
+        elif self == MigrationPrecendence.TASK_COUNT:
+            return node.agent.task_count
+        return 0
 
 
 class PoolPortion:

@@ -192,25 +192,33 @@ class PoolManager:
 
         if not dry_run:
             if self.draining_enabled:
-                assert self.draining_client  # make mypy happy
-                for group_id, node_metadatas in marked_nodes_by_group.items():
+                for node_metadatas in marked_nodes_by_group.values():
                     for node_metadata in node_metadatas:
-                        self.draining_client.submit_instance_for_draining(
-                            node_metadata.instance,
-                            sender=cast(
-                                Type[AWSResourceGroup],
-                                self.resource_groups[group_id].__class__,
-                            ),
-                            scheduler=self.scheduler,
-                            pool=self.pool,
-                            agent_id=node_metadata.agent.agent_id,
-                            draining_start_time=arrow.now(),
-                        )
+                        self.submit_for_draining(node_metadata)
             else:
                 for group_id, node_metadatas in marked_nodes_by_group.items():
                     self.resource_groups[group_id].terminate_instances_by_id(
                         [node_metadata.instance.instance_id for node_metadata in node_metadatas]
                     )
+
+    def submit_for_draining(self, node_metadata: ClusterNodeMetadata) -> None:
+        """Submit collection of nodes for draining
+
+        :param ClusterNodeMetadata node_metadata: node to be drained
+        """
+        assert self.draining_client  # make mypy happy
+        group_id = node_metadata.instance.group_id
+        self.draining_client.submit_instance_for_draining(
+            node_metadata.instance,
+            sender=cast(
+                Type[AWSResourceGroup],
+                self.resource_groups[group_id].__class__,
+            ),
+            scheduler=self.scheduler,
+            pool=self.pool,
+            agent_id=node_metadata.agent.agent_id,
+            draining_start_time=arrow.now(),
+        )
 
     def get_node_metadatas(self, state_filter: Optional[Collection[str]] = None) -> Sequence[ClusterNodeMetadata]:
         """Get a list of metadata about the nodes currently in the pool
@@ -577,6 +585,11 @@ class PoolManager:
             for node_metadata in self.get_node_metadatas(AWS_RUNNING_STATES)
             if node_metadata.agent.state not in (AgentState.ORPHANED, AgentState.UNKNOWN)
         )
+
+    def is_capacity_satisfied(self) -> bool:
+        """States whether current pool capacity is considered in line with expectation"""
+        # TODO: this is a pretty naive check, can likely be improved from some of the autoscaling data
+        return self.non_orphan_fulfilled_capacity >= self.target_capacity
 
     @property
     def target_capacity(self) -> float:

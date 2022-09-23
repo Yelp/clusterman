@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from argparse import Namespace
+from unittest.mock import MagicMock
 from unittest.mock import patch
 
 import pytest
@@ -110,3 +111,136 @@ def test_get_worker_setup(migration_batch):
         disable_autoscaling=False,
         expected_duration=86400.0,
     )
+
+
+@pytest.mark.parametrize(
+    "worker_label",
+    (
+        (
+            MigrationEvent(
+                resource_name="mesos-test-bar-220912-1",
+                cluster="mesos-test",
+                pool="bar",
+                label_selectors=[],
+                condition=MigrationCondition(ConditionTrait.KERNEL, ConditionOperator.GE, "3.2.1"),
+            ),
+        ),
+        ("foobar",),
+    ),
+)
+@patch("clusterman.batch.node_migration.RestartableDaemonProcess")
+def test_spawn_worker(mock_process, migration_batch, worker_label):
+    mock_routine = MagicMock()
+    migration_batch._spawn_worker(worker_label, mock_routine, 1, x=2)
+    mock_process.assert_called_once_with(target=mock_routine, args=(1,), kwargs={"x": 2})
+    assert migration_batch.migration_workers == {worker_label: mock_process.return_value}
+
+
+@patch("clusterman.batch.node_migration.RestartableDaemonProcess")
+def test_spawn_worker_existing(mock_process, migration_batch):
+    migration_batch.migration_workers["foobar"] = MagicMock(is_alive=lambda: True)
+    migration_batch._spawn_worker("foobar", MagicMock(), 1, x=2)
+    mock_process.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "event,worker_setup,is_spawned",
+    (
+        (
+            MigrationEvent(
+                resource_name="mesos-test-bar-220912-1",
+                cluster="mesos-test",
+                pool="bar",
+                label_selectors=[],
+                condition=MigrationCondition(ConditionTrait.KERNEL, ConditionOperator.GE, "3.2.1"),
+            ),
+            False,
+            False,
+        ),
+        (
+            MigrationEvent(
+                resource_name="mesos-test-buzz-220912-1",
+                cluster="mesos-test",
+                pool="buzz",
+                label_selectors=[],
+                condition=MigrationCondition(ConditionTrait.KERNEL, ConditionOperator.GE, "3.2.1"),
+            ),
+            True,
+            False,
+        ),
+        (
+            MigrationEvent(
+                resource_name="mesos-test-bar-220912-1",
+                cluster="mesos-test",
+                pool="bar",
+                label_selectors=[],
+                condition=MigrationCondition(ConditionTrait.KERNEL, ConditionOperator.GE, "3.2.1"),
+            ),
+            True,
+            True,
+        ),
+    ),
+)
+@patch("clusterman.batch.node_migration.event_migration_worker")
+def test_spawn_event_worker(mock_worker_routine, migration_batch, event, worker_setup, is_spawned):
+    with patch.object(migration_batch, "_get_worker_setup") as mock_get_setup, patch.object(
+        migration_batch, "_spawn_worker"
+    ) as mock_spawn, patch.object(migration_batch, "mark_event") as mock_mark:
+        mock_get_setup.return_value = worker_setup
+        migration_batch.spawn_event_worker(event)
+        if is_spawned:
+            mock_spawn.assert_called_once_with(
+                label=event,
+                routine=mock_worker_routine,
+                migration_event=event,
+                worker_setup=worker_setup,
+            )
+        else:
+            mock_spawn.assert_not_called()
+            mock_mark.assert_called_once_with(event, MigrationStatus.SKIPPED)
+
+
+@pytest.mark.parametrize(
+    "uptime,worker_setup,expected_uptime_spawn",
+    (
+        (1, True, None),
+        ("2d", False, None),
+        ("2d", True, 2 * 24 * 60 * 60),
+        (100000, True, 100000),
+    ),
+)
+@patch("clusterman.batch.node_migration.uptime_migration_worker")
+def test_spawn_uptime_worker(mock_worker_routine, migration_batch, uptime, worker_setup, expected_uptime_spawn):
+    with patch.object(migration_batch, "_get_worker_setup") as mock_get_setup, patch.object(
+        migration_batch, "_spawn_worker"
+    ) as mock_spawn:
+        mock_get_setup.return_value = worker_setup
+        migration_batch.spawn_uptime_worker("bar", uptime)
+        if expected_uptime_spawn:
+            mock_spawn.assert_called_once_with(
+                label="uptime-mesos-test-bar",
+                routine=mock_worker_routine,
+                cluster="mesos-test",
+                pool="bar",
+                uptime_seconds=expected_uptime_spawn,
+                worker_setup=worker_setup,
+            )
+        else:
+            mock_spawn.assert_not_called()
+
+
+def test_monitor_workers(migration_batch):
+    mock_event = MigrationEvent(None, None, None, None, None)
+    mock_to_restart = MagicMock(is_alive=lambda: False, exitcode=1)
+    mock_ok_worker = MagicMock(is_alive=lambda: True)
+    migration_batch.migration_workers = {
+        "foobar": mock_ok_worker,
+        "buzz": mock_to_restart,
+        "some": MagicMock(is_alive=lambda: False, exitcode=0),
+        mock_event: MagicMock(is_alive=lambda: False, exitcode=0),
+    }
+    with patch.object(migration_batch, "mark_event") as mock_mark:
+        migration_batch.monitor_workers()
+        mock_mark.assert_called_once_with(mock_event, MigrationStatus.COMPLETED)
+    mock_to_restart.restart.assert_called_once_with()
+    assert migration_batch.migration_workers == {"foobar": mock_ok_worker, "buzz": mock_to_restart}
