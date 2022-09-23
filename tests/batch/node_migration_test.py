@@ -109,7 +109,7 @@ def test_get_worker_setup(migration_batch):
         bootstrap_wait=180.0,
         bootstrap_timeout=180.0,
         disable_autoscaling=False,
-        expected_duration=86400.0,
+        expected_duration=7200.0,
     )
 
 

@@ -22,30 +22,24 @@ import packaging.version
 import semver
 
 from clusterman.aws.markets import EC2_INSTANCE_TYPES
+from clusterman.interfaces.types import ClusterNodeMetadata
+from clusterman.migration.event_enums import ComparableConditionTarget
+from clusterman.migration.event_enums import ComparableVersion
 from clusterman.migration.event_enums import CONDITION_OPERATOR_SUPPORT_MATRIX
 from clusterman.migration.event_enums import ConditionOperator
 from clusterman.migration.event_enums import ConditionTrait
 from clusterman.util import parse_time_interval_seconds
 
 
-ComparableVersion = Union[semver.VersionInfo, packaging.version.Version]
-ComparableConditionTarget = Union[str, int, ComparableVersion]
-
-
-def _load_version_target(target: str) -> ComparableVersion:
+def _load_lsbrelease_version_target(target: str) -> ComparableVersion:
     """Validate condition target as a version
 
     :param str target: version from user input
     :return: same value if validates as version
     """
-    try:
-        parsed = semver.parse_version_info(target)
-    except ValueError:
-        # This allows supporting non-semver version, e.g. with less
-        # then 3 numeric components, as long as they comply with PEP440.
-        parsed = packaging.version.parse(target)
-        if not isinstance(parsed, packaging.version.Version):
-            raise ValueError(f"Invalid version string: {target}")
+    parsed = packaging.version.parse(target)
+    if not isinstance(parsed, packaging.version.Version):
+        raise ValueError(f"Invalid version string: {target}")
     return parsed
 
 
@@ -71,8 +65,8 @@ def _load_instance_type_target(target: str) -> str:
 
 
 CONDITION_TARGET_LOADERS: Dict[ConditionTrait, Callable[[str], Union[str, int, List[str]]]] = {
-    ConditionTrait.KERNEL: _load_version_target,
-    ConditionTrait.LSBRELEASE: _load_version_target,
+    ConditionTrait.KERNEL: semver.VersionInfo.parse,
+    ConditionTrait.LSBRELEASE: _load_lsbrelease_version_target,
     ConditionTrait.UPTIME: load_timespan_target,
     ConditionTrait.INSTANCE_TYPE: _load_instance_type_target,
 }
@@ -111,6 +105,14 @@ class MigrationCondition(NamedTuple):
             "operator": self.operator.value,
             "target": (",".join(map(str, self.target)) if isinstance(self.target, list) else str(self.target)),
         }
+
+    def matches(self, node: ClusterNodeMetadata) -> bool:
+        """Check if condition is met for a node
+
+        :param ClusterNodeMetadata node: node metadata
+        :return: true if it meets the condition
+        """
+        return self.operator.apply(self.trait.get_from(node), self.target)
 
 
 class MigrationEvent(NamedTuple):

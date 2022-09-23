@@ -148,6 +148,7 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
             migration_event=event,
             worker_setup=worker_setup,
         )
+        self.mark_event(event, MigrationStatus.INPROGRESS)
         self.events_in_progress.add(event)
 
     def spawn_uptime_worker(self, pool: str, uptime: Union[int, str]):

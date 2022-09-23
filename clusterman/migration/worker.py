@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import time
+from functools import partial
 from multiprocessing import Process
+from statistics import mean
 from typing import Callable
 from typing import cast
 from typing import Collection
@@ -21,10 +23,13 @@ import colorlog
 
 from clusterman.autoscaler.pool_manager import AWS_RUNNING_STATES
 from clusterman.autoscaler.pool_manager import PoolManager
+from clusterman.autoscaler.toggle import disable_autoscaling
+from clusterman.autoscaler.toggle import enable_autoscaling
 from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
 from clusterman.migration.event import MigrationEvent
 from clusterman.migration.settings import WorkerSetup
+from clusterman.util import limit_function_runtime
 
 
 logger = colorlog.getLogger(__name__)
@@ -131,4 +136,34 @@ def event_migration_worker(migration_event: MigrationEvent, worker_setup: Worker
     :param MigrationEvent migration_event: event instance
     :param WorkerSetup worker_setup: migration setup
     """
-    pass  # TODO
+    prescaling_applied = False
+    manager = PoolManager(migration_event.cluster, migration_event.pool, SUPPORTED_POOL_SCHEDULER, fetch_state=False)
+    connector = cast(KubernetesClusterConnector, manager.cluster_connector)
+    connector.set_label_selectors(migration_event.label_selectors, add_to_existing=True)
+    manager.reload_state()
+    try:
+        if worker_setup.disable_autoscaling:
+            disable_autoscaling(
+                migration_event.cluster,
+                migration_event.pool,
+                SUPPORTED_POOL_SCHEDULER,
+                time.time() + worker_setup.expected_duration,
+            )
+        if worker_setup.prescaling:
+            nodes = manager.get_node_metadatas(AWS_RUNNING_STATES)
+            offset = worker_setup.prescaling.of(len(nodes))
+            avg_weight = mean(node.instance.weight for node in nodes)
+            original_capacity = manager.target_capacity
+            manager.modify_target_capacity(manager.target_capacity + offset * avg_weight)
+            prescaling_applied = True
+        node_selector = lambda node: node.agent.agent_id and not migration_event.condition.matches(node)  # noqa
+        migration_routine = partial(_drain_node_selection, manager, node_selector, worker_setup)
+        limit_function_runtime(migration_routine, worker_setup.expected_duration)
+    except Exception as e:
+        logger.error(f"Issue while processing migration event {migration_event}: {e}")
+        raise
+    finally:
+        if worker_setup.disable_autoscaling:
+            enable_autoscaling(migration_event.cluster, migration_event.pool, SUPPORTED_POOL_SCHEDULER)
+        if worker_setup.prescaling and prescaling_applied:
+            manager.modify_target_capacity(original_capacity)

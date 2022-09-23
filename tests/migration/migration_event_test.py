@@ -11,16 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from datetime import timedelta
 from typing import Type
 
 import packaging.version
 import pytest
 import semver
 
+from clusterman.aws.markets import InstanceMarket
+from clusterman.interfaces.types import AgentMetadata
+from clusterman.interfaces.types import ClusterNodeMetadata
+from clusterman.interfaces.types import InstanceMetadata
 from clusterman.migration.event import ConditionOperator
 from clusterman.migration.event import ConditionTrait
 from clusterman.migration.event import MigrationCondition
-from clusterman.migration.event import MigrationEvent
 
 
 @pytest.mark.parametrize(
@@ -30,9 +34,7 @@ from clusterman.migration.event import MigrationEvent
             "kernel",
             "ge",
             "1.2.3-4567-aws",
-            MigrationCondition(
-                ConditionTrait.KERNEL, ConditionOperator.GE, semver.parse_version_info("1.2.3-4567-aws")
-            ),
+            MigrationCondition(ConditionTrait.KERNEL, ConditionOperator.GE, semver.VersionInfo.parse("1.2.3-4567-aws")),
         ),
         (
             "lsbrelease",
@@ -78,8 +80,8 @@ def test_condition_from_dict_error(trait: str, operator: str, target: str, error
             {"trait": "lsbrelease", "operator": "ge", "target": "1.2"},
         ),
         (
-            MigrationCondition(ConditionTrait.LSBRELEASE, ConditionOperator.GE, semver.parse_version_info("1.2.3")),
-            {"trait": "lsbrelease", "operator": "ge", "target": "1.2.3"},
+            MigrationCondition(ConditionTrait.KERNEL, ConditionOperator.GE, semver.VersionInfo.parse("1.2.3")),
+            {"trait": "kernel", "operator": "ge", "target": "1.2.3"},
         ),
         (
             MigrationCondition(ConditionTrait.INSTANCE_TYPE, ConditionOperator.IN, ["m5.4xlarge", "r5.2xlarge"]),
@@ -95,21 +97,30 @@ def test_condition_to_dict(condition, expected):
     assert condition.to_dict() == expected
 
 
-def test_event_to_crd_body():
-    assert MigrationEvent(
-        resource_name="mesos-test-bar-111222333",
-        cluster="mesos-test",
-        pool="bar",
-        label_selectors=[],
-        condition=MigrationCondition(
-            ConditionTrait.LSBRELEASE, ConditionOperator.GE, semver.parse_version_info("1.2.3")
-        ),
-    ).to_crd_body({"foo": "bar"}) == {
+def test_event_to_crd_body(mock_migration_event):
+    assert mock_migration_event.to_crd_body({"foo": "bar"}) == {
         "metadata": {"labels": {"foo": "bar"}, "name": "mesos-test-bar-111222333"},
         "spec": {
             "cluster": "mesos-test",
-            "condition": {"operator": "ge", "target": "1.2.3", "trait": "lsbrelease"},
+            "condition": {"operator": "ge", "target": "1.2.3", "trait": "kernel"},
             "label_selectors": [],
             "pool": "bar",
         },
     }
+
+
+@pytest.mark.parametrize(
+    "condition,result",
+    (
+        (MigrationCondition(ConditionTrait.KERNEL, ConditionOperator.GE, semver.VersionInfo.parse("1.2.3")), True),
+        (MigrationCondition(ConditionTrait.LSBRELEASE, ConditionOperator.GE, packaging.version.parse("22.04")), False),
+        (MigrationCondition(ConditionTrait.UPTIME, ConditionOperator.LT, 1337), False),
+        (MigrationCondition(ConditionTrait.INSTANCE_TYPE, ConditionOperator.IN, ["m5.4xlarge", "r5.2xlarge"]), True),
+    ),
+)
+def test_condition_matches(condition, result):
+    node_metadata = ClusterNodeMetadata(
+        agent=AgentMetadata(kernel="3.2.1", lsbrelease="20.04"),
+        instance=InstanceMetadata(market=InstanceMarket("m5.4xlarge", None), weight=None, uptime=timedelta(days=10)),
+    )
+    assert condition.matches(node_metadata) is result
