@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import sys
+import time
 
 import arrow
 import mock
@@ -25,8 +26,10 @@ from clusterman.util import ask_for_choice
 from clusterman.util import ask_for_confirmation
 from clusterman.util import autoscaling_is_paused
 from clusterman.util import color_conditions
+from clusterman.util import FunctionTimeoutError
 from clusterman.util import get_cluster_name_list
 from clusterman.util import get_pool_name_list
+from clusterman.util import limit_function_runtime
 from clusterman.util import parse_time_interval_seconds
 from clusterman.util import parse_time_string
 from clusterman.util import sensu_checkin
@@ -242,3 +245,9 @@ def test_splay_event_time(mock_hash):
     mock_hash.return_value = frequency - 1  # make `hash(key) % frequency` returns its max value
     for timestamp in range(20):
         assert 0 <= splay_event_time(frequency, "key", timestamp) < frequency
+
+
+def test_limit_function_runtime():
+    assert limit_function_runtime(lambda: 123, 1) == 123
+    with pytest.raises(FunctionTimeoutError):
+        limit_function_runtime(lambda: time.sleep(10), 1)

@@ -14,6 +14,7 @@
 import logging
 import os
 import pprint
+import signal
 import time
 from datetime import datetime
 from enum import Enum
@@ -24,6 +25,7 @@ from typing import List
 from typing import NamedTuple
 from typing import Optional
 from typing import TypeVar
+from typing import Union
 
 import arrow
 import colorlog
@@ -56,6 +58,10 @@ class Status(Enum):
 
 
 class All:
+    pass
+
+
+class FunctionTimeoutError(Exception):
     pass
 
 
@@ -418,3 +424,25 @@ def strtobool(val: str) -> int:
         return 0
     else:
         raise ValueError("invalid truth value %r" % (val,))
+
+
+def limit_function_runtime(
+    func: Callable[[], Any], max_runtime: Union[int, float], callback: Optional[Callable[[], None]] = None
+) -> Any:
+    """Limit runtime for a function
+
+    :param Callable[[], Any] func: function to be called
+    :param int max_runtime: max runtime in seconds
+    :param Optional[Callable[[], None]] callback: method to call on timeout, raises exception by default
+    :return: return value of the function
+    """
+
+    def timeout_handler(signum, frame):
+        raise FunctionTimeoutError(f"Method {func.__name__} ran for more than {max_runtime} seconds")
+
+    handler = (lambda signum, frame: callback()) if callback else timeout_handler  # noqa
+    signal.signal(signal.SIGALRM, handler)
+    signal.alarm(int(max_runtime))
+    result = func()
+    signal.alarm(0)  # Cancel the alarm if we've gotten here
+    return result
