@@ -57,6 +57,10 @@ MIGRATION_CRD_GROUP = "clusterman.yelp.com"
 MIGRATION_CRD_VERSION = "v1"
 MIGRATION_CRD_PLURAL = "nodemigrations"
 MIGRATION_CRD_STATUS_LABEL = "clusterman.yelp.com/migration_status"
+# we don't want to block on eviction/deletion as we're potentially evicting/deleting a ton of pods
+# AND there's a delay before we go ahead and terminate
+# AND at Yelp we run a script on shutdown that will also try to drain one final time.
+PROPAGATION_POLICY = "Background"
 
 
 class KubernetesClusterConnector(ClusterConnector):
@@ -151,29 +155,34 @@ class KubernetesClusterConnector(ClusterConnector):
             unschedulable_pods.append((pod, self._get_pod_unschedulable_reason(pod)))
         return unschedulable_pods
 
-    def freeze_agent(self, agent_id: str) -> None:
+    def freeze_agent(self, node_name: str) -> None:
         now = str(arrow.now().timestamp)
         try:
             body = {
                 "spec": {"taints": [{"effect": "NoSchedule", "key": CLUSTERMAN_TERMINATION_TAINT_KEY, "value": now}]}
             }
-            self._core_api.patch_node(agent_id, body)
+            self._core_api.patch_node(node_name, body)
         except ApiException as e:
-            logger.warning(f"Failed to freeze {agent_id}: {e}")
+            logger.warning(f"Failed to freeze {node_name}: {e}")
 
-    def drain_node(self, agent_id: str) -> bool:
+    def drain_node(self, node_name: str, disable_eviction: bool) -> bool:
         try:
-            logger.info(f"Cordoning {agent_id}...")
-            if not self.cordon_node(agent_id):
+            logger.info(f"Cordoning {node_name}...")
+            self.cordon_node(node_name)
+        except Exception:
+            logger.exception(f"Failed to cordon {node_name} - continuing to proceed anyway.")
+        try:
+            logger.info(f"Evicting/Deleting pods on {node_name}...")
+            pods_on_node = [
+                pod for pod in self._list_all_pods_on_node(node_name) if not self._pod_belongs_to_daemonset(pod)
+            ]
+            if not self._evict_or_delete_pods(pods_on_node, disable_eviction):
+                logger.info("Some pods couldn't be evicted/deleted")
                 return False
-            logger.info(f"Evicting pods on {agent_id}...")
-            if not self._evict_tasks_from_node(agent_id):
-                logger.info("Some pods couldn't be evicted")
-                return False
-            logger.info(f"Drained {agent_id}")
+            logger.info(f"Drained {node_name}")
             return True
         except Exception as e:
-            logger.warning(f"Failed to drain {agent_id}: {e}")
+            logger.warning(f"Failed to drain {node_name}: {e}")
             return False
 
     def cordon_node(self, node_name: str) -> bool:
@@ -259,36 +268,48 @@ class KubernetesClusterConnector(ClusterConnector):
         except Exception as e:
             logger.error(f"Failed creating migration event resource: {e}")
 
-    def _evict_tasks_from_node(self, hostname: str) -> bool:
-        all_evicted = True
-        pods_to_evict = [
-            pod for pod in self._list_all_pods_on_node(hostname) if not self._pod_belongs_to_daemonset(pod)
-        ]
-        logger.info(f"{len(pods_to_evict)} pods being evicted")
-        for pod in pods_to_evict:
+    def _evict_or_delete_pods(self, pods: List[KubernetesPod], disable_eviction: bool) -> bool:
+        all_done = True
+        logger.info(f"{len(pods)} pods being evicted")
+        for pod in pods:
             try:
-                self._core_api.create_namespaced_pod_eviction(
+                if disable_eviction:
+                    self._delete_pod(pod)
+                else:
+                    self._evict_pod(pod)
+                logger.info(f"{pod.metadata.name} ({pod.metadata.namespace}) was deleted")
+            except ApiException as e:
+                logger.warning(
+                    f"Failed to evict/delete {pod.metadata.name} ({pod.metadata.namespace}):{e.status}-{e.reason}"
+                )
+                all_done = False
+
+        return all_done
+
+    def _delete_pod(self, pod: KubernetesPod):
+        self._core_api.delete_namespaced_pod(
+            name=pod.metadata.name,
+            namespace=pod.metadata.namespace,
+            propagation_policy=PROPAGATION_POLICY,
+        )
+
+    def _evict_pod(self, pod: KubernetesPod):
+        self._core_api.create_namespaced_pod_eviction(
+            name=pod.metadata.name,
+            namespace=pod.metadata.namespace,
+            body=V1beta1Eviction(
+                metadata=V1ObjectMeta(
                     name=pod.metadata.name,
                     namespace=pod.metadata.namespace,
-                    body=V1beta1Eviction(
-                        metadata=V1ObjectMeta(
-                            name=pod.metadata.name,
-                            namespace=pod.metadata.namespace,
-                        ),
-                        delete_options=V1DeleteOptions(
-                            # we don't want to block on eviction as we're potentially evicting a ton of pods
-                            # AND there's a delay before we go ahead and terminate
-                            # AND at Yelp we run a script on shutdown that will also try to drain one final time.
-                            propagation_policy="Background",
-                        ),
-                    ),
-                )
-                logger.info(f"{pod.metadata.name} ({pod.metadata.namespace}) was evicted")
-            except ApiException as e:
-                logger.warning(f"Failed to evict {pod.metadata.name} ({pod.metadata.namespace}): {e.status}-{e.reason}")
-                all_evicted = False
-
-        return all_evicted
+                ),
+                delete_options=V1DeleteOptions(
+                    # we don't want to block on eviction as we're potentially evicting a ton of pods
+                    # AND there's a delay before we go ahead and terminate
+                    # AND at Yelp we run a script on shutdown that will also try to drain one final time.
+                    propagation_policy=PROPAGATION_POLICY,
+                ),
+            ),
+        )
 
     def _list_all_pods_on_node(self, node_name: str) -> List[KubernetesPod]:
         return self._core_api.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={node_name}").items
