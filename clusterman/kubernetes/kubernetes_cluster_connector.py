@@ -47,6 +47,10 @@ from clusterman.util import strtobool
 logger = colorlog.getLogger(__name__)
 KUBERNETES_SCHEDULED_PHASES = {"Pending", "Running"}
 CLUSTERMAN_TERMINATION_TAINT_KEY = "clusterman.yelp.com/terminating"
+# we don't want to block on eviction/deletion as we're potentially evicting/deleting a ton of pods
+# AND there's a delay before we go ahead and terminate
+# AND at Yelp we run a script on shutdown that will also try to drain one final time.
+PROPAGATION_POLICY = "Background"
 
 
 class KubernetesClusterConnector(ClusterConnector):
@@ -139,31 +143,19 @@ class KubernetesClusterConnector(ClusterConnector):
         except ApiException as e:
             logger.warning(f"Failed to freeze {node_name}: {e}")
 
-    def clean_node(self, node_name: str) -> bool:
+    def drain_node(self, node_name: str, disable_eviction: bool) -> bool:
         try:
             logger.info(f"Cordoning {node_name}...")
             self.cordon_node(node_name)
-        except Exception as e:
-            logger.warning(f"Failed to cordon {node_name} continuing to delete pods anyway: {e}")
+        except Exception:
+            logger.exception(f"Failed to cordon {node_name} - continuing to proceed anyway.")
         try:
-            logger.info(f"Deleting pods on {node_name}...")
-            if not self._delete_tasks_from_node(node_name):
-                logger.info("Some pods couldn't be deleted")
-                return False
-            logger.info(f"Cleaned {node_name}")
-            return True
-        except Exception as e:
-            logger.warning(f"Failed to clean {node_name}: {e}")
-            return False
-
-    def drain_node(self, node_name: str) -> bool:
-        try:
-            logger.info(f"Cordoning {node_name}...")
-            if not self.cordon_node(node_name):
-                return False
-            logger.info(f"Evicting pods on {node_name}...")
-            if not self._evict_tasks_from_node(node_name):
-                logger.info("Some pods couldn't be evicted")
+            logger.info(f"Evicting/Deleting pods on {node_name}...")
+            pods_on_node = [
+                pod for pod in self._list_all_pods_on_node(node_name) if not self._pod_belongs_to_daemonset(pod)
+            ]
+            if not self._evict_or_delete_tasks(pods_on_node, disable_eviction):
+                logger.info("Some pods couldn't be evicted/deleted")
                 return False
             logger.info(f"Drained {node_name}")
             return True
@@ -201,56 +193,45 @@ class KubernetesClusterConnector(ClusterConnector):
             logger.warning(f"Failed to uncordon {node_name}: {e}")
             return False
 
-    def _evict_tasks_from_node(self, node_name: str) -> bool:
-        all_evicted = True
-        pods_to_evict = [
-            pod for pod in self._list_all_pods_on_node(node_name) if not self._pod_belongs_to_daemonset(pod)
-        ]
-        logger.info(f"{len(pods_to_evict)} pods being evicted")
-        for pod in pods_to_evict:
+    def _evict_or_delete_tasks(self, pods: List[KubernetesPod], disable_eviction: bool) -> bool:
+        all_done = True
+        for pod in pods:
             try:
-                self._core_api.create_namespaced_pod_eviction(
-                    name=pod.metadata.name,
-                    namespace=pod.metadata.namespace,
-                    body=V1beta1Eviction(
-                        metadata=V1ObjectMeta(
-                            name=pod.metadata.name,
-                            namespace=pod.metadata.namespace,
-                        ),
-                        delete_options=V1DeleteOptions(
-                            # we don't want to block on eviction as we're potentially evicting a ton of pods
-                            # AND there's a delay before we go ahead and terminate
-                            # AND at Yelp we run a script on shutdown that will also try to drain one final time.
-                            propagation_policy="Background",
-                        ),
-                    ),
-                )
-                logger.info(f"{pod.metadata.name} ({pod.metadata.namespace}) was evicted")
-            except ApiException as e:
-                logger.warning(f"Failed to evict {pod.metadata.name} ({pod.metadata.namespace}): {e.status}-{e.reason}")
-                all_evicted = False
-
-        return all_evicted
-
-    def _delete_tasks_from_node(self, node_name: str) -> bool:
-        all_deleted = True
-        pods_to_evict = [
-            pod for pod in self._list_all_pods_on_node(node_name) if not self._pod_belongs_to_daemonset(pod)
-        ]
-        logger.info(f"{len(pods_to_evict)} pods being deleted")
-        for pod in pods_to_evict:
-            try:
-                self._core_api.delete_namespaced_pod(
-                    name=pod.metadata.name,
-                    namespace=pod.metadata.namespace,
-                    propagation_policy="Background",
-                )
+                if disable_eviction:
+                    self._delete_pod(pod)
+                else:
+                    self._evict_pod(pod)
                 logger.info(f"{pod.metadata.name} ({pod.metadata.namespace}) was deleted")
             except ApiException as e:
                 logger.warning(f"Failed to delete {pod.metadata.name} ({pod.metadata.namespace}):{e.status}-{e.reason}")
-                all_deleted = False
+                all_done = False
 
-        return all_deleted
+        return all_done
+
+    def _delete_pod(self, pod: KubernetesPod):
+        self._core_api.delete_namespaced_pod(
+            name=pod.metadata.name,
+            namespace=pod.metadata.namespace,
+            propagation_policy=PROPAGATION_POLICY,
+        )
+
+    def _evict_pod(self, pod: KubernetesPod):
+        self._core_api.create_namespaced_pod_eviction(
+            name=pod.metadata.name,
+            namespace=pod.metadata.namespace,
+            body=V1beta1Eviction(
+                metadata=V1ObjectMeta(
+                    name=pod.metadata.name,
+                    namespace=pod.metadata.namespace,
+                ),
+                delete_options=V1DeleteOptions(
+                    # we don't want to block on eviction as we're potentially evicting a ton of pods
+                    # AND there's a delay before we go ahead and terminate
+                    # AND at Yelp we run a script on shutdown that will also try to drain one final time.
+                    propagation_policy=PROPAGATION_POLICY,
+                ),
+            ),
+        )
 
     def _list_all_pods_on_node(self, node_name: str) -> List[KubernetesPod]:
         return self._core_api.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={node_name}").items

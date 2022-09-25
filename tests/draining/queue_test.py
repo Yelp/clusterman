@@ -26,6 +26,7 @@ from clusterman.draining.queue import host_from_instance_id
 from clusterman.draining.queue import main
 from clusterman.draining.queue import process_queues
 from clusterman.draining.queue import terminate_host
+from clusterman.draining.queue import TerminationReason
 
 
 @pytest.fixture
@@ -564,6 +565,7 @@ def test_process_drain_queue(mock_draining_client):
         mock_k8s_drain.assert_called_with(
             mock_kubernetes_client,
             "agt123",
+            False,
         )
         mock_submit_host_for_termination.assert_called_with(mock_draining_client, mock_host, delay=0)
         mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
@@ -617,6 +619,7 @@ def test_process_drain_queue(mock_draining_client):
         mock_k8s_drain.assert_called_with(
             mock_kubernetes_client,
             "agt123",
+            False,
         )
         mock_submit_host_for_termination.assert_called_with(mock_draining_client, mock_host, delay=0)
         mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
@@ -696,6 +699,7 @@ def test_process_drain_queue(mock_draining_client):
         mock_k8s_drain.assert_called_with(
             mock_kubernetes_client,
             "agt123",
+            False,
         )
         mock_submit_host_for_termination.assert_called_with(mock_draining_client, mock_host, delay=0)
         mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
@@ -743,15 +747,9 @@ def test_process_warning_queue(mock_draining_client):
         "clusterman.draining.queue.DrainingClient.submit_host_for_draining",
         autospec=True,
     ) as mock_submit_host_for_draining, mock.patch(
-        "clusterman.draining.queue.DrainingClient.submit_host_for_termination",
-        autospec=True,
-    ) as mock_submit_host_for_termination, mock.patch(
         "clusterman.draining.queue.DrainingClient.delete_warning_messages",
         autospec=True,
     ) as mock_delete_warning_messages, mock.patch(
-        "clusterman.draining.queue.k8s_clean_node",
-        autospec=True,
-    ) as mock_k8s_clean_node, mock.patch(
         "clusterman.draining.queue.get_pool_name_list",
         autospec=True,
     ) as mock_get_pools, mock.patch(
@@ -765,14 +763,12 @@ def test_process_warning_queue(mock_draining_client):
         mock_draining_client.get_warned_host = mock.Mock(return_value=mock_host)
         mock_draining_client.process_warning_queue(mock_kubernetes_client)
         assert not mock_submit_host_for_draining.called
-        assert not mock_k8s_clean_node.called
         mock_delete_warning_messages.assert_called_with(mock_draining_client, [mock_host])
 
         mock_srf_load_spot.return_value = {"sfr-123": {}}
         mock_host = mock.Mock(group_id="sfr-123")
         mock_draining_client.get_warned_host = mock.Mock(return_value=mock_host)
         mock_draining_client.process_warning_queue(mock_kubernetes_client)
-        assert not mock_k8s_clean_node.called
         mock_submit_host_for_draining.assert_called_with(mock_draining_client, mock_host)
         mock_delete_warning_messages.assert_called_with(mock_draining_client, [mock_host])
 
@@ -782,9 +778,7 @@ def test_process_warning_queue(mock_draining_client):
         mock_submit_host_for_draining.reset_mock()
         mock_draining_client.get_warned_host = mock.Mock(return_value=mock_host)
         mock_draining_client.process_warning_queue(mock_kubernetes_client)
-        assert not mock_submit_host_for_draining.called
-        mock_k8s_clean_node.assert_called_with(mock_kubernetes_client, mock_host.agent_id)
-        mock_submit_host_for_termination.assert_called_with(mock_draining_client, mock_host, 0)
+        mock_submit_host_for_draining.assert_called_with(mock_draining_client, mock_host)
         mock_delete_warning_messages.assert_called_with(mock_draining_client, [mock_host])
 
 
@@ -879,6 +873,7 @@ def test_host_from_instance_id():
             ip="10.1.1.1",
             agent_id="agt123",
             pool="",
+            termination_reason=TerminationReason.SPOT_INTERRUPTION,
             draining_start_time=now.for_json(),
         )
 

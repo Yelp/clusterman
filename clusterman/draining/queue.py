@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
+import enum
 import json
 import socket
 import time
@@ -40,7 +41,6 @@ from clusterman.aws.util import RESOURCE_GROUPS_REV
 from clusterman.config import load_cluster_pool_config
 from clusterman.config import POOL_NAMESPACE
 from clusterman.config import setup_config
-from clusterman.draining.kubernetes import clean_node as k8s_clean_node
 from clusterman.draining.kubernetes import drain as k8s_drain
 from clusterman.draining.kubernetes import uncordon as k8s_uncordon
 from clusterman.draining.mesos import down
@@ -57,6 +57,15 @@ DRAIN_CACHE_SECONDS = 1800
 DEFAULT_FORCE_TERMINATION = False
 DEFAULT_DRAIN_REPROCESSING_DELAY_SECONDS = 15
 DEFAULT_DRAINING_TIME_THRESHOLD_SECONDS = 1800
+EC2_FLEET_KEYS = {
+    "aws:ec2spot:fleet-request-id",
+    "aws:ec2:fleet-id",
+}
+
+
+class TerminationReason(enum.Enum):
+    SCALING_DOWN = "scaling down"
+    SPOT_INTERRUPTION = "spot interruption"
 
 
 class Host(NamedTuple):
@@ -68,6 +77,7 @@ class Host(NamedTuple):
     receipt_handle: str
     agent_id: str = ""
     pool: str = ""
+    termination_reason: TerminationReason = TerminationReason.SCALING_DOWN
     draining_start_time: str = arrow.now().for_json()
     scheduler: str = "mesos"
 
@@ -319,6 +329,9 @@ class DrainingClient:
                     default=DEFAULT_DRAINING_TIME_THRESHOLD_SECONDS,
                 )
                 should_resend_to_queue = False
+                disable_eviction = (
+                    True if host_to_process.termination_reason == TerminationReason.SPOT_INTERRUPTION else False
+                )
 
                 # Try to drain node; there are a few different possibilities:
                 #  0) Instance is orphan, it should be terminated
@@ -342,7 +355,8 @@ class DrainingClient:
                         # Todo Message can be stay in the queue up to SQS retention period, limit should be added
                         should_resend_to_queue = True
                 else:
-                    if k8s_drain(kube_operator_client, host_to_process.agent_id):  # case 3
+                    # case 3
+                    if k8s_drain(kube_operator_client, host_to_process.agent_id, disable_eviction=disable_eviction):
                         self.submit_host_for_termination(host_to_process, delay=0)
                         should_add_to_cache = True
                     else:  # case 4
@@ -408,15 +422,14 @@ class DrainingClient:
 
             # we should definitely ignore termination warnings that aren't from this
             # cluster or maybe not even paasta instances...
-            if host_to_process.group_id in spot_fleet_resource_groups:
-                logger.info(f"Sending spot fleet warned host to drain: {host_to_process.hostname}")
+            if (
+                host_to_process.group_id in spot_fleet_resource_groups
+                or host_to_process.group_id in autoscaling_resource_groups
+            ):
+                logger.info(f"Sending warned host to drain: {host_to_process.hostname}")
                 self.submit_host_for_draining(host_to_process)
-            if host_to_process.group_id in autoscaling_resource_groups:
-                logger.info(f"Cleaning-up and sending spot warned host to terminate: {host_to_process.hostname}")
-                k8s_clean_node(kube_operator_client, host_to_process.agent_id)
-                self.submit_host_for_termination(host_to_process, 0)
             else:
-                logger.info(f"Ignoring spot warned host because not in our SFRs: {host_to_process.hostname}")
+                logger.info(f"Ignoring warned host because not in our target: {host_to_process.hostname}")
             self.delete_warning_messages([host_to_process])
 
 
@@ -434,21 +447,17 @@ def host_from_instance_id(
         logger.warning(f"No instance data found for {instance_id}")
         return None
     try:
-        group_ids = [
-            tag["Value"]
-            for tag in instance_data[0]["Tags"]
-            if tag["Key"] in {"aws:ec2spot:fleet-request-id", "aws:ec2:fleet-id", }
-        ]
+        group_ids = [tag["Value"] for tag in instance_data[0]["Tags"] if tag["Key"] in EC2_FLEET_KEYS]
         scheduler = "mesos"
         for tag in instance_data[0]["Tags"]:
             if tag["Key"] == "KubernetesCluster":
                 scheduler = "kubernetes"
                 break
-    except KeyError as e:
-        logger.warning(f"SFR/SF tag key not found: {e}")
+    except KeyError:
+        logger.exception("Spot tag key not found - is this Spot Fleet/ASG correctly configured?")
         group_ids = []
     if not group_ids:
-        logger.warning(f"No SFR/SF ID found for {instance_id}")
+        logger.warning(f"Not draining {instance_id}: no Spot ID found - is this actually a Spot instance?")
         return None
     try:
         ip = instance_data[0]["PrivateIpAddress"]
@@ -458,8 +467,7 @@ def host_from_instance_id(
     try:
         agent_id = instance_data[0]["PrivateDnsName"]
     except KeyError:
-        logger.warning(f"No Dns name found for {instance_id}")
-        return None
+        logger.warning(f"No DNS name found for {instance_id} - continuing to proceed anyway")
     try:
         hostnames = socket.gethostbyaddr(ip)
     except socket.error:
@@ -473,6 +481,7 @@ def host_from_instance_id(
         hostname=hostnames[0],
         group_id=group_ids[0],
         ip=ip,
+        termination_reason=TerminationReason.SPOT_INTERRUPTION,
         scheduler=scheduler,
         draining_start_time=arrow.now().for_json(),
     )
