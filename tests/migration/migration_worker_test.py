@@ -140,6 +140,7 @@ def test_uptime_migration_worker(mock_drain_selection, mock_manager_class, mock_
 @patch("clusterman.migration.worker.enable_autoscaling")
 @patch("clusterman.migration.worker.disable_autoscaling")
 @patch("clusterman.migration.worker._drain_node_selection")
+@patch("clusterman.migration.worker._monitor_pool_health", lambda *_, **__: True)
 @patch("clusterman.migration.worker.limit_function_runtime", lambda f, _: f())
 def test_event_migration_worker(
     mock_drain_selection,

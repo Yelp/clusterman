@@ -35,6 +35,7 @@ from clusterman.util import limit_function_runtime
 logger = colorlog.getLogger(__name__)
 UPTIME_CHECK_INTERVAL_SECONDS = 60 * 60  # 1 hour
 HEALTH_CHECK_INTERVAL_SECONDS = 60
+INITIAL_POOL_HEALTH_TIMEOUT_SECONDS = 15 * 60
 SUPPORTED_POOL_SCHEDULER = "kubernetes"
 
 
@@ -59,12 +60,19 @@ class RestartableDaemonProcess:
         return getattr(self.process_handle, attr)
 
 
-def _monitor_pool_health(manager: PoolManager, timeout: float, drained: Collection[ClusterNodeMetadata]) -> bool:
+class NodeMigrationError(Exception):
+    pass
+
+
+def _monitor_pool_health(
+    manager: PoolManager, timeout: float, drained: Collection[ClusterNodeMetadata], check_pods: bool = True
+) -> bool:
     """Monitor pool health after nodes were submitted for draining
 
     :param PoolManager manager: pool manager instance
     :param float timeout: timestamp after which giving up
     :param Collection[ClusterNodeMetadata] drained: nodes which were submitted for draining
+    :param bool check_pods: check that pods can successfully be schedules
     :return: true if capacity is fulfilled
     """
     draining_happened = False
@@ -74,7 +82,11 @@ def _monitor_pool_health(manager: PoolManager, timeout: float, drained: Collecti
         draining_happened = draining_happened or not any(
             node.agent.agent_id == connector.get_agent_metadata(node.instance.ip_address).agent_id for node in drained
         )
-        if draining_happened and manager.is_capacity_satisfied() and not connector.get_unschedulable_pods():
+        if (
+            draining_happened
+            and manager.is_capacity_satisfied()
+            and not (check_pods and connector.get_unschedulable_pods())
+        ):
             return True
         time.sleep(HEALTH_CHECK_INTERVAL_SECONDS)
     return False
@@ -93,10 +105,12 @@ def _drain_node_selection(
     nodes = manager.get_node_metadatas(AWS_RUNNING_STATES)
     selected = sorted(filter(selector, nodes), key=worker_setup.precedence.sort_key)
     chunk = worker_setup.rate.of(len(nodes))
+    logger.info(f"{len(selected)} nodes of {manager.cluster}:{manager.pool} will be recycled")
     for i in range(0, len(selected), chunk):
         start_time = time.time()
         selection_chunk = selected[i : i + chunk]
         for node in selection_chunk:
+            logger.info(f"Recycling node {node.instance.instance_id}")
             manager.submit_for_draining(node)
         time.sleep(worker_setup.bootstrap_wait)
         if not _monitor_pool_health(manager, start_time + worker_setup.bootstrap_timeout, selection_chunk):
@@ -143,6 +157,7 @@ def event_migration_worker(migration_event: MigrationEvent, worker_setup: Worker
     manager.reload_state()
     try:
         if worker_setup.disable_autoscaling:
+            logger.info(f"Disabling autoscaling for {migration_event.cluster}:{migration_event.pool}")
             disable_autoscaling(
                 migration_event.cluster,
                 migration_event.pool,
@@ -154,16 +169,25 @@ def event_migration_worker(migration_event: MigrationEvent, worker_setup: Worker
             offset = worker_setup.prescaling.of(len(nodes))
             avg_weight = mean(node.instance.weight for node in nodes)
             original_capacity = manager.target_capacity
-            manager.modify_target_capacity(manager.target_capacity + offset * avg_weight)
+            prescaled_capacity = round(manager.target_capacity + offset * avg_weight)
+            manager.modify_target_capacity(prescaled_capacity)
             prescaling_applied = True
+        if not _monitor_pool_health(
+            manager, time.time() + INITIAL_POOL_HEALTH_TIMEOUT_SECONDS, drained=[], check_pods=False
+        ):
+            raise NodeMigrationError(f"Pool {migration_event.cluster}:{migration_event.pool} is not healthy")
         node_selector = lambda node: node.agent.agent_id and not migration_event.condition.matches(node)  # noqa
         migration_routine = partial(_drain_node_selection, manager, node_selector, worker_setup)
-        limit_function_runtime(migration_routine, worker_setup.expected_duration)
+        if not limit_function_runtime(migration_routine, worker_setup.expected_duration):
+            raise NodeMigrationError(f"Failed migrating nodes for event {migration_event}")
     except Exception as e:
         logger.error(f"Issue while processing migration event {migration_event}: {e}")
         raise
     finally:
         if worker_setup.disable_autoscaling:
+            logger.info(f"Re-enabling autoscaling for {migration_event.cluster}:{migration_event.pool}")
             enable_autoscaling(migration_event.cluster, migration_event.pool, SUPPORTED_POOL_SCHEDULER)
-        if worker_setup.prescaling and prescaling_applied:
+        if worker_setup.prescaling and prescaling_applied and prescaled_capacity >= manager.target_capacity:
+            # Only restoring original capacity of the target remained equal or lower than
+            # our set target (i.e. the autoscaler didn't have to scale up in the meantime)
             manager.modify_target_capacity(original_capacity)
