@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 from argparse import Namespace
 from unittest.mock import MagicMock
 from unittest.mock import patch
@@ -37,10 +38,13 @@ def migration_batch():
     ):
         batch = NodeMigration()
         mock_getpool.return_value = ["bar"]
+        os.environ["PAASTA_RESOURCE_CPUS"] = "4"
         batch.options = Namespace(cluster="mesos-test", autorestart_interval_minutes=None)
         batch.configure_initial()
         assert "bar" in batch.migration_configs
+        assert batch.available_worker_slots == 21
         yield batch
+        os.environ.pop("PAASTA_RESOURCE_CPUS", None)
 
 
 def test_fetch_event_crd(migration_batch: NodeMigration):
@@ -131,7 +135,7 @@ def test_get_worker_setup(migration_batch):
 @patch("clusterman.batch.node_migration.RestartableDaemonProcess")
 def test_spawn_worker(mock_process, migration_batch, worker_label):
     mock_routine = MagicMock()
-    migration_batch._spawn_worker(worker_label, mock_routine, 1, x=2)
+    assert migration_batch._spawn_worker(worker_label, mock_routine, 1, x=2) is True
     mock_process.assert_called_once_with(target=mock_routine, args=(1,), kwargs={"x": 2})
     assert migration_batch.migration_workers == {worker_label: mock_process.return_value}
 
@@ -139,7 +143,14 @@ def test_spawn_worker(mock_process, migration_batch, worker_label):
 @patch("clusterman.batch.node_migration.RestartableDaemonProcess")
 def test_spawn_worker_existing(mock_process, migration_batch):
     migration_batch.migration_workers["foobar"] = MagicMock(is_alive=lambda: True)
-    migration_batch._spawn_worker("foobar", MagicMock(), 1, x=2)
+    assert migration_batch._spawn_worker("foobar", MagicMock(), 1, x=2) is False
+    mock_process.assert_not_called()
+
+
+@patch("clusterman.batch.node_migration.RestartableDaemonProcess")
+def test_spawn_worker_over_capacity(mock_process, migration_batch):
+    migration_batch.migration_workers = {f"foobar{i}": MagicMock(is_alive=lambda: True) for i in range(29)}
+    assert migration_batch._spawn_worker(MigrationEvent(None, None, None, None, None), MagicMock(), 1, x=2) is False
     mock_process.assert_not_called()
 
 
