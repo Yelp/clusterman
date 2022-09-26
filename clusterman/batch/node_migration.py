@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
 import time
 from typing import Callable
 from typing import Collection
@@ -54,7 +53,7 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
 
     POOL_SETTINGS_PARENT = "node_migration"
     MIN_UPTIME_CHURNING_SECONDS = 60 * 60 * 24  # 1 day
-    DEFAULT_CPUS_PER_WORKER = 0.2
+    DEFAULT_MAX_WORKER_PROCESSES = 6
     DEFAULT_RUN_INTERVAL_SECONDS = 60
 
     @batch_command_line_arguments
@@ -75,9 +74,9 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
         self.run_interval = staticconf.read_int(
             "batches.node_migration.run_interval_seconds", self.DEFAULT_RUN_INTERVAL_SECONDS
         )
-        cpus_per_worker = staticconf.read_float("batches.node_migration.cpus_per_worker", self.DEFAULT_CPUS_PER_WORKER)
-        available_cpus = float(os.environ.get("PAASTA_RESOURCE_CPUS", os.cpu_count()))
-        self.available_worker_slots = round(available_cpus / cpus_per_worker) + 1
+        self.available_worker_slots = staticconf.read_float(
+            "batches.node_migration.max_worker_processes", self.DEFAULT_MAX_WORKER_PROCESSES
+        )
         for pool in get_pool_name_list(self.options.cluster, SUPPORTED_POOL_SCHEDULER):
             load_cluster_pool_config(self.options.cluster, pool, SUPPORTED_POOL_SCHEDULER, None)
             pool_config_namespace = POOL_NAMESPACE.format(pool=pool, scheduler=SUPPORTED_POOL_SCHEDULER)
