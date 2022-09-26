@@ -176,7 +176,7 @@ class KubernetesClusterConnector(ClusterConnector):
             pods_on_node = [
                 pod for pod in self._list_all_pods_on_node(node_name) if not self._pod_belongs_to_daemonset(pod)
             ]
-            if not self._evict_or_delete_tasks(pods_on_node, disable_eviction):
+            if not self._evict_or_delete_pods(pods_on_node, disable_eviction):
                 logger.info("Some pods couldn't be evicted/deleted")
                 return False
             logger.info(f"Drained {node_name}")
@@ -267,9 +267,10 @@ class KubernetesClusterConnector(ClusterConnector):
             self._migration_crd_api.create_cluster_custom_object(body=body)
         except Exception as e:
             logger.error(f"Failed creating migration event resource: {e}")
-   
-    def _evict_or_delete_tasks(self, pods: List[KubernetesPod], disable_eviction: bool) -> bool:
+
+    def _evict_or_delete_pods(self, pods: List[KubernetesPod], disable_eviction: bool) -> bool:
         all_done = True
+        logger.info(f"{len(pods)} pods being evicted")
         for pod in pods:
             try:
                 if disable_eviction:
@@ -278,7 +279,9 @@ class KubernetesClusterConnector(ClusterConnector):
                     self._evict_pod(pod)
                 logger.info(f"{pod.metadata.name} ({pod.metadata.namespace}) was deleted")
             except ApiException as e:
-                logger.warning(f"Failed to delete {pod.metadata.name} ({pod.metadata.namespace}):{e.status}-{e.reason}")
+                logger.warning(
+                    f"Failed to evict/delete {pod.metadata.name} ({pod.metadata.namespace}):{e.status}-{e.reason}"
+                )
                 all_done = False
 
         return all_done

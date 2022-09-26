@@ -356,7 +356,7 @@ class DrainingClient:
                         should_resend_to_queue = True
                 else:
                     # case 3
-                    if k8s_drain(kube_operator_client, host_to_process.agent_id, disable_eviction=disable_eviction):
+                    if k8s_drain(kube_operator_client, host_to_process.agent_id, disable_eviction):
                         self.submit_host_for_termination(host_to_process, delay=0)
                         should_add_to_cache = True
                     else:  # case 4
@@ -390,7 +390,7 @@ class DrainingClient:
         for host in hosts_to_remove:
             del self.draining_host_ttl_cache[host]
 
-    def process_warning_queue(self, kube_operator_client: Optional[KubernetesClusterConnector]) -> None:
+    def process_warning_queue(self) -> None:
         host_to_process = self.get_warned_host()
         if host_to_process:
             logger.info(f"Processing spot warning for {host_to_process.hostname}")
@@ -508,7 +508,7 @@ def process_queues(cluster_name: str) -> None:
         if kube_operator_client:
             kube_operator_client.reload_client()
         draining_client.clean_processing_hosts_cache()
-        draining_client.process_warning_queue(kube_operator_client=kube_operator_client)
+        draining_client.process_warning_queue()
         draining_client.process_drain_queue(
             mesos_operator_client=mesos_operator_client,
             kube_operator_client=kube_operator_client,
