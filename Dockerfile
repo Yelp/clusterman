@@ -14,9 +14,8 @@ RUN     apt-get update \
             lsb-release \
             make \
             openssh-client \
-            python3.6 \
             python3.7 \
-            python3-distutils \
+            python3.7-distutils \
             python-pip \
             python-setuptools \
             stdin2scribe \

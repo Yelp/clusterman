@@ -1,4 +1,5 @@
 import os
+from argparse import Namespace
 
 import mock
 import pytest
@@ -6,6 +7,9 @@ from kubernetes.client.models.v1_node_selector_requirement import V1NodeSelector
 from kubernetes.client.models.v1_node_selector_term import V1NodeSelectorTerm
 
 from clusterman.kubernetes.util import CachedCoreV1Api
+from clusterman.kubernetes.util import ConciseCRDApi
+from clusterman.kubernetes.util import get_node_kernel_version
+from clusterman.kubernetes.util import get_node_lsbrelease
 from clusterman.kubernetes.util import ResourceParser
 from clusterman.kubernetes.util import selector_term_matches_requirement
 
@@ -73,3 +77,45 @@ def test_selector_term_matches_requirement():
     ]
     selector_requirement = V1NodeSelectorRequirement(key="clusterman.com/pool", operator="In", values=["bar"])
     assert selector_term_matches_requirement(selector_term, selector_requirement)
+
+
+@mock.patch("clusterman.kubernetes.util.kubernetes")
+def test_concise_crd_api(mock_kube):
+    api = ConciseCRDApi("/foo/bar/admin.conf", "group-x", "v-y", "plur-z")
+    api.list_node_migration_resources(label_selector="foo=bar")
+    mock_kube.client.CustomObjectsApi.return_value.list_node_migration_resources.assert_called_once_with(
+        group="group-x",
+        plural="plur-z",
+        version="v-y",
+        label_selector="foo=bar",
+    )
+
+
+@pytest.mark.parametrize(
+    "node_info,expected",
+    (
+        # using an argparse namespace to simulate system info object
+        (Namespace(), ""),
+        (Namespace(kernel_version="1.2.3"), "1.2.3"),
+    ),
+)
+def test_get_node_kernel_version(node_info, expected):
+    node = mock.MagicMock()
+    node.status.node_info = node_info
+    assert get_node_kernel_version(node) == expected
+
+
+@pytest.mark.parametrize(
+    "node_info,expected",
+    (
+        # using an argparse namespace to simulate system info object
+        (Namespace(), ""),
+        (Namespace(os_image="Some 1.2.3 foobar"), "1.2.3"),
+        (Namespace(os_image="Some 1.02 foobar"), "1.02"),
+        (Namespace(os_image="1.2.3"), "1.2.3"),
+    ),
+)
+def test_get_node_lsbrelease(node_info, expected):
+    node = mock.MagicMock()
+    node.status.node_info = node_info
+    assert get_node_lsbrelease(node) == expected

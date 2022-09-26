@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import re
 import socket
 from enum import auto
 from enum import Enum
+from functools import partial
 from typing import List
+from typing import Type
 
 import colorlog
 import kubernetes
@@ -41,13 +44,17 @@ DEFAULT_KUBERNETES_DISK_REQUEST = "0"  # Kubernetes doesn't schedule based on di
 KUBERNETES_API_CACHE_SIZE = 16
 KUBERNETES_API_CACHE_TTL = 60
 KUBERNETES_API_CACHE = TTLCache(maxsize=KUBERNETES_API_CACHE_SIZE, ttl=KUBERNETES_API_CACHE_TTL)
+VERSION_MATCH_EXPR = re.compile(r"(\W|^)(?P<release>\d+\.\d+(\.\d+)?)(\W|$)")
 logger = colorlog.getLogger(__name__)
 
 
-class CachedCoreV1Api:
-    CACHED_FUNCTION_CALLS = {"list_node", "list_pod_for_all_namespaces"}
+class KubeApiClientWrapper:
+    def __init__(self, kubeconfig_path: str, client_class: Type) -> None:
+        """Init k8s API client
 
-    def __init__(self, kubeconfig_path: str):
+        :param str kubeconfig_path: k8s configuration path
+        :param Type client_class: k8s client class to initialize
+        """
         try:
             kubernetes.config.load_kube_config(kubeconfig_path)
         except TypeError:
@@ -57,7 +64,17 @@ class CachedCoreV1Api:
             logger.error(error_msg)
             raise
 
-        self._client = kubernetes.client.CoreV1Api()
+        self._client = client_class()
+
+    def __getattr__(self, attr):
+        return getattr(self._client, attr)
+
+
+class CachedCoreV1Api(KubeApiClientWrapper):
+    CACHED_FUNCTION_CALLS = {"list_node", "list_pod_for_all_namespaces"}
+
+    def __init__(self, kubeconfig_path: str):
+        super().__init__(kubeconfig_path, kubernetes.client.CoreV1Api)
 
     def __getattr__(self, attr):
         global KUBERNETES_API_CACHE
@@ -82,6 +99,22 @@ class CachedCoreV1Api:
             func = decorator(func)
 
         return func
+
+
+class ConciseCRDApi(KubeApiClientWrapper):
+    def __init__(self, kubeconfig_path: str, group: str, version: str, plural: str) -> None:
+        super().__init__(kubeconfig_path, kubernetes.client.CustomObjectsApi)
+        self.group = group
+        self.version = version
+        self.plural = plural
+
+    def __getattr__(self, attr):
+        return partial(
+            getattr(self._client, attr),
+            group=self.group,
+            version=self.version,
+            plural=self.plural,
+        )
 
 
 class ResourceParser:
@@ -136,6 +169,26 @@ def get_node_ip(node: KubernetesNode) -> str:
         if address.type == "InternalIP":
             return address.address
     raise ValueError('Kubernetes node {node.metadata.name} has no "InternalIP" address')
+
+
+def get_node_kernel_version(node: KubernetesNode) -> str:
+    """Get kernel version from node info
+
+    :param KubernetesNode node: k8s node object
+    :return: kernel version if present
+    """
+    return getattr(node.status.node_info, "kernel_version", "")
+
+
+def get_node_lsbrelease(node: KubernetesNode) -> str:
+    """Get operating system release from node info
+
+    :param KubernetesNode node: k8s node object
+    :return: os release if present
+    """
+    os_image = getattr(node.status.node_info, "os_image", "")
+    m = VERSION_MATCH_EXPR.search(os_image)
+    return m.group("release") if m else ""
 
 
 def total_node_resources(node: KubernetesNode, excluded_pods: List[KubernetesPod]) -> ClustermanResources:

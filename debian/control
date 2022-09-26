@@ -1,9 +1,22 @@
 Source: clusterman
-Maintainer: Distsys Compute <compute-infra@yelp.com>
+Maintainer: Compute Infra <compute-infra@yelp.com>
 Build-Depends:
     dh-virtualenv,
 
 Package: clusterman
-Depends: python3.6, ${misc:Depends}, ${python:Depends}, ${shlibs:Depends}
+Depends:
+    python3.7,
+# unfortunately needed for numpy to work
+    libatlas3-base,
+# needed so that we can grab signals from s3
+# that said, we have an internal fork that conflicts with this
+# once that's gone, we should re-add this (aws-cli vs awscli)
+# instead of adding this with `jammyOrLater:Depends`
+#    awscli,
+    ${misc:Depends},
+    ${python:Depends},
+    ${shlibs:Depends},
+    ${bionicOrLater:Depends},
+    ${jammyOrLater:Depends},
 Architecture: any
-Description: Mesos cluster scaling and management - y/clusterman
+Description: Cluster scaling and management - y/clusterman

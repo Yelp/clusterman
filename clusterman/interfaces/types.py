@@ -24,6 +24,8 @@ class AgentMetadata(NamedTuple):
     state: AgentState = AgentState.UNKNOWN
     task_count: int = 0
     total_resources: ClustermanResources = ClustermanResources()
+    kernel: str = ""
+    lsbrelease: str = ""
 
 
 class InstanceMetadata(NamedTuple):

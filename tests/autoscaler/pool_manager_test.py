@@ -166,11 +166,11 @@ class TestPruneExcessFulfilledCapacity:
     @pytest.fixture
     def mock_nodes_to_prune(self):
         return {
-            "sfr-1": [mock.Mock(instance=mock.Mock(instance_id=1))],
+            "sfr-1": [mock.Mock(instance=mock.Mock(instance_id=1, group_id="sfr-1"))],
             "sfr-3": [
-                mock.Mock(instance=mock.Mock(instance_id=4)),
-                mock.Mock(instance=mock.Mock(instance_id=5)),
-                mock.Mock(instance=mock.Mock(instance_id=6)),
+                mock.Mock(instance=mock.Mock(instance_id=4, group_id="sfr-3")),
+                mock.Mock(instance=mock.Mock(instance_id=5, group_id="sfr-3")),
+                mock.Mock(instance=mock.Mock(instance_id=6, group_id="sfr-3")),
             ],
         }
 
