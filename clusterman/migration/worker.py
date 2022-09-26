@@ -27,6 +27,7 @@ from clusterman.autoscaler.toggle import disable_autoscaling
 from clusterman.autoscaler.toggle import enable_autoscaling
 from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
+from clusterman.kubernetes.util import PodUnschedulableReason
 from clusterman.migration.event import MigrationEvent
 from clusterman.migration.settings import WorkerSetup
 from clusterman.util import limit_function_runtime
@@ -85,7 +86,13 @@ def _monitor_pool_health(
         if (
             draining_happened
             and manager.is_capacity_satisfied()
-            and not (check_pods and connector.get_unschedulable_pods())
+            and not (
+                check_pods
+                and any(
+                    reason == PodUnschedulableReason.InsufficientResources
+                    for _, reason in connector.get_unschedulable_pods()
+                )
+            )
         ):
             return True
         time.sleep(HEALTH_CHECK_INTERVAL_SECONDS)

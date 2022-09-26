@@ -25,6 +25,7 @@ import pytest
 from clusterman.interfaces.types import AgentMetadata
 from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.interfaces.types import InstanceMetadata
+from clusterman.kubernetes.util import PodUnschedulableReason
 from clusterman.migration.settings import MigrationPrecendence
 from clusterman.migration.settings import PoolPortion
 from clusterman.migration.settings import WorkerSetup
@@ -59,7 +60,15 @@ def test_monitor_pool_health(mock_time):
         for i in range(5)
     ]
     mock_manager.is_capacity_satisfied.side_effect = [False, True, True]
-    mock_connector.get_unschedulable_pods.side_effect = [True, False]
+    mock_connector.get_unschedulable_pods.side_effect = [
+        [
+            (MagicMock(), PodUnschedulableReason.Unknown),
+            (MagicMock(), PodUnschedulableReason.InsufficientResources),
+        ],
+        [
+            (MagicMock(), PodUnschedulableReason.Unknown),
+        ],
+    ]
     mock_connector.get_agent_metadata.side_effect = chain(
         (AgentMetadata(agent_id=i) for i in range(3)),
         repeat(AgentMetadata(agent_id="")),
