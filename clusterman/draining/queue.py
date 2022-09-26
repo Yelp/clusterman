@@ -77,7 +77,7 @@ class Host(NamedTuple):
     receipt_handle: str
     agent_id: str = ""
     pool: str = ""
-    termination_reason: TerminationReason = TerminationReason.SCALING_DOWN
+    termination_reason: str = TerminationReason.SCALING_DOWN.value
     draining_start_time: str = arrow.now().for_json()
     scheduler: str = "mesos"
 
@@ -124,6 +124,7 @@ class DrainingClient:
                     "instance_id": instance.instance_id,
                     "ip": instance.ip_address,
                     "pool": pool,
+                    "termination_reason": TerminationReason.SCALING_DOWN.value,
                     "scheduler": scheduler,
                 }
             ),
@@ -149,6 +150,7 @@ class DrainingClient:
                     "ip": host.ip,
                     "pool": host.pool,
                     "scheduler": host.scheduler,
+                    "termination_reason": host.termination_reason,
                 }
             ),
         )
@@ -179,6 +181,7 @@ class DrainingClient:
                     "ip": host.ip,
                     "pool": host.pool,
                     "scheduler": host.scheduler,
+                    "termination_reason": host.termination_reason,
                 }
             ),
         )
@@ -329,9 +332,7 @@ class DrainingClient:
                     default=DEFAULT_DRAINING_TIME_THRESHOLD_SECONDS,
                 )
                 should_resend_to_queue = False
-                disable_eviction = (
-                    True if host_to_process.termination_reason == TerminationReason.SPOT_INTERRUPTION else False
-                )
+                disable_eviction = host_to_process.termination_reason == TerminationReason.SPOT_INTERRUPTION.value
 
                 # Try to drain node; there are a few different possibilities:
                 #  0) Instance is orphan, it should be terminated
@@ -355,8 +356,7 @@ class DrainingClient:
                         # Todo Message can be stay in the queue up to SQS retention period, limit should be added
                         should_resend_to_queue = True
                 else:
-                    # case 3
-                    if k8s_drain(kube_operator_client, host_to_process.agent_id, disable_eviction):
+                    if k8s_drain(kube_operator_client, host_to_process.agent_id, disable_eviction):  # case 3
                         self.submit_host_for_termination(host_to_process, delay=0)
                         should_add_to_cache = True
                     else:  # case 4
@@ -429,7 +429,7 @@ class DrainingClient:
                 logger.info(f"Sending warned host to drain: {host_to_process.hostname}")
                 self.submit_host_for_draining(host_to_process)
             else:
-                logger.info(f"Ignoring warned host because not in our target: {host_to_process.hostname}")
+                logger.info(f"Ignoring warned host because not in our target group: {host_to_process.hostname}")
             self.delete_warning_messages([host_to_process])
 
 
@@ -481,7 +481,7 @@ def host_from_instance_id(
         hostname=hostnames[0],
         group_id=group_ids[0],
         ip=ip,
-        termination_reason=TerminationReason.SPOT_INTERRUPTION,
+        termination_reason=TerminationReason.SPOT_INTERRUPTION.value,
         scheduler=scheduler,
         draining_start_time=arrow.now().for_json(),
     )

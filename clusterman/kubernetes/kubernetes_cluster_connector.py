@@ -176,8 +176,8 @@ class KubernetesClusterConnector(ClusterConnector):
             pods_on_node = [
                 pod for pod in self._list_all_pods_on_node(node_name) if not self._pod_belongs_to_daemonset(pod)
             ]
-            if not self._evict_or_delete_pods(pods_on_node, disable_eviction):
-                logger.info("Some pods couldn't be evicted/deleted")
+            if not self._evict_or_delete_pods(node_name, pods_on_node, disable_eviction):
+                logger.info(f"Some pods couldn't be evicted/deleted on {node_name}")
                 return False
             logger.info(f"Drained {node_name}")
             return True
@@ -268,19 +268,20 @@ class KubernetesClusterConnector(ClusterConnector):
         except Exception as e:
             logger.error(f"Failed creating migration event resource: {e}")
 
-    def _evict_or_delete_pods(self, pods: List[KubernetesPod], disable_eviction: bool) -> bool:
+    def _evict_or_delete_pods(self, node_name: str, pods: List[KubernetesPod], disable_eviction: bool) -> bool:
         all_done = True
-        logger.info(f"{len(pods)} pods being evicted")
+        logger.info(f"{len(pods)} pods being evicted/deleted on {node_name}")
         for pod in pods:
             try:
                 if disable_eviction:
                     self._delete_pod(pod)
                 else:
                     self._evict_pod(pod)
-                logger.info(f"{pod.metadata.name} ({pod.metadata.namespace}) was deleted")
+                logger.info(f"{pod.metadata.name} ({pod.metadata.namespace}) was evicted/deleted on {node_name}")
             except ApiException as e:
                 logger.warning(
-                    f"Failed to evict/delete {pod.metadata.name} ({pod.metadata.namespace}):{e.status}-{e.reason}"
+                    f"Failed to evict/delete {pod.metadata.name} ({pod.metadata.namespace}) on {node_name}"
+                    f":{e.status}-{e.reason}"
                 )
                 all_done = False
 

@@ -70,6 +70,7 @@ def test_submit_instance_for_draining(mock_draining_client):
                 "instance_id": "i123",
                 "ip": "10.1.1.1",
                 "pool": "default",
+                "termination_reason": TerminationReason.SCALING_DOWN.value,
                 "scheduler": "mesos",
             }
         )
@@ -101,6 +102,7 @@ def test_submit_host_for_draining(mock_draining_client):
             agent_id="agt123",
             pool="default",
             draining_start_time=now.for_json(),
+            termination_reason=TerminationReason.SCALING_DOWN.value,
         )
         assert (
             mock_draining_client.submit_host_for_draining(
@@ -119,6 +121,7 @@ def test_submit_host_for_draining(mock_draining_client):
                 "agent_id": "agt123",
                 "pool": "default",
                 "draining_start_time": now.for_json(),
+                "termination_reason": TerminationReason.SCALING_DOWN.value,
             }
         )
         mock_draining_client.client.send_message.assert_called_with(
@@ -183,6 +186,7 @@ def test_submit_host_for_termination(mock_draining_client):
             agent_id="agt123",
             pool="default",
             draining_start_time=now.for_json(),
+            termination_reason=TerminationReason.SCALING_DOWN.value,
         )
         assert (
             mock_draining_client.submit_host_for_termination(
@@ -201,6 +205,7 @@ def test_submit_host_for_termination(mock_draining_client):
                 "ip": "10.1.1.1",
                 "pool": "default",
                 "scheduler": "kubernetes",
+                "termination_reason": TerminationReason.SCALING_DOWN.value,
             }
         )
         mock_draining_client.client.send_message.assert_called_with(
@@ -231,6 +236,7 @@ def test_submit_host_for_termination(mock_draining_client):
                 "ip": "10.1.1.1",
                 "pool": "default",
                 "scheduler": "kubernetes",
+                "termination_reason": TerminationReason.SCALING_DOWN.value,
             }
         )
         mock_draining_client.client.send_message.assert_called_with(
@@ -759,16 +765,15 @@ def test_process_warning_queue(mock_draining_client):
         mock_asg_load_spot.return_value = {}
         mock_get_pools.return_value = ["bar"]
         mock_host = mock.Mock(group_id="sfr-123")
-        mock_kubernetes_client = mock.Mock()
         mock_draining_client.get_warned_host = mock.Mock(return_value=mock_host)
-        mock_draining_client.process_warning_queue(mock_kubernetes_client)
+        mock_draining_client.process_warning_queue()
         assert not mock_submit_host_for_draining.called
         mock_delete_warning_messages.assert_called_with(mock_draining_client, [mock_host])
 
         mock_srf_load_spot.return_value = {"sfr-123": {}}
         mock_host = mock.Mock(group_id="sfr-123")
         mock_draining_client.get_warned_host = mock.Mock(return_value=mock_host)
-        mock_draining_client.process_warning_queue(mock_kubernetes_client)
+        mock_draining_client.process_warning_queue()
         mock_submit_host_for_draining.assert_called_with(mock_draining_client, mock_host)
         mock_delete_warning_messages.assert_called_with(mock_draining_client, [mock_host])
 
@@ -777,7 +782,7 @@ def test_process_warning_queue(mock_draining_client):
         mock_host = mock.Mock(group_id="sfr-123", agent_id="agt123")
         mock_submit_host_for_draining.reset_mock()
         mock_draining_client.get_warned_host = mock.Mock(return_value=mock_host)
-        mock_draining_client.process_warning_queue(mock_kubernetes_client)
+        mock_draining_client.process_warning_queue()
         mock_submit_host_for_draining.assert_called_with(mock_draining_client, mock_host)
         mock_delete_warning_messages.assert_called_with(mock_draining_client, [mock_host])
 
@@ -873,7 +878,7 @@ def test_host_from_instance_id():
             ip="10.1.1.1",
             agent_id="agt123",
             pool="",
-            termination_reason=TerminationReason.SPOT_INTERRUPTION,
+            termination_reason=TerminationReason.SPOT_INTERRUPTION.value,
             draining_start_time=now.for_json(),
         )
 
