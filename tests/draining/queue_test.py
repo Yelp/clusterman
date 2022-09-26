@@ -564,7 +564,6 @@ def test_process_drain_queue(mock_draining_client):
         mock_k8s_drain.assert_called_with(
             mock_kubernetes_client,
             "agt123",
-            False,
         )
         mock_submit_host_for_termination.assert_called_with(mock_draining_client, mock_host, delay=0)
         mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
@@ -618,7 +617,6 @@ def test_process_drain_queue(mock_draining_client):
         mock_k8s_drain.assert_called_with(
             mock_kubernetes_client,
             "agt123",
-            False,
         )
         mock_submit_host_for_termination.assert_called_with(mock_draining_client, mock_host, delay=0)
         mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
@@ -698,7 +696,6 @@ def test_process_drain_queue(mock_draining_client):
         mock_k8s_drain.assert_called_with(
             mock_kubernetes_client,
             "agt123",
-            False,
         )
         mock_submit_host_for_termination.assert_called_with(mock_draining_client, mock_host, delay=0)
         mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])

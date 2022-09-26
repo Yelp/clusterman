@@ -339,7 +339,7 @@ class DrainingClient:
                         # Todo Message can be stay in the queue up to SQS retention period, limit should be added
                         should_resend_to_queue = True
                 else:
-                    if k8s_drain(kube_operator_client, host_to_process.agent_id, disable_eviction=False):  # case 3
+                    if k8s_drain(kube_operator_client, host_to_process.agent_id):  # case 3
                         self.submit_host_for_termination(host_to_process, delay=0)
                         should_add_to_cache = True
                     else:  # case 4
