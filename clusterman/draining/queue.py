@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
+import enum
 import json
 import socket
 import time
@@ -20,6 +21,7 @@ from typing import Dict
 from typing import NamedTuple
 from typing import Optional
 from typing import Sequence
+from typing import Set
 from typing import Type
 
 import arrow
@@ -29,6 +31,7 @@ from botocore.exceptions import ClientError
 
 from clusterman.args import add_cluster_arg
 from clusterman.args import subparser
+from clusterman.aws.auto_scaling_resource_group import AutoScalingResourceGroup
 from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.client import sqs
@@ -54,6 +57,15 @@ DRAIN_CACHE_SECONDS = 1800
 DEFAULT_FORCE_TERMINATION = False
 DEFAULT_DRAIN_REPROCESSING_DELAY_SECONDS = 15
 DEFAULT_DRAINING_TIME_THRESHOLD_SECONDS = 1800
+EC2_FLEET_KEYS = {
+    "aws:ec2spot:fleet-request-id",
+    "aws:ec2:fleet-id",
+}
+
+
+class TerminationReason(enum.Enum):
+    SCALING_DOWN = "scaling down"
+    SPOT_INTERRUPTION = "spot interruption"
 
 
 class Host(NamedTuple):
@@ -65,6 +77,7 @@ class Host(NamedTuple):
     receipt_handle: str
     agent_id: str = ""
     pool: str = ""
+    termination_reason: str = TerminationReason.SCALING_DOWN.value
     draining_start_time: str = arrow.now().for_json()
     scheduler: str = "mesos"
 
@@ -111,6 +124,7 @@ class DrainingClient:
                     "instance_id": instance.instance_id,
                     "ip": instance.ip_address,
                     "pool": pool,
+                    "termination_reason": TerminationReason.SCALING_DOWN.value,
                     "scheduler": scheduler,
                 }
             ),
@@ -136,6 +150,7 @@ class DrainingClient:
                     "ip": host.ip,
                     "pool": host.pool,
                     "scheduler": host.scheduler,
+                    "termination_reason": host.termination_reason,
                 }
             ),
         )
@@ -166,6 +181,7 @@ class DrainingClient:
                     "ip": host.ip,
                     "pool": host.pool,
                     "scheduler": host.scheduler,
+                    "termination_reason": host.termination_reason,
                 }
             ),
         )
@@ -316,6 +332,7 @@ class DrainingClient:
                     default=DEFAULT_DRAINING_TIME_THRESHOLD_SECONDS,
                 )
                 should_resend_to_queue = False
+                disable_eviction = host_to_process.termination_reason == TerminationReason.SPOT_INTERRUPTION.value
 
                 # Try to drain node; there are a few different possibilities:
                 #  0) Instance is orphan, it should be terminated
@@ -339,7 +356,7 @@ class DrainingClient:
                         # Todo Message can be stay in the queue up to SQS retention period, limit should be added
                         should_resend_to_queue = True
                 else:
-                    if k8s_drain(kube_operator_client, host_to_process.agent_id, disable_eviction=False):  # case 3
+                    if k8s_drain(kube_operator_client, host_to_process.agent_id, disable_eviction):  # case 3
                         self.submit_host_for_termination(host_to_process, delay=0)
                         should_add_to_cache = True
                     else:  # case 4
@@ -377,27 +394,42 @@ class DrainingClient:
         host_to_process = self.get_warned_host()
         if host_to_process:
             logger.info(f"Processing spot warning for {host_to_process.hostname}")
-            spot_fleet_resource_groups = []
-            for pool in get_pool_name_list(self.cluster, "mesos"):  # draining only supported for Mesos clusters
+            spot_fleet_resource_groups: Set[str] = set()
+            autoscaling_resource_groups: Set[str] = set()
+            # we do this in two loops since we only use SFRs for Mesos, but we use Spot
+            # ASGs for Kubernetes
+            for pool in get_pool_name_list(self.cluster, "mesos"):
                 pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=pool, scheduler="mesos"))
                 for resource_group_conf in pool_config.read_list("resource_groups"):
-                    spot_fleet_resource_groups.extend(
-                        list(
-                            SpotFleetResourceGroup.load(
-                                cluster=self.cluster,
-                                pool=pool,
-                                config=list(resource_group_conf.values())[0],
-                            ).keys()
-                        )
+                    spot_fleet_resource_groups |= set(
+                        SpotFleetResourceGroup.load(
+                            cluster=self.cluster,
+                            pool=pool,
+                            config=list(resource_group_conf.values())[0],
+                        ).keys()
+                    )
+
+            for pool in get_pool_name_list(self.cluster, "kubernetes"):
+                pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=pool, scheduler="kubernetes"))
+                for resource_group_conf in pool_config.read_list("resource_groups"):
+                    autoscaling_resource_groups |= set(
+                        AutoScalingResourceGroup.load(
+                            cluster=self.cluster,
+                            pool=pool,
+                            config=list(resource_group_conf.values())[0],
+                        ).keys()
                     )
 
             # we should definitely ignore termination warnings that aren't from this
             # cluster or maybe not even paasta instances...
-            if host_to_process.group_id in spot_fleet_resource_groups:
-                logger.info(f"Sending spot warned host to drain: {host_to_process.hostname}")
+            if (
+                host_to_process.group_id in spot_fleet_resource_groups
+                or host_to_process.group_id in autoscaling_resource_groups
+            ):
+                logger.info(f"Sending warned host to drain: {host_to_process.hostname}")
                 self.submit_host_for_draining(host_to_process)
             else:
-                logger.info(f"Ignoring spot warned host because not in our SFRs: {host_to_process.hostname}")
+                logger.info(f"Ignoring warned host because not in our target group: {host_to_process.hostname}")
             self.delete_warning_messages([host_to_process])
 
 
@@ -415,17 +447,17 @@ def host_from_instance_id(
         logger.warning(f"No instance data found for {instance_id}")
         return None
     try:
-        sfr_ids = [tag["Value"] for tag in instance_data[0]["Tags"] if tag["Key"] == "aws:ec2spot:fleet-request-id"]
+        group_ids = [tag["Value"] for tag in instance_data[0]["Tags"] if tag["Key"] in EC2_FLEET_KEYS]
         scheduler = "mesos"
         for tag in instance_data[0]["Tags"]:
             if tag["Key"] == "KubernetesCluster":
                 scheduler = "kubernetes"
                 break
-    except KeyError as e:
-        logger.warning(f"SFR tag key not found: {e}")
-        sfr_ids = []
-    if not sfr_ids:
-        logger.warning(f"No SFR ID found for {instance_id}")
+    except KeyError:
+        logger.exception("Spot tag key not found - is this Spot Fleet/ASG correctly configured?")
+        group_ids = []
+    if not group_ids:
+        logger.warning(f"Not draining {instance_id}: no Spot ID found - is this actually a Spot instance?")
         return None
     try:
         ip = instance_data[0]["PrivateIpAddress"]
@@ -433,17 +465,23 @@ def host_from_instance_id(
         logger.warning(f"No primary IP found for {instance_id}")
         return None
     try:
+        agent_id = instance_data[0]["PrivateDnsName"]
+    except KeyError:
+        logger.warning(f"No DNS name found for {instance_id} - continuing to proceed anyway")
+    try:
         hostnames = socket.gethostbyaddr(ip)
     except socket.error:
         logger.warning(f"Couldn't derive hostname from IP via DNS for {ip}")
         return None
     return Host(
+        agent_id=agent_id,
         sender=sender,
         receipt_handle=receipt_handle,
         instance_id=instance_id,
         hostname=hostnames[0],
-        group_id=sfr_ids[0],
+        group_id=group_ids[0],
         ip=ip,
+        termination_reason=TerminationReason.SPOT_INTERRUPTION.value,
         scheduler=scheduler,
         draining_start_time=arrow.now().for_json(),
     )

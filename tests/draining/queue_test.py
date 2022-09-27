@@ -26,6 +26,7 @@ from clusterman.draining.queue import host_from_instance_id
 from clusterman.draining.queue import main
 from clusterman.draining.queue import process_queues
 from clusterman.draining.queue import terminate_host
+from clusterman.draining.queue import TerminationReason
 
 
 @pytest.fixture
@@ -69,6 +70,7 @@ def test_submit_instance_for_draining(mock_draining_client):
                 "instance_id": "i123",
                 "ip": "10.1.1.1",
                 "pool": "default",
+                "termination_reason": TerminationReason.SCALING_DOWN.value,
                 "scheduler": "mesos",
             }
         )
@@ -100,6 +102,7 @@ def test_submit_host_for_draining(mock_draining_client):
             agent_id="agt123",
             pool="default",
             draining_start_time=now.for_json(),
+            termination_reason=TerminationReason.SCALING_DOWN.value,
         )
         assert (
             mock_draining_client.submit_host_for_draining(
@@ -118,6 +121,7 @@ def test_submit_host_for_draining(mock_draining_client):
                 "agent_id": "agt123",
                 "pool": "default",
                 "draining_start_time": now.for_json(),
+                "termination_reason": TerminationReason.SCALING_DOWN.value,
             }
         )
         mock_draining_client.client.send_message.assert_called_with(
@@ -182,6 +186,7 @@ def test_submit_host_for_termination(mock_draining_client):
             agent_id="agt123",
             pool="default",
             draining_start_time=now.for_json(),
+            termination_reason=TerminationReason.SCALING_DOWN.value,
         )
         assert (
             mock_draining_client.submit_host_for_termination(
@@ -200,6 +205,7 @@ def test_submit_host_for_termination(mock_draining_client):
                 "ip": "10.1.1.1",
                 "pool": "default",
                 "scheduler": "kubernetes",
+                "termination_reason": TerminationReason.SCALING_DOWN.value,
             }
         )
         mock_draining_client.client.send_message.assert_called_with(
@@ -230,6 +236,7 @@ def test_submit_host_for_termination(mock_draining_client):
                 "ip": "10.1.1.1",
                 "pool": "default",
                 "scheduler": "kubernetes",
+                "termination_reason": TerminationReason.SCALING_DOWN.value,
             }
         )
         mock_draining_client.client.send_message.assert_called_with(
@@ -742,7 +749,7 @@ def test_clean_processing_hosts_cache(mock_draining_client):
 
 
 def test_process_warning_queue(mock_draining_client):
-    with mock.patch("clusterman.draining.queue.SpotFleetResourceGroup.load",) as mock_load_spot, mock.patch(
+    with mock.patch("clusterman.draining.queue.SpotFleetResourceGroup.load",) as mock_srf_load_spot, mock.patch(
         "clusterman.draining.queue.DrainingClient.submit_host_for_draining",
         autospec=True,
     ) as mock_submit_host_for_draining, mock.patch(
@@ -751,8 +758,11 @@ def test_process_warning_queue(mock_draining_client):
     ) as mock_delete_warning_messages, mock.patch(
         "clusterman.draining.queue.get_pool_name_list",
         autospec=True,
-    ) as mock_get_pools:
-        mock_load_spot.return_value = {}
+    ) as mock_get_pools, mock.patch(
+        "clusterman.draining.queue.AutoScalingResourceGroup.load",
+    ) as mock_asg_load_spot:
+        mock_srf_load_spot.return_value = {}
+        mock_asg_load_spot.return_value = {}
         mock_get_pools.return_value = ["bar"]
         mock_host = mock.Mock(group_id="sfr-123")
         mock_draining_client.get_warned_host = mock.Mock(return_value=mock_host)
@@ -760,8 +770,17 @@ def test_process_warning_queue(mock_draining_client):
         assert not mock_submit_host_for_draining.called
         mock_delete_warning_messages.assert_called_with(mock_draining_client, [mock_host])
 
-        mock_load_spot.return_value = {"sfr-123": {}}
+        mock_srf_load_spot.return_value = {"sfr-123": {}}
         mock_host = mock.Mock(group_id="sfr-123")
+        mock_draining_client.get_warned_host = mock.Mock(return_value=mock_host)
+        mock_draining_client.process_warning_queue()
+        mock_submit_host_for_draining.assert_called_with(mock_draining_client, mock_host)
+        mock_delete_warning_messages.assert_called_with(mock_draining_client, [mock_host])
+
+        mock_srf_load_spot.return_value = {}
+        mock_asg_load_spot.return_value = {"sfr-123": {}}
+        mock_host = mock.Mock(group_id="sfr-123", agent_id="agt123")
+        mock_submit_host_for_draining.reset_mock()
         mock_draining_client.get_warned_host = mock.Mock(return_value=mock_host)
         mock_draining_client.process_warning_queue()
         mock_submit_host_for_draining.assert_called_with(mock_draining_client, mock_host)
@@ -846,6 +865,7 @@ def test_host_from_instance_id():
         mock_ec2_describe.return_value = [
             {
                 "PrivateIpAddress": "10.1.1.1",
+                "PrivateDnsName": "agt123",
                 "Tags": [{"Key": "aws:ec2spot:fleet-request-id", "Value": "sfr-123"}],
             }
         ]
@@ -856,8 +876,9 @@ def test_host_from_instance_id():
             hostname=mock_gethostbyaddr.return_value[0],
             group_id="sfr-123",
             ip="10.1.1.1",
-            agent_id="",
+            agent_id="agt123",
             pool="",
+            termination_reason=TerminationReason.SPOT_INTERRUPTION.value,
             draining_start_time=now.for_json(),
         )
 
