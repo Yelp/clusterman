@@ -53,6 +53,8 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
 
     POOL_SETTINGS_PARENT = "node_migration"
     MIN_UPTIME_CHURNING_SECONDS = 60 * 60 * 24  # 1 day
+    DEFAULT_MAX_WORKER_PROCESSES = 6
+    DEFAULT_RUN_INTERVAL_SECONDS = 60
 
     @batch_command_line_arguments
     def parse_args(self, parser):
@@ -69,9 +71,11 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
         self.events_in_progress = set()
         self.pools_accepting_events = set()
         self.cluster_connector = KubernetesClusterConnector(self.options.cluster, None, init_crd=True)
-        self.run_interval = staticconf.read_int("batches.node_migration.run_interval_seconds", 60)
-        self.event_visibilty_timeout = staticconf.read_int(
-            "batches.node_migration.event_visibilty_timeout_seconds", 15 * 60
+        self.run_interval = staticconf.read_int(
+            "batches.node_migration.run_interval_seconds", self.DEFAULT_RUN_INTERVAL_SECONDS
+        )
+        self.available_worker_slots = staticconf.read_float(
+            "batches.node_migration.max_worker_processes", self.DEFAULT_MAX_WORKER_PROCESSES
         )
         for pool in get_pool_name_list(self.options.cluster, SUPPORTED_POOL_SCHEDULER):
             load_cluster_pool_config(self.options.cluster, pool, SUPPORTED_POOL_SCHEDULER, None)
@@ -97,19 +101,26 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
             self.logger.exception(f"Bad migration configuration for pool {pool}: {e}")
         return None
 
-    def _spawn_worker(self, label: WorkerProcessLabel, routine: Callable, *args, **kwargs) -> None:
+    def _spawn_worker(self, label: WorkerProcessLabel, routine: Callable, *args, **kwargs) -> bool:
         """Start worker process
 
         :param Callable routine: worker method
         :param *args: method positional argument
         :param **kwargs: method keyword arguments
+        :return: whether the worker process was spawned
         """
         if label in self.migration_workers and self.migration_workers[label].is_alive():
             self.logger.warning(f"Worker labelled {label} already running, skipping")
-            return
+            return False
+        running_workers = sum(proc.is_alive() for proc in self.migration_workers.values())
+        if isinstance(label, MigrationEvent) and running_workers >= self.available_worker_slots:
+            # uptime workers are prioritized skipping this check
+            self.logger.warning(f"Too many worker processes running already ({running_workers}), skipping")
+            return False
         proc = RestartableDaemonProcess(target=routine, args=args, kwargs=kwargs)
         self.migration_workers[label] = proc
         proc.start()
+        return True
 
     def fetch_event_crd(self) -> Collection[MigrationEvent]:
         """Fetch migration events from Kubernetes CRDs"""
@@ -142,13 +153,14 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
             self.mark_event(event, MigrationStatus.SKIPPED)
             return
         self.logger.info(f"Spawning migration worker for event: {event}")
-        self._spawn_worker(
+        if self._spawn_worker(
             label=event,
             routine=event_migration_worker,
             migration_event=event,
             worker_setup=worker_setup,
-        )
-        self.events_in_progress.add(event)
+        ):
+            self.mark_event(event, MigrationStatus.INPROGRESS)
+            self.events_in_progress.add(event)
 
     def spawn_uptime_worker(self, pool: str, uptime: Union[int, str]):
         """Start process monitoring pool node uptime, and recycling nodes accordingly
