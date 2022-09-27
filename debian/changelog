@@ -1,3 +1,9 @@
+clusterman (4.10.6) xenial bionic; urgency=low
+
+  * Enable force delete for kubernetes drain
+
+ -- Ilkin Mammadzada <ilkinmammadzada@yelp.com>  Mon, 26 Sep 2022 06:12:01 -0700
+
 clusterman (4.10.5) xenial bionic; urgency=low
 
   * Build improvements for building on jammy + add missing

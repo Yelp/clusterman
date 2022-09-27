@@ -131,7 +131,7 @@ def test_get_worker_setup(migration_batch):
 @patch("clusterman.batch.node_migration.RestartableDaemonProcess")
 def test_spawn_worker(mock_process, migration_batch, worker_label):
     mock_routine = MagicMock()
-    migration_batch._spawn_worker(worker_label, mock_routine, 1, x=2)
+    assert migration_batch._spawn_worker(worker_label, mock_routine, 1, x=2) is True
     mock_process.assert_called_once_with(target=mock_routine, args=(1,), kwargs={"x": 2})
     assert migration_batch.migration_workers == {worker_label: mock_process.return_value}
 
@@ -139,7 +139,14 @@ def test_spawn_worker(mock_process, migration_batch, worker_label):
 @patch("clusterman.batch.node_migration.RestartableDaemonProcess")
 def test_spawn_worker_existing(mock_process, migration_batch):
     migration_batch.migration_workers["foobar"] = MagicMock(is_alive=lambda: True)
-    migration_batch._spawn_worker("foobar", MagicMock(), 1, x=2)
+    assert migration_batch._spawn_worker("foobar", MagicMock(), 1, x=2) is False
+    mock_process.assert_not_called()
+
+
+@patch("clusterman.batch.node_migration.RestartableDaemonProcess")
+def test_spawn_worker_over_capacity(mock_process, migration_batch):
+    migration_batch.migration_workers = {f"foobar{i}": MagicMock(is_alive=lambda: True) for i in range(6)}
+    assert migration_batch._spawn_worker(MigrationEvent(None, None, None, None, None), MagicMock(), 1, x=2) is False
     mock_process.assert_not_called()
 
 
