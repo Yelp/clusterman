@@ -152,7 +152,6 @@ def test_get_warned_host(mock_draining_client):
         }
         assert mock_draining_client.get_warned_host() is mock_host_from_instance_id.return_value
         mock_host_from_instance_id.assert_called_with(
-            sender="sfr",
             receipt_handle="rcpt",
             instance_id="i-123",
         )
@@ -834,7 +833,6 @@ def test_host_from_instance_id():
         mock_ec2_describe.return_value = []
         assert (
             host_from_instance_id(
-                sender="aws",
                 receipt_handle="rcpt",
                 instance_id="i-123",
             )
@@ -844,7 +842,6 @@ def test_host_from_instance_id():
         mock_ec2_describe.return_value = [{"Tags": [{"Key": "thing", "Value": "bar"}]}]
         assert (
             host_from_instance_id(
-                sender="aws",
                 receipt_handle="rcpt",
                 instance_id="i-123",
             )
@@ -854,7 +851,6 @@ def test_host_from_instance_id():
         mock_ec2_describe.return_value = [{"Tags": [{"Key": "aws:ec2spot:fleet-request-id", "Value": "sfr-123"}]}]
         assert (
             host_from_instance_id(
-                sender="aws",
                 receipt_handle="rcpt",
                 instance_id="i-123",
             )
@@ -869,8 +865,8 @@ def test_host_from_instance_id():
                 "Tags": [{"Key": "aws:ec2spot:fleet-request-id", "Value": "sfr-123"}],
             }
         ]
-        assert host_from_instance_id(sender="aws", receipt_handle="rcpt", instance_id="i-123",) == Host(
-            sender="aws",
+        assert host_from_instance_id(receipt_handle="rcpt", instance_id="i-123",) == Host(
+            sender="sfr",
             receipt_handle="rcpt",
             instance_id="i-123",
             hostname=mock_gethostbyaddr.return_value[0],
@@ -882,10 +878,33 @@ def test_host_from_instance_id():
             draining_start_time=now.for_json(),
         )
 
+        mock_ec2_describe.return_value = [
+            {
+                "PrivateIpAddress": "10.1.1.1",
+                "PrivateDnsName": "agt123",
+                "Tags": [
+                    {"Key": "aws:autoscaling:groupName", "Value": "grp-123"},
+                    {"Key": "KubernetesCluster", "Value": "clstr-123"},
+                ],
+            }
+        ]
+        assert host_from_instance_id(receipt_handle="rcpt", instance_id="i-123",) == Host(
+            sender="asg",
+            receipt_handle="rcpt",
+            instance_id="i-123",
+            hostname=mock_gethostbyaddr.return_value[0],
+            group_id="grp-123",
+            ip="10.1.1.1",
+            agent_id="agt123",
+            pool="",
+            scheduler="kubernetes",
+            termination_reason=TerminationReason.SPOT_INTERRUPTION.value,
+            draining_start_time=now.for_json(),
+        )
+
         mock_gethostbyaddr.side_effect = socket.error
         assert (
             host_from_instance_id(
-                sender="aws",
                 receipt_handle="rcpt",
                 instance_id="i-123",
             )
@@ -897,7 +916,6 @@ def test_host_from_instance_id():
         mock_ec2_describe.return_value = [{"InstanceId": "i-123"}]
         assert (
             host_from_instance_id(
-                sender="aws",
                 receipt_handle="rcpt",
                 instance_id="i-123",
             )
@@ -908,7 +926,6 @@ def test_host_from_instance_id():
         mock_ec2_describe.side_effect = ClientError({}, "")
         assert (
             host_from_instance_id(
-                sender="aws",
                 receipt_handle="rcpt",
                 instance_id="i-123",
             )
