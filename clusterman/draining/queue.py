@@ -291,7 +291,12 @@ class DrainingClient:
                     logger.error(f"Failed to up {hostname_ip} continuing to terminate anyway: {e}")
             elif host_to_terminate.scheduler == "kubernetes":
                 logger.info(f"Kubernetes hosts to delete k8s node and terminate: {host_to_terminate}")
-                terminate_host(host_to_terminate)
+                try:
+                    terminate_host(host_to_terminate)
+                except Exception as e:
+                    logger.exception(f"Failed to terminate {host_to_terminate.instance_id}: {e}")
+                    # we should stop here so as not to delete message from queue
+                    return
             else:
                 logger.info(f"Host to terminate immediately: {host_to_terminate}")
                 terminate_host(host_to_terminate)
