@@ -57,9 +57,9 @@ DRAIN_CACHE_SECONDS = 1800
 DEFAULT_FORCE_TERMINATION = False
 DEFAULT_DRAIN_REPROCESSING_DELAY_SECONDS = 15
 DEFAULT_DRAINING_TIME_THRESHOLD_SECONDS = 1800
-EC2_FLEET_KEYS = {
+EC2_TAG_GROUP_KEYS = {
     "aws:ec2spot:fleet-request-id",
-    "aws:ec2:fleet-id",
+    "aws:autoscaling:groupName",
 }
 
 
@@ -447,7 +447,7 @@ def host_from_instance_id(
         logger.warning(f"No instance data found for {instance_id}")
         return None
     try:
-        group_ids = [tag["Value"] for tag in instance_data[0]["Tags"] if tag["Key"] in EC2_FLEET_KEYS]
+        group_ids = [tag["Value"] for tag in instance_data[0]["Tags"] if tag["Key"] in EC2_TAG_GROUP_KEYS]
         scheduler = "mesos"
         for tag in instance_data[0]["Tags"]:
             if tag["Key"] == "KubernetesCluster":
