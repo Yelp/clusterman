@@ -274,6 +274,15 @@ class KubernetesClusterConnector(ClusterConnector):
         except Exception as e:
             logger.error(f"Failed creating migration event resource: {e}")
 
+    def has_enough_capacity_for_pods(self) -> bool:
+        """Checks whether there are unschedulable pods due to insufficient resources
+
+        :return: True if no unschedulable pods are due to resource constraints
+        """
+        return not any(
+            reason == PodUnschedulableReason.InsufficientResources for _, reason in self.get_unschedulable_pods()
+        )
+
     def _evict_tasks_from_node(self, hostname: str) -> bool:
         all_evicted = True
         pods_to_evict = [

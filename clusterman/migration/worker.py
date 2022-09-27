@@ -27,7 +27,6 @@ from clusterman.autoscaler.toggle import disable_autoscaling
 from clusterman.autoscaler.toggle import enable_autoscaling
 from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
-from clusterman.kubernetes.util import PodUnschedulableReason
 from clusterman.migration.event import MigrationEvent
 from clusterman.migration.settings import WorkerSetup
 from clusterman.util import limit_function_runtime
@@ -73,7 +72,7 @@ def _monitor_pool_health(
     :param PoolManager manager: pool manager instance
     :param float timeout: timestamp after which giving up
     :param Collection[ClusterNodeMetadata] drained: nodes which were submitted for draining
-    :param bool check_pods: check that pods can successfully be schedules
+    :param bool check_pods: check that pods can successfully be scheduled
     :return: true if capacity is fulfilled
     """
     draining_happened = False
@@ -86,13 +85,7 @@ def _monitor_pool_health(
         if (
             draining_happened
             and manager.is_capacity_satisfied()
-            and not (
-                check_pods
-                and any(
-                    reason == PodUnschedulableReason.InsufficientResources
-                    for _, reason in connector.get_unschedulable_pods()
-                )
-            )
+            and (not check_pods or connector.has_enough_capacity_for_pods())
         ):
             return True
         time.sleep(HEALTH_CHECK_INTERVAL_SECONDS)
@@ -157,7 +150,6 @@ def event_migration_worker(migration_event: MigrationEvent, worker_setup: Worker
     :param MigrationEvent migration_event: event instance
     :param WorkerSetup worker_setup: migration setup
     """
-    prescaling_applied = False
     manager = PoolManager(migration_event.cluster, migration_event.pool, SUPPORTED_POOL_SCHEDULER, fetch_state=False)
     connector = cast(KubernetesClusterConnector, manager.cluster_connector)
     connector.set_label_selectors(migration_event.label_selectors, add_to_existing=True)
@@ -175,10 +167,8 @@ def event_migration_worker(migration_event: MigrationEvent, worker_setup: Worker
             nodes = manager.get_node_metadatas(AWS_RUNNING_STATES)
             offset = worker_setup.prescaling.of(len(nodes))
             avg_weight = mean(node.instance.weight for node in nodes)
-            original_capacity = manager.target_capacity
-            prescaled_capacity = round(manager.target_capacity + offset * avg_weight)
+            prescaled_capacity = round(manager.target_capacity + (offset * avg_weight))
             manager.modify_target_capacity(prescaled_capacity)
-            prescaling_applied = True
         if not _monitor_pool_health(
             manager, time.time() + INITIAL_POOL_HEALTH_TIMEOUT_SECONDS, drained=[], check_pods=False
         ):
@@ -191,10 +181,8 @@ def event_migration_worker(migration_event: MigrationEvent, worker_setup: Worker
         logger.error(f"Issue while processing migration event {migration_event}: {e}")
         raise
     finally:
+        # we do not reset the pool target capacity in case of pre-scaling as we
+        # trust the autoscaler to readjust that in a short time eventually
         if worker_setup.disable_autoscaling:
             logger.info(f"Re-enabling autoscaling for {migration_event.cluster}:{migration_event.pool}")
             enable_autoscaling(migration_event.cluster, migration_event.pool, SUPPORTED_POOL_SCHEDULER)
-        if worker_setup.prescaling and prescaling_applied and prescaled_capacity >= manager.target_capacity:
-            # Only restoring original capacity of the target remained equal or lower than
-            # our set target (i.e. the autoscaler didn't have to scale up in the meantime)
-            manager.modify_target_capacity(original_capacity)

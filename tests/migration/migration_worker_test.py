@@ -25,7 +25,6 @@ import pytest
 from clusterman.interfaces.types import AgentMetadata
 from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.interfaces.types import InstanceMetadata
-from clusterman.kubernetes.util import PodUnschedulableReason
 from clusterman.migration.settings import MigrationPrecendence
 from clusterman.migration.settings import PoolPortion
 from clusterman.migration.settings import WorkerSetup
@@ -60,15 +59,7 @@ def test_monitor_pool_health(mock_time):
         for i in range(5)
     ]
     mock_manager.is_capacity_satisfied.side_effect = [False, True, True]
-    mock_connector.get_unschedulable_pods.side_effect = [
-        [
-            (MagicMock(), PodUnschedulableReason.Unknown),
-            (MagicMock(), PodUnschedulableReason.InsufficientResources),
-        ],
-        [
-            (MagicMock(), PodUnschedulableReason.Unknown),
-        ],
-    ]
+    mock_connector.has_enough_capacity_for_pods.side_effect = [False, True]
     mock_connector.get_agent_metadata.side_effect = chain(
         (AgentMetadata(agent_id=i) for i in range(3)),
         repeat(AgentMetadata(agent_id="")),
@@ -170,7 +161,7 @@ def test_event_migration_worker(
     ]
     mock_manager.target_capacity = 19
     event_migration_worker(mock_migration_event, event_worker_setup)
-    mock_manager.modify_target_capacity.assert_has_calls([call(23), call(19)])
+    mock_manager.modify_target_capacity.assert_called_once_with(23)
     mock_disable_scaling.assert_called_once_with("mesos-test", "bar", "kubernetes", 3)
     mock_enable_scaling.assert_called_once_with("mesos-test", "bar", "kubernetes")
     mock_drain_selection.assert_called_once_with(mock_manager, ANY, event_worker_setup)

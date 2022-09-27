@@ -37,6 +37,7 @@ from staticconf.testing import PatchConfiguration
 from clusterman.config import POOL_NAMESPACE
 from clusterman.interfaces.types import AgentState
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
+from clusterman.kubernetes.util import PodUnschedulableReason
 from clusterman.migration.event import MigrationCondition
 from clusterman.migration.event import MigrationEvent
 from clusterman.migration.event_enums import ConditionOperator
@@ -490,3 +491,27 @@ def test_create_node_migration_resource(mock_cluster_connector_crd):
             },
         },
     )
+
+
+@pytest.mark.parametrize(
+    "unschedulable,expected",
+    (
+        (
+            [
+                (mock.MagicMock(), PodUnschedulableReason.Unknown),
+                (mock.MagicMock(), PodUnschedulableReason.InsufficientResources),
+            ],
+            False,
+        ),
+        (
+            [
+                (mock.MagicMock(), PodUnschedulableReason.Unknown),
+            ],
+            True,
+        ),
+    ),
+)
+def test_has_enough_capacity_for_pods(mock_cluster_connector, unschedulable, expected):
+    with mock.patch.object(mock_cluster_connector, "get_unschedulable_pods") as mock_get_unsched:
+        mock_get_unsched.return_value = unschedulable
+        assert mock_cluster_connector.has_enough_capacity_for_pods() is expected
