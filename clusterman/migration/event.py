@@ -105,12 +105,19 @@ class MigrationCondition(NamedTuple):
             ),
         )
 
+    def stringify_target(self) -> str:
+        """Turn condition target into a string"""
+        return ",".join(map(str, self.target)) if isinstance(self.target, list) else str(self.target)
+
     def to_dict(self) -> dict:
         return {
             "trait": self.trait.value,
             "operator": self.operator.value,
-            "target": (",".join(map(str, self.target)) if isinstance(self.target, list) else str(self.target)),
+            "target": self.stringify_target(),
         }
+
+    def __str__(self) -> str:
+        return f"{self.trait.name} {self.operator.value} {self.stringify_target()}"
 
 
 class MigrationEvent(NamedTuple):
@@ -123,6 +130,12 @@ class MigrationEvent(NamedTuple):
     def __hash__(self) -> int:
         """Simplified object hash since resource_name should be unique"""
         return self[:3].__hash__()
+
+    def __str__(self) -> str:
+        return (
+            f"MigrationEvent(cluster={self.cluster}, pool={self.pool},"
+            f" label_selectors={self.label_selectors}, condition=({self.condition}))"
+        )
 
     def to_crd_body(self, labels: Optional[dict] = None) -> dict:
         """Pack event data into a CRD payload
