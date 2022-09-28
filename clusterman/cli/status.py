@@ -80,6 +80,7 @@ class StatusJsonObject(TypedDict):
     target_capacity: float
     non_orphan_fulfilled_capacity: float
     resource_groups: List[ResourceGroupJsonObject]
+    migrations: Collection[MigrationEvent]
 
 
 def _get_agent_json(metadata: ClusterNodeMetadata) -> AgentJsonObject:
