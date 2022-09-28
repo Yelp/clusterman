@@ -224,9 +224,10 @@ class KubernetesClusterConnector(ClusterConnector):
         assert self._migration_crd_api, "CRD client was not initialized"
         try:
             label_filter = ",".join(status.value for status in statuses)
-            resources = self._migration_crd_api.list_cluster_custom_object(
-                label_selector=f"{MIGRATION_CRD_STATUS_LABEL} in ({label_filter})",
-            )
+            label_selector = f"{MIGRATION_CRD_STATUS_LABEL} in ({label_filter})"
+            if self.pool:
+                label_selector += f",{self.pool_label_key}={self.pool}"
+            resources = self._migration_crd_api.list_cluster_custom_object(label_selector=label_selector)
             return set(map(MigrationEvent.from_crd, resources.get("items", [])))
         except Exception as e:
             logger.error(f"Failed fetching migration events: {e}")
@@ -263,7 +264,7 @@ class KubernetesClusterConnector(ClusterConnector):
         """
         assert self._migration_crd_api, "CRD client was not initialized"
         try:
-            body = event.to_crd_body(labels={MIGRATION_CRD_STATUS_LABEL: status.value})
+            body = event.to_crd_body(labels={MIGRATION_CRD_STATUS_LABEL: status.value, self.pool_label_key: event.pool})
             self._migration_crd_api.create_cluster_custom_object(body=body)
         except Exception as e:
             logger.error(f"Failed creating migration event resource: {e}")
