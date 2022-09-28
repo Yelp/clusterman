@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import time
+from collections import defaultdict
+from multiprocessing import Lock
 from typing import Callable
 from typing import Collection
 from typing import Dict
@@ -45,9 +47,6 @@ from clusterman.util import get_pool_name_list
 from clusterman.util import setup_logging
 
 
-WorkerProcessLabel = Union[str, MigrationEvent]
-
-
 class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
     notify_emails = ["compute-infra@yelp.com"]
 
@@ -55,6 +54,10 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
     MIN_UPTIME_CHURNING_SECONDS = 60 * 60 * 24  # 1 day
     DEFAULT_MAX_WORKER_PROCESSES = 6
     DEFAULT_RUN_INTERVAL_SECONDS = 60
+
+    WORKER_LABEL_SEPARATOR = ":"
+    EVENT_WORKER_LABEL_PREFIX = "event"
+    UPTIME_WORKER_LABEL_PREFIX = "uptime"
 
     @batch_command_line_arguments
     def parse_args(self, parser):
@@ -66,10 +69,11 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
     def configure_initial(self):
         setup_config(self.options)
         self.logger = colorlog.getLogger(__name__)
-        self.migration_workers: Dict[WorkerProcessLabel, RestartableDaemonProcess] = {}
+        self.migration_workers: Dict[str, RestartableDaemonProcess] = {}
         self.migration_configs = {}
-        self.events_in_progress = set()
+        self.events_in_progress = {}
         self.pools_accepting_events = set()
+        self.worker_locks = defaultdict(Lock)
         self.cluster_connector = KubernetesClusterConnector(self.options.cluster, None, init_crd=True)
         self.run_interval = staticconf.read_int(
             "batches.node_migration.run_interval_seconds", self.DEFAULT_RUN_INTERVAL_SECONDS
@@ -101,7 +105,26 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
             self.logger.exception(f"Bad migration configuration for pool {pool}: {e}")
         return None
 
-    def _spawn_worker(self, label: WorkerProcessLabel, routine: Callable, *args, **kwargs) -> bool:
+    def _build_worker_label(self, pool: Optional[str] = None, event: Optional[MigrationEvent] = None) -> str:
+        """Composes label for worker process
+
+        :param Optional[str] pool: pool name in case of uptime worker label
+        :param Optional[MigrationEvent] event: event instance in case of event worker label
+        :return: label string
+        """
+        if event:
+            prefix, cluster, pool = self.EVENT_WORKER_LABEL_PREFIX, event.cluster, event.pool
+        elif pool:
+            prefix, cluster = self.UPTIME_WORKER_LABEL_PREFIX, self.options.cluster
+        else:
+            raise ValueError("Either 'pool' or 'event' must be provided as parameter")
+        return self.WORKER_LABEL_SEPARATOR.join((prefix, cluster, pool))
+
+    def _is_event_worker_label(self, label: str) -> bool:
+        """Check if process label is for an event worker"""
+        return label.startswith(self.EVENT_WORKER_LABEL_PREFIX)
+
+    def _spawn_worker(self, label: str, routine: Callable, *args, **kwargs) -> bool:
         """Start worker process
 
         :param Callable routine: worker method
@@ -113,10 +136,12 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
             self.logger.warning(f"Worker labelled {label} already running, skipping")
             return False
         running_workers = sum(proc.is_alive() for proc in self.migration_workers.values())
-        if isinstance(label, MigrationEvent) and running_workers >= self.available_worker_slots:
+        if self._is_event_worker_label(label) and running_workers >= self.available_worker_slots:
             # uptime workers are prioritized skipping this check
             self.logger.warning(f"Too many worker processes running already ({running_workers}), skipping")
             return False
+        lock_key = label.split(self.WORKER_LABEL_SEPARATOR, 1)[1]
+        kwargs["pool_lock"] = self.worker_locks[lock_key]
         proc = RestartableDaemonProcess(target=routine, args=args, kwargs=kwargs)
         self.migration_workers[label] = proc
         proc.start()
@@ -128,7 +153,7 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
         events = self.cluster_connector.list_node_migration_resources(
             [MigrationStatus.PENDING, MigrationStatus.INPROGRESS]
         )
-        return set(events) - self.events_in_progress
+        return set(events) - set(self.events_in_progress.values())
 
     def mark_event(self, event: MigrationEvent, status: MigrationStatus = MigrationStatus.COMPLETED) -> None:
         """Set status for CRD event resource
@@ -153,14 +178,15 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
             self.mark_event(event, MigrationStatus.SKIPPED)
             return
         self.logger.info(f"Spawning migration worker for event: {event}")
+        worker_label = self._build_worker_label(event=event)
         if self._spawn_worker(
-            label=event,
+            label=worker_label,
             routine=event_migration_worker,
             migration_event=event,
             worker_setup=worker_setup,
         ):
             self.mark_event(event, MigrationStatus.INPROGRESS)
-            self.events_in_progress.add(event)
+            self.events_in_progress[worker_label] = event
 
     def spawn_uptime_worker(self, pool: str, uptime: Union[int, str]):
         """Start process monitoring pool node uptime, and recycling nodes accordingly
@@ -180,7 +206,7 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
             return
         self.logger.info(f"Spawning uptime migration worker for {pool} pool")
         self._spawn_worker(
-            label=f"uptime-{self.options.cluster}-{pool}",
+            label=self._build_worker_label(pool=pool),
             routine=uptime_migration_worker,
             cluster=self.options.cluster,
             pool=pool,
@@ -198,9 +224,9 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
                 else:
                     torestart.append(label)
         for label in completed:
-            if isinstance(label, MigrationEvent):
-                self.mark_event(label, MigrationStatus.COMPLETED)
-                self.events_in_progress.discard(label)
+            if self._is_event_worker_label(label):
+                event = self.events_in_progress.pop(label)
+                self.mark_event(event, MigrationStatus.COMPLETED)
             del self.migration_workers[label]
         for label in torestart:
             self.migration_workers[label].restart()
