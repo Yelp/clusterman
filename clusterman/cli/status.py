@@ -13,7 +13,6 @@
 # limitations under the License.
 import argparse
 import sys
-from typing import Collection
 from typing import Iterable
 from typing import List
 from typing import Mapping
@@ -80,7 +79,7 @@ class StatusJsonObject(TypedDict):
     target_capacity: float
     non_orphan_fulfilled_capacity: float
     resource_groups: List[ResourceGroupJsonObject]
-    migrations: Collection[MigrationEvent]
+    migrations: List[MigrationEvent]
 
 
 def _get_agent_json(metadata: ClusterNodeMetadata) -> AgentJsonObject:
@@ -121,15 +120,16 @@ def _get_resource_groups_json(
     ]
 
 
-def _get_migrations(cluster: str, pool: str) -> Collection[MigrationEvent]:
+def _get_migrations(cluster: str, pool: str) -> List[MigrationEvent]:
     """Get node migrations currently in flight for a pool
 
     :param str cluster: cluster name
     :param str pool: pool name:
-    :return: collection of migration events
+    :return: list of migration events
     """
     connector = KubernetesClusterConnector(cluster, pool, init_crd=True)
-    return connector.list_node_migration_resources(statuses=[MigrationStatus.PENDING, MigrationStatus.INPROGRESS])
+    events = connector.list_node_migration_resources(statuses=[MigrationStatus.PENDING, MigrationStatus.INPROGRESS])
+    return list(events)
 
 
 def _status_json(manager: PoolManager, get_node_metadatas: bool, get_migrations: bool = False) -> StatusJsonObject:
@@ -231,12 +231,12 @@ def _write_summary(manager: PoolManager) -> None:
 
 
 def print_status_json(manager: PoolManager, args: argparse.Namespace):
-    status_obj = _status_json(manager, get_node_metadatas=True, get_migrations=args.migrations)
+    status_obj = _status_json(manager, get_node_metadatas=True, get_migrations=args.show_migrations)
     print(json.dumps(status_obj, default=str))
 
 
 def print_status(manager: PoolManager, args: argparse.Namespace) -> None:
-    status_obj = _status_json(manager, get_node_metadatas=args.verbose, get_migrations=args.migrations)
+    status_obj = _status_json(manager, get_node_metadatas=args.verbose, get_migrations=args.show_migrations)
     sys.stdout.write("\n")
     print(f"Current status for the {manager.pool} pool in the {manager.cluster} cluster:\n")
     if status_obj["disabled"]:
@@ -296,7 +296,7 @@ def add_status_parser(subparser, required_named_args, optional_named_args):  # p
         help="Only show information about orphaned instances (instances that are not in the Mesos cluster)",
     )
     optional_named_args.add_argument(
-        "--migrations",
+        "--show-migrations",
         action="store_true",
         help=argparse.SUPPRESS,
         # TODO: enable alongside the "migrate" CLI subcommand

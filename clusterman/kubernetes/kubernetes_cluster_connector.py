@@ -13,10 +13,10 @@
 # limitations under the License.
 import copy
 from collections import defaultdict
-from typing import Collection
 from typing import List
 from typing import Mapping
 from typing import Optional
+from typing import Set
 from typing import Tuple
 
 import arrow
@@ -215,7 +215,7 @@ class KubernetesClusterConnector(ClusterConnector):
             logger.warning(f"Failed to uncordon {node_name}: {e}")
             return False
 
-    def list_node_migration_resources(self, statuses: List[MigrationStatus]) -> Collection[MigrationEvent]:
+    def list_node_migration_resources(self, statuses: List[MigrationStatus]) -> Set[MigrationEvent]:
         """Fetch node migration event resource from k8s CRD
 
         :param List[MigrationStatus] statuses: event status to look for
