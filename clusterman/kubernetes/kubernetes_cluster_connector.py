@@ -13,10 +13,10 @@
 # limitations under the License.
 import copy
 from collections import defaultdict
-from typing import Collection
 from typing import List
 from typing import Mapping
 from typing import Optional
+from typing import Set
 from typing import Tuple
 
 import arrow
@@ -215,7 +215,7 @@ class KubernetesClusterConnector(ClusterConnector):
             logger.warning(f"Failed to uncordon {node_name}: {e}")
             return False
 
-    def list_node_migration_resources(self, statuses: List[MigrationStatus]) -> Collection[MigrationEvent]:
+    def list_node_migration_resources(self, statuses: List[MigrationStatus]) -> Set[MigrationEvent]:
         """Fetch node migration event resource from k8s CRD
 
         :param List[MigrationStatus] statuses: event status to look for
@@ -224,9 +224,10 @@ class KubernetesClusterConnector(ClusterConnector):
         assert self._migration_crd_api, "CRD client was not initialized"
         try:
             label_filter = ",".join(status.value for status in statuses)
-            resources = self._migration_crd_api.list_cluster_custom_object(
-                label_selector=f"{MIGRATION_CRD_STATUS_LABEL} in ({label_filter})",
-            )
+            label_selector = f"{MIGRATION_CRD_STATUS_LABEL} in ({label_filter})"
+            if self.pool:
+                label_selector += f",{self.pool_label_key}={self.pool}"
+            resources = self._migration_crd_api.list_cluster_custom_object(label_selector=label_selector)
             return set(map(MigrationEvent.from_crd, resources.get("items", [])))
         except Exception as e:
             logger.error(f"Failed fetching migration events: {e}")
@@ -263,7 +264,7 @@ class KubernetesClusterConnector(ClusterConnector):
         """
         assert self._migration_crd_api, "CRD client was not initialized"
         try:
-            body = event.to_crd_body(labels={MIGRATION_CRD_STATUS_LABEL: status.value})
+            body = event.to_crd_body(labels={MIGRATION_CRD_STATUS_LABEL: status.value, self.pool_label_key: event.pool})
             self._migration_crd_api.create_cluster_custom_object(body=body)
         except Exception as e:
             logger.error(f"Failed creating migration event resource: {e}")
