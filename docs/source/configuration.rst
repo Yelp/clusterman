@@ -69,7 +69,7 @@ The following is an example configuration file for the core Clusterman service a
 
         node_migration:
             # Maximum number of worker prcesses the batch can spawn
-            # (every worker handle a migration for a pool)
+            # (every worker can handle a single migration for a pool)
             max_worker_processes: 6
 
             # How frequently the batch should check for migration triggers.
