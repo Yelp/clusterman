@@ -25,6 +25,7 @@ from clusterman.interfaces.types import InstanceMetadata
 from clusterman.migration.event import ConditionOperator
 from clusterman.migration.event import ConditionTrait
 from clusterman.migration.event import MigrationCondition
+from clusterman.migration.event import MigrationEvent
 
 
 @pytest.mark.parametrize(

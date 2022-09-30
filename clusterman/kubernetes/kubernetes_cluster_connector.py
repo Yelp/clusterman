@@ -73,7 +73,7 @@ class KubernetesClusterConnector(ClusterConnector):
     _unschedulable_pods: List[KubernetesPod]
     _excluded_pods_by_ip: Mapping[str, List[KubernetesPod]]
     _pods_by_ip: Mapping[str, List[KubernetesPod]]
-    _label_selectors: Collection[str]
+    _label_selectors: List[str]
 
     def __init__(self, cluster: str, pool: Optional[str], init_crd: bool = False) -> None:
         super().__init__(cluster, pool)
@@ -117,10 +117,10 @@ class KubernetesClusterConnector(ClusterConnector):
             else None
         )
 
-    def set_label_selectors(self, label_selectors: Collection[str], add_to_existing: bool = False) -> None:
+    def set_label_selectors(self, label_selectors: List[str], add_to_existing: bool = False) -> None:
         """Set label selectors for node listing purposes
 
-        :param Collection[str] label_selectors: list of selectors (joined with logic and)
+        :param List[str] label_selectors: list of selectors (joined with logic and)
         :param bool add_to_existing: if set add to existing selectors rather than replacing
         """
         self._label_selectors = sorted(
