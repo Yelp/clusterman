@@ -57,6 +57,7 @@ MIGRATION_CRD_GROUP = "clusterman.yelp.com"
 MIGRATION_CRD_VERSION = "v1"
 MIGRATION_CRD_PLURAL = "nodemigrations"
 MIGRATION_CRD_STATUS_LABEL = "clusterman.yelp.com/migration_status"
+NOT_FOUND_STATUS = 404
 # we don't want to block on eviction/deletion as we're potentially evicting/deleting a ton of pods
 # AND there's a delay before we go ahead and terminate
 # AND at Yelp we run a script on shutdown that will also try to drain one final time.
@@ -271,20 +272,22 @@ class KubernetesClusterConnector(ClusterConnector):
 
     def _evict_or_delete_pods(self, node_name: str, pods: List[KubernetesPod], disable_eviction: bool) -> bool:
         all_done = True
-        logger.info(f"{len(pods)} pods being evicted/deleted on {node_name}")
+        action_name = "deleted" if disable_eviction else "evicted"
+        logger.info(f"{len(pods)} pods being {action_name} on {node_name}")
         for pod in pods:
             try:
                 if disable_eviction:
                     self._delete_pod(pod)
                 else:
                     self._evict_pod(pod)
-                logger.info(f"{pod.metadata.name} ({pod.metadata.namespace}) was evicted/deleted on {node_name}")
+                logger.info(f"{pod.metadata.name} ({pod.metadata.namespace}) was {action_name} on {node_name}")
             except ApiException as e:
                 logger.warning(
-                    f"Failed to evict/delete {pod.metadata.name} ({pod.metadata.namespace}) on {node_name}"
+                    f"{pod.metadata.name} ({pod.metadata.namespace}) couldn't be {action_name} on {node_name}"
                     f":{e.status}-{e.reason}"
                 )
-                all_done = False
+                if e.status != NOT_FOUND_STATUS:
+                    all_done = False
 
         return all_done
 
