@@ -449,7 +449,7 @@ def test_list_node_migration_resources(mock_cluster_connector_crd):
         for i in range(3)
     }
     mock_cluster_connector_crd._migration_crd_api.list_cluster_custom_object.assert_called_once_with(
-        label_selector="clusterman.yelp.com/migration_status in (pending,inprogress)",
+        label_selector="clusterman.yelp.com/migration_status in (pending,inprogress),clusterman.com/pool=bar",
     )
 
 
@@ -481,7 +481,10 @@ def test_create_node_migration_resource(mock_cluster_connector_crd):
         body={
             "metadata": {
                 "name": "mesos-test-bar-111222333",
-                "labels": {"clusterman.yelp.com/migration_status": "pending"},
+                "labels": {
+                    "clusterman.yelp.com/migration_status": "pending",
+                    "clusterman.com/pool": "bar",
+                },
             },
             "spec": {
                 "cluster": "mesos-test",

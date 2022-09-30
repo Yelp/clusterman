@@ -97,6 +97,24 @@ def test_condition_to_dict(condition, expected):
     assert condition.to_dict() == expected
 
 
+def test_event_to_string():
+    event = MigrationEvent(
+        resource_name="mesos-test-bar-111222333",
+        cluster="mesos-test",
+        pool="bar",
+        label_selectors=[],
+        condition=MigrationCondition(
+            ConditionTrait.KERNEL,
+            ConditionOperator.IN,
+            [semver.parse_version_info("1.2.3"), semver.parse_version_info("3.4.5")],
+        ),
+    )
+    assert (
+        str(event)
+        == "MigrationEvent(cluster=mesos-test, pool=bar, label_selectors=[], condition=(KERNEL in 1.2.3,3.4.5))"
+    )
+
+
 def test_event_to_crd_body(mock_migration_event):
     assert mock_migration_event.to_crd_body({"foo": "bar"}) == {
         "metadata": {"labels": {"foo": "bar"}, "name": "mesos-test-bar-111222333"},

@@ -57,9 +57,10 @@ DRAIN_CACHE_SECONDS = 1800
 DEFAULT_FORCE_TERMINATION = False
 DEFAULT_DRAIN_REPROCESSING_DELAY_SECONDS = 15
 DEFAULT_DRAINING_TIME_THRESHOLD_SECONDS = 1800
-EC2_FLEET_KEYS = {
+EC2_ASG_TAG_KEY = "aws:autoscaling:groupName"
+EC2_TAG_GROUP_KEYS = {
     "aws:ec2spot:fleet-request-id",
-    "aws:ec2:fleet-id",
+    "aws:autoscaling:groupName",
 }
 
 
@@ -212,7 +213,6 @@ class DrainingClient:
         if messages:
             event_data = json.loads(messages[0]["Body"])
             host = host_from_instance_id(
-                sender=RESOURCE_GROUPS_REV[SpotFleetResourceGroup],
                 receipt_handle=messages[0]["ReceiptHandle"],
                 instance_id=event_data["detail"]["instance-id"],
             )
@@ -291,7 +291,12 @@ class DrainingClient:
                     logger.error(f"Failed to up {hostname_ip} continuing to terminate anyway: {e}")
             elif host_to_terminate.scheduler == "kubernetes":
                 logger.info(f"Kubernetes hosts to delete k8s node and terminate: {host_to_terminate}")
-                terminate_host(host_to_terminate)
+                try:
+                    terminate_host(host_to_terminate)
+                except Exception as e:
+                    logger.exception(f"Failed to terminate {host_to_terminate.instance_id}: {e}")
+                    # we should stop here so as not to delete message from queue
+                    return
             else:
                 logger.info(f"Host to terminate immediately: {host_to_terminate}")
                 terminate_host(host_to_terminate)
@@ -434,7 +439,6 @@ class DrainingClient:
 
 
 def host_from_instance_id(
-    sender: str,
     receipt_handle: str,
     instance_id: str,
 ) -> Optional[Host]:
@@ -447,12 +451,14 @@ def host_from_instance_id(
         logger.warning(f"No instance data found for {instance_id}")
         return None
     try:
-        group_ids = [tag["Value"] for tag in instance_data[0]["Tags"] if tag["Key"] in EC2_FLEET_KEYS]
+        group_ids = [tag["Value"] for tag in instance_data[0]["Tags"] if tag["Key"] in EC2_TAG_GROUP_KEYS]
         scheduler = "mesos"
+        sender = RESOURCE_GROUPS_REV[SpotFleetResourceGroup]
         for tag in instance_data[0]["Tags"]:
             if tag["Key"] == "KubernetesCluster":
                 scheduler = "kubernetes"
-                break
+            if tag["Key"] == EC2_ASG_TAG_KEY:
+                sender = RESOURCE_GROUPS_REV[AutoScalingResourceGroup]
     except KeyError:
         logger.exception("Spot tag key not found - is this Spot Fleet/ASG correctly configured?")
         group_ids = []

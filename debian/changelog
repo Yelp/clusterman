@@ -1,3 +1,15 @@
+clusterman (4.12.0) xenial bionic; urgency=low
+
+  * Add node migration info to status cli command
+
+ -- Matteo Piano <mpiano@yelp.com>  Thu, 29 Sep 2022 01:53:12 -0700
+
+clusterman (4.11.0) xenial bionic; urgency=low
+
+  * Drain warned kubernetes spot instances
+
+ -- Ilkin Mammadzada <ilkinmammadzada@yelp.com>  Wed, 28 Sep 2022 06:12:37 -0700
+
 clusterman (4.10.6) xenial bionic; urgency=low
 
   * Enable force delete for kubernetes drain
