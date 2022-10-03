@@ -89,7 +89,7 @@ class ClustermanResources(NamedTuple):
             gpus=self.gpus - other.gpus,
         )
 
-    def __mul__(self, scalar: float) -> "ClustermanResources":
+    def __mul__(self, scalar: float) -> "ClustermanResources":  # type: ignore
         return ClustermanResources(
             cpus=self.cpus * scalar,
             mem=self.mem * scalar,

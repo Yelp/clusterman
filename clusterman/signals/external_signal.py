@@ -116,7 +116,7 @@ class ExternalSignal(Signal):
             self._signal_conn.send(len_metrics)
             response = self._signal_conn.recv(SOCKET_MESG_SIZE)
             if response != ACK:
-                raise SignalConnectionError(f"Error occurred sending metric length to signal (response={response})")
+                raise SignalConnectionError(f"Error occurred sending metric length to signal (response={response!r})")
 
             # Then send the actual metrics data, broken up into chunks
             for i in range(0, len(metric_bytes), SOCKET_MESG_SIZE):
@@ -124,7 +124,7 @@ class ExternalSignal(Signal):
             response = self._signal_conn.recv(SOCKET_MESG_SIZE)
             ack_bit = response[:1]
             if ack_bit != ACK:
-                raise SignalConnectionError(f"Error occurred sending metric data to signal (response={response})")
+                raise SignalConnectionError(f"Error occurred sending metric data to signal (response={response!r})")
 
             # Sometimes the signal sends the ack and the reponse "too quickly" so when we call
             # recv above it gets both values.  This should handle that case, or call recv again

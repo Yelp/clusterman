@@ -287,7 +287,8 @@ def _merged_breakpoints(
     bp1 = zip_longest(fn1.breakpoints.items(), [], fillvalue=1)
     yprev0, yprev1 = fn0._initial_value, fn1._initial_value
 
-    for (x, y), fnnum in merge(bp0, bp1):
+    for xy_tuple, fnnum in merge(bp0, bp1):
+        x, y = cast(Tuple[XValue[T], float], xy_tuple)
         if fnnum == 0:
             yield x, y, yprev1
             yprev0 = y

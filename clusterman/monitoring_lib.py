@@ -85,7 +85,7 @@ class SignalFXMonitoringClient(MonitoringClient):
         return yelp_meteorite.create_timer(name, *args, **kwargs)
 
 
-class LogCounter(GaugeProtocol):
+class LogCounter(CounterProtocol):
     def __init__(self, name: str) -> None:
         self.name = name
         self.counter = 0

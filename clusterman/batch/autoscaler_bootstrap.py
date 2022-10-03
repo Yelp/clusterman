@@ -16,6 +16,9 @@ import subprocess
 import time
 import traceback
 import xmlrpc.client
+from typing import Any
+from typing import cast
+from typing import Mapping
 
 import colorlog
 from yelp_batch.batch import batch_command_line_arguments
@@ -56,7 +59,10 @@ def wait_for_process(
     while True:
         try:
             states = [
-                rpc.supervisor.getProcessInfo(f"{process_name}:{process_name}_{i}")["statename"]
+                cast(
+                    Mapping[str, Any],
+                    rpc.supervisor.getProcessInfo(f"{process_name}:{process_name}_{i}"),
+                )["statename"]
                 for i in range(num_procs)
             ]
         except OSError:

@@ -17,6 +17,7 @@ from abc import abstractproperty
 from collections import defaultdict
 from socket import gethostbyaddr
 from typing import Any
+from typing import cast
 from typing import Collection
 from typing import List
 from typing import Mapping
@@ -32,6 +33,7 @@ from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.client import InstanceDict
 from clusterman.aws.markets import get_instance_market
 from clusterman.aws.markets import InstanceMarket
+from clusterman.aws.markets import MarketDict
 from clusterman.interfaces.resource_group import InstanceMetadata
 from clusterman.interfaces.resource_group import ResourceGroup
 
@@ -77,7 +79,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
             if state_filter and aws_state not in state_filter:
                 continue
 
-            instance_market = get_instance_market(instance_dict)
+            instance_market = get_instance_market(cast(MarketDict, instance_dict))
             instance_ip = instance_dict.get("PrivateIpAddress")
             hostname = gethostbyaddr(instance_ip)[0] if instance_ip else None
             is_cordoned = self._is_instance_cordoned(instance_dict)
@@ -127,14 +129,16 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
 
         instance_weights = {}
         for instance in ec2_describe_instances(instance_ids):
-            instance_market = get_instance_market(instance)
+            instance_market = get_instance_market(cast(MarketDict, instance))
             if not instance_market.az:
                 logger.warning(
                     f"Instance {instance['InstanceId']} missing AZ info, likely already terminated so skipping",
                 )
                 instance_ids.remove(instance["InstanceId"])
                 continue
-            instance_weights[instance["InstanceId"]] = self.market_weight(get_instance_market(instance))
+            instance_weights[instance["InstanceId"]] = self.market_weight(
+                get_instance_market(cast(MarketDict, instance))
+            )
 
         # AWS API recommends not terminating more than 1000 instances at a time, and to
         # terminate larger numbers in batches
@@ -186,7 +190,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
         """Responses from this API call are cached to prevent hitting any AWS request limits"""
         instance_dict: Mapping[InstanceMarket, List[Mapping]] = defaultdict(list)
         for instance in ec2_describe_instances(self.instance_ids):
-            instance_dict[get_instance_market(instance)].append(instance)
+            instance_dict[get_instance_market(cast(MarketDict, instance))].append(instance)
         return instance_dict
 
     @abstractproperty
@@ -194,7 +198,13 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
         pass
 
     @classmethod
-    def load(cls, cluster: str, pool: str, config: Any, **kwargs: Any) -> Mapping[str, "AWSResourceGroup"]:
+    def load(  # type: ignore
+        cls,
+        cluster: str,
+        pool: str,
+        config: Any,
+        **kwargs: Any,
+    ) -> Mapping[str, "AWSResourceGroup"]:
         """Load a list of corresponding resource groups
 
         :param cluster: a cluster name

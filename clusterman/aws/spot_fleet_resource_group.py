@@ -145,7 +145,7 @@ class SpotFleetResourceGroup(AWSResourceGroup):
         return self._configuration["SpotFleetRequestConfig"]["TargetCapacity"]
 
     @classmethod
-    def load(
+    def load(  # type: ignore
         cls,
         cluster: str,
         pool: str,

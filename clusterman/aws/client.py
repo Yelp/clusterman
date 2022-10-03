@@ -53,6 +53,7 @@ InstanceDict = TypedDict(
         "PrivateIpAddress": str,
         "State": InstanceStateDict,
         "LaunchTime": str,
+        "PrivateDnsName": str,
         "Tags": Sequence[Mapping[str, str]],
     },
 )
