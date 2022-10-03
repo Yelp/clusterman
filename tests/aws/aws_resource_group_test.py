@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import Iterable
+from unittest import mock
 
-import mock
 import pytest
 import simplejson as json
 

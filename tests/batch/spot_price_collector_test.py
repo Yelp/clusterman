@@ -14,9 +14,9 @@
 import argparse
 import datetime
 import socket
+from unittest import mock
 
 import arrow
-import mock
 import pytest
 from clusterman_metrics import METADATA
 

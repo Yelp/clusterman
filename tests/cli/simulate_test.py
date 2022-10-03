@@ -13,8 +13,8 @@
 # limitations under the License.
 from argparse import ArgumentError
 from argparse import Namespace
+from unittest import mock
 
-import mock
 import pytest
 
 from clusterman.cli.simulate import main

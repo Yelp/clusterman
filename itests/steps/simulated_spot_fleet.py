@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from collections import defaultdict
+from unittest import mock
 
 import arrow
 import behave
-import mock
 from hamcrest import assert_that
 from hamcrest import close_to
 from hamcrest import equal_to

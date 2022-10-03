@@ -1,5 +1,6 @@
+from unittest import mock
+
 import arrow
-import mock
 import pytest
 import staticconf
 from clusterman_metrics import APP_METRICS

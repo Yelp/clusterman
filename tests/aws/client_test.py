@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
+from unittest import mock
+from unittest.mock import call
 
-import mock
 import pytest
-from mock import call
 
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.client import MAX_PAGE_SIZE

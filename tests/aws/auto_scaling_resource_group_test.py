@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+from unittest import mock
 
-import mock
 import pytest
 
 from clusterman.aws.auto_scaling_resource_group import AutoScalingResourceGroup

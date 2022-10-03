@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from datetime import timedelta
+from unittest import mock
 
 import arrow
-import mock
 import pytest
 
 from clusterman.aws.markets import InstanceMarket

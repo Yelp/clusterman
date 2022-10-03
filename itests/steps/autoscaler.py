@@ -13,9 +13,9 @@
 # limitations under the License.
 import time
 from decimal import Decimal
+from unittest import mock
 
 import behave
-import mock
 import staticconf.testing
 from hamcrest import assert_that
 from hamcrest import equal_to

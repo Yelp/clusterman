@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from unittest import mock
+
 import arrow
-import mock
 
 from clusterman.common.sfx import Aggregation
 from clusterman.tools.signalfx_scraper import get_parser

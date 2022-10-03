@@ -13,8 +13,8 @@
 # limitations under the License.
 import argparse
 import socket
+from unittest import mock
 
-import mock
 import pytest
 from clusterman_metrics import ClustermanMetricsBotoClient
 
