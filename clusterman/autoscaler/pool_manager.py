@@ -84,12 +84,13 @@ class PoolManager:
         if fetch_state:
             self.reload_state()
 
-    def reload_state(self) -> None:
+    def reload_state(self, **cluster_connector_kwargs) -> None:
         """Fetch any state that may have changed behind our back, but which we do not want to change during an
         ``Autoscaler.run()``.
         """
         logger.info("Reloading cluster connector state")
-        self.cluster_connector.reload_state()
+        # TODO: update mypy to avoid having to ignore this error (CLUSTERMAN-692)
+        self.cluster_connector.reload_state(**cluster_connector_kwargs)  # type: ignore
 
         logger.info("Reloading resource groups")
         self._reload_resource_groups()

@@ -89,7 +89,7 @@ class KubernetesClusterConnector(ClusterConnector):
             pool_label_selector = self.pool_config.read_string("pool_label_key", default="clusterman.com/pool")
             self._label_selectors.append(f"{pool_label_selector}={self.pool}")
 
-    def reload_state(self) -> None:
+    def reload_state(self, load_pods_info: bool = True) -> None:
         logger.info("Reloading nodes")
 
         self.reload_client()
@@ -98,11 +98,9 @@ class KubernetesClusterConnector(ClusterConnector):
         self._prev_nodes_by_ip = copy.deepcopy(self._nodes_by_ip)
         self._nodes_by_ip = self._get_nodes_by_ip()
         logger.info("Reloading pods")
-        (
-            self._pods_by_ip,
-            self._unschedulable_pods,
-            self._excluded_pods_by_ip,
-        ) = self._get_pods_info()
+        (self._pods_by_ip, self._unschedulable_pods, self._excluded_pods_by_ip,) = (
+            self._get_pods_info() if load_pods_info else ({}, [], {})
+        )
 
     def reload_client(self) -> None:
         self._core_api = CachedCoreV1Api(self.kubeconfig_path)

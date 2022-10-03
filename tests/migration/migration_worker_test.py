@@ -108,6 +108,7 @@ def test_drain_node_selection(mock_monitor, mock_time):
                     ClusterNodeMetadata(AgentMetadata(agent_id=5, task_count=20), InstanceMetadata(None, None)),
                     ClusterNodeMetadata(AgentMetadata(agent_id=4, task_count=22), InstanceMetadata(None, None)),
                 ],
+                False,
             ),
             call(
                 mock_manager,
@@ -115,6 +116,7 @@ def test_drain_node_selection(mock_monitor, mock_time):
                 [
                     ClusterNodeMetadata(AgentMetadata(agent_id=3, task_count=24), InstanceMetadata(None, None)),
                 ],
+                False,
             ),
         ]
     )
