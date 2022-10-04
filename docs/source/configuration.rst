@@ -67,6 +67,14 @@ The following is an example configuration file for the core Clusterman service a
             # How frequently the batch should run to collect metrics.
             run_interval_seconds: 60
 
+        node_migration:
+            # Maximum number of worker prcesses the batch can spawn
+            # (every worker can handle a single migration for a pool)
+            max_worker_processes: 6
+
+            # How frequently the batch should check for migration triggers.
+            run_interval_seconds: 60
+
     clusters:
         cluster-name:
             aws_region: us-west-2
@@ -153,6 +161,18 @@ The following is an example configuration file for a particular Clusterman pool:
             - paramA: 'typeA'
             - paramB: 10
 
+    node_migration:
+        trigger:
+            max_uptime: 90d
+            event: true
+        strategy:
+            rate: 5
+            prescaling: '2%'
+            precedence: highest_uptime
+            bootstrap_wait: 5m
+            bootstrap_timeout: 15m
+        disable_autoscaling: false
+        expected_duration: 2h
 
 The ``resource-groups`` section provides information for loading resource groups in the pool manager.
 
@@ -166,6 +186,11 @@ not present, then the ``autoscale_signal`` from the service configuration will b
 
 For required metrics, there can be any number of sections, each defining one desired metric.  The metric type must be
 one of :ref:`metric_types`.
+
+The ``node_migration`` section contains settings controlling how Clusterman should be recycling nodes
+inside the pool. Enabling this configuration is useful for keeping the average uptime of your pool low and/or
+be able to perform adhoc migrations of the nodes according to some conditional parameter.
+See :ref:`node_migration_configuration` for all details.
 
 Reloading
 ---------
