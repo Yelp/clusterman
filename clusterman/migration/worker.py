@@ -66,27 +66,27 @@ class NodeMigrationError(Exception):
 
 
 def _monitor_pool_health(
-    manager: PoolManager, timeout: float, drained: Collection[ClusterNodeMetadata], check_pods: bool = True
+    manager: PoolManager, timeout: float, drained: Collection[ClusterNodeMetadata], ignore_pod_health: bool = False
 ) -> bool:
     """Monitor pool health after nodes were submitted for draining
 
     :param PoolManager manager: pool manager instance
     :param float timeout: timestamp after which giving up
     :param Collection[ClusterNodeMetadata] drained: nodes which were submitted for draining
-    :param bool check_pods: check that pods can successfully be scheduled
+    :param bool ignore_pod_health: If set, do not check that pods can successfully be scheduled
     :return: true if capacity is fulfilled
     """
     draining_happened = False
     connector = cast(KubernetesClusterConnector, manager.cluster_connector)
     while time.time() < timeout:
-        manager.reload_state()
+        manager.reload_state(load_pods_info=not ignore_pod_health)
         draining_happened = draining_happened or not any(
             node.agent.agent_id == connector.get_agent_metadata(node.instance.ip_address).agent_id for node in drained
         )
         if (
             draining_happened
             and manager.is_capacity_satisfied()
-            and (not check_pods or connector.has_enough_capacity_for_pods())
+            and (ignore_pod_health or connector.has_enough_capacity_for_pods())
         ):
             return True
         time.sleep(HEALTH_CHECK_INTERVAL_SECONDS)
@@ -114,7 +114,9 @@ def _drain_node_selection(
             logger.info(f"Recycling node {node.instance.instance_id}")
             manager.submit_for_draining(node)
         time.sleep(worker_setup.bootstrap_wait)
-        if not _monitor_pool_health(manager, start_time + worker_setup.bootstrap_timeout, selection_chunk):
+        if not _monitor_pool_health(
+            manager, start_time + worker_setup.bootstrap_timeout, selection_chunk, worker_setup.ignore_pod_health
+        ):
             logger.warning(
                 f"Pool {manager.cluster}:{manager.pool} did not come back"
                 " to desired capacity, stopping selection draining"
@@ -145,7 +147,7 @@ def uptime_migration_worker(
         else:
             logger.warning(f"Pool {cluster}:{pool} is currently underprovisioned, skipping uptime migration iteration")
         time.sleep(UPTIME_CHECK_INTERVAL_SECONDS)
-        manager.reload_state()
+        manager.reload_state(load_pods_info=not worker_setup.ignore_pod_health)
 
 
 def event_migration_worker(migration_event: MigrationEvent, worker_setup: WorkerSetup, pool_lock: LockBase) -> None:
@@ -158,7 +160,7 @@ def event_migration_worker(migration_event: MigrationEvent, worker_setup: Worker
     manager = PoolManager(migration_event.cluster, migration_event.pool, SUPPORTED_POOL_SCHEDULER, fetch_state=False)
     connector = cast(KubernetesClusterConnector, manager.cluster_connector)
     connector.set_label_selectors(migration_event.label_selectors, add_to_existing=True)
-    manager.reload_state()
+    manager.reload_state(load_pods_info=not worker_setup.ignore_pod_health)
     try:
         pool_lock.acquire(timeout=worker_setup.expected_duration)
         pool_lock_acquired = True
@@ -177,7 +179,10 @@ def event_migration_worker(migration_event: MigrationEvent, worker_setup: Worker
             prescaled_capacity = round(manager.target_capacity + (offset * avg_weight))
             manager.modify_target_capacity(prescaled_capacity)
         if not _monitor_pool_health(
-            manager, time.time() + INITIAL_POOL_HEALTH_TIMEOUT_SECONDS, drained=[], check_pods=False
+            manager,
+            time.time() + INITIAL_POOL_HEALTH_TIMEOUT_SECONDS,
+            drained=[],
+            ignore_pod_health=True,
         ):
             raise NodeMigrationError(f"Pool {migration_event.cluster}:{migration_event.pool} is not healthy")
         node_selector = lambda node: node.agent.agent_id and not migration_event.condition.matches(node)  # noqa

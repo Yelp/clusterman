@@ -56,7 +56,7 @@ class SimulatedPoolManager(PoolManager):
             MAX_MIN_NODE_SCALEIN_UPTIME_SECONDS,
         )
 
-    def reload_state(self) -> None:
+    def reload_state(self, **cluster_connector_kwargs) -> None:
         pass
 
     def get_node_metadatas(

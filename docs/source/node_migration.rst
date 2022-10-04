@@ -42,6 +42,8 @@ The allowed values for the migration settings are as follows:
 
 * ``disable_autoscaling``: turn off autoscaler while recycling instances (false by default).
 
+* ``ignore_pod_health``: avoid loading and checking pod information to determine pool health (false by default).
+
 * ``expected_duration``: estimated duration for migration of the whole pool; human readable time string (1 day by default).
 
 See :ref:`pool_configuration` for how an example configuration block would look like.

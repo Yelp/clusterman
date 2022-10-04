@@ -94,7 +94,7 @@ class KubernetesClusterConnector(ClusterConnector):
             )
             self._label_selectors.append(f"{node_label_selector}={self.pool}")
 
-    def reload_state(self) -> None:
+    def reload_state(self, load_pods_info: bool = True) -> None:
         logger.info("Reloading nodes")
 
         self.reload_client()
@@ -102,12 +102,15 @@ class KubernetesClusterConnector(ClusterConnector):
         # store the previous _nodes_by_ip for use in get_removed_nodes_before_last_reload()
         self._prev_nodes_by_ip = copy.deepcopy(self._nodes_by_ip)
         self._nodes_by_ip = self._get_nodes_by_ip()
-        logger.info("Reloading pods")
-        (self._pods_by_ip, self._unschedulable_pods, self._excluded_pods_by_ip,) = (
-            self._get_pods_info_with_label()
-            if self.pool_config.read_bool("use_labels_for_pods", default=False)
-            else self._get_pods_info()
-        )
+        if load_pods_info:
+            logger.info("Reloading pods")
+            self._pods_by_ip, self._unschedulable_pods, self._excluded_pods_by_ip = (
+                self._get_pods_info_with_label()
+                if self.pool_config.read_bool("use_labels_for_pods", default=False)
+                else self._get_pods_info()
+            )
+        else:
+            self._pods_by_ip, self._unschedulable_pods, self._excluded_pods_by_ip = ({}, [], {})
 
     def reload_client(self) -> None:
         self._core_api = CachedCoreV1Api(self.kubeconfig_path)

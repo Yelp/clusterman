@@ -78,6 +78,7 @@ class WorkerSetup(NamedTuple):
     bootstrap_timeout: float
     disable_autoscaling: bool
     expected_duration: float
+    ignore_pod_health: bool = False
 
     @classmethod
     def from_config(cls, config: dict) -> "WorkerSetup":
@@ -90,4 +91,5 @@ class WorkerSetup(NamedTuple):
             bootstrap_timeout=parse_time_interval_seconds(strat_conf.get("bootstrap_timeout", DEFAULT_NODE_BOOT_WAIT)),
             disable_autoscaling=config.get("disable_autoscaling", False),
             expected_duration=parse_time_interval_seconds(config.get("expected_duration", DEFAULT_WORKER_TIMEOUT)),
+            ignore_pod_health=config.get("ignore_pod_health", False),
         )
