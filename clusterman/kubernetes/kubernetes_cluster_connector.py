@@ -94,11 +94,11 @@ class KubernetesClusterConnector(ClusterConnector):
         self._prev_nodes_by_ip = copy.deepcopy(self._nodes_by_ip)
         self._nodes_by_ip = self._get_nodes_by_ip()
         logger.info("Reloading pods")
-        (
-            self._pods_by_ip,
-            self._unschedulable_pods,
-            self._excluded_pods_by_ip,
-        ) = self._get_pods_info()
+        (self._pods_by_ip, self._unschedulable_pods, self._excluded_pods_by_ip,) = (
+            self._get_pods_info_with_label()
+            if self.pool_config.read_bool("use_labels_for_pods", default=False)
+            else self._get_pods_info()
+        )
 
     def reload_client(self) -> None:
         self._core_api = CachedCoreV1Api(self.kubeconfig_path)
@@ -403,14 +403,13 @@ class KubernetesClusterConnector(ClusterConnector):
         return True
 
     def _get_nodes_by_ip(self) -> Mapping[str, KubernetesNode]:
-        pool_label_selector = self.pool_config.read_string("pool_label_key", default="clusterman.com/pool")
-        pool_nodes = self._core_api.list_node().items
-
-        return {
-            get_node_ip(node): node
-            for node in pool_nodes
-            if not self.pool or node.metadata.labels.get(pool_label_selector, None) == self.pool
-        }
+        # TODO(CLUSTERMAN-659): Switch to using just pool_label_key once the new node labels are applied everywhere
+        node_label_selector = self.pool_config.read_string(
+            "node_label_key", default=self.pool_config.read_string("pool_label_key", default="clusterman.com/pool")
+        )
+        label_selector = f"{node_label_selector}={self.pool}"
+        pool_nodes = self._core_api.list_node(label_selector=label_selector).items
+        return {get_node_ip(node): node for node in pool_nodes}
 
     def _get_pods_info(
         self,
@@ -434,6 +433,30 @@ class KubernetesClusterConnector(ClusterConnector):
                     unschedulable_pods.append(pod)
                 else:
                     logger.info(f"Skipping {pod.metadata.name} pod ({pod.status.phase})")
+        return pods_by_ip, unschedulable_pods, excluded_pods_by_ip
+
+    def _get_pods_info_with_label(
+        self,
+    ) -> Tuple[Mapping[str, List[KubernetesPod]], List[KubernetesPod], Mapping[str, List[KubernetesPod]],]:
+        pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
+        unschedulable_pods: List[KubernetesPod] = []
+        excluded_pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
+
+        exclude_daemonset_pods = self.pool_config.read_bool(
+            "exclude_daemonset_pods",
+            default=staticconf.read_bool("exclude_daemonset_pods", default=False),
+        )
+        label_selector = f"{self.pool_label_key}={self.pool}"
+
+        for pod in self._core_api.list_pod_for_all_namespaces(label_selector=label_selector).items:
+            if exclude_daemonset_pods and self._pod_belongs_to_daemonset(pod):
+                excluded_pods_by_ip[pod.status.host_ip].append(pod)
+            elif pod.status.phase == "Running" or self._is_recently_scheduled(pod):
+                pods_by_ip[pod.status.host_ip].append(pod)
+            elif self._is_unschedulable(pod):
+                unschedulable_pods.append(pod)
+            else:
+                logger.info(f"Skipping {pod.metadata.name} pod ({pod.status.phase})")
         return pods_by_ip, unschedulable_pods, excluded_pods_by_ip
 
     def _count_batch_tasks(self, node_ip: str) -> int:
