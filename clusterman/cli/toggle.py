@@ -22,14 +22,14 @@ from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_pool_arg
 from clusterman.args import add_scheduler_arg
 from clusterman.args import subparser
-from clusterman.aws.client import dynamodb
+from clusterman.autoscaler.toggle import disable_autoscaling
+from clusterman.autoscaler.toggle import enable_autoscaling
 from clusterman.aws.client import sts
 from clusterman.cli.util import timeout_wrapper
 from clusterman.exceptions import AccountNumberMistmatchError
-from clusterman.util import AUTOSCALER_PAUSED
 from clusterman.util import autoscaling_is_paused
-from clusterman.util import CLUSTERMAN_STATE_TABLE
 from clusterman.util import parse_time_string
+
 
 logger = colorlog.getLogger(__name__)
 
@@ -48,24 +48,11 @@ def ensure_account_id(cluster) -> None:
 @timeout_wrapper
 def disable(args: argparse.Namespace) -> None:
     ensure_account_id(args.cluster)
-
-    state = {
-        "state": {"S": AUTOSCALER_PAUSED},
-        "entity": {"S": f"{args.cluster}.{args.pool}.{args.scheduler}"},
-        "timestamp": {"N": str(int(time.time()))},
-    }
-
     if not args.until:
         print("Default has changed; autoscaler will be re-enabled in 30m since no --until flag was used.")
         args.until = "30m"
 
-    if args.until:
-        state["expiration_timestamp"] = {"N": str(parse_time_string(args.until).timestamp)}
-
-    dynamodb.put_item(
-        TableName=staticconf.read("aws.state_table", default=CLUSTERMAN_STATE_TABLE),
-        Item=state,
-    )
+    disable_autoscaling(args.cluster, args.pool, args.scheduler, args.until)
 
     time.sleep(1)  # Give DynamoDB some time to settle
 
@@ -86,14 +73,7 @@ def disable(args: argparse.Namespace) -> None:
 @timeout_wrapper
 def enable(args: argparse.Namespace) -> None:
     ensure_account_id(args.cluster)
-
-    dynamodb.delete_item(
-        TableName=staticconf.read("aws.state_table", default=CLUSTERMAN_STATE_TABLE),
-        Key={
-            "state": {"S": AUTOSCALER_PAUSED},
-            "entity": {"S": f"{args.cluster}.{args.pool}.{args.scheduler}"},
-        },
-    )
+    enable_autoscaling(args.cluster, args.pool, args.scheduler)
     time.sleep(1)  # Give DynamoDB some time to settle
     now = parse_time_string("now").to("local")
     if autoscaling_is_paused(args.cluster, args.pool, args.scheduler, now):

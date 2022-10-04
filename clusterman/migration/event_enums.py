@@ -15,6 +15,16 @@ import enum
 import operator
 from typing import Any
 from typing import Collection
+from typing import Union
+
+import packaging.version
+import semver
+
+from clusterman.interfaces.types import ClusterNodeMetadata
+
+
+ComparableVersion = Union[semver.VersionInfo, packaging.version.Version]
+ComparableConditionTarget = Union[str, int, ComparableVersion]
 
 
 class MigrationStatus(enum.Enum):
@@ -29,6 +39,14 @@ class ConditionTrait(enum.Enum):
     LSBRELEASE = "lsbrelease"
     INSTANCE_TYPE = "instance_type"
     UPTIME = "uptime"
+
+    def get_from(self, node: ClusterNodeMetadata) -> ComparableConditionTarget:
+        """Get trait value from node metadata
+
+        :param ClusterNodeMetadata node: node metadata
+        :return: value
+        """
+        return CONDITION_TRAIT_GETTERS[self](node)
 
 
 class ConditionOperator(enum.Enum):
@@ -70,4 +88,11 @@ CONDITION_OPERATOR_SUPPORT_MATRIX = {
         ConditionOperator.NOTIN,
     },
     ConditionTrait.UPTIME: {ConditionOperator.GT, ConditionOperator.GE, ConditionOperator.LT, ConditionOperator.LE},
+}
+
+CONDITION_TRAIT_GETTERS = {
+    ConditionTrait.KERNEL: lambda node: semver.VersionInfo.parse(node.agent.kernel),
+    ConditionTrait.LSBRELEASE: lambda node: packaging.version.parse(node.agent.lsbrelease),
+    ConditionTrait.INSTANCE_TYPE: lambda node: node.instance.market.instance,
+    ConditionTrait.UPTIME: lambda node: node.instance.uptime.total_seconds(),
 }

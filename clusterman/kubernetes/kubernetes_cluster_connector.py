@@ -74,6 +74,7 @@ class KubernetesClusterConnector(ClusterConnector):
     _unschedulable_pods: List[KubernetesPod]
     _excluded_pods_by_ip: Mapping[str, List[KubernetesPod]]
     _pods_by_ip: Mapping[str, List[KubernetesPod]]
+    _label_selectors: List[str]
 
     def __init__(self, cluster: str, pool: Optional[str], init_crd: bool = False) -> None:
         super().__init__(cluster, pool)
@@ -84,6 +85,14 @@ class KubernetesClusterConnector(ClusterConnector):
         )
         self._nodes_by_ip = {}
         self._init_crd_client = init_crd
+        self._label_selectors = []
+        if self.pool:
+            # TODO(CLUSTERMAN-659): Switch to using just pool_label_key once the new node labels are applied everywhere
+            node_label_selector = self.pool_config.read_string(
+                "node_label_key",
+                default=self.pool_config.read_string("pool_label_key", default="clusterman.com/pool"),
+            )
+            self._label_selectors.append(f"{node_label_selector}={self.pool}")
 
     def reload_state(self) -> None:
         logger.info("Reloading nodes")
@@ -111,6 +120,16 @@ class KubernetesClusterConnector(ClusterConnector):
             )
             if self._init_crd_client
             else None
+        )
+
+    def set_label_selectors(self, label_selectors: List[str], add_to_existing: bool = False) -> None:
+        """Set label selectors for node listing purposes
+
+        :param List[str] label_selectors: list of selectors (joined with logic and)
+        :param bool add_to_existing: if set add to existing selectors rather than replacing
+        """
+        self._label_selectors = sorted(
+            (set(self._label_selectors) | set(label_selectors)) if add_to_existing else set(label_selectors)
         )
 
     def get_num_removed_nodes_before_last_reload(self) -> int:
@@ -270,6 +289,15 @@ class KubernetesClusterConnector(ClusterConnector):
         except Exception as e:
             logger.error(f"Failed creating migration event resource: {e}")
 
+    def has_enough_capacity_for_pods(self) -> bool:
+        """Checks whether there are unschedulable pods due to insufficient resources
+
+        :return: True if no unschedulable pods are due to resource constraints
+        """
+        return not any(
+            reason == PodUnschedulableReason.InsufficientResources for _, reason in self.get_unschedulable_pods()
+        )
+
     def _evict_or_delete_pods(self, node_name: str, pods: List[KubernetesPod], disable_eviction: bool) -> bool:
         all_done = True
         action_name = "deleted" if disable_eviction else "evicted"
@@ -403,12 +431,8 @@ class KubernetesClusterConnector(ClusterConnector):
         return True
 
     def _get_nodes_by_ip(self) -> Mapping[str, KubernetesNode]:
-        # TODO(CLUSTERMAN-659): Switch to using just pool_label_key once the new node labels are applied everywhere
-        node_label_selector = self.pool_config.read_string(
-            "node_label_key", default=self.pool_config.read_string("pool_label_key", default="clusterman.com/pool")
-        )
-        label_selector = f"{node_label_selector}={self.pool}"
-        pool_nodes = self._core_api.list_node(label_selector=label_selector).items
+        kwargs = {"label_selector": ",".join(self._label_selectors)} if self._label_selectors else {}
+        pool_nodes = self._core_api.list_node(**kwargs).items
         return {get_node_ip(node): node for node in pool_nodes}
 
     def _get_pods_info(

@@ -15,6 +15,7 @@ import time
 from datetime import timedelta
 from itertools import chain
 from itertools import repeat
+from unittest.mock import ANY
 from unittest.mock import call
 from unittest.mock import MagicMock
 from unittest.mock import patch
@@ -29,8 +30,22 @@ from clusterman.migration.settings import PoolPortion
 from clusterman.migration.settings import WorkerSetup
 from clusterman.migration.worker import _drain_node_selection
 from clusterman.migration.worker import _monitor_pool_health
+from clusterman.migration.worker import event_migration_worker
 from clusterman.migration.worker import RestartableDaemonProcess
 from clusterman.migration.worker import uptime_migration_worker
+
+
+@pytest.fixture
+def event_worker_setup():
+    yield WorkerSetup(
+        rate=PoolPortion(2),
+        prescaling=PoolPortion(1),
+        precedence=MigrationPrecendence.TASK_COUNT,
+        bootstrap_wait=1,
+        bootstrap_timeout=2,
+        disable_autoscaling=True,
+        expected_duration=3,
+    )
 
 
 @patch("clusterman.migration.worker.time")
@@ -44,7 +59,7 @@ def test_monitor_pool_health(mock_time):
         for i in range(5)
     ]
     mock_manager.is_capacity_satisfied.side_effect = [False, True, True]
-    mock_connector.get_unschedulable_pods.side_effect = [True, False]
+    mock_connector.has_enough_capacity_for_pods.side_effect = [False, True]
     mock_connector.get_agent_metadata.side_effect = chain(
         (AgentMetadata(agent_id=i) for i in range(3)),
         repeat(AgentMetadata(agent_id="")),
@@ -118,6 +133,69 @@ def test_uptime_migration_worker(mock_drain_selection, mock_manager_class, mock_
     selector = mock_drain_selection.call_args_list[0][0][1]
     assert selector(ClusterNodeMetadata(None, InstanceMetadata(None, None, uptime=timedelta(seconds=10001)))) is True
     assert selector(ClusterNodeMetadata(None, InstanceMetadata(None, None, uptime=timedelta(seconds=9999)))) is False
+
+
+@patch("clusterman.migration.worker.time")
+@patch("clusterman.migration.worker.PoolManager")
+@patch("clusterman.migration.worker.enable_autoscaling")
+@patch("clusterman.migration.worker.disable_autoscaling")
+@patch("clusterman.migration.worker._drain_node_selection")
+@patch("clusterman.migration.worker._monitor_pool_health", lambda *_, **__: True)
+@patch("clusterman.migration.worker.limit_function_runtime", lambda f, _: f())
+def test_event_migration_worker(
+    mock_drain_selection,
+    mock_disable_scaling,
+    mock_enable_scaling,
+    mock_manager_class,
+    mock_time,
+    mock_migration_event,
+    event_worker_setup,
+):
+    mock_time.time.return_value = 0
+    mock_manager = mock_manager_class.return_value
+    mock_manager.get_node_metadatas.return_value = [
+        ClusterNodeMetadata(
+            AgentMetadata(agent_id=i, task_count=30 - 2 * i, kernel=f"1.2.{i}"), InstanceMetadata(market=None, weight=4)
+        )
+        for i in range(1, 6)
+    ]
+    mock_manager.target_capacity = 19
+    event_migration_worker(mock_migration_event, event_worker_setup)
+    mock_manager.modify_target_capacity.assert_called_once_with(23)
+    mock_disable_scaling.assert_called_once_with("mesos-test", "bar", "kubernetes", 3)
+    mock_enable_scaling.assert_called_once_with("mesos-test", "bar", "kubernetes")
+    mock_drain_selection.assert_called_once_with(mock_manager, ANY, event_worker_setup)
+    selector = mock_drain_selection.call_args_list[0][0][1]
+    assert list(filter(selector, mock_manager.get_node_metadatas.return_value)) == [
+        ClusterNodeMetadata(
+            AgentMetadata(agent_id=i, task_count=30 - 2 * i, kernel=f"1.2.{i}"), InstanceMetadata(market=None, weight=4)
+        )
+        for i in range(1, 3)
+    ]
+
+
+@patch("clusterman.migration.worker.time")
+@patch("clusterman.migration.worker.PoolManager")
+@patch("clusterman.migration.worker.enable_autoscaling")
+@patch("clusterman.migration.worker.disable_autoscaling")
+@patch("clusterman.migration.worker._drain_node_selection")
+def test_event_migration_worker_error(
+    mock_drain_selection,
+    mock_disable_scaling,
+    mock_enable_scaling,
+    mock_manager_class,
+    mock_time,
+    mock_migration_event,
+    event_worker_setup,
+):
+    mock_time.time.return_value = 0
+    mock_manager = mock_manager_class.return_value
+    mock_manager.get_node_metadatas.side_effect = Exception(123)
+    with pytest.raises(Exception):
+        event_migration_worker(mock_migration_event, event_worker_setup)
+    mock_disable_scaling.assert_called_once_with("mesos-test", "bar", "kubernetes", 3)
+    mock_enable_scaling.assert_called_once_with("mesos-test", "bar", "kubernetes")
+    mock_manager.modify_target_capacity.assert_not_called()
 
 
 def test_restartable_daemon_process():

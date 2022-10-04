@@ -23,7 +23,7 @@ from clusterman.util import parse_time_interval_seconds
 DEFAULT_POOL_PRESCALING = 0
 DEFAULT_NODE_BOOT_WAIT = "3m"
 DEFAULT_NODE_BOOT_TIMEOUT = "10m"
-DEFAULT_WORKER_TIMEOUT = "1d"
+DEFAULT_WORKER_TIMEOUT = "2h"
 
 
 class MigrationPrecendence(enum.Enum):
@@ -65,6 +65,9 @@ class PoolPortion:
         if not isinstance(other, PoolPortion):
             raise NotImplementedError()
         return self.init_value == other.init_value
+
+    def __bool__(self) -> bool:
+        return self.value > 0
 
 
 class WorkerSetup(NamedTuple):

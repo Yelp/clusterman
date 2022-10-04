@@ -45,7 +45,7 @@ class TestManageMethods:
             ensure_account_id("sample_cluster")
 
     @mock.patch("clusterman.cli.toggle.autoscaling_is_paused")
-    @mock.patch("clusterman.cli.toggle.dynamodb")
+    @mock.patch("clusterman.autoscaler.toggle.dynamodb")
     def test_enable(
         self,
         mock_dynamodb,
@@ -68,7 +68,7 @@ class TestManageMethods:
             enable(args)
 
     @mock.patch("clusterman.cli.toggle.autoscaling_is_paused")
-    @mock.patch("clusterman.cli.toggle.dynamodb")
+    @mock.patch("clusterman.autoscaler.toggle.dynamodb")
     def test_disable(
         self,
         mock_dynamodb,
@@ -91,7 +91,7 @@ class TestManageMethods:
             disable(args)
 
     @mock.patch("clusterman.cli.toggle.autoscaling_is_paused")
-    @mock.patch("clusterman.cli.toggle.dynamodb")
+    @mock.patch("clusterman.autoscaler.toggle.dynamodb")
     def test_disable_until(
         self,
         mock_dynamodb,

@@ -37,6 +37,7 @@ from staticconf.testing import PatchConfiguration
 from clusterman.config import POOL_NAMESPACE
 from clusterman.interfaces.types import AgentState
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
+from clusterman.kubernetes.util import PodUnschedulableReason
 from clusterman.migration.event import MigrationCondition
 from clusterman.migration.event import MigrationEvent
 from clusterman.migration.event_enums import ConditionOperator
@@ -338,6 +339,15 @@ def test_get_agent_metadata(mock_cluster_connector, ip_address, expected_state):
     assert agent_metadata.state == expected_state
 
 
+def test_get_nodes_by_ip(mock_cluster_connector):
+    mock_cluster_connector._core_api.list_node.reset_mock()
+    mock_cluster_connector.set_label_selectors(["foobar.clusterman.com/something=stuff"], add_to_existing=True)
+    mock_cluster_connector._get_nodes_by_ip()
+    mock_cluster_connector._core_api.list_node.assert_called_once_with(
+        label_selector="clusterman.com/pool=bar,foobar.clusterman.com/something=stuff",
+    )
+
+
 def test_allocation(mock_cluster_connector):
     assert mock_cluster_connector.get_resource_allocation("cpus") == 7.5
 
@@ -484,3 +494,27 @@ def test_create_node_migration_resource(mock_cluster_connector_crd):
             },
         },
     )
+
+
+@pytest.mark.parametrize(
+    "unschedulable,expected",
+    (
+        (
+            [
+                (mock.MagicMock(), PodUnschedulableReason.Unknown),
+                (mock.MagicMock(), PodUnschedulableReason.InsufficientResources),
+            ],
+            False,
+        ),
+        (
+            [
+                (mock.MagicMock(), PodUnschedulableReason.Unknown),
+            ],
+            True,
+        ),
+    ),
+)
+def test_has_enough_capacity_for_pods(mock_cluster_connector, unschedulable, expected):
+    with mock.patch.object(mock_cluster_connector, "get_unschedulable_pods") as mock_get_unsched:
+        mock_get_unsched.return_value = unschedulable
+        assert mock_cluster_connector.has_enough_capacity_for_pods() is expected
