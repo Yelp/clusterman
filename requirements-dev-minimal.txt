@@ -8,8 +8,8 @@ pre-commit
 pyhamcrest
 pytest
 requirements-tools
-types-cachetools==5.2.1
-types-PyYAML==6.0.12
-types-requests==2.28.11
-types-retry==0.9.9
-types-urllib3==1.26.25
+types-cachetools
+types-PyYAML
+types-requests
+types-retry
+types-urllib3
