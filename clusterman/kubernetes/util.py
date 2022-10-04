@@ -17,7 +17,10 @@ import socket
 from enum import auto
 from enum import Enum
 from functools import partial
+from typing import Any
+from typing import Hashable
 from typing import List
+from typing import MutableMapping
 from typing import Type
 
 import colorlog
@@ -43,7 +46,9 @@ DEFAULT_KUBERNETES_MEMORY_REQUEST = "200MB"
 DEFAULT_KUBERNETES_DISK_REQUEST = "0"  # Kubernetes doesn't schedule based on disk allocation right now
 KUBERNETES_API_CACHE_SIZE = 16
 KUBERNETES_API_CACHE_TTL = 60
-KUBERNETES_API_CACHE = TTLCache(maxsize=KUBERNETES_API_CACHE_SIZE, ttl=KUBERNETES_API_CACHE_TTL)
+KUBERNETES_API_CACHE: MutableMapping[Hashable, Any] = TTLCache(
+    maxsize=KUBERNETES_API_CACHE_SIZE, ttl=KUBERNETES_API_CACHE_TTL
+)
 VERSION_MATCH_EXPR = re.compile(r"(\W|^)(?P<release>\d+\.\d+(\.\d+)?)(\W|$)")
 logger = colorlog.getLogger(__name__)
 

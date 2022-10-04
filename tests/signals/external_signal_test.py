@@ -13,9 +13,9 @@
 # limitations under the License.
 import math
 import os
+from unittest import mock
 
 import arrow
-import mock
 import pytest
 import simplejson as json
 import staticconf

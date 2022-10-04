@@ -89,8 +89,7 @@ class PoolManager:
         ``Autoscaler.run()``.
         """
         logger.info("Reloading cluster connector state")
-        # TODO: update mypy to avoid having to ignore this error (CLUSTERMAN-692)
-        self.cluster_connector.reload_state(**cluster_connector_kwargs)  # type: ignore
+        self.cluster_connector.reload_state(**cluster_connector_kwargs)
 
         logger.info("Reloading resource groups")
         self._reload_resource_groups()

@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from argparse import Namespace
+from unittest import mock
 
-import mock
 import pytest
 
 from clusterman.autoscaler.pool_manager import PoolManager

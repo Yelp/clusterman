@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 import pytest
 from kubernetes.client import V1Container
 from kubernetes.client import V1ObjectMeta

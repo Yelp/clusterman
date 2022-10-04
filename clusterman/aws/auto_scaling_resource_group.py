@@ -199,7 +199,7 @@ class AutoScalingResourceGroup(AWSResourceGroup):
             template = policy["LaunchTemplate"]["LaunchTemplateSpecification"]
             overrides = policy["LaunchTemplate"]["Overrides"]
         else:
-            logger.warn(f"ASG {self.id} is not using LaunchTemplates, it will be unable to do smart scheduling")
+            logger.warning(f"ASG {self.id} is not using LaunchTemplates, it will be unable to do smart scheduling")
             return None, []
 
         launch_template_name = template["LaunchTemplateName"]

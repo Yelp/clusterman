@@ -13,8 +13,8 @@
 # limitations under the License.
 import io
 from contextlib import contextmanager
+from unittest import mock
 
-import mock
 import pytest
 import staticconf.testing
 from clusterman_metrics import APP_METRICS

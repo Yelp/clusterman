@@ -13,9 +13,9 @@
 # limitations under the License.
 import sys
 import time
+from unittest import mock
 
 import arrow
-import mock
 import pytest
 import staticconf.testing
 from colorama import Fore

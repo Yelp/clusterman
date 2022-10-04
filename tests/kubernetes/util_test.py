@@ -1,7 +1,7 @@
 import os
 from argparse import Namespace
+from unittest import mock
 
-import mock
 import pytest
 from kubernetes.client.models.v1_node_selector_requirement import V1NodeSelectorRequirement
 from kubernetes.client.models.v1_node_selector_term import V1NodeSelectorTerm

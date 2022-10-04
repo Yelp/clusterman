@@ -13,8 +13,8 @@
 # limitations under the License.
 import argparse
 import json
+from unittest import mock
 
-import mock
 import pytest
 import staticconf
 import staticconf.testing

@@ -107,7 +107,7 @@ def test_event_to_string():
         condition=MigrationCondition(
             ConditionTrait.KERNEL,
             ConditionOperator.IN,
-            [semver.parse_version_info("1.2.3"), semver.parse_version_info("3.4.5")],
+            [semver.VersionInfo.parse("1.2.3"), semver.VersionInfo.parse("3.4.5")],
         ),
     )
     assert (

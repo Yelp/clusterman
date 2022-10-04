@@ -14,9 +14,9 @@
 import operator
 from datetime import timedelta
 from functools import lru_cache
+from unittest import mock
 
 import arrow
-import mock
 import pytest
 
 from clusterman.math.piecewise import hour_transform
