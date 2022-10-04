@@ -343,7 +343,6 @@ class DrainingClient:
                 #  0) Instance is orphan, it should be terminated
                 #  1) threshold expired, it should be terminated since force_terminate is true
                 #  2) threshold expired, it should be uncordoned since force_terminate is false
-                #  if it can't be uncordoned, then it should be returned to queue to try again
                 #  3) threshold not expired, drain and terminate node
                 #  4) threshold not expired, drain failed for any reason(api is unreachable, PDB doesn't allow eviction)
                 #  then it should be returned to queue to try again
@@ -357,11 +356,12 @@ class DrainingClient:
                         logger.info(f"Draining expired for: {host_to_process.instance_id}")
                         self.submit_host_for_termination(host_to_process, delay=0)
                         should_add_to_cache = True
-                    elif not k8s_uncordon(kube_operator_client, host_to_process.agent_id):  # case 2
-                        # Todo Message can be stay in the queue up to SQS retention period, limit should be added
-                        should_resend_to_queue = True
+                    else:  # case 2
+                        k8s_uncordon(kube_operator_client, host_to_process.agent_id)
                 else:
                     if k8s_drain(kube_operator_client, host_to_process.agent_id, disable_eviction):  # case 3
+                        draining_time = arrow.now() - arrow.get(host_to_process.draining_start_time)
+                        logger.info(f"draining took {draining_time} seconds for {host_to_process.instance_id}")
                         self.submit_host_for_termination(host_to_process, delay=0)
                         should_add_to_cache = True
                     else:  # case 4
