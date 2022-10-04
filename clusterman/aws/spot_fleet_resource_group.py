@@ -145,7 +145,7 @@ class SpotFleetResourceGroup(AWSResourceGroup):
         return self._configuration["SpotFleetRequestConfig"]["TargetCapacity"]
 
     @classmethod
-    def load(  # type: ignore
+    def load(  # type: ignore # (mypy errors with "incompatible signature with supertype")
         cls,
         cluster: str,
         pool: str,

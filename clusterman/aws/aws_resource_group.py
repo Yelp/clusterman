@@ -198,7 +198,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
         pass
 
     @classmethod
-    def load(  # type: ignore
+    def load(  # type: ignore # (mypy errors with "incompatible signature with supertype")
         cls,
         cluster: str,
         pool: str,
