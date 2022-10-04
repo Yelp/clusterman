@@ -14,6 +14,7 @@
 import time
 from functools import partial
 from multiprocessing import Process
+from multiprocessing.synchronize import Lock as LockBase
 from statistics import mean
 from typing import Callable
 from typing import cast
@@ -122,7 +123,9 @@ def _drain_node_selection(
     return True
 
 
-def uptime_migration_worker(cluster: str, pool: str, uptime_seconds: int, worker_setup: WorkerSetup) -> None:
+def uptime_migration_worker(
+    cluster: str, pool: str, uptime_seconds: int, worker_setup: WorkerSetup, pool_lock: LockBase
+) -> None:
     """Worker monitoring and migrating nodes according to uptime
 
     :parma str cluster: cluster name
@@ -137,24 +140,28 @@ def uptime_migration_worker(cluster: str, pool: str, uptime_seconds: int, worker
         return
     while True:
         if manager.is_capacity_satisfied():
-            _drain_node_selection(manager, node_selector, worker_setup)
+            with pool_lock:
+                _drain_node_selection(manager, node_selector, worker_setup)
         else:
             logger.warning(f"Pool {cluster}:{pool} is currently underprovisioned, skipping uptime migration iteration")
         time.sleep(UPTIME_CHECK_INTERVAL_SECONDS)
         manager.reload_state()
 
 
-def event_migration_worker(migration_event: MigrationEvent, worker_setup: WorkerSetup) -> None:
+def event_migration_worker(migration_event: MigrationEvent, worker_setup: WorkerSetup, pool_lock: LockBase) -> None:
     """Worker migrating nodes according to event configuration
 
     :param MigrationEvent migration_event: event instance
     :param WorkerSetup worker_setup: migration setup
     """
+    pool_lock_acquired = False
     manager = PoolManager(migration_event.cluster, migration_event.pool, SUPPORTED_POOL_SCHEDULER, fetch_state=False)
     connector = cast(KubernetesClusterConnector, manager.cluster_connector)
     connector.set_label_selectors(migration_event.label_selectors, add_to_existing=True)
     manager.reload_state()
     try:
+        pool_lock.acquire(timeout=worker_setup.expected_duration)
+        pool_lock_acquired = True
         if worker_setup.disable_autoscaling:
             logger.info(f"Disabling autoscaling for {migration_event.cluster}:{migration_event.pool}")
             disable_autoscaling(
@@ -181,6 +188,8 @@ def event_migration_worker(migration_event: MigrationEvent, worker_setup: Worker
         logger.error(f"Issue while processing migration event {migration_event}: {e}")
         raise
     finally:
+        if pool_lock_acquired:
+            pool_lock.release()
         # we do not reset the pool target capacity in case of pre-scaling as we
         # trust the autoscaler to readjust that in a short time eventually
         if worker_setup.disable_autoscaling:

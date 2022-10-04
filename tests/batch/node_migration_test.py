@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from argparse import Namespace
+from collections import defaultdict
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -45,7 +46,7 @@ def migration_batch():
 
 def test_fetch_event_crd(migration_batch: NodeMigration):
     migration_batch.events_in_progress = {
-        MigrationEvent(
+        "event:mesos-test:bar": MigrationEvent(
             resource_name="mesos-test-bar-220912-1",
             cluster="mesos-test",
             pool="bar",
@@ -113,26 +114,16 @@ def test_get_worker_setup(migration_batch):
     )
 
 
-@pytest.mark.parametrize(
-    "worker_label",
-    (
-        (
-            MigrationEvent(
-                resource_name="mesos-test-bar-220912-1",
-                cluster="mesos-test",
-                pool="bar",
-                label_selectors=[],
-                condition=MigrationCondition(ConditionTrait.KERNEL, ConditionOperator.GE, "3.2.1"),
-            ),
-        ),
-        ("foobar",),
-    ),
-)
 @patch("clusterman.batch.node_migration.RestartableDaemonProcess")
-def test_spawn_worker(mock_process, migration_batch, worker_label):
+def test_spawn_worker(mock_process, migration_batch):
+    mock_lock = MagicMock()
     mock_routine = MagicMock()
+    worker_label = "foobar:123:456"
+    migration_batch.worker_locks = defaultdict(mock_lock)
     assert migration_batch._spawn_worker(worker_label, mock_routine, 1, x=2) is True
-    mock_process.assert_called_once_with(target=mock_routine, args=(1,), kwargs={"x": 2})
+    mock_process.assert_called_once_with(
+        target=mock_routine, args=(1,), kwargs={"x": 2, "pool_lock": mock_lock.return_value}
+    )
     assert migration_batch.migration_workers == {worker_label: mock_process.return_value}
 
 
@@ -146,7 +137,7 @@ def test_spawn_worker_existing(mock_process, migration_batch):
 @patch("clusterman.batch.node_migration.RestartableDaemonProcess")
 def test_spawn_worker_over_capacity(mock_process, migration_batch):
     migration_batch.migration_workers = {f"foobar{i}": MagicMock(is_alive=lambda: True) for i in range(6)}
-    assert migration_batch._spawn_worker(MigrationEvent(None, None, None, None, None), MagicMock(), 1, x=2) is False
+    assert migration_batch._spawn_worker("event:foo:bar", MagicMock(), 1, x=2) is False
     mock_process.assert_not_called()
 
 
@@ -197,7 +188,7 @@ def test_spawn_event_worker(mock_worker_routine, migration_batch, event, worker_
         migration_batch.spawn_event_worker(event)
         if is_spawned:
             mock_spawn.assert_called_once_with(
-                label=event,
+                label=f"event:{event.cluster}:{event.pool}",
                 routine=mock_worker_routine,
                 migration_event=event,
                 worker_setup=worker_setup,
@@ -225,7 +216,7 @@ def test_spawn_uptime_worker(mock_worker_routine, migration_batch, uptime, worke
         migration_batch.spawn_uptime_worker("bar", uptime)
         if expected_uptime_spawn:
             mock_spawn.assert_called_once_with(
-                label="uptime-mesos-test-bar",
+                label="uptime:mesos-test:bar",
                 routine=mock_worker_routine,
                 cluster="mesos-test",
                 pool="bar",
@@ -244,10 +235,12 @@ def test_monitor_workers(migration_batch):
         "foobar": mock_ok_worker,
         "buzz": mock_to_restart,
         "some": MagicMock(is_alive=lambda: False, exitcode=0),
-        mock_event: MagicMock(is_alive=lambda: False, exitcode=0),
+        "event:123:456": MagicMock(is_alive=lambda: False, exitcode=0),
     }
+    migration_batch.events_in_progress = {"event:123:456": mock_event}
     with patch.object(migration_batch, "mark_event") as mock_mark:
         migration_batch.monitor_workers()
         mock_mark.assert_called_once_with(mock_event, MigrationStatus.COMPLETED)
     mock_to_restart.restart.assert_called_once_with()
     assert migration_batch.migration_workers == {"foobar": mock_ok_worker, "buzz": mock_to_restart}
+    assert not migration_batch.events_in_progress
