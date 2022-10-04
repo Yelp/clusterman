@@ -130,7 +130,7 @@ def test_uptime_migration_worker(mock_drain_selection, mock_manager_class, mock_
     mock_manager = mock_manager_class.return_value
     mock_manager.is_capacity_satisfied.side_effect = [True, False, True]
     with pytest.raises(StopIteration):  # using end of mock side-effect to get out of forever looop
-        uptime_migration_worker("mesos-test", "bar", 10000, mock_setup)
+        uptime_migration_worker("mesos-test", "bar", 10000, mock_setup, pool_lock=MagicMock())
     assert mock_drain_selection.call_count == 2
     selector = mock_drain_selection.call_args_list[0][0][1]
     assert selector(ClusterNodeMetadata(None, InstanceMetadata(None, None, uptime=timedelta(seconds=10001)))) is True
@@ -162,7 +162,7 @@ def test_event_migration_worker(
         for i in range(1, 6)
     ]
     mock_manager.target_capacity = 19
-    event_migration_worker(mock_migration_event, event_worker_setup)
+    event_migration_worker(mock_migration_event, event_worker_setup, pool_lock=MagicMock())
     mock_manager.modify_target_capacity.assert_called_once_with(23)
     mock_disable_scaling.assert_called_once_with("mesos-test", "bar", "kubernetes", 3)
     mock_enable_scaling.assert_called_once_with("mesos-test", "bar", "kubernetes")
@@ -194,7 +194,7 @@ def test_event_migration_worker_error(
     mock_manager = mock_manager_class.return_value
     mock_manager.get_node_metadatas.side_effect = Exception(123)
     with pytest.raises(Exception):
-        event_migration_worker(mock_migration_event, event_worker_setup)
+        event_migration_worker(mock_migration_event, event_worker_setup, pool_lock=MagicMock())
     mock_disable_scaling.assert_called_once_with("mesos-test", "bar", "kubernetes", 3)
     mock_enable_scaling.assert_called_once_with("mesos-test", "bar", "kubernetes")
     mock_manager.modify_target_capacity.assert_not_called()
