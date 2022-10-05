@@ -38,6 +38,7 @@ def main(args: argparse.Namespace) -> None:
         condition=condition,
     )
     connector = KubernetesClusterConnector(args.cluster, None, init_crd=True)
+    connector.reload_client()
     connector.create_node_migration_resource(event, MigrationStatus.PENDING)
 
 
