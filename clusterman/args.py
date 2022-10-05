@@ -197,8 +197,7 @@ def get_parser(description=""):  # pragma: no cover
     from clusterman.cli.toggle import add_cluster_disable_parser
     from clusterman.cli.toggle import add_cluster_enable_parser
     from clusterman.draining.queue import add_queue_parser
-
-    # from clusterman.cli.migrate import add_migration_parser  # TODO: uncomment when batch implementation finalized
+    from clusterman.cli.migrate import add_migration_parser
 
     root_parser = argparse.ArgumentParser(prog="clusterman", description=description, formatter_class=help_formatter)
     add_env_config_path_arg(root_parser)
@@ -221,7 +220,7 @@ def get_parser(description=""):  # pragma: no cover
     add_manager_parser(subparser)
     add_simulate_parser(subparser)
     add_queue_parser(subparser)
-    # add_migration_parser(subparser)  # TODO: uncomment when batch implementation finalized
+    add_migration_parser(subparser)
 
     return root_parser
 

@@ -42,6 +42,7 @@ from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
 from clusterman.migration.event import MigrationEvent
 from clusterman.migration.event_enums import MigrationStatus
+from clusterman.migration.worker import SUPPORTED_POOL_SCHEDULER
 from clusterman.util import any_of
 from clusterman.util import autoscaling_is_paused
 from clusterman.util import ClustermanResources
@@ -128,6 +129,7 @@ def _get_migrations(cluster: str, pool: str) -> List[MigrationEvent]:
     :return: list of migration events
     """
     connector = KubernetesClusterConnector(cluster, pool, init_crd=True)
+    connector.reload_client()
     events = connector.list_node_migration_resources(statuses=[MigrationStatus.PENDING, MigrationStatus.INPROGRESS])
     return list(events)
 
@@ -140,7 +142,11 @@ def _status_json(manager: PoolManager, get_node_metadatas: bool, get_migrations:
         "fulfilled_capacity": manager.fulfilled_capacity,
         "non_orphan_fulfilled_capacity": manager.non_orphan_fulfilled_capacity,
         "resource_groups": _get_resource_groups_json(manager.resource_groups.values(), node_metadatas),
-        "migrations": _get_migrations(manager.cluster, manager.pool) if get_migrations else [],
+        "migrations": (
+            _get_migrations(manager.cluster, manager.pool)
+            if get_migrations and manager.scheduler == SUPPORTED_POOL_SCHEDULER
+            else []
+        ),
     }
 
 
@@ -298,9 +304,7 @@ def add_status_parser(subparser, required_named_args, optional_named_args):  # p
     optional_named_args.add_argument(
         "--show-migrations",
         action="store_true",
-        help=argparse.SUPPRESS,
-        # TODO: enable alongside the "migrate" CLI subcommand
-        # help="Show node migrations being applied on the pool (only available on kubernetes clusters)",
+        help="Show node migrations being applied on the pool (only available on kubernetes clusters)",
     )
     optional_named_args.add_argument(
         "-v",
