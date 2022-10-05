@@ -35,6 +35,9 @@ def _get_resource_request(
                 # this with a more intelligent solution in the future.
                 resource_request += total_pod_resources(pod) * 2
 
+    logger.info(f'List of pending pods: {pending_pods}')
+    logger.info(f'Signal requesting {resource_request} for all the pending pods')
+
     return resource_request + allocated_resources
 
 
