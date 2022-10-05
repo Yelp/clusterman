@@ -1,3 +1,9 @@
+clusterman (4.15.0) xenial bionic; urgency=low
+
+  * Enable node-migration CLI features
+
+ -- Matteo Piano <mpiano@yelp.com>  Wed, 05 Oct 2022 03:42:20 -0700
+
 clusterman (4.14.0) xenial bionic; urgency=low
 
   * Node migration event trigger worker
