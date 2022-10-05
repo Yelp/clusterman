@@ -76,19 +76,26 @@ def _monitor_pool_health(
     :param bool ignore_pod_health: If set, do not check that pods can successfully be scheduled
     :return: true if capacity is fulfilled
     """
-    draining_happened = False
+    draining_happened, capacity_satisfied, pods_healthy = False, False, False
     connector = cast(KubernetesClusterConnector, manager.cluster_connector)
+    logger.info(f"Monitoring health for {manager.cluster}:{manager.pool}")
     while time.time() < timeout:
         manager.reload_state(load_pods_info=not ignore_pod_health)
         draining_happened = draining_happened or not any(
             node.agent.agent_id == connector.get_agent_metadata(node.instance.ip_address).agent_id for node in drained
         )
-        if (
-            draining_happened
-            and manager.is_capacity_satisfied()
-            and (ignore_pod_health or connector.has_enough_capacity_for_pods())
-        ):
+        # TODO: replace these with use of walrus operator in if-statement once on py38
+        capacity_satisfied = capacity_satisfied or (draining_happened and manager.is_capacity_satisfied())
+        pods_healthy = pods_healthy or (
+            draining_happened and (ignore_pod_health or connector.has_enough_capacity_for_pods())
+        )
+        if draining_happened and capacity_satisfied and pods_healthy:
             return True
+        else:
+            logger.info(
+                f"Pool {manager.cluster}:{manager.pool} not healthy yet"
+                f" (drain_ok={draining_happened}, capacity_ok={capacity_satisfied}, pods_ok={pods_healthy})"
+            )
         time.sleep(HEALTH_CHECK_INTERVAL_SECONDS)
     return False
 
@@ -122,6 +129,8 @@ def _drain_node_selection(
                 " to desired capacity, stopping selection draining"
             )
             return False
+        logger.info(f"Recycled {min(i + chunk, len(selected))} nodes out of {len(selected)} selected")
+    logger.info(f"Completed recycling node selection from {manager.cluster}:{manager.pool}")
     return True
 
 
@@ -175,6 +184,7 @@ def event_migration_worker(migration_event: MigrationEvent, worker_setup: Worker
         if worker_setup.prescaling:
             nodes = manager.get_node_metadatas(AWS_RUNNING_STATES)
             offset = worker_setup.prescaling.of(len(nodes))
+            logger.info(f"Applying pre-scaling of {offset} node to {migration_event.cluster}:{migration_event.pool}")
             avg_weight = mean(node.instance.weight for node in nodes)
             prescaled_capacity = round(manager.target_capacity + (offset * avg_weight))
             manager.modify_target_capacity(prescaled_capacity)

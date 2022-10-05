@@ -38,7 +38,7 @@ def migration_batch():
     ):
         batch = NodeMigration()
         mock_getpool.return_value = ["bar"]
-        batch.options = Namespace(cluster="mesos-test", autorestart_interval_minutes=None)
+        batch.options = Namespace(cluster="mesos-test", autorestart_interval_minutes=None, extra_logs=False)
         batch.configure_initial()
         assert "bar" in batch.migration_configs
         yield batch
