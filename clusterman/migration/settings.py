@@ -48,15 +48,16 @@ class PoolPortion:
         self.init_value = value
         if isinstance(value, str) and "%" in value:
             self.value = float(value.rstrip("%")) / 100
+            self.min_portion = 1 if self.value != 0 else 0
             self.of = self._of_percent
         else:
             self.value = int(value)
             self.of = self._of_absolute
-        if self.value <= 0:
-            raise ValueError(f"Bad value {value}, only int/percentage greater than 0 allowed")
+        if self.value < 0:
+            raise ValueError(f"Bad value {value}, only int/percentage greater or equal to 0 allowed")
 
     def _of_percent(self, pool_size: int) -> int:
-        return max(1, round(self.value * pool_size))
+        return max(self.min_portion, round(self.value * pool_size))
 
     def _of_absolute(self, pool_size: int) -> int:
         return cast(int, self.value)
@@ -83,8 +84,11 @@ class WorkerSetup(NamedTuple):
     @classmethod
     def from_config(cls, config: dict) -> "WorkerSetup":
         strat_conf: dict = config["strategy"]
+        churn_rate = PoolPortion(strat_conf["rate"])
+        if not churn_rate:
+            raise ValueError(f"Node migration rate must greater than 0: {strat_conf['rate']}")
         return cls(
-            rate=PoolPortion(strat_conf["rate"]),
+            rate=churn_rate,
             prescaling=PoolPortion(strat_conf.get("prescaling", DEFAULT_POOL_PRESCALING)),
             precedence=MigrationPrecendence(strat_conf.get("precedence", MigrationPrecendence.default())),
             bootstrap_wait=parse_time_interval_seconds(strat_conf.get("bootstrap_wait", DEFAULT_NODE_BOOT_WAIT)),
