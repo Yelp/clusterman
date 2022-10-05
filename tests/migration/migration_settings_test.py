@@ -24,6 +24,7 @@ from clusterman.migration.settings import PoolPortion
         ("3%", 3, 1),
         (1, 3, 1),
         ("1", 3, 1),
+        ("0%", 3, 0),
     ),
 )
 def test_pool_portion(initval, poolsize, result):
@@ -35,11 +36,22 @@ def test_pool_portion(initval, poolsize, result):
     (
         ("-3%", ValueError),
         (-1, ValueError),
-        (0, ValueError),
-        ("0%", ValueError),
         ("foobar", ValueError),
     ),
 )
 def test_pool_portion_error(initval, exctype):
     with pytest.raises(exctype):
         PoolPortion(initval)
+
+
+@pytest.mark.parametrize(
+    "initval,expected",
+    (
+        ("5%", True),
+        (1, True),
+        ("0%", False),
+        (0, False),
+    ),
+)
+def test_pool_portion_truthy(initval, expected):
+    assert bool(PoolPortion(initval)) is expected
