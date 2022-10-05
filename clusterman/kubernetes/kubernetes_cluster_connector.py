@@ -480,8 +480,6 @@ class KubernetesClusterConnector(ClusterConnector):
                 pods_by_ip[pod.status.host_ip].append(pod)
             elif self._is_unschedulable(pod):
                 unschedulable_pods.append(pod)
-            else:
-                logger.info(f"Skipping {pod.metadata.name} pod ({pod.status.phase})")
         return pods_by_ip, unschedulable_pods, excluded_pods_by_ip
 
     def _count_batch_tasks(self, node_ip: str) -> int:
