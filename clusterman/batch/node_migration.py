@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import argparse
+import logging
 import time
 from collections import defaultdict
 from multiprocessing import Lock
@@ -60,14 +62,20 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
     UPTIME_WORKER_LABEL_PREFIX = "uptime"
 
     @batch_command_line_arguments
-    def parse_args(self, parser):
+    def parse_args(self, parser: argparse.ArgumentParser):
         arg_group = parser.add_argument_group("NodeMigration batch options")
         add_env_config_path_arg(arg_group)
         add_cluster_arg(arg_group, required=True)
+        parser.add_argument(
+            "--extra-logs",
+            action="store_true",
+            help="Show all logs from pool manager, cluster connector and resource groups",
+        )
 
     @batch_configure
     def configure_initial(self):
         setup_config(self.options)
+        self._silence_unneeded_logging()
         self.logger = colorlog.getLogger(__name__)
         self.migration_workers: Dict[str, RestartableDaemonProcess] = {}
         self.migration_configs = {}
@@ -91,6 +99,21 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
                 if self.migration_configs[pool]["trigger"].get("event", False):
                     self.pools_accepting_events.add(pool)
         self.logger.info(f"Found node migration configs for pools: {list(self.migration_configs.keys())}")
+
+    def _silence_unneeded_logging(self):
+        """Set higher level for a selection of log handler to reduce overall noise"""
+        modules_to_silence = (
+            [
+                "clusterman.autoscaler.pool_manager",
+                "clusterman.aws.spot_fleet_resource_group",
+                "clusterman.aws.auto_scaling_resource_group",
+                "clusterman.kubernetes.kubernetes_cluster_connector",
+            ]
+            if not self.options.extra_logs
+            else []
+        )
+        for module in modules_to_silence:
+            colorlog.getLogger(module).setLevel(logging.WARNING)
 
     def _get_worker_setup(self, pool: str) -> Optional[WorkerSetup]:
         """Build worker setup for
@@ -224,11 +247,13 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
                 else:
                     torestart.append(label)
         for label in completed:
+            self.logger.info(f"Worker process with label {label} completed")
             if self._is_event_worker_label(label):
                 event = self.events_in_progress.pop(label)
                 self.mark_event(event, MigrationStatus.COMPLETED)
             del self.migration_workers[label]
         for label in torestart:
+            self.logger.info(f"Restarting worker process with label {label}")
             self.migration_workers[label].restart()
 
     def run(self):

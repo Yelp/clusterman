@@ -588,7 +588,6 @@ class PoolManager:
 
     def is_capacity_satisfied(self) -> bool:
         """States whether current pool capacity is considered in line with expectation"""
-        # TODO: this is a pretty naive check, can likely be improved from some of the autoscaling data
         return self.non_orphan_fulfilled_capacity >= self.target_capacity
 
     @property
