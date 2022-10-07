@@ -58,19 +58,19 @@ def add_migration_parser(
         title="migration condition", description="Defines the desired final state for the migration"
     )
     condition_group.add_argument(
-        "condition-trait",
+        "condition_trait",
         type=str,
         help="Metadata based on which nodes to migrate are selected",
         choices=[entry.value for entry in ConditionTrait],
     )
     condition_group.add_argument(
-        "condition-operator",
+        "condition_operator",
         type=str,
         help="Metadata comparison operator",
         choices=[entry.value for entry in ConditionOperator],
     )
     condition_group.add_argument(
-        "condition-target",
+        "condition_target",
         type=str,
         help="Target value for node selection condition",
     )
