@@ -96,6 +96,11 @@ class KubernetesClusterConnector(ClusterConnector):
             self._label_selectors.append(f"{node_label_selector}={self.pool}")
 
     def reload_state(self, load_pods_info: bool = True) -> None:
+        """Reload information from cluster/pool
+
+        :param bool load_pods_info: do not load data about pods.
+                                    NOTE: all resouce utilization metrics won't be available when setting this
+        """
         logger.info("Reloading nodes")
 
         self.reload_client()
@@ -111,7 +116,11 @@ class KubernetesClusterConnector(ClusterConnector):
                 else self._get_pods_info()
             )
         else:
-            self._pods_by_ip, self._unschedulable_pods, self._excluded_pods_by_ip = ({}, [], {})
+            self._pods_by_ip, self._unschedulable_pods, self._excluded_pods_by_ip = (
+                dict.fromkeys(self._nodes_by_ip, []),
+                [],
+                {},
+            )
 
     def reload_client(self) -> None:
         self._core_api = CachedCoreV1Api(self.kubeconfig_path)

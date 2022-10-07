@@ -348,6 +348,11 @@ def test_get_nodes_by_ip(mock_cluster_connector):
     )
 
 
+def test_reload_state_no_pods(mock_cluster_connector):
+    mock_cluster_connector.reload_state(load_pods_info=False)
+    assert mock_cluster_connector._pods_by_ip == {"10.10.10.1": [], "10.10.10.2": [], "10.10.10.3": []}
+
+
 def test_allocation(mock_cluster_connector):
     assert mock_cluster_connector.get_resource_allocation("cpus") == 7.5
 
