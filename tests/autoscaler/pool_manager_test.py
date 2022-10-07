@@ -605,7 +605,7 @@ def test_instance_kill_order(mock_pool_manager):
     mock_pool_manager.min_node_scalein_uptime = 300
     killable_nodes = mock_pool_manager._get_prioritized_killable_nodes()
     killable_instance_ids = [node_metadata.instance.instance_id for node_metadata in killable_nodes]
-    assert killable_instance_ids == [f"i-{i}" for i in range(9)]
+    assert killable_instance_ids == [f"i-{i}" for i in range(1, 9)]
 
 
 def test_get_expired_orphan_instances(mock_pool_manager):

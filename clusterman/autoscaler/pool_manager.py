@@ -553,6 +553,9 @@ class PoolManager:
             return False
         elif node_metadata.instance.is_cordoned:
             return False
+        # Orphan instances will be terminated by terminate_expired_orphan_instances
+        elif node_metadata.agent.state == AgentState.ORPHANED:
+            return False
         elif self.max_tasks_to_kill > node_metadata.agent.task_count:
             return True
         else:
@@ -563,10 +566,9 @@ class PoolManager:
 
         def sort_key(
             node_metadata: ClusterNodeMetadata,
-        ) -> Tuple[int, int, int, int, int, int, int]:
+        ) -> Tuple[int, int, int, int, int, int]:
             return (
                 0 if node_metadata.agent.is_frozen else 1,
-                0 if node_metadata.agent.state == AgentState.ORPHANED else 1,
                 0 if node_metadata.instance.is_stale else 1,
                 0 if node_metadata.instance.uptime.total_seconds() > self.min_node_scalein_uptime else 1,
                 0 if node_metadata.agent.state == AgentState.IDLE else 1,
