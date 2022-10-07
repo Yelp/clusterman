@@ -1,3 +1,10 @@
+clusterman (4.15.1) xenial bionic; urgency=low
+
+  * Add --scheduler to migrate CLI subcommand
+  * Fix parameter names in migrate CLI subcommand
+
+ -- Matteo Piano <mpiano@yelp.com>  Fri, 07 Oct 2022 03:15:49 -0700
+
 clusterman (4.15.0) xenial bionic; urgency=low
 
   * Enable node-migration CLI features
