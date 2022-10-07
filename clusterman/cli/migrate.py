@@ -17,6 +17,7 @@ import time
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_pool_arg
+from clusterman.args import add_scheduler_arg
 from clusterman.args import subparser
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
 from clusterman.migration.event import ConditionOperator
@@ -51,6 +52,8 @@ def add_migration_parser(
     add_cluster_arg(required_named_args, required=True)
     add_pool_arg(required_named_args)
     add_cluster_config_directory_arg(optional_named_args)
+    # For CLI compatibility reasons, as the only supported scheduler is k8s
+    add_scheduler_arg(optional_named_args)
     condition_group = subparser.add_argument_group(
         title="migration condition", description="Defines the desired final state for the migration"
     )
