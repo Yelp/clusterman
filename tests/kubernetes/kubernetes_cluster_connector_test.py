@@ -479,6 +479,8 @@ def test_create_node_migration_resource(mock_cluster_connector_crd):
     )
     mock_cluster_connector_crd._migration_crd_api.create_cluster_custom_object.assert_called_once_with(
         body={
+            "apiVersion": "clusterman.yelp.com/v1",
+            "kind": "NodeMigration",
             "metadata": {
                 "name": "mesos-test-bar-111222333",
                 "labels": {

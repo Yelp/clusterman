@@ -56,6 +56,7 @@ CLUSTERMAN_TERMINATION_TAINT_KEY = "clusterman.yelp.com/terminating"
 MIGRATION_CRD_GROUP = "clusterman.yelp.com"
 MIGRATION_CRD_VERSION = "v1"
 MIGRATION_CRD_PLURAL = "nodemigrations"
+MIGRATION_CRD_KIND = "NodeMigration"
 MIGRATION_CRD_STATUS_LABEL = "clusterman.yelp.com/migration_status"
 NOT_FOUND_STATUS = 404
 # we don't want to block on eviction/deletion as we're potentially evicting/deleting a ton of pods
@@ -288,6 +289,8 @@ class KubernetesClusterConnector(ClusterConnector):
         assert self._migration_crd_api, "CRD client was not initialized"
         try:
             body = event.to_crd_body(labels={MIGRATION_CRD_STATUS_LABEL: status.value, self.pool_label_key: event.pool})
+            body["apiVersion"] = f"{MIGRATION_CRD_GROUP}/{MIGRATION_CRD_VERSION}"
+            body["kind"] = MIGRATION_CRD_KIND
             self._migration_crd_api.create_cluster_custom_object(body=body)
         except Exception as e:
             logger.error(f"Failed creating migration event resource: {e}")
