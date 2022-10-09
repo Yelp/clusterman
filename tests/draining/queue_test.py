@@ -486,7 +486,10 @@ def test_process_drain_queue(mock_draining_client):
     ) as mock_arrow, mock.patch(
         "clusterman.draining.queue.DEFAULT_FORCE_TERMINATION",
         new=False,
-    ):
+    ), mock.patch(
+        "clusterman.draining.queue.host_from_instance_id",
+        autospec=True,
+    ) as mock_host_from_instance_id:
         mock_arrow.now = mock.Mock(return_value=mock.Mock(timestamp=1))
         mock_mesos_client = mock.Mock()
         mock_kubernetes_client = mock.Mock()
@@ -709,12 +712,12 @@ def test_process_drain_queue(mock_draining_client):
         mock_submit_host_for_termination.assert_called_with(mock_draining_client, mock_host, delay=0)
         mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
 
-        # test kubernetes scheduler for orphan instances
+        # test kubernetes scheduler for orphan instances - ec2 doesn't exist
         mock_host = Host(
             hostname="host1",
             ip="10.1.1.1",
             group_id="sfr1",
-            instance_id="i12345678",
+            instance_id="i123456789",
             agent_id="",
             pool="default",
             scheduler="kubernetes",
@@ -723,15 +726,87 @@ def test_process_drain_queue(mock_draining_client):
             receipt_handle="aaaaa",
         )
         mock_k8s_drain.reset_mock()
+        mock_submit_host_for_draining.reset_mock()
         mock_get_host_to_drain.return_value = mock_host
         mock_arrow.now.return_value = arrow.get(mock_host.draining_start_time)
         mock_arrow.get.return_value = arrow.get(mock_host.draining_start_time)
+        mock_host_from_instance_id.return_value = None
+        mock_draining_client.process_drain_queue(mock_mesos_client, mock_kubernetes_client)
+        assert mock_draining_client.get_host_to_drain.called
+        assert not mock_submit_host_for_draining.called
+        assert not mock_k8s_uncordon.called
+        assert not mock_k8s_drain.called
+        #  mock_submit_host_for_termination.assert_called_with(mock_draining_client, mock_host, delay=0)
+        mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
+
+        # test kubernetes scheduler for orphan instances - ec2 doesn't have agent_id
+        mock_host = Host(
+            hostname="host1",
+            ip="10.1.1.1",
+            group_id="sfr1",
+            instance_id="i1234567891",
+            agent_id="",
+            pool="default",
+            scheduler="kubernetes",
+            draining_start_time=now.for_json(),
+            sender="mmb",
+            receipt_handle="aaaaa",
+        )
+
+        mock_k8s_drain.reset_mock()
+        mock_submit_host_for_termination.reset_mock()
+        mock_get_host_to_drain.return_value = mock_host
+        mock_arrow.now.return_value = arrow.get(mock_host.draining_start_time)
+        mock_arrow.get.return_value = arrow.get(mock_host.draining_start_time)
+        mock_host_from_instance_id.return_value = mock_host
         mock_draining_client.process_drain_queue(mock_mesos_client, mock_kubernetes_client)
         assert mock_draining_client.get_host_to_drain.called
         assert not mock_submit_host_for_draining.called
         assert not mock_k8s_uncordon.called
         assert not mock_k8s_drain.called
         mock_submit_host_for_termination.assert_called_with(mock_draining_client, mock_host, delay=0)
+        mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
+
+        # test kubernetes scheduler for orphan instances - ec2 exists
+        mock_host = Host(
+            hostname="host1",
+            ip="10.1.1.1",
+            group_id="sfr1",
+            instance_id="i12345678912",
+            agent_id="",
+            pool="default",
+            scheduler="kubernetes",
+            draining_start_time=now.for_json(),
+            sender="mmb",
+            receipt_handle="aaaaa",
+        )
+
+        mock_host_fresh = Host(
+            hostname="host1",
+            ip="10.1.1.1",
+            group_id="sfr1",
+            instance_id="i12345678912",
+            agent_id="agt123",
+            pool="default",
+            scheduler="kubernetes",
+            draining_start_time=now.for_json(),
+            sender="mmb",
+            receipt_handle="aaaaa",
+        )
+
+        mock_k8s_drain.reset_mock()
+        mock_submit_host_for_termination.reset_mock()
+        mock_submit_host_for_draining.reset_mock()
+        mock_get_host_to_drain.return_value = mock_host
+        mock_arrow.now.return_value = arrow.get(mock_host.draining_start_time)
+        mock_arrow.get.return_value = arrow.get(mock_host.draining_start_time)
+        mock_host_from_instance_id.return_value = mock_host_fresh
+        mock_draining_client.process_drain_queue(mock_mesos_client, mock_kubernetes_client)
+        assert mock_draining_client.get_host_to_drain.called
+        assert not mock_k8s_uncordon.called
+        assert not mock_k8s_drain.called
+        assert not mock_submit_host_for_termination.called
+        mock_submit_host_for_draining.assert_called_with(mock_draining_client, mock_host_fresh)
         mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
 
 
