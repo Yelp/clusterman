@@ -132,7 +132,7 @@ def _drain_node_selection(
         for node in selection_chunk:
             logger.info(f"Recycling node {node.instance.instance_id}")
             manager.submit_for_draining(node)
-            node_uptime_gauge.set(node.instance.uptime.total_seconds(), {"ip": node.instance.ip_address})
+            node_uptime_gauge.set(node.instance.uptime.total_seconds())
             node_drain_counter.count()
         time.sleep(worker_setup.bootstrap_wait)
         if not _monitor_pool_health(

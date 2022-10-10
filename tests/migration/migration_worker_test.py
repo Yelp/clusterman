@@ -85,7 +85,7 @@ def test_drain_node_selection(mock_sfx, mock_monitor, mock_time):
     mock_manager.get_node_metadatas.return_value = [
         ClusterNodeMetadata(
             AgentMetadata(agent_id=i, task_count=30 - 2 * i),
-            InstanceMetadata(None, None, ip_address=f"{i}.{i}.{i}.{i}", uptime=timedelta(days=i)),
+            InstanceMetadata(None, None, uptime=timedelta(days=i)),
         )
         for i in range(6)
     ]
@@ -106,7 +106,7 @@ def test_drain_node_selection(mock_sfx, mock_monitor, mock_time):
             call(
                 ClusterNodeMetadata(
                     AgentMetadata(agent_id=i, task_count=30 - 2 * i),
-                    InstanceMetadata(None, None, ip_address=f"{i}.{i}.{i}.{i}", uptime=timedelta(days=i)),
+                    InstanceMetadata(None, None, uptime=timedelta(days=i)),
                 )
             )
             for i in range(5, 2, -1)
@@ -120,11 +120,11 @@ def test_drain_node_selection(mock_sfx, mock_monitor, mock_time):
                 [
                     ClusterNodeMetadata(
                         AgentMetadata(agent_id=5, task_count=20),
-                        InstanceMetadata(None, None, ip_address="5.5.5.5", uptime=timedelta(days=5)),
+                        InstanceMetadata(None, None, uptime=timedelta(days=5)),
                     ),
                     ClusterNodeMetadata(
                         AgentMetadata(agent_id=4, task_count=22),
-                        InstanceMetadata(None, None, ip_address="4.4.4.4", uptime=timedelta(days=4)),
+                        InstanceMetadata(None, None, uptime=timedelta(days=4)),
                     ),
                 ],
                 False,
@@ -135,7 +135,7 @@ def test_drain_node_selection(mock_sfx, mock_monitor, mock_time):
                 [
                     ClusterNodeMetadata(
                         AgentMetadata(agent_id=3, task_count=24),
-                        InstanceMetadata(None, None, ip_address="3.3.3.3", uptime=timedelta(days=3)),
+                        InstanceMetadata(None, None, uptime=timedelta(days=3)),
                     ),
                 ],
                 False,
@@ -147,9 +147,9 @@ def test_drain_node_selection(mock_sfx, mock_monitor, mock_time):
     assert mock_drain_count_sfx.count.call_count == 3
     mock_uptime_stats_sfx.set.assert_has_calls(
         [
-            call(432000.0, {"ip": "5.5.5.5"}),
-            call(345600.0, {"ip": "4.4.4.4"}),
-            call(259200.0, {"ip": "3.3.3.3"}),
+            call(432000.0),
+            call(345600.0),
+            call(259200.0),
         ]
     )
 
