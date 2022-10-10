@@ -55,7 +55,7 @@ from clusterman.util import get_pool_name_list
 logger = colorlog.getLogger(__name__)
 DRAIN_CACHE_SECONDS = 1800
 DEFAULT_FORCE_TERMINATION = False
-DEFAULT_DRAIN_REPROCESSING_DELAY_SECONDS = 15
+DEFAULT_GLOBAL_REDRAINING_DELAY_SECONDS = 15
 DEFAULT_DRAINING_TIME_THRESHOLD_SECONDS = 1800
 EC2_ASG_TAG_KEY = "aws:autoscaling:groupName"
 EC2_TAG_GROUP_KEYS = {
@@ -87,9 +87,9 @@ class DrainingClient:
     def __init__(self, cluster_name: str) -> None:
         self.client = sqs
         self.cluster = cluster_name
-        self.drain_reprocessing_delay_seconds = staticconf.read_int(
-            "drain_reprocessing_delay_seconds",
-            default=DEFAULT_DRAIN_REPROCESSING_DELAY_SECONDS,
+        self.global_redraining_delay_seconds = staticconf.read_int(
+            "global_redraining_delay_seconds",
+            default=DEFAULT_GLOBAL_REDRAINING_DELAY_SECONDS,
         )
         self.drain_queue_url = staticconf.read_string(f"clusters.{cluster_name}.drain_queue_url")
         self.termination_queue_url = staticconf.read_string(f"clusters.{cluster_name}.termination_queue_url")
@@ -336,6 +336,10 @@ class DrainingClient:
                     "draining.draining_time_threshold_seconds",
                     default=DEFAULT_DRAINING_TIME_THRESHOLD_SECONDS,
                 )
+                redraining_delay_seconds = pool_config.read_int(
+                    "draining.redraining_delay_seconds",
+                    default=self.global_redraining_delay_seconds,
+                )
                 should_resend_to_queue = False
                 disable_eviction = host_to_process.termination_reason == TerminationReason.SPOT_INTERRUPTION.value
 
@@ -369,10 +373,9 @@ class DrainingClient:
 
                 if should_resend_to_queue:
                     logger.info(
-                        f"Delaying re-draining {host_to_process.instance_id} "
-                        f"for {self.drain_reprocessing_delay_seconds} seconds"
+                        f"Delaying re-draining {host_to_process.instance_id} for {redraining_delay_seconds} seconds"
                     )
-                    self.submit_host_for_draining(host_to_process, self.drain_reprocessing_delay_seconds)
+                    self.submit_host_for_draining(host_to_process, redraining_delay_seconds)
             else:
                 logger.info(f"Host to submit for termination immediately: {host_to_process}")
                 self.submit_host_for_termination(host_to_process, delay=0)
