@@ -805,6 +805,10 @@ def test_process_queues():
         "clusterman.draining.queue.KubernetesClusterConnector",
         autospec=True,
     ):
+
+        mock_draining_client.return_value.process_termination_queue.return_value = False
+        mock_draining_client.return_value.process_drain_queue.return_value = False
+        mock_draining_client.return_value.process_warning_queue.return_value = False
         with pytest.raises(LoopBreak):
             process_queues("westeros-prod")
         assert mock_draining_client.return_value.process_termination_queue.called
