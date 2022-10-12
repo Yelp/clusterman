@@ -30,6 +30,7 @@ from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
 from clusterman.migration.event import MigrationEvent
 from clusterman.migration.settings import WorkerSetup
+from clusterman.monitoring_lib import get_monitoring_client
 from clusterman.util import limit_function_runtime
 
 
@@ -38,6 +39,10 @@ UPTIME_CHECK_INTERVAL_SECONDS = 60 * 60  # 1 hour
 HEALTH_CHECK_INTERVAL_SECONDS = 60
 INITIAL_POOL_HEALTH_TIMEOUT_SECONDS = 15 * 60
 SUPPORTED_POOL_SCHEDULER = "kubernetes"
+
+SFX_NODE_DRAIN_COUNT = "clusterman.node_migration.drain_count"
+SFX_MIGRATION_JOB_DURATION = "clusterman.node_migration.duration"
+SFX_DRAINED_NODE_UPTIME = "clusterman.node_migration.drained_node_uptime"
 
 
 class RestartableDaemonProcess:
@@ -112,14 +117,23 @@ def _drain_node_selection(
     """
     nodes = manager.get_node_metadatas(AWS_RUNNING_STATES)
     selected = sorted(filter(selector, nodes), key=worker_setup.precedence.sort_key)
+    if not selected:
+        return True
+    monitoring_info = {"cluster": manager.cluster, "pool": manager.pool}
+    node_drain_counter = get_monitoring_client().create_counter(SFX_NODE_DRAIN_COUNT, monitoring_info)
+    job_timer = get_monitoring_client().create_timer(SFX_MIGRATION_JOB_DURATION, monitoring_info)
+    node_uptime_gauge = get_monitoring_client().create_gauge(SFX_DRAINED_NODE_UPTIME, monitoring_info)
     chunk = worker_setup.rate.of(len(nodes))
     logger.info(f"{len(selected)} nodes of {manager.cluster}:{manager.pool} will be recycled")
+    job_timer.start()
     for i in range(0, len(selected), chunk):
         start_time = time.time()
         selection_chunk = selected[i : i + chunk]
         for node in selection_chunk:
             logger.info(f"Recycling node {node.instance.instance_id}")
             manager.submit_for_draining(node)
+            node_uptime_gauge.set(node.instance.uptime.total_seconds())
+            node_drain_counter.count()
         time.sleep(worker_setup.bootstrap_wait)
         if not _monitor_pool_health(
             manager, start_time + worker_setup.bootstrap_timeout, selection_chunk, worker_setup.ignore_pod_health
@@ -128,9 +142,11 @@ def _drain_node_selection(
                 f"Pool {manager.cluster}:{manager.pool} did not come back"
                 " to desired capacity, stopping selection draining"
             )
+            job_timer.stop()
             return False
         logger.info(f"Recycled {min(i + chunk, len(selected))} nodes out of {len(selected)} selected")
     logger.info(f"Completed recycling node selection from {manager.cluster}:{manager.pool}")
+    job_timer.stop()
     return True
 
 

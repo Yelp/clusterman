@@ -74,11 +74,19 @@ def test_monitor_pool_health(mock_time):
 
 @patch("clusterman.migration.worker.time")
 @patch("clusterman.migration.worker._monitor_pool_health")
-def test_drain_node_selection(mock_monitor, mock_time):
+@patch("clusterman.migration.worker.get_monitoring_client")
+def test_drain_node_selection(mock_sfx, mock_monitor, mock_time):
+    mock_sfx = mock_sfx.return_value
+    mock_drain_count_sfx = mock_sfx.create_counter.return_value
+    mock_uptime_stats_sfx = mock_sfx.create_gauge.return_value
+    mock_job_duration_sfx = mock_sfx.create_timer.return_value
     mock_manager = MagicMock()
     mock_monitor.return_value = True
     mock_manager.get_node_metadatas.return_value = [
-        ClusterNodeMetadata(AgentMetadata(agent_id=i, task_count=30 - 2 * i), InstanceMetadata(None, None))
+        ClusterNodeMetadata(
+            AgentMetadata(agent_id=i, task_count=30 - 2 * i),
+            InstanceMetadata(None, None, uptime=timedelta(days=i)),
+        )
         for i in range(6)
     ]
     mock_time.time.side_effect = range(5)
@@ -95,7 +103,12 @@ def test_drain_node_selection(mock_monitor, mock_time):
     mock_manager.get_node_metadatas.assert_called_once_with(("running",))
     mock_manager.submit_for_draining.assert_has_calls(
         [
-            call(ClusterNodeMetadata(AgentMetadata(agent_id=i, task_count=30 - 2 * i), InstanceMetadata(None, None)))
+            call(
+                ClusterNodeMetadata(
+                    AgentMetadata(agent_id=i, task_count=30 - 2 * i),
+                    InstanceMetadata(None, None, uptime=timedelta(days=i)),
+                )
+            )
             for i in range(5, 2, -1)
         ]
     )
@@ -105,8 +118,14 @@ def test_drain_node_selection(mock_monitor, mock_time):
                 mock_manager,
                 2,
                 [
-                    ClusterNodeMetadata(AgentMetadata(agent_id=5, task_count=20), InstanceMetadata(None, None)),
-                    ClusterNodeMetadata(AgentMetadata(agent_id=4, task_count=22), InstanceMetadata(None, None)),
+                    ClusterNodeMetadata(
+                        AgentMetadata(agent_id=5, task_count=20),
+                        InstanceMetadata(None, None, uptime=timedelta(days=5)),
+                    ),
+                    ClusterNodeMetadata(
+                        AgentMetadata(agent_id=4, task_count=22),
+                        InstanceMetadata(None, None, uptime=timedelta(days=4)),
+                    ),
                 ],
                 False,
             ),
@@ -114,10 +133,23 @@ def test_drain_node_selection(mock_monitor, mock_time):
                 mock_manager,
                 3,
                 [
-                    ClusterNodeMetadata(AgentMetadata(agent_id=3, task_count=24), InstanceMetadata(None, None)),
+                    ClusterNodeMetadata(
+                        AgentMetadata(agent_id=3, task_count=24),
+                        InstanceMetadata(None, None, uptime=timedelta(days=3)),
+                    ),
                 ],
                 False,
             ),
+        ]
+    )
+    mock_job_duration_sfx.start.assert_called_once_with()
+    mock_job_duration_sfx.stop.assert_called_once_with()
+    assert mock_drain_count_sfx.count.call_count == 3
+    mock_uptime_stats_sfx.set.assert_has_calls(
+        [
+            call(432000.0),
+            call(345600.0),
+            call(259200.0),
         ]
     )
 

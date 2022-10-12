@@ -56,6 +56,7 @@ CLUSTERMAN_TERMINATION_TAINT_KEY = "clusterman.yelp.com/terminating"
 MIGRATION_CRD_GROUP = "clusterman.yelp.com"
 MIGRATION_CRD_VERSION = "v1"
 MIGRATION_CRD_PLURAL = "nodemigrations"
+MIGRATION_CRD_KIND = "NodeMigration"
 MIGRATION_CRD_STATUS_LABEL = "clusterman.yelp.com/migration_status"
 NOT_FOUND_STATUS = 404
 # we don't want to block on eviction/deletion as we're potentially evicting/deleting a ton of pods
@@ -95,6 +96,11 @@ class KubernetesClusterConnector(ClusterConnector):
             self._label_selectors.append(f"{node_label_selector}={self.pool}")
 
     def reload_state(self, load_pods_info: bool = True) -> None:
+        """Reload information from cluster/pool
+
+        :param bool load_pods_info: do not load data about pods.
+                                    NOTE: all resouce utilization metrics won't be available when setting this
+        """
         logger.info("Reloading nodes")
 
         self.reload_client()
@@ -110,7 +116,11 @@ class KubernetesClusterConnector(ClusterConnector):
                 else self._get_pods_info()
             )
         else:
-            self._pods_by_ip, self._unschedulable_pods, self._excluded_pods_by_ip = ({}, [], {})
+            self._pods_by_ip, self._unschedulable_pods, self._excluded_pods_by_ip = (
+                dict.fromkeys(self._nodes_by_ip, []),
+                [],
+                {},
+            )
 
     def reload_client(self) -> None:
         self._core_api = CachedCoreV1Api(self.kubeconfig_path)
@@ -288,6 +298,8 @@ class KubernetesClusterConnector(ClusterConnector):
         assert self._migration_crd_api, "CRD client was not initialized"
         try:
             body = event.to_crd_body(labels={MIGRATION_CRD_STATUS_LABEL: status.value, self.pool_label_key: event.pool})
+            body["apiVersion"] = f"{MIGRATION_CRD_GROUP}/{MIGRATION_CRD_VERSION}"
+            body["kind"] = MIGRATION_CRD_KIND
             self._migration_crd_api.create_cluster_custom_object(body=body)
         except Exception as e:
             logger.error(f"Failed creating migration event resource: {e}")

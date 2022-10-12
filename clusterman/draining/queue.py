@@ -55,7 +55,7 @@ from clusterman.util import get_pool_name_list
 logger = colorlog.getLogger(__name__)
 DRAIN_CACHE_SECONDS = 1800
 DEFAULT_FORCE_TERMINATION = False
-DEFAULT_DRAIN_REPROCESSING_DELAY_SECONDS = 15
+DEFAULT_GLOBAL_REDRAINING_DELAY_SECONDS = 15
 DEFAULT_DRAINING_TIME_THRESHOLD_SECONDS = 1800
 EC2_ASG_TAG_KEY = "aws:autoscaling:groupName"
 EC2_TAG_GROUP_KEYS = {
@@ -87,9 +87,9 @@ class DrainingClient:
     def __init__(self, cluster_name: str) -> None:
         self.client = sqs
         self.cluster = cluster_name
-        self.drain_reprocessing_delay_seconds = staticconf.read_int(
-            "drain_reprocessing_delay_seconds",
-            default=DEFAULT_DRAIN_REPROCESSING_DELAY_SECONDS,
+        self.global_redraining_delay_seconds = staticconf.read_int(
+            "global_redraining_delay_seconds",
+            default=DEFAULT_GLOBAL_REDRAINING_DELAY_SECONDS,
         )
         self.drain_queue_url = staticconf.read_string(f"clusters.{cluster_name}.drain_queue_url")
         self.termination_queue_url = staticconf.read_string(f"clusters.{cluster_name}.termination_queue_url")
@@ -273,9 +273,11 @@ class DrainingClient:
         self,
         mesos_operator_client: Optional[Callable[..., Callable[[str], Callable[..., None]]]],
         kube_operator_client: Optional[KubernetesClusterConnector],
-    ) -> None:
+    ) -> bool:
+        message_exist = False
         host_to_terminate = self.get_host_to_terminate()
         if host_to_terminate:
+            message_exist = True
             # as for draining if it has a hostname we should down + up around the termination
             if host_to_terminate.scheduler == "mesos":
                 logger.info(f"Mesos hosts to down+terminate+up: {host_to_terminate}")
@@ -296,19 +298,22 @@ class DrainingClient:
                 except Exception as e:
                     logger.exception(f"Failed to terminate {host_to_terminate.instance_id}: {e}")
                     # we should stop here so as not to delete message from queue
-                    return
+                    return message_exist
             else:
                 logger.info(f"Host to terminate immediately: {host_to_terminate}")
                 terminate_host(host_to_terminate)
             self.delete_terminate_messages([host_to_terminate])
+        return message_exist
 
     def process_drain_queue(
         self,
         mesos_operator_client: Optional[Callable[..., Callable[[str], Callable[..., None]]]],
         kube_operator_client: Optional[KubernetesClusterConnector],
-    ) -> None:
+    ) -> bool:
+        message_exist = False
         host_to_process = self.get_host_to_drain()
         if host_to_process and host_to_process.instance_id not in self.draining_host_ttl_cache:
+            message_exist = True
             # We should add instance_id to cache only if we submit host for termination
             should_add_to_cache = True
             if host_to_process.scheduler == "mesos":
@@ -334,6 +339,10 @@ class DrainingClient:
                 draining_time_threshold_seconds = pool_config.read_int(
                     "draining.draining_time_threshold_seconds",
                     default=DEFAULT_DRAINING_TIME_THRESHOLD_SECONDS,
+                )
+                redraining_delay_seconds = pool_config.read_int(
+                    "draining.redraining_delay_seconds",
+                    default=self.global_redraining_delay_seconds,
                 )
                 #  flag to detect failed cordon for adding message again to queue
                 should_resend_to_queue = False
@@ -377,10 +386,9 @@ class DrainingClient:
 
                 if should_resend_to_queue:
                     logger.info(
-                        f"Delaying re-draining {host_to_process.instance_id} "
-                        f"for {self.drain_reprocessing_delay_seconds} seconds"
+                        f"Delaying re-draining {host_to_process.instance_id} for {redraining_delay_seconds} seconds"
                     )
-                    self.submit_host_for_draining(host_to_process, self.drain_reprocessing_delay_seconds)
+                    self.submit_host_for_draining(host_to_process, redraining_delay_seconds)
             else:
                 logger.info(f"Host to submit for termination immediately: {host_to_process}")
                 self.submit_host_for_termination(host_to_process, delay=0)
@@ -390,10 +398,11 @@ class DrainingClient:
                 self.draining_host_ttl_cache[host_to_process.instance_id] = arrow.now().shift(
                     seconds=DRAIN_CACHE_SECONDS
                 )
-
         elif host_to_process:
             logger.warning(f"Host: {host_to_process.hostname} already being processed, skipping...")
             self.delete_drain_messages([host_to_process])
+            message_exist = True
+        return message_exist
 
     def clean_processing_hosts_cache(self) -> None:
         hosts_to_remove = []
@@ -403,9 +412,11 @@ class DrainingClient:
         for host in hosts_to_remove:
             del self.draining_host_ttl_cache[host]
 
-    def process_warning_queue(self) -> None:
+    def process_warning_queue(self) -> bool:
+        message_exist = False
         host_to_process = self.get_warned_host()
         if host_to_process:
+            message_exist = True
             logger.info(f"Processing spot warning for {host_to_process.hostname}")
             spot_fleet_resource_groups: Set[str] = set()
             autoscaling_resource_groups: Set[str] = set()
@@ -444,6 +455,7 @@ class DrainingClient:
             else:
                 logger.info(f"Ignoring warned host because not in our target group: {host_to_process.hostname}")
             self.delete_warning_messages([host_to_process])
+        return message_exist
 
     def _drain_k8s_host(
         self, kube_operator_client: Optional[KubernetesClusterConnector], host_to_process: Host, disable_eviction: bool
@@ -512,6 +524,7 @@ def host_from_instance_id(receipt_handle: str, instance_id: str, pool: Optional[
 def process_queues(cluster_name: str) -> None:
     draining_client = DrainingClient(cluster_name)
     cluster_manager_name = staticconf.read_string(f"clusters.{cluster_name}.cluster_manager")
+    always_delay_drain_processing = staticconf.read_bool(f"clusters.{cluster_name}.always_delay_drain_processing", True)
     mesos_operator_client = kube_operator_client = None
     try:
         kube_operator_client = KubernetesClusterConnector(cluster_name, None)
@@ -530,16 +543,18 @@ def process_queues(cluster_name: str) -> None:
         if kube_operator_client:
             kube_operator_client.reload_client()
         draining_client.clean_processing_hosts_cache()
-        draining_client.process_warning_queue()
-        draining_client.process_drain_queue(
+        warning_result = draining_client.process_warning_queue()
+        draining_result = draining_client.process_drain_queue(
             mesos_operator_client=mesos_operator_client,
             kube_operator_client=kube_operator_client,
         )
-        draining_client.process_termination_queue(
+        termination_result = draining_client.process_termination_queue(
             mesos_operator_client=mesos_operator_client,
             kube_operator_client=kube_operator_client,
         )
-        time.sleep(5)
+        # sleep five seconds only if all queues are empty OR feature flag is enabled
+        if always_delay_drain_processing or (not warning_result and not draining_result and not termination_result):
+            time.sleep(5)
 
 
 def terminate_host(host: Host) -> None:
