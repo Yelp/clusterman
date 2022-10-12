@@ -315,7 +315,7 @@ class DrainingClient:
         if host_to_process and host_to_process.instance_id not in self.draining_host_ttl_cache:
             message_exist = True
             # We should add instance_id to cache only if we submit host for termination
-            should_add_to_cache = False
+            should_add_to_cache = True
             if host_to_process.scheduler == "mesos":
                 logger.info(f"Mesos host to drain and submit for termination: {host_to_process}")
                 try:
@@ -329,7 +329,6 @@ class DrainingClient:
                     logger.error(f"Failed to drain {host_to_process.hostname} continuing to terminate anyway: {e}")
                 finally:
                     self.submit_host_for_termination(host_to_process)
-                    should_add_to_cache = True
             elif host_to_process.scheduler == "kubernetes":
                 logger.info(f"Kubernetes host to drain and submit for termination: {host_to_process}")
                 spent_time = arrow.now() - arrow.get(host_to_process.draining_start_time)
@@ -345,36 +344,45 @@ class DrainingClient:
                     "draining.redraining_delay_seconds",
                     default=self.global_redraining_delay_seconds,
                 )
+                #  flag to detect failed cordon for adding message again to queue
                 should_resend_to_queue = False
                 disable_eviction = host_to_process.termination_reason == TerminationReason.SPOT_INTERRUPTION.value
-
                 # Try to drain node; there are a few different possibilities:
-                #  0) Instance is orphan, it should be terminated
+                #  0) host is orphan, getting host information from AWS
+                #       a) host doesn't exist, don't need any action
+                #       b) host doesn't have agent_id (PrivateDnsName), submit it for termination
+                #       c) host exists, submit for draining as non-orphan
                 #  1) threshold expired, it should be terminated since force_terminate is true
                 #  2) threshold expired, it should be uncordoned since force_terminate is false
                 #  3) threshold not expired, drain and terminate node
-                #  4) threshold not expired, drain failed for any reason(api is unreachable, PDB doesn't allow eviction)
-                #  then it should be returned to queue to try again
 
                 if not host_to_process.agent_id:  # case 0
-                    logger.info(f"Instance is Orphan: {host_to_process.instance_id}")
-                    self.submit_host_for_termination(host_to_process, delay=0)
-                    should_add_to_cache = True
+                    logger.info(f"Host doesn't have agent_id, it may be orphan: {host_to_process.instance_id}")
+                    host_to_process_fresh = host_from_instance_id(
+                        host_to_process.receipt_handle,
+                        host_to_process.instance_id,
+                        host_to_process.pool,
+                    )
+                    if not host_to_process_fresh:  # case 0a
+                        logger.info(f"Host doesn't exist: {host_to_process.instance_id}")
+                    elif not host_to_process_fresh.agent_id:  # case 0b
+                        logger.info(f"Host doesn't have agent_id: {host_to_process.instance_id}")
+                        self.submit_host_for_termination(host_to_process, delay=0)
+                    else:  # case 0c
+                        logger.info(f"Sending host to drain: {host_to_process.instance_id}")
+                        # message shouldn't add to cache since it will be received again.
+                        should_add_to_cache = False
+                        self.submit_host_for_draining(host_to_process_fresh)
                 elif spent_time.total_seconds() > draining_time_threshold_seconds:
                     if force_terminate:  # case 1
                         logger.info(f"Draining expired for: {host_to_process.instance_id}")
                         self.submit_host_for_termination(host_to_process, delay=0)
-                        should_add_to_cache = True
                     else:  # case 2
                         k8s_uncordon(kube_operator_client, host_to_process.agent_id)
-                else:
-                    if k8s_drain(kube_operator_client, host_to_process.agent_id, disable_eviction):  # case 3
-                        draining_time = arrow.now() - arrow.get(host_to_process.draining_start_time)
-                        logger.info(f"draining took {draining_time} seconds for {host_to_process.instance_id}")
-                        self.submit_host_for_termination(host_to_process, delay=0)
-                        should_add_to_cache = True
-                    else:  # case 4
-                        should_resend_to_queue = True
+                        should_add_to_cache = False
+                else:  # case 3
+                    should_add_to_cache = self._drain_k8s_host(kube_operator_client, host_to_process, disable_eviction)
+                    should_resend_to_queue = not should_add_to_cache
 
                 if should_resend_to_queue:
                     logger.info(
@@ -449,11 +457,18 @@ class DrainingClient:
             self.delete_warning_messages([host_to_process])
         return message_exist
 
+    def _drain_k8s_host(
+        self, kube_operator_client: Optional[KubernetesClusterConnector], host_to_process: Host, disable_eviction: bool
+    ) -> bool:
+        if not k8s_drain(kube_operator_client, host_to_process.agent_id, disable_eviction):
+            return False
+        draining_time = arrow.now() - arrow.get(host_to_process.draining_start_time)
+        logger.info(f"draining took {draining_time} seconds for {host_to_process.instance_id}")
+        self.submit_host_for_termination(host_to_process, delay=0)
+        return True
 
-def host_from_instance_id(
-    receipt_handle: str,
-    instance_id: str,
-) -> Optional[Host]:
+
+def host_from_instance_id(receipt_handle: str, instance_id: str, pool: Optional[str] = None) -> Optional[Host]:
     try:
         instance_data = ec2_describe_instances(instance_ids=[instance_id])
     except ClientError as e:
@@ -499,6 +514,7 @@ def host_from_instance_id(
         hostname=hostnames[0],
         group_id=group_ids[0],
         ip=ip,
+        pool=pool if pool else "",  # getting pool information from client code temporary, pool tag will be added to EC2
         termination_reason=TerminationReason.SPOT_INTERRUPTION.value,
         scheduler=scheduler,
         draining_start_time=arrow.now().for_json(),
