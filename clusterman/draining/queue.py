@@ -18,6 +18,8 @@ import socket
 import time
 from typing import Callable
 from typing import Dict
+from typing import Hashable
+from typing import MutableMapping
 from typing import NamedTuple
 from typing import Optional
 from typing import Sequence
@@ -25,6 +27,7 @@ from typing import Set
 from typing import Type
 
 import arrow
+import cachetools
 import colorlog
 import staticconf
 from botocore.exceptions import ClientError
@@ -54,6 +57,7 @@ from clusterman.util import get_pool_name_list
 
 logger = colorlog.getLogger(__name__)
 DRAIN_CACHE_SECONDS = 1800
+DEFAULT_RESOURCE_GROUPS_CACHE_SECONDS = 0
 DEFAULT_FORCE_TERMINATION = False
 DEFAULT_GLOBAL_REDRAINING_DELAY_SECONDS = 15
 DEFAULT_DRAINING_TIME_THRESHOLD_SECONDS = 1800
@@ -97,6 +101,20 @@ class DrainingClient:
         self.warning_queue_url = staticconf.read_string(
             f"clusters.{cluster_name}.warning_queue_url",
             default=None,
+        )
+        self.spot_fleet_resource_groups_cache: MutableMapping[Hashable, Set[str]] = cachetools.TTLCache(
+            maxsize=1,
+            ttl=staticconf.read_int(
+                f"clusters.{cluster_name}.spot_fleet_resource_groups_cache_seconds",
+                default=DEFAULT_RESOURCE_GROUPS_CACHE_SECONDS,
+            ),
+        )
+        self.auto_scaling_resource_groups_cache: MutableMapping[Hashable, Set[str]] = cachetools.TTLCache(
+            maxsize=1,
+            ttl=staticconf.read_int(
+                f"clusters.{cluster_name}.auto_scaling_resource_groups_cache_seconds",
+                default=DEFAULT_RESOURCE_GROUPS_CACHE_SECONDS,
+            ),
         )
 
     def submit_instance_for_draining(
@@ -418,37 +436,12 @@ class DrainingClient:
         if host_to_process:
             message_exist = True
             logger.info(f"Processing spot warning for {host_to_process.hostname}")
-            spot_fleet_resource_groups: Set[str] = set()
-            autoscaling_resource_groups: Set[str] = set()
-            # we do this in two loops since we only use SFRs for Mesos, but we use Spot
-            # ASGs for Kubernetes
-            for pool in get_pool_name_list(self.cluster, "mesos"):
-                pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=pool, scheduler="mesos"))
-                for resource_group_conf in pool_config.read_list("resource_groups"):
-                    spot_fleet_resource_groups |= set(
-                        SpotFleetResourceGroup.load(
-                            cluster=self.cluster,
-                            pool=pool,
-                            config=list(resource_group_conf.values())[0],
-                        ).keys()
-                    )
-
-            for pool in get_pool_name_list(self.cluster, "kubernetes"):
-                pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=pool, scheduler="kubernetes"))
-                for resource_group_conf in pool_config.read_list("resource_groups"):
-                    autoscaling_resource_groups |= set(
-                        AutoScalingResourceGroup.load(
-                            cluster=self.cluster,
-                            pool=pool,
-                            config=list(resource_group_conf.values())[0],
-                        ).keys()
-                    )
 
             # we should definitely ignore termination warnings that aren't from this
             # cluster or maybe not even paasta instances...
             if (
-                host_to_process.group_id in spot_fleet_resource_groups
-                or host_to_process.group_id in autoscaling_resource_groups
+                host_to_process.group_id in self.spot_fleet_resource_groups
+                or host_to_process.group_id in self.auto_scaling_resource_groups
             ):
                 logger.info(f"Sending warned host to drain: {host_to_process.hostname}")
                 self.submit_host_for_draining(host_to_process)
@@ -466,6 +459,38 @@ class DrainingClient:
         logger.info(f"draining took {draining_time} seconds for {host_to_process.instance_id}")
         self.submit_host_for_termination(host_to_process, delay=0)
         return True
+
+    @property
+    @cachetools.cachedmethod(lambda self: self.spot_fleet_resource_groups_cache)
+    def spot_fleet_resource_groups(self) -> Set[str]:
+        result = set()
+        for pool in get_pool_name_list(self.cluster, "mesos"):
+            pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=pool, scheduler="mesos"))
+            for resource_group_conf in pool_config.read_list("resource_groups"):
+                result |= set(
+                    SpotFleetResourceGroup.load(
+                        cluster=self.cluster,
+                        pool=pool,
+                        config=list(resource_group_conf.values())[0],
+                    ).keys()
+                )
+        return result
+
+    @property
+    @cachetools.cachedmethod(lambda self: self.auto_scaling_resource_groups_cache)
+    def auto_scaling_resource_groups(self) -> Set[str]:
+        result = set()
+        for pool in get_pool_name_list(self.cluster, "kubernetes"):
+            pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=pool, scheduler="kubernetes"))
+            for resource_group_conf in pool_config.read_list("resource_groups"):
+                result |= set(
+                    AutoScalingResourceGroup.load(
+                        cluster=self.cluster,
+                        pool=pool,
+                        config=list(resource_group_conf.values())[0],
+                    ).keys()
+                )
+        return result
 
 
 def host_from_instance_id(receipt_handle: str, instance_id: str, pool: Optional[str] = None) -> Optional[Host]:
