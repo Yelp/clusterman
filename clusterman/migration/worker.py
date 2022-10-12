@@ -36,7 +36,6 @@ from clusterman.util import limit_function_runtime
 
 logger = colorlog.getLogger(__name__)
 UPTIME_CHECK_INTERVAL_SECONDS = 60 * 60  # 1 hour
-HEALTH_CHECK_INTERVAL_SECONDS = 60
 INITIAL_POOL_HEALTH_TIMEOUT_SECONDS = 15 * 60
 SUPPORTED_POOL_SCHEDULER = "kubernetes"
 
@@ -71,7 +70,11 @@ class NodeMigrationError(Exception):
 
 
 def _monitor_pool_health(
-    manager: PoolManager, timeout: float, drained: Collection[ClusterNodeMetadata], ignore_pod_health: bool = False
+    manager: PoolManager,
+    timeout: float,
+    drained: Collection[ClusterNodeMetadata],
+    health_check_interval_seconds: int,
+    ignore_pod_health: bool = False,
 ) -> bool:
     """Monitor pool health after nodes were submitted for draining
 
@@ -101,7 +104,7 @@ def _monitor_pool_health(
                 f"Pool {manager.cluster}:{manager.pool} not healthy yet"
                 f" (drain_ok={draining_happened}, capacity_ok={capacity_satisfied}, pods_ok={pods_healthy})"
             )
-        time.sleep(HEALTH_CHECK_INTERVAL_SECONDS)
+        time.sleep(health_check_interval_seconds)
     return False
 
 
@@ -136,7 +139,11 @@ def _drain_node_selection(
             node_drain_counter.count()
         time.sleep(worker_setup.bootstrap_wait)
         if not _monitor_pool_health(
-            manager, start_time + worker_setup.bootstrap_timeout, selection_chunk, worker_setup.ignore_pod_health
+            manager=manager,
+            timeout=start_time + worker_setup.bootstrap_timeout,
+            drained=selection_chunk,
+            health_check_interval_seconds=worker_setup.health_check_interval,
+            ignore_pod_health=worker_setup.ignore_pod_health,
         ):
             logger.warning(
                 f"Pool {manager.cluster}:{manager.pool} did not come back"
@@ -205,9 +212,10 @@ def event_migration_worker(migration_event: MigrationEvent, worker_setup: Worker
             prescaled_capacity = round(manager.target_capacity + (offset * avg_weight))
             manager.modify_target_capacity(prescaled_capacity)
         if not _monitor_pool_health(
-            manager,
-            time.time() + INITIAL_POOL_HEALTH_TIMEOUT_SECONDS,
+            manager=manager,
+            timeout=time.time() + INITIAL_POOL_HEALTH_TIMEOUT_SECONDS,
             drained=[],
+            health_check_interval_seconds=worker_setup.health_check_interval,
             ignore_pod_health=True,
         ):
             raise NodeMigrationError(f"Pool {migration_event.cluster}:{migration_event.pool} is not healthy")

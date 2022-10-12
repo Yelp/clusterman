@@ -45,6 +45,7 @@ def event_worker_setup():
         bootstrap_timeout=2,
         disable_autoscaling=True,
         expected_duration=3,
+        health_check_interval=4,
     )
 
 
@@ -65,7 +66,7 @@ def test_monitor_pool_health(mock_time):
         repeat(AgentMetadata(agent_id="")),
     )
     mock_time.time.return_value = 0
-    assert _monitor_pool_health(mock_manager, 1, drained) is True
+    assert _monitor_pool_health(mock_manager, 1, drained, 120) is True
     # 1st iteration still draining some nodes
     # 2nd iteration underprovisioned capacity
     # 3rd iteration left over unscheduable pods
@@ -98,6 +99,7 @@ def test_drain_node_selection(mock_sfx, mock_monitor, mock_time):
         bootstrap_timeout=2,
         disable_autoscaling=False,
         expected_duration=3,
+        health_check_interval=4,
     )
     assert _drain_node_selection(mock_manager, lambda n: n.agent.agent_id > 2, worker_setup) is True
     mock_manager.get_node_metadatas.assert_called_once_with(("running",))
@@ -115,9 +117,9 @@ def test_drain_node_selection(mock_sfx, mock_monitor, mock_time):
     mock_monitor.assert_has_calls(
         [
             call(
-                mock_manager,
-                2,
-                [
+                manager=mock_manager,
+                timeout=2,
+                drained=[
                     ClusterNodeMetadata(
                         AgentMetadata(agent_id=5, task_count=20),
                         InstanceMetadata(None, None, uptime=timedelta(days=5)),
@@ -127,18 +129,20 @@ def test_drain_node_selection(mock_sfx, mock_monitor, mock_time):
                         InstanceMetadata(None, None, uptime=timedelta(days=4)),
                     ),
                 ],
-                False,
+                health_check_interval_seconds=4,
+                ignore_pod_health=False,
             ),
             call(
-                mock_manager,
-                3,
-                [
+                manager=mock_manager,
+                timeout=3,
+                drained=[
                     ClusterNodeMetadata(
                         AgentMetadata(agent_id=3, task_count=24),
                         InstanceMetadata(None, None, uptime=timedelta(days=3)),
                     ),
                 ],
-                False,
+                health_check_interval_seconds=4,
+                ignore_pod_health=False,
             ),
         ]
     )
