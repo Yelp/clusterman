@@ -111,6 +111,7 @@ def test_get_worker_setup(migration_batch):
         bootstrap_timeout=180.0,
         disable_autoscaling=False,
         expected_duration=7200.0,
+        health_check_interval=120,
     )
 
 

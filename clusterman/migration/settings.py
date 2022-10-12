@@ -24,6 +24,7 @@ DEFAULT_POOL_PRESCALING = 0
 DEFAULT_NODE_BOOT_WAIT = "3m"
 DEFAULT_NODE_BOOT_TIMEOUT = "10m"
 DEFAULT_WORKER_TIMEOUT = "2h"
+DEFAULT_HEALTH_CHECK_INTERVAL = "2m"
 
 
 class MigrationPrecendence(enum.Enum):
@@ -79,6 +80,7 @@ class WorkerSetup(NamedTuple):
     bootstrap_timeout: float
     disable_autoscaling: bool
     expected_duration: float
+    health_check_interval: int
     ignore_pod_health: bool = False
 
     @classmethod
@@ -96,4 +98,7 @@ class WorkerSetup(NamedTuple):
             disable_autoscaling=config.get("disable_autoscaling", False),
             expected_duration=parse_time_interval_seconds(config.get("expected_duration", DEFAULT_WORKER_TIMEOUT)),
             ignore_pod_health=config.get("ignore_pod_health", False),
+            health_check_interval=parse_time_interval_seconds(
+                config.get("health_check_interval", DEFAULT_HEALTH_CHECK_INTERVAL)
+            ),
         )
