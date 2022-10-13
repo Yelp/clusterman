@@ -37,7 +37,7 @@ def test_migrate_command(mock_connector, mock_time):
     )
     mock_time.time.return_value = 111222333
     main(mock_args)
-    mock_connector.assert_called_once_with("mesos-test", None, init_crd=True)
+    mock_connector.assert_called_once_with("mesos-test", "bar", init_crd=True)
     mock_connector.return_value.create_node_migration_resource.assert_called_once_with(
         MigrationEvent(
             resource_name="mesos-test-bar-111222333",
