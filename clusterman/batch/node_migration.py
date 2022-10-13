@@ -90,12 +90,12 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
             "batches.node_migration.max_worker_processes", self.DEFAULT_MAX_WORKER_PROCESSES
         )
         for pool in get_pool_name_list(self.options.cluster, SUPPORTED_POOL_SCHEDULER):
+            self.add_watcher({pool: get_pool_config_path(self.options.cluster, pool, SUPPORTED_POOL_SCHEDULER)})
             load_cluster_pool_config(self.options.cluster, pool, SUPPORTED_POOL_SCHEDULER, None)
             pool_config_namespace = POOL_NAMESPACE.format(pool=pool, scheduler=SUPPORTED_POOL_SCHEDULER)
             pool_config = staticconf.config.get_namespace(pool_config_namespace).get_config_dict()
             if self.POOL_SETTINGS_PARENT in pool_config:
                 self.migration_configs[pool] = pool_config[self.POOL_SETTINGS_PARENT]
-                self.add_watcher({pool: get_pool_config_path(self.options.cluster, pool, SUPPORTED_POOL_SCHEDULER)})
                 if self.migration_configs[pool]["trigger"].get("event", False):
                     self.pools_accepting_events.add(pool)
         self.logger.info(f"Found node migration configs for pools: {list(self.migration_configs.keys())}")
