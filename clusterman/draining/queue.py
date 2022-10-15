@@ -71,6 +71,7 @@ EC2_TAG_GROUP_KEYS = {
 class TerminationReason(enum.Enum):
     SCALING_DOWN = "scaling down"
     SPOT_INTERRUPTION = "spot interruption"
+    NODE_MIGRATION = "node migration"
 
 
 class Host(NamedTuple):
@@ -124,6 +125,7 @@ class DrainingClient:
         scheduler: str,
         pool: str,
         agent_id: str,
+        termination_reason: TerminationReason,
         draining_start_time: arrow.Arrow,
     ) -> None:
         return self.client.send_message(
@@ -143,7 +145,7 @@ class DrainingClient:
                     "instance_id": instance.instance_id,
                     "ip": instance.ip_address,
                     "pool": pool,
-                    "termination_reason": TerminationReason.SCALING_DOWN.value,
+                    "termination_reason": termination_reason.value,
                     "scheduler": scheduler,
                 }
             ),

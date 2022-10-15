@@ -58,6 +58,7 @@ def test_submit_instance_for_draining(mock_draining_client):
                 pool="default",
                 agent_id="agt123",
                 draining_start_time=now,
+                termination_reason=TerminationReason.SCALING_DOWN,
             )
             == mock_draining_client.client.send_message.return_value
         )

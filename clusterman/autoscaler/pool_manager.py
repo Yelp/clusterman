@@ -35,6 +35,7 @@ from clusterman.aws.markets import InstanceMarket
 from clusterman.aws.util import RESOURCE_GROUPS
 from clusterman.config import POOL_NAMESPACE
 from clusterman.draining.queue import DrainingClient
+from clusterman.draining.queue import TerminationReason
 from clusterman.exceptions import AllResourceGroupsAreStaleError
 from clusterman.exceptions import NoResourceGroupsFoundError
 from clusterman.exceptions import PoolManagerError
@@ -194,17 +195,18 @@ class PoolManager:
             if self.draining_enabled:
                 for node_metadatas in marked_nodes_by_group.values():
                     for node_metadata in node_metadatas:
-                        self.submit_for_draining(node_metadata)
+                        self.submit_for_draining(node_metadata, TerminationReason.SCALING_DOWN)
             else:
                 for group_id, node_metadatas in marked_nodes_by_group.items():
                     self.resource_groups[group_id].terminate_instances_by_id(
                         [node_metadata.instance.instance_id for node_metadata in node_metadatas]
                     )
 
-    def submit_for_draining(self, node_metadata: ClusterNodeMetadata) -> None:
+    def submit_for_draining(self, node_metadata: ClusterNodeMetadata, termination_reason: TerminationReason) -> None:
         """Submit collection of nodes for draining
 
         :param ClusterNodeMetadata node_metadata: node to be drained
+        :param TerminationReason termination_reason: reason for draining
         """
         assert self.draining_client  # make mypy happy
         group_id = node_metadata.instance.group_id
@@ -218,6 +220,7 @@ class PoolManager:
             pool=self.pool,
             agent_id=node_metadata.agent.agent_id,
             draining_start_time=arrow.now(),
+            termination_reason=termination_reason,
         )
 
     def get_node_metadatas(self, state_filter: Optional[Collection[str]] = None) -> Sequence[ClusterNodeMetadata]:
