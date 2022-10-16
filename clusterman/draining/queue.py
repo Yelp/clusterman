@@ -82,6 +82,7 @@ class Host(NamedTuple):
     receipt_handle: str
     agent_id: str = ""
     pool: str = ""
+    attempt: int = 1
     termination_reason: str = TerminationReason.SCALING_DOWN.value
     draining_start_time: str = arrow.now().for_json()
     scheduler: str = "mesos"
@@ -137,6 +138,7 @@ class DrainingClient:
             MessageBody=json.dumps(
                 {
                     "agent_id": agent_id,
+                    "attempt": 1,
                     "draining_start_time": draining_start_time.for_json(),
                     "group_id": instance.group_id,
                     "hostname": instance.hostname,
@@ -149,7 +151,7 @@ class DrainingClient:
             ),
         )
 
-    def submit_host_for_draining(self, host: Host, delay: Optional[int] = 0) -> None:
+    def submit_host_for_draining(self, host: Host, delay: Optional[int] = 0, attempt: Optional[int] = 1) -> None:
         return self.client.send_message(
             QueueUrl=self.drain_queue_url,
             DelaySeconds=delay,
@@ -162,6 +164,7 @@ class DrainingClient:
             MessageBody=json.dumps(
                 {
                     "agent_id": host.agent_id,
+                    "attempt": attempt,
                     "draining_start_time": host.draining_start_time,
                     "group_id": host.group_id,
                     "hostname": host.hostname,
@@ -406,7 +409,9 @@ class DrainingClient:
                     logger.info(
                         f"Delaying re-draining {host_to_process.instance_id} for {redraining_delay_seconds} seconds"
                     )
-                    self.submit_host_for_draining(host_to_process, redraining_delay_seconds)
+                    self.submit_host_for_draining(
+                        host_to_process, redraining_delay_seconds, host_to_process.attempt + 1
+                    )
             else:
                 logger.info(f"Host to submit for termination immediately: {host_to_process}")
                 self.submit_host_for_termination(host_to_process, delay=0)
