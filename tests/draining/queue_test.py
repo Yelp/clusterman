@@ -617,6 +617,7 @@ def test_process_drain_queue(mock_draining_client):
             draining_start_time=now.for_json(),
             sender="mmb",
             receipt_handle="aaaaa",
+            attempt=2,
         )
         mock_k8s_drain.reset_mock()
         mock_k8s_drain.return_value = True
@@ -809,7 +810,7 @@ def test_process_drain_queue(mock_draining_client):
         assert not mock_k8s_uncordon.called
         assert not mock_k8s_drain.called
         assert not mock_submit_host_for_termination.called
-        mock_submit_host_for_draining.assert_called_with(mock_draining_client, mock_host_fresh)
+        mock_submit_host_for_draining.assert_called_with(mock_draining_client, mock_host_fresh, 2)
         mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
 
 
