@@ -19,7 +19,6 @@ from typing import Optional
 from typing import Set
 from typing import Tuple
 
-import arrow
 import colorlog
 import kubernetes
 import staticconf
@@ -187,16 +186,6 @@ class KubernetesClusterConnector(ClusterConnector):
         for pod in self._unschedulable_pods:
             unschedulable_pods.append((pod, self._get_pod_unschedulable_reason(pod)))
         return unschedulable_pods
-
-    def freeze_agent(self, node_name: str) -> None:
-        now = str(arrow.now().timestamp)
-        try:
-            body = {
-                "spec": {"taints": [{"effect": "NoSchedule", "key": CLUSTERMAN_TERMINATION_TAINT_KEY, "value": now}]}
-            }
-            self._core_api.patch_node(node_name, body)
-        except ApiException as e:
-            logger.warning(f"Failed to freeze {node_name}: {e}")
 
     def drain_node(self, node_name: str, disable_eviction: bool) -> bool:
         try:
