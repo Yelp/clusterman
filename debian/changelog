@@ -1,3 +1,9 @@
+clusterman (4.15.6) xenial bionic; urgency=low
+
+  * Fix termination reason for orphan draining
+
+ -- Ilkin Mammadzada <ilkinmammadzada@yelp.com>  Mon, 17 Oct 2022 04:49:37 -0700
+
 clusterman (4.15.5) xenial bionic; urgency=low
 
   * Added node_migration reason
