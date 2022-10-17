@@ -14,12 +14,14 @@
 import json
 from unittest import mock
 
+import arrow
 import pytest
 
 from clusterman.aws.auto_scaling_resource_group import AutoScalingResourceGroup
 from clusterman.aws.auto_scaling_resource_group import CLUSTERMAN_STALE_TAG
 from clusterman.aws.client import autoscaling
 from clusterman.aws.client import ec2
+from clusterman.aws.client import S3ObjectWrapper
 from clusterman.aws.markets import InstanceMarket
 from clusterman.exceptions import NoLaunchTemplateConfiguredError
 from clusterman.util import ClustermanResources
@@ -266,3 +268,28 @@ def test_get_asg_tags(mock_asrg, mock_asg_config):
     tags = asg_id_to_tags[mock_asg_config["AutoScalingGroupName"]]
     assert "fake_tag_key" in tags
     assert tags["fake_tag_key"] == "fake_tag_value"
+
+
+@mock.patch("clusterman.aws.aws_resource_group.cached_s3_get_object")
+def test_load_from_cache_data(mock_get_obj):
+    mock_data = {"g1": {}, "g2": {}}
+    mock_get_obj.return_value = S3ObjectWrapper(json.dumps(mock_data).encode(), arrow.utcnow())
+    with mock.patch.object(AutoScalingResourceGroup, "_get_instances_by_market"), mock.patch.object(
+        AutoScalingResourceGroup, "_reload_resource_group"
+    ):
+        groups = AutoScalingResourceGroup.load("foo", "bar", {"aws_api_cache_bucket": "some-bucket"})
+    assert all(k in groups and k == groups[k].group_id for k in mock_data)
+    mock_get_obj.assert_called_once_with("some-bucket", "asg/foo/bar.json")
+
+
+@mock.patch("clusterman.aws.aws_resource_group.cached_s3_get_object")
+def test_get_auto_scaling_group_config_cached(mock_get_obj):
+    mock_data = {"some-name": {"foo": 123}}
+    mock_get_obj.return_value = S3ObjectWrapper(json.dumps(mock_data).encode(), arrow.utcnow())
+    with mock.patch.object(AutoScalingResourceGroup, "_get_instances_by_market"), mock.patch.object(
+        AutoScalingResourceGroup, "_reload_resource_group"
+    ):
+        asg = AutoScalingResourceGroup(
+            "some-name", aws_api_cache_bucket="some-bucket", aws_api_cache_key="some-key.json"
+        )
+        assert asg._get_auto_scaling_group_config() == {"foo": 123}

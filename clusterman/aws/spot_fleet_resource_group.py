@@ -52,8 +52,8 @@ SpotFleetResourceGroupConfig = TypedDict(
 
 
 class SpotFleetResourceGroup(AWSResourceGroup):
-    def __init__(self, group_id: str) -> None:
-        super().__init__(group_id)
+
+    FRIENDLY_NAME = "sfr"
 
     def market_weight(self, market: InstanceMarket) -> float:
         return self._market_weights.get(market, 1)

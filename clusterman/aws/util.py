@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import List
 from typing import Mapping
 from typing import Type
 
@@ -19,8 +20,6 @@ from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
 
 
-RESOURCE_GROUPS: Mapping[str, Type[AWSResourceGroup]] = {
-    "asg": AutoScalingResourceGroup,
-    "sfr": SpotFleetResourceGroup,
-}
+_RESOURCE_GROUP_TYPES: List[Type[AWSResourceGroup]] = [AutoScalingResourceGroup, SpotFleetResourceGroup]
+RESOURCE_GROUPS: Mapping[str, Type[AWSResourceGroup]] = {t.FRIENDLY_NAME: t for t in _RESOURCE_GROUP_TYPES}
 RESOURCE_GROUPS_REV: Mapping[Type[AWSResourceGroup], str] = {v: k for k, v in RESOURCE_GROUPS.items()}
