@@ -382,6 +382,7 @@ class DrainingClient:
                         host_to_process.receipt_handle,
                         host_to_process.instance_id,
                         host_to_process.pool,
+                        host_to_process.termination_reason,
                     )
                     if not host_to_process_fresh:  # case 0a
                         logger.info(f"Host doesn't exist: {host_to_process.instance_id}")
@@ -495,7 +496,12 @@ class DrainingClient:
         return result
 
 
-def host_from_instance_id(receipt_handle: str, instance_id: str, pool: Optional[str] = None) -> Optional[Host]:
+def host_from_instance_id(
+    receipt_handle: str,
+    instance_id: str,
+    pool: Optional[str] = None,
+    termination_reason: Optional[str] = None,
+) -> Optional[Host]:
     try:
         instance_data = ec2_describe_instances(instance_ids=[instance_id])
     except ClientError as e:
@@ -542,7 +548,7 @@ def host_from_instance_id(receipt_handle: str, instance_id: str, pool: Optional[
         group_id=group_ids[0],
         ip=ip,
         pool=pool if pool else "",  # getting pool information from client code temporary, pool tag will be added to EC2
-        termination_reason=TerminationReason.SPOT_INTERRUPTION.value,
+        termination_reason=termination_reason if termination_reason else TerminationReason.SPOT_INTERRUPTION.value,
         scheduler=scheduler,
         draining_start_time=arrow.now().for_json(),
     )
