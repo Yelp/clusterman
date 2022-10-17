@@ -26,6 +26,7 @@ from clusterman.autoscaler.pool_manager import AWS_RUNNING_STATES
 from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.autoscaler.toggle import disable_autoscaling
 from clusterman.autoscaler.toggle import enable_autoscaling
+from clusterman.draining.queue import TerminationReason
 from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
 from clusterman.migration.event import MigrationEvent
@@ -134,7 +135,7 @@ def _drain_node_selection(
         selection_chunk = selected[i : i + chunk]
         for node in selection_chunk:
             logger.info(f"Recycling node {node.instance.instance_id}")
-            manager.submit_for_draining(node)
+            manager.submit_for_draining(node, TerminationReason.NODE_MIGRATION)
             node_uptime_gauge.set(node.instance.uptime.total_seconds())
             node_drain_counter.count()
         time.sleep(worker_setup.bootstrap_wait)
