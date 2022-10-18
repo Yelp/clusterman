@@ -22,6 +22,7 @@ from unittest.mock import patch
 
 import pytest
 
+from clusterman.draining.queue import TerminationReason
 from clusterman.interfaces.types import AgentMetadata
 from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.interfaces.types import InstanceMetadata
@@ -109,7 +110,8 @@ def test_drain_node_selection(mock_sfx, mock_monitor, mock_time):
                 ClusterNodeMetadata(
                     AgentMetadata(agent_id=i, task_count=30 - 2 * i),
                     InstanceMetadata(None, None, uptime=timedelta(days=i)),
-                )
+                ),
+                TerminationReason.NODE_MIGRATION,
             )
             for i in range(5, 2, -1)
         ]

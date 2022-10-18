@@ -71,6 +71,7 @@ EC2_TAG_GROUP_KEYS = {
 class TerminationReason(enum.Enum):
     SCALING_DOWN = "scaling down"
     SPOT_INTERRUPTION = "spot interruption"
+    NODE_MIGRATION = "node migration"
 
 
 class Host(NamedTuple):
@@ -124,6 +125,7 @@ class DrainingClient:
         scheduler: str,
         pool: str,
         agent_id: str,
+        termination_reason: TerminationReason,
         draining_start_time: arrow.Arrow,
     ) -> None:
         return self.client.send_message(
@@ -143,7 +145,7 @@ class DrainingClient:
                     "instance_id": instance.instance_id,
                     "ip": instance.ip_address,
                     "pool": pool,
-                    "termination_reason": TerminationReason.SCALING_DOWN.value,
+                    "termination_reason": termination_reason.value,
                     "scheduler": scheduler,
                 }
             ),
@@ -380,6 +382,7 @@ class DrainingClient:
                         host_to_process.receipt_handle,
                         host_to_process.instance_id,
                         host_to_process.pool,
+                        host_to_process.termination_reason,
                     )
                     if not host_to_process_fresh:  # case 0a
                         logger.info(f"Host doesn't exist: {host_to_process.instance_id}")
@@ -493,7 +496,12 @@ class DrainingClient:
         return result
 
 
-def host_from_instance_id(receipt_handle: str, instance_id: str, pool: Optional[str] = None) -> Optional[Host]:
+def host_from_instance_id(
+    receipt_handle: str,
+    instance_id: str,
+    pool: Optional[str] = None,
+    termination_reason: Optional[str] = None,
+) -> Optional[Host]:
     try:
         instance_data = ec2_describe_instances(instance_ids=[instance_id])
     except ClientError as e:
@@ -540,7 +548,7 @@ def host_from_instance_id(receipt_handle: str, instance_id: str, pool: Optional[
         group_id=group_ids[0],
         ip=ip,
         pool=pool if pool else "",  # getting pool information from client code temporary, pool tag will be added to EC2
-        termination_reason=TerminationReason.SPOT_INTERRUPTION.value,
+        termination_reason=termination_reason if termination_reason else TerminationReason.SPOT_INTERRUPTION.value,
         scheduler=scheduler,
         draining_start_time=arrow.now().for_json(),
     )

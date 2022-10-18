@@ -21,6 +21,7 @@ import staticconf.testing
 from clusterman.autoscaler.pool_manager import ClusterNodeMetadata
 from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.aws.aws_resource_group import AWSResourceGroup
+from clusterman.draining.queue import TerminationReason
 from clusterman.exceptions import AllResourceGroupsAreStaleError
 from clusterman.exceptions import NoResourceGroupsFoundError
 from clusterman.exceptions import PoolManagerError
@@ -201,6 +202,7 @@ class TestPruneExcessFulfilledCapacity:
                     pool="bar",
                     agent_id=mock_nodes_to_prune["sfr-1"][0].agent.agent_id,
                     draining_start_time=now,
+                    termination_reason=TerminationReason.SCALING_DOWN,
                 ),
                 mock.call(
                     mock_nodes_to_prune["sfr-3"][0].instance,
@@ -209,6 +211,7 @@ class TestPruneExcessFulfilledCapacity:
                     pool="bar",
                     agent_id=mock_nodes_to_prune["sfr-3"][0].agent.agent_id,
                     draining_start_time=now,
+                    termination_reason=TerminationReason.SCALING_DOWN,
                 ),
                 mock.call(
                     mock_nodes_to_prune["sfr-3"][1].instance,
@@ -217,6 +220,7 @@ class TestPruneExcessFulfilledCapacity:
                     pool="bar",
                     agent_id=mock_nodes_to_prune["sfr-3"][1].agent.agent_id,
                     draining_start_time=now,
+                    termination_reason=TerminationReason.SCALING_DOWN,
                 ),
                 mock.call(
                     mock_nodes_to_prune["sfr-3"][2].instance,
@@ -225,6 +229,7 @@ class TestPruneExcessFulfilledCapacity:
                     pool="bar",
                     agent_id=mock_nodes_to_prune["sfr-3"][2].agent.agent_id,
                     draining_start_time=now,
+                    termination_reason=TerminationReason.SCALING_DOWN,
                 ),
             ]
 
