@@ -811,7 +811,7 @@ def test_process_drain_queue(mock_draining_client):
         assert not mock_k8s_uncordon.called
         assert not mock_k8s_drain.called
         assert not mock_submit_host_for_termination.called
-        mock_submit_host_for_draining.assert_called_with(mock_draining_client, mock_host_fresh, 2)
+        mock_submit_host_for_draining.assert_called_with(mock_draining_client, mock_host_fresh, attempt=2)
         mock_delete_drain_messages.assert_called_with(mock_draining_client, [mock_host])
 
 

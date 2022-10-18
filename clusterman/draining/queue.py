@@ -394,7 +394,7 @@ class DrainingClient:
                         self.submit_host_for_termination(host_to_process, delay=0)
                     else:  # case 0c
                         logger.info(f"Sending host to drain: {host_to_process.instance_id}")
-                        self.submit_host_for_draining(host_to_process_fresh, host_to_process.attempt + 1)
+                        self.submit_host_for_draining(host_to_process_fresh, attempt=host_to_process.attempt + 1)
                 elif spent_time.total_seconds() > draining_time_threshold_seconds:
                     if force_terminate:  # case 1
                         logger.info(f"Draining expired for: {host_to_process.instance_id}")
