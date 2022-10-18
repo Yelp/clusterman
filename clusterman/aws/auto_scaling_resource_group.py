@@ -55,8 +55,7 @@ class AutoScalingResourceGroup(AWSResourceGroup):
     AutoScalingResourceGroup will assume that instances are indeed protected.
     """
 
-    def __init__(self, group_id: str) -> None:
-        super().__init__(group_id)
+    FRIENDLY_NAME = "asg"
 
     def market_weight(self, market: InstanceMarket) -> float:
         """Returns the weight of a given market
@@ -183,6 +182,12 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         self._stale_instance_ids = self._get_stale_instance_ids()
 
     def _get_auto_scaling_group_config(self) -> AutoScalingGroupConfig:
+        if self._aws_api_cache_bucket and self._aws_api_cache_key:
+            try:
+                cache_data = self.get_aws_api_cache_data(self._aws_api_cache_bucket, self._aws_api_cache_key)
+                return cache_data[self.group_id]
+            except Exception as e:
+                logger.warning(f"Loading ASG data from AWS API cache failed, falling back to querying APIs: {e}")
         response = autoscaling.describe_auto_scaling_groups(
             AutoScalingGroupNames=[self.group_id],
         )

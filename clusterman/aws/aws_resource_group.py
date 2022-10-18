@@ -28,6 +28,7 @@ import arrow
 import colorlog
 import simplejson as json
 
+from clusterman.aws.client import cached_s3_get_object
 from clusterman.aws.client import ec2
 from clusterman.aws.client import ec2_describe_instances
 from clusterman.aws.client import InstanceDict
@@ -40,6 +41,11 @@ from clusterman.interfaces.resource_group import ResourceGroup
 
 logger = colorlog.getLogger(__name__)
 RESOURCE_GROUP_CACHE_SECONDS = 60
+AWS_API_CACHE_STALENESS_SECONDS = 60
+
+
+class AWSAPICacheStale(Exception):
+    pass
 
 
 def protect_unowned_instances(func):
@@ -61,8 +67,13 @@ def protect_unowned_instances(func):
 
 
 class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
+
+    FRIENDLY_NAME: str
+
     def __init__(self, group_id: str, **kwargs: Any) -> None:
         self.group_id = group_id
+        self._aws_api_cache_bucket = kwargs.get("aws_api_cache_bucket", None)
+        self._aws_api_cache_key = kwargs.get("aws_api_cache_key", None)
 
         # Resource Groups are reloaded on every autoscaling run, so we just query
         # AWS data once and store them so we don't run into AWS request limits
@@ -197,6 +208,39 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
     def _target_capacity(self):  # pragma: no cover
         pass
 
+    @staticmethod
+    def get_aws_api_cache_data(cache_bucket: str, cache_key: str) -> dict:
+        """Format key for AWS API cache
+
+        :param str cluster: a cluster name
+        :param str pool: a pool name
+        :return: API data
+        :raise: AWSAPICacheStale if cached data is stale
+        """
+        cached_value = cached_s3_get_object(cache_bucket, cache_key)
+        time_drift_seconds = (cached_value.last_modified - arrow.utcnow()).total_seconds()
+        if time_drift_seconds > AWS_API_CACHE_STALENESS_SECONDS:
+            raise AWSAPICacheStale(f"AWS cached API data {cache_key} is stale (age: {time_drift_seconds}s)")
+        return json.loads(cached_value.data.decode())
+
+    @classmethod
+    def load_from_api_cache(
+        cls, cluster: str, pool: str, cache_bucket: str, **kwargs: Any
+    ) -> Mapping[str, "AWSResourceGroup"]:
+        """Load resource groups from API data cached in S3
+
+        :param str cluster: a cluster name
+        :param str pool: a pool name
+        :param str cache_bucket: bucket holding cached data
+        :return: a dictionary of resource groups, indexed by id
+        """
+        cache_key = f"{cls.FRIENDLY_NAME}/{cluster}/{pool}.json"
+        cached_data = cls.get_aws_api_cache_data(cache_bucket, cache_key)
+        return {
+            group_id: cls(group_id, aws_api_cache_bucket=cache_bucket, aws_api_cache_key=cache_key, **kwargs)
+            for group_id in cached_data
+        }
+
     @classmethod
     def load(  # type: ignore # (mypy errors with "incompatible signature with supertype")
         cls,
@@ -212,6 +256,11 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
         :param config: a config specific to a resource group type
         :returns: a dictionary of resource groups, indexed by id
         """
+        if "aws_api_cache_bucket" in config:
+            try:
+                return cls.load_from_api_cache(cluster, pool, config["aws_api_cache_bucket"], **kwargs)
+            except Exception as e:
+                logger.warning(f"Loading resource groups from AWS API cache failed, falling back to querying APIs: {e}")
 
         try:
             identifier_tag_label = config["tag"]

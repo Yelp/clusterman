@@ -13,12 +13,15 @@
 # limitations under the License.
 from typing import List
 from typing import Mapping
+from typing import NamedTuple
 from typing import Sequence
 
+import arrow
 import boto3
 import botocore.exceptions
 import colorlog
 import staticconf
+from cachetools.func import ttl_cache
 from mypy_extensions import TypedDict
 from retry import retry
 
@@ -57,6 +60,11 @@ InstanceDict = TypedDict(
         "Tags": Sequence[Mapping[str, str]],
     },
 )
+
+
+class S3ObjectWrapper(NamedTuple):
+    data: bytes
+    last_modified: arrow.Arrow
 
 
 def _init_session():
@@ -145,3 +153,20 @@ def ec2_describe_fleet_instances(fleet_id: str) -> List[FleetInstanceDict]:
         if not next_token:
             break
     return instances
+
+
+@ttl_cache(maxsize=8, ttl=10)
+def cached_s3_get_object(bucket: str, object_key: str) -> S3ObjectWrapper:
+    """S3 read through a small shortlived cache. Useful when reading
+    multiple times the same object from separate methods without a trivial way
+    to share data across them.
+
+    :param str bucket: name of the S3 bucket
+    :param str object_key: name of the object to fect
+    :return: object data and when it was last updated
+    """
+    result = s3.get_object(Bucket=bucket, Key=object_key)
+    return S3ObjectWrapper(
+        data=result["Body"].read(),
+        last_modified=arrow.get(result["LastModified"]),
+    )

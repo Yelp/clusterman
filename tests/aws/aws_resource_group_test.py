@@ -14,11 +14,14 @@
 from typing import Iterable
 from unittest import mock
 
+import arrow
 import pytest
 import simplejson as json
 
+from clusterman.aws.aws_resource_group import AWSAPICacheStale
 from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.client import ec2
+from clusterman.aws.client import S3ObjectWrapper
 from clusterman.aws.markets import InstanceMarket
 from clusterman.interfaces.types import ClusterNodeMetadata
 
@@ -242,3 +245,10 @@ def test_get_node_metadatas(mock_resource_group):
         assert instance_metadata.market.instance == "c3.4xlarge"
         assert instance_metadata.state == "running"
         assert instance_metadata.weight == 1
+
+
+@mock.patch("clusterman.aws.aws_resource_group.cached_s3_get_object")
+def test_get_aws_api_cache_data_stale(mock_get_obj):
+    mock_get_obj.return_value = S3ObjectWrapper(json.dumps({}).encode(), arrow.utcnow().shift(days=1))
+    with pytest.raises(AWSAPICacheStale):
+        AWSResourceGroup.get_aws_api_cache_data("some-bucket", "some-key")
