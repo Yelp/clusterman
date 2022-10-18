@@ -1,3 +1,9 @@
+clusterman (4.15.10) xenial bionic; urgency=low
+
+  * Removed unnecessary freeze action 
+
+ -- Ilkin Mammadzada <ilkinmammadzada@yelp.com>  Tue, 18 Oct 2022 08:57:18 -0700
+
 clusterman (4.15.9) xenial bionic; urgency=low
 
   * Bug fixed for deduplication check in the drainer
