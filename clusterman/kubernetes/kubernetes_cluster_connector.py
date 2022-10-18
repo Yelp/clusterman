@@ -219,33 +219,37 @@ class KubernetesClusterConnector(ClusterConnector):
             return False
 
     def cordon_node(self, node_name: str) -> bool:
+        now = str(arrow.now().timestamp)
         try:
-            self._core_api.patch_node(
-                name=node_name,
-                body={
-                    "spec": {
-                        "unschedulable": True,
-                    },
-                },
+            node = self._get_node_by_node_name(node_name)
+            if not node:
+                return False
+            taints = (
+                list(filter(lambda x: x.key != CLUSTERMAN_TERMINATION_TAINT_KEY, node.spec.taints))
+                if node.spec.taints
+                else []
             )
+            taints.append({"effect": "NoSchedule", "key": CLUSTERMAN_TERMINATION_TAINT_KEY, "value": now})
+            self._core_api.patch_node(name=node_name, body={"spec": {"taints": taints}})
             return True
         except ApiException as e:
-            logger.warning(f"Failed to cordon {node_name}: {e}")
+            logger.warning(f"Failed to cordon {node_name}: {e.status} - {e.reason}")
             return False
 
     def uncordon_node(self, node_name: str) -> bool:
         try:
-            self._core_api.patch_node(
-                name=node_name,
-                body={
-                    "spec": {
-                        "unschedulable": False,
-                    },
-                },
+            node = self._get_node_by_node_name(node_name)
+            if not node:
+                return False
+            taints = (
+                list(filter(lambda x: x.key != CLUSTERMAN_TERMINATION_TAINT_KEY, node.spec.taints))
+                if node.spec.taints
+                else []
             )
+            self._core_api.patch_node(name=node_name, body={"spec": {"taints": taints}})
             return True
         except ApiException as e:
-            logger.warning(f"Failed to uncordon {node_name}: {e}")
+            logger.warning(f"Failed to uncordon {node_name}: {e.status} - {e.reason}")
             return False
 
     def list_node_migration_resources(self, statuses: List[MigrationStatus]) -> Set[MigrationEvent]:
@@ -527,6 +531,13 @@ class KubernetesClusterConnector(ClusterConnector):
             if condition.type == "PodScheduled" and condition.reason == "Unschedulable":
                 return True
         return False
+
+    def _get_ip_from_node_name(self, node_name: str) -> str:
+        return node_name.split(sep=".")[0].replace("ip-", "").replace("-", ".")
+
+    def _get_node_by_node_name(self, node_name: str) -> KubernetesNode:
+        ip = self._get_ip_from_node_name(node_name)
+        return self._nodes_by_ip.get(ip)
 
     @property
     def pool_label_key(self):
