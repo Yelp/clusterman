@@ -47,14 +47,6 @@ class ClusterConnector(metaclass=ABCMeta):
         return self._get_agent_metadata(ip_address)
 
     @abstractmethod
-    def freeze_agent(self, agent_id: str) -> None:
-        """Stop new tasks scheduling to agent
-
-        :param agent_id: agent identifier.
-        """
-        pass
-
-    @abstractmethod
     def get_resource_allocation(self, resource_name: str) -> float:  # pragma: no cover
         """Get the total amount of the given resource currently allocated for this pool.
 

@@ -459,12 +459,6 @@ class PoolManager:
                     )
                     continue
 
-            # Orphaned instances don't have agent information
-            if node_metadata.agent.state != AgentState.ORPHANED:
-                logger.info(f"freezing {node_metadata.agent.agent_id} for termination")
-                if not dry_run:
-                    self.cluster_connector.freeze_agent(node_metadata.agent.agent_id)
-
             logger.info(f"marking {instance_id} for termination")
             marked_nodes[group_id].append(node_metadata)
             rem_group_capacities[group_id] -= instance_weight
@@ -568,7 +562,7 @@ class PoolManager:
             node_metadata: ClusterNodeMetadata,
         ) -> Tuple[int, int, int, int, int, int, int]:
             return (
-                0 if node_metadata.agent.is_frozen else 1,
+                0 if node_metadata.agent.is_draining else 1,
                 0 if node_metadata.agent.state == AgentState.ORPHANED else 1,
                 0 if node_metadata.instance.is_stale else 1,
                 0 if node_metadata.instance.uptime.total_seconds() > self.min_node_scalein_uptime else 1,

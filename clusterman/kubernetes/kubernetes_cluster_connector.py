@@ -188,16 +188,6 @@ class KubernetesClusterConnector(ClusterConnector):
             unschedulable_pods.append((pod, self._get_pod_unschedulable_reason(pod)))
         return unschedulable_pods
 
-    def freeze_agent(self, node_name: str) -> None:
-        now = str(arrow.now().timestamp)
-        try:
-            body = {
-                "spec": {"taints": [{"effect": "NoSchedule", "key": CLUSTERMAN_TERMINATION_TAINT_KEY, "value": now}]}
-            }
-            self._core_api.patch_node(node_name, body)
-        except ApiException as e:
-            logger.warning(f"Failed to freeze {node_name}: {e}")
-
     def drain_node(self, node_name: str, disable_eviction: bool) -> bool:
         try:
             logger.info(f"Cordoning {node_name}...")
@@ -221,8 +211,9 @@ class KubernetesClusterConnector(ClusterConnector):
     def cordon_node(self, node_name: str) -> bool:
         now = str(arrow.now().timestamp)
         try:
-            node = self._get_node_by_node_name(node_name)
+            node = self._core_api.read_node(node_name)
             if not node:
+                logger.warning(f"Node doesn't exist: {node_name}")
                 return False
             taints = (
                 list(filter(lambda x: x.key != CLUSTERMAN_TERMINATION_TAINT_KEY, node.spec.taints))
@@ -238,8 +229,9 @@ class KubernetesClusterConnector(ClusterConnector):
 
     def uncordon_node(self, node_name: str) -> bool:
         try:
-            node = self._get_node_by_node_name(node_name)
+            node = self._core_api.read_node(node_name)
             if not node:
+                logger.warning(f"Node doesn't exist: {node_name}")
                 return False
             taints = (
                 list(filter(lambda x: x.key != CLUSTERMAN_TERMINATION_TAINT_KEY, node.spec.taints))
@@ -422,7 +414,7 @@ class KubernetesClusterConnector(ClusterConnector):
             agent_id=node.metadata.name,
             allocated_resources=allocated_node_resources(self._pods_by_ip[node_ip]),
             is_safe_to_kill=self._is_node_safe_to_kill(node_ip),
-            is_frozen=self._is_node_frozen(node),
+            is_draining=self._is_node_draining(node),
             batch_task_count=self._count_batch_tasks(node_ip),
             state=(AgentState.RUNNING if self._pods_by_ip[node_ip] else AgentState.IDLE),
             task_count=len(self._pods_by_ip[node_ip]),
@@ -431,7 +423,7 @@ class KubernetesClusterConnector(ClusterConnector):
             lsbrelease=get_node_lsbrelease(node),
         )
 
-    def _is_node_frozen(self, node: KubernetesNode) -> bool:
+    def _is_node_draining(self, node: KubernetesNode) -> bool:
         if not node.spec:
             return False
 
@@ -531,13 +523,6 @@ class KubernetesClusterConnector(ClusterConnector):
             if condition.type == "PodScheduled" and condition.reason == "Unschedulable":
                 return True
         return False
-
-    def _get_ip_from_node_name(self, node_name: str) -> str:
-        return node_name.split(sep=".")[0].replace("ip-", "").replace("-", ".")
-
-    def _get_node_by_node_name(self, node_name: str) -> KubernetesNode:
-        ip = self._get_ip_from_node_name(node_name)
-        return self._nodes_by_ip.get(ip)
 
     @property
     def pool_label_key(self):
