@@ -1,3 +1,9 @@
+clusterman (4.15.8) xenial bionic; urgency=low
+
+  * Avoided duplicate instances in the drainer 
+
+ -- Ilkin Mammadzada <ilkinmammadzada@yelp.com>  Tue, 18 Oct 2022 03:42:40 -0700
+
 clusterman (4.15.7) xenial bionic; urgency=low
 
   * Made Clusterman specific instaed of general
