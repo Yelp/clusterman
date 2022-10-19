@@ -11,11 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import argparse
 import enum
 import json
 import socket
-import time
 from typing import Callable
 from typing import Dict
 from typing import Hashable
@@ -32,8 +30,6 @@ import colorlog
 import staticconf
 from botocore.exceptions import ClientError
 
-from clusterman.args import add_cluster_arg
-from clusterman.args import subparser
 from clusterman.aws.auto_scaling_resource_group import AutoScalingResourceGroup
 from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.client import ec2_describe_instances
@@ -41,14 +37,11 @@ from clusterman.aws.client import sqs
 from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
 from clusterman.aws.util import RESOURCE_GROUPS
 from clusterman.aws.util import RESOURCE_GROUPS_REV
-from clusterman.config import load_cluster_pool_config
 from clusterman.config import POOL_NAMESPACE
-from clusterman.config import setup_config
 from clusterman.draining.kubernetes import drain as k8s_drain
 from clusterman.draining.kubernetes import uncordon as k8s_uncordon
 from clusterman.draining.mesos import down
 from clusterman.draining.mesos import drain as mesos_drain
-from clusterman.draining.mesos import operator_api
 from clusterman.draining.mesos import up
 from clusterman.interfaces.types import InstanceMetadata
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
@@ -550,62 +543,8 @@ def host_from_instance_id(
     )
 
 
-def process_queues(cluster_name: str) -> None:
-    draining_client = DrainingClient(cluster_name)
-    cluster_manager_name = staticconf.read_string(f"clusters.{cluster_name}.cluster_manager")
-    always_delay_drain_processing = staticconf.read_bool(f"clusters.{cluster_name}.always_delay_drain_processing", True)
-    mesos_operator_client = kube_operator_client = None
-    try:
-        kube_operator_client = KubernetesClusterConnector(cluster_name, None)
-    except Exception:
-        logger.error("Cluster specified is mesos specific. Skipping kubernetes operator")
-    if cluster_manager_name == "mesos":
-        try:
-            mesos_master_url = staticconf.read_string(f"clusters.{cluster_name}.mesos_master_fqdn")
-            mesos_secret_path = staticconf.read_string("mesos.mesos_agent_secret_path", default=None)
-            mesos_operator_client = operator_api(mesos_master_url, mesos_secret_path)
-        except Exception:
-            logger.error("Cluster specified is kubernetes specific. Skipping mesos operator")
-
-    logger.info("Polling SQS for messages every 5s")
-    while True:
-        if kube_operator_client:
-            kube_operator_client.reload_client()
-        draining_client.clean_processing_hosts_cache()
-        warning_result = draining_client.process_warning_queue()
-        draining_result = draining_client.process_drain_queue(
-            mesos_operator_client=mesos_operator_client,
-            kube_operator_client=kube_operator_client,
-        )
-        termination_result = draining_client.process_termination_queue(
-            mesos_operator_client=mesos_operator_client,
-            kube_operator_client=kube_operator_client,
-        )
-        # sleep five seconds only if all queues are empty OR feature flag is enabled
-        if always_delay_drain_processing or (not warning_result and not draining_result and not termination_result):
-            time.sleep(5)
-
-
 def terminate_host(host: Host) -> None:
     logger.info(f"Terminating: {host.instance_id}")
     resource_group_class = RESOURCE_GROUPS[host.sender]
     resource_group = resource_group_class(host.group_id)
     resource_group.terminate_instances_by_id([host.instance_id])
-
-
-def main(args: argparse.Namespace) -> None:
-    setup_config(args)
-    for pool in get_pool_name_list(args.cluster, "mesos"):
-        load_cluster_pool_config(args.cluster, pool, "mesos", None)
-    for pool in get_pool_name_list(args.cluster, "kubernetes"):
-        load_cluster_pool_config(args.cluster, pool, "kubernetes", None)
-    process_queues(args.cluster)
-
-
-@subparser("drain", "Drains and terminates instances submitted to SQS by clusterman", main)
-def add_queue_parser(
-    subparser: argparse.ArgumentParser,
-    required_named_args: argparse.Namespace,
-    optional_named_args: argparse.Namespace,
-) -> None:
-    add_cluster_arg(required_named_args, required=True)
