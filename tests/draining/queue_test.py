@@ -16,11 +16,9 @@ from unittest import mock
 
 import arrow
 import pytest
-import staticconf.testing
 from botocore.exceptions import ClientError
 
 from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
-from clusterman.batch.drainer import NodeDrainerBatch
 from clusterman.draining.queue import DrainingClient
 from clusterman.draining.queue import Host
 from clusterman.draining.queue import host_from_instance_id
@@ -865,41 +863,6 @@ def test_process_warning_queue(mock_draining_client):
         mock_delete_warning_messages.assert_called_with(mock_draining_client, [mock_host])
 
 
-def test_drainer_batch_process_queues():
-    batch = NodeDrainerBatch()
-    batch.run_interval = 5
-    batch.logger = mock.MagicMock()
-    batch.options = mock.MagicMock(cluster="westeros-prod", autorestart_interval_minutes=0)
-    with mock.patch(
-        "clusterman.batch.drainer.DrainingClient",
-        autospec=True,
-    ) as mock_draining_client, staticconf.testing.PatchConfiguration(
-        {
-            "clusters": {
-                "westeros-prod": {
-                    "mesos_master_fqdn": "westeros-prod",
-                    "cluster_manager": "mesos",
-                }
-            }
-        },
-    ), mock.patch(
-        "clusterman.batch.drainer.time.sleep", autospec=True, side_effect=LoopBreak
-    ), mock.patch(
-        "clusterman.batch.drainer.KubernetesClusterConnector",
-        autospec=True,
-    ):
-
-        mock_draining_client.return_value.process_termination_queue.return_value = False
-        mock_draining_client.return_value.process_drain_queue.return_value = False
-        mock_draining_client.return_value.process_warning_queue.return_value = False
-        with pytest.raises(LoopBreak):
-            batch.run()
-        assert mock_draining_client.return_value.process_termination_queue.called
-        assert mock_draining_client.return_value.process_drain_queue.called
-        assert mock_draining_client.return_value.clean_processing_hosts_cache.called
-        assert mock_draining_client.return_value.process_warning_queue.called
-
-
 def test_terminate_host():
     mock_host = mock.Mock(instance_id="i123", sender="sfr", group_id="sfr123")
     mock_sfr = mock.Mock()
@@ -1018,7 +981,3 @@ def test_host_from_instance_id():
             )
             is None
         )
-
-
-class LoopBreak(Exception):
-    pass
