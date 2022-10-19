@@ -18,15 +18,26 @@ from typing import Optional
 
 import colorlog
 import staticconf
-from yelp_batch.batch import batch_command_line_arguments
-from yelp_batch.batch import batch_configure
-from yelp_batch.batch_daemon import BatchDaemon
+
+try:
+    from yelp_batch.batch import batch_command_line_arguments
+    from yelp_batch.batch import batch_configure
+    from yelp_batch.batch_daemon import BatchDaemon
+    from clusterman.batch.util import BatchLoggingMixin
+    from clusterman.batch.util import BatchRunningSentinelMixin
+except ImportError:
+    colorlog.warning("Drainer functionality only available with internal libraries")
+    identity_func = lambda x: x  # noqa
+    batch_command_line_arguments = identity_func
+    batch_configure = identity_func
+    BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin = (  # type: ignore
+        type(f"MockBatch{i}", (object,), {}) for i in range(3)  # type: ignore
+    )
 
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_env_config_path_arg
 from clusterman.args import subparser
-from clusterman.batch.util import BatchLoggingMixin
-from clusterman.batch.util import BatchRunningSentinelMixin
+
 from clusterman.config import get_pool_config_path
 from clusterman.config import load_cluster_pool_config
 from clusterman.config import setup_config
@@ -46,8 +57,7 @@ class NodeDrainerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin
     @batch_command_line_arguments
     def parse_args(self, parser: argparse.ArgumentParser):
         arg_group = parser.add_argument_group("NodeDrainer batch options")
-        add_env_config_path_arg(arg_group)
-        add_cluster_arg(arg_group, required=True)
+        cli_entrypoint(None, arg_group, None)
 
     @batch_configure
     def configure_initial(self):
@@ -114,7 +124,8 @@ def cli_entrypoint(
     required_named_args: argparse.Namespace,
     optional_named_args: argparse.Namespace,
 ) -> None:
-    NodeDrainerBatch().parse_args(subparser)
+    add_env_config_path_arg(required_named_args)
+    add_cluster_arg(required_named_args, required=True)
 
 
 if __name__ == "__main__":
