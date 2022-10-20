@@ -57,7 +57,8 @@ class NodeDrainerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin
     @batch_command_line_arguments
     def parse_args(self, parser: argparse.ArgumentParser):
         arg_group = parser.add_argument_group("NodeDrainer batch options")
-        cli_entrypoint(None, arg_group, None)
+        add_env_config_path_arg(arg_group)
+        add_cluster_arg(arg_group, required=True)
 
     @batch_configure
     def configure_initial(self):
@@ -114,7 +115,12 @@ class NodeDrainerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin
 def main(args: Optional[argparse.ArgumentParser] = None):
     if args:
         # clean sub-command when invoked from CLI interface
+        # TODO: clean up once migrated to invoking batch directly
         sys.argv.pop(sys.argv.index(NodeDrainerBatch.CLI_SUBCOMMAND))
+        if "--log-level" in sys.argv:
+            option_pos = sys.argv.index("--log-level")
+            sys.argv.pop(option_pos)
+            sys.argv.pop(option_pos)
     NodeDrainerBatch().start()
 
 
@@ -124,8 +130,8 @@ def cli_entrypoint(
     required_named_args: argparse.Namespace,
     optional_named_args: argparse.Namespace,
 ) -> None:
-    add_env_config_path_arg(required_named_args)
-    add_cluster_arg(required_named_args, required=True)
+    # TODO: clean up once migrated to invoking batch directly
+    NodeDrainerBatch.parse_args(None, subparser)
 
 
 if __name__ == "__main__":
