@@ -12,32 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
-import sys
 import time
-from typing import Optional
 
 import colorlog
 import staticconf
-
-try:
-    from yelp_batch.batch import batch_command_line_arguments
-    from yelp_batch.batch import batch_configure
-    from yelp_batch.batch_daemon import BatchDaemon
-    from clusterman.batch.util import BatchLoggingMixin
-    from clusterman.batch.util import BatchRunningSentinelMixin
-except ImportError:
-    colorlog.warning("Drainer functionality only available with internal libraries")
-    identity_func = lambda x: x  # noqa
-    batch_command_line_arguments = identity_func
-    batch_configure = identity_func
-    BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin = (  # type: ignore
-        type(f"MockBatch{i}", (object,), {}) for i in range(3)  # type: ignore
-    )
+from yelp_batch.batch import batch_command_line_arguments
+from yelp_batch.batch import batch_configure
+from yelp_batch.batch_daemon import BatchDaemon
 
 from clusterman.args import add_cluster_arg
 from clusterman.args import add_env_config_path_arg
-from clusterman.args import subparser
-
+from clusterman.batch.util import BatchLoggingMixin
+from clusterman.batch.util import BatchRunningSentinelMixin
 from clusterman.config import get_pool_config_path
 from clusterman.config import load_cluster_pool_config
 from clusterman.config import setup_config
@@ -112,28 +98,6 @@ class NodeDrainerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin
                 time.sleep(self.run_interval)
 
 
-def main(args: Optional[argparse.ArgumentParser] = None):
-    if args:
-        # clean sub-command when invoked from CLI interface
-        # TODO: clean up once migrated to invoking batch directly
-        sys.argv.pop(sys.argv.index(NodeDrainerBatch.CLI_SUBCOMMAND))
-        if "--log-level" in sys.argv:
-            option_pos = sys.argv.index("--log-level")
-            sys.argv.pop(option_pos)
-            sys.argv.pop(option_pos)
-    NodeDrainerBatch().start()
-
-
-@subparser(NodeDrainerBatch.CLI_SUBCOMMAND, "Drains and terminates instances submitted to SQS by clusterman", main)
-def cli_entrypoint(
-    subparser: argparse.ArgumentParser,
-    required_named_args: argparse.Namespace,
-    optional_named_args: argparse.Namespace,
-) -> None:
-    # TODO: clean up once migrated to invoking batch directly
-    NodeDrainerBatch.parse_args(None, subparser)
-
-
 if __name__ == "__main__":
     setup_logging()
-    main()
+    NodeDrainerBatch().start()
