@@ -1,3 +1,9 @@
+clusterman (4.16.0) xenial bionic; urgency=low
+
+  * Remove drain subcommand from CLI interface
+
+ -- Matteo Piano <mpiano@yelp.com>  Fri, 21 Oct 2022 04:45:40 -0700
+
 clusterman (4.15.10) xenial bionic; urgency=low
 
   * Removed unnecessary freeze action
