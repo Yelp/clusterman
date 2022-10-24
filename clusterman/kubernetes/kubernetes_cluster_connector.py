@@ -401,7 +401,7 @@ class KubernetesClusterConnector(ClusterConnector):
                 available_node_resources = total_node_resources(
                     node, self._excluded_pods_by_ip.get(node_ip, [])
                 ) - allocated_node_resources(pods_on_node)
-                if pod_resource_request < available_node_resources:
+                if pod_resource_request <= available_node_resources:
                     return PodUnschedulableReason.Unknown
 
         return PodUnschedulableReason.InsufficientResources
