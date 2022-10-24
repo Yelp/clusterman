@@ -100,6 +100,9 @@ class ClustermanResources(NamedTuple):
     def __lt__(self, other) -> bool:
         return self.cpus < other.cpus and self.mem < other.mem and self.disk < other.disk and self.gpus < other.gpus
 
+    def __le__(self, other) -> bool:
+        return self.cpus <= other.cpus and self.mem <= other.mem and self.disk <= other.disk and self.gpus <= other.gpus
+
 
 class SignalResourceRequest(NamedTuple):
     cpus: Optional[float] = None
