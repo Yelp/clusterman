@@ -1,3 +1,9 @@
+clusterman (4.16.1) xenial bionic; urgency=low
+
+  * Fixed resource comparision
+
+ -- Ilkin Mammadzada <ilkinmammadzada@yelp.com>  Mon, 24 Oct 2022 05:40:44 -0700
+
 clusterman (4.16.0) xenial bionic; urgency=low
 
   * Remove drain subcommand from CLI interface
