@@ -108,6 +108,9 @@ class KubernetesClusterConnector(ClusterConnector):
         # store the previous _nodes_by_ip for use in get_removed_nodes_before_last_reload()
         self._prev_nodes_by_ip = copy.deepcopy(self._nodes_by_ip)
         self._nodes_by_ip = self._get_nodes_by_ip()
+        nodes_by_ip_count = len(self._nodes_by_ip)
+        logger.info(f"Successfully reloaded {nodes_by_ip_count} nodes.")
+
         if load_pods_info:
             logger.info("Reloading pods")
             self._pods_by_ip, self._unschedulable_pods, self._excluded_pods_by_ip = (
@@ -115,6 +118,14 @@ class KubernetesClusterConnector(ClusterConnector):
                 if self.pool_config.read_bool("use_labels_for_pods", default=False)
                 else self._get_pods_info()
             )
+            pods_by_ip_count = sum(len(self._pods_by_ip[ip]) for ip in self._pods_by_ip)
+            unschedulable_pods_count = len(self._unschedulable_pods)
+            excluded_pods_by_ip_count = sum(len(self._excluded_pods_by_ip[ip]) for ip in self._excluded_pods_by_ip)
+            logger.info(
+                f"Successfully reloaded pods: {pods_by_ip_count} running/recently scheduled pods, \
+                {unschedulable_pods_count} unscheduled pods, {excluded_pods_by_ip_count} excluded pods."
+            )
+
         else:
             self._pods_by_ip, self._unschedulable_pods, self._excluded_pods_by_ip = (
                 dict.fromkeys(self._nodes_by_ip, []),
