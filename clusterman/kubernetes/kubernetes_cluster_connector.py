@@ -119,11 +119,10 @@ class KubernetesClusterConnector(ClusterConnector):
                 else self._get_pods_info()
             )
             pods_by_ip_count = sum(len(self._pods_by_ip[ip]) for ip in self._pods_by_ip)
-            unschedulable_pods_count = len(self._unschedulable_pods)
             excluded_pods_by_ip_count = sum(len(self._excluded_pods_by_ip[ip]) for ip in self._excluded_pods_by_ip)
             logger.info(
                 f"Successfully reloaded pods: {pods_by_ip_count} running/recently scheduled pods, \
-                {unschedulable_pods_count} unscheduled pods, {excluded_pods_by_ip_count} excluded pods."
+                {len(self._unschedulable_pods)} unscheduled pods, {excluded_pods_by_ip_count} excluded pods."
             )
 
         else:
