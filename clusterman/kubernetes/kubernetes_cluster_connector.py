@@ -108,8 +108,7 @@ class KubernetesClusterConnector(ClusterConnector):
         # store the previous _nodes_by_ip for use in get_removed_nodes_before_last_reload()
         self._prev_nodes_by_ip = copy.deepcopy(self._nodes_by_ip)
         self._nodes_by_ip = self._get_nodes_by_ip()
-        nodes_by_ip_count = len(self._nodes_by_ip)
-        logger.info(f"Successfully reloaded {nodes_by_ip_count} nodes.")
+        logger.info(f"Successfully reloaded {len(self._nodes_by_ip)} nodes.")
 
         if load_pods_info:
             logger.info("Reloading pods")
