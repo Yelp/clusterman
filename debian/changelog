@@ -1,3 +1,9 @@
+clusterman (4.16.2) xenial bionic; urgency=low
+
+  * Added info logs in cluster reloading
+
+ -- Ajay Pratap Singh <ajayprataps@yelp.com>  Mon, 31 Oct 2022 03:43:53 -0700
+
 clusterman (4.16.1) xenial bionic; urgency=low
 
   * Fixed resource comparision
