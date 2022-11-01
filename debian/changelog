@@ -1,3 +1,9 @@
+clusterman (4.16.3) xenial bionic; urgency=low
+
+  * removed whitespaces in logs
+
+ -- Ajay Pratap Singh <ajayprataps@yelp.com>  Tue, 01 Nov 2022 03:06:05 -0700
+
 clusterman (4.16.2) xenial bionic; urgency=low
 
   * Added info logs in cluster reloading
