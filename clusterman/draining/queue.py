@@ -452,15 +452,15 @@ class DrainingClient:
         self.submit_host_for_termination(host_to_process, delay=0)
         return True
 
-    @property
-    @cachetools.cachedmethod(lambda self: self.spot_fleet_resource_groups_cache)
-    def spot_fleet_resource_groups(self) -> Set[str]:
+    def _list_resource_group_names(self, scheduler: str, resource_group_class: Type[AWSResourceGroup]) -> Set[str]:
         result = set()
-        for pool in get_pool_name_list(self.cluster, "mesos"):
-            pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=pool, scheduler="mesos"))
+        for pool in get_pool_name_list(self.cluster, scheduler):
+            pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=pool, scheduler=scheduler))
             for resource_group_conf in pool_config.read_list("resource_groups"):
+                if resource_group_class.FRIENDLY_NAME not in resource_group_conf:
+                    continue
                 result |= set(
-                    SpotFleetResourceGroup.load(
+                    resource_group_class.load(
                         cluster=self.cluster,
                         pool=pool,
                         config=list(resource_group_conf.values())[0],
@@ -469,20 +469,14 @@ class DrainingClient:
         return result
 
     @property
+    @cachetools.cachedmethod(lambda self: self.spot_fleet_resource_groups_cache)
+    def spot_fleet_resource_groups(self) -> Set[str]:
+        return self._list_resource_group_names("mesos", SpotFleetResourceGroup)
+
+    @property
     @cachetools.cachedmethod(lambda self: self.auto_scaling_resource_groups_cache)
     def auto_scaling_resource_groups(self) -> Set[str]:
-        result = set()
-        for pool in get_pool_name_list(self.cluster, "kubernetes"):
-            pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=pool, scheduler="kubernetes"))
-            for resource_group_conf in pool_config.read_list("resource_groups"):
-                result |= set(
-                    AutoScalingResourceGroup.load(
-                        cluster=self.cluster,
-                        pool=pool,
-                        config=list(resource_group_conf.values())[0],
-                    ).keys()
-                )
-        return result
+        return self._list_resource_group_names("kubernetes", AutoScalingResourceGroup)
 
 
 def host_from_instance_id(
