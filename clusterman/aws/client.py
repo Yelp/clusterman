@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+import sys
 from typing import List
 from typing import Mapping
 from typing import NamedTuple
@@ -18,6 +20,7 @@ from typing import Sequence
 
 import arrow
 import boto3
+import botocore.config
 import botocore.exceptions
 import colorlog
 import staticconf
@@ -78,6 +81,11 @@ def _init_session():
         )
 
 
+def get_main_module_name() -> str:
+    main_spec = sys.modules["__main__"].__spec__ if "__main__" in sys.modules else None
+    return main_spec.name if main_spec else ""
+
+
 class _BotoForwarder(type):
     _client = None
 
@@ -94,11 +102,17 @@ class _BotoForwarder(type):
             # Used for the dockerized cluster; endpoint_url needs to be a string containing '{svc}',
             # which will have the service name (ec2, s3, etc) substituted in here
             endpoint_url = staticconf.read_string("aws.endpoint_url", default=None)
+            ua_extra = (
+                os.getenv("PAASTA_INSTANCE", get_main_module_name())
+                if staticconf.read_bool("aws.add_entrypoint_info", default=False)
+                else None
+            )
             if endpoint_url:
                 endpoint_url = endpoint_url.format(svc=cls.client)
             cls._client = _session.client(
                 cls.client,
                 endpoint_url=endpoint_url,
+                config=(botocore.config.Config(user_agent_extra=f"({ua_extra})") if ua_extra else None),
             )
         return getattr(cls._client, key)
 
