@@ -173,14 +173,20 @@ def uptime_migration_worker(
     if not manager.draining_client:
         logger.warning(f"Draining client not set up for {cluster}:{pool}, giving up")
         return
-    while True:
-        if manager.is_capacity_satisfied():
-            with pool_lock:
-                _drain_node_selection(manager, node_selector, worker_setup)
-        else:
-            logger.warning(f"Pool {cluster}:{pool} is currently underprovisioned, skipping uptime migration iteration")
-        time.sleep(UPTIME_CHECK_INTERVAL_SECONDS)
-        manager.reload_state(load_pods_info=not worker_setup.ignore_pod_health)
+    try:
+        while True:
+            if manager.is_capacity_satisfied():
+                with pool_lock:
+                    _drain_node_selection(manager, node_selector, worker_setup)
+            else:
+                logger.warning(
+                    f"Pool {cluster}:{pool} is currently underprovisioned, skipping uptime migration iteration"
+                )
+            time.sleep(UPTIME_CHECK_INTERVAL_SECONDS)
+            manager.reload_state(load_pods_info=not worker_setup.ignore_pod_health)
+    except Exception as e:
+        logger.error(f"Issue while running uptime worker: {e}")
+        raise
 
 
 def event_migration_worker(migration_event: MigrationEvent, worker_setup: WorkerSetup, pool_lock: LockBase) -> None:

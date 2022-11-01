@@ -245,15 +245,15 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
                 if proc.exitcode == 0:
                     completed.append(label)
                 else:
-                    torestart.append(label)
+                    torestart.append((label, proc.exitcode))
         for label in completed:
             self.logger.info(f"Worker process with label {label} completed")
             if self._is_event_worker_label(label):
                 event = self.events_in_progress.pop(label)
                 self.mark_event(event, MigrationStatus.COMPLETED)
             del self.migration_workers[label]
-        for label in torestart:
-            self.logger.info(f"Restarting worker process with label {label}")
+        for label, exitcode in torestart:
+            self.logger.info(f"Restarting worker process with label {label} (exit code: {exitcode})")
             self.migration_workers[label].restart()
 
     def run(self):
