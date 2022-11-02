@@ -66,6 +66,7 @@ SFX_DUPLICATE_COUNT = "clusterman.drainer.duplicate_count"
 SFX_DRAINING_DURATION = "clusterman.drainer.draining_duration"
 SFX_TERMINATING_DURATION = "clusterman.drainer.terminating_duration"
 
+
 class TerminationReason(enum.Enum):
     SCALING_DOWN = "scaling down"
     SPOT_INTERRUPTION = "spot interruption"
@@ -323,7 +324,8 @@ class DrainingClient:
                 try:
                     terminate_host(host_to_terminate)
                     terminating_time_seconds = (
-                                arrow.now() - arrow.get(host_to_terminate.draining_start_time)).total_seconds()
+                        arrow.now() - arrow.get(host_to_terminate.draining_start_time)
+                    ).total_seconds()
                     logger.info(
                         f"terminating took {terminating_time_seconds} seconds for {host_to_terminate.instance_id}"
                     )
