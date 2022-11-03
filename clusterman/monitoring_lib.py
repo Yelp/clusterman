@@ -47,6 +47,9 @@ class TimerProtocol(Protocol):
     def stop(self, *args: Any, **kwargs: Any) -> None:
         ...
 
+    def record(self, value: Union[int, float], *args: Any, **kwargs: Any) -> None:
+        ...
+
 
 class MonitoringClient(metaclass=ABCMeta):
     @staticmethod
@@ -112,6 +115,9 @@ class LogTimer(TimerProtocol):
 
     def stop(self, *args: Any, **kwargs: Any) -> None:
         logger.debug("timer {} stop at {}".format(self.name, time.time()))
+
+    def record(self, value: Union[int, float], *args: Any, **kwargs: Any) -> None:
+        logger.debug(f"timer {self.name} record {value}")
 
 
 class LogMonitoringClient(MonitoringClient):

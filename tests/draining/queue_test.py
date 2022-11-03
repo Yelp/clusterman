@@ -452,7 +452,13 @@ def test_process_termination_queue(mock_draining_client):
         mock_up.assert_called_with(mock_mesos_client, ["host1|10.1.1.1"])
         mock_delete_terminate_messages.assert_called_with(mock_draining_client, [mock_host])
 
-        mock_host = mock.Mock(hostname="", ip="10.1.1.1", instance_id="i123", scheduler="kubernetes")
+        mock_host = mock.Mock(
+            hostname="",
+            ip="10.1.1.1",
+            instance_id="i123",
+            scheduler="kubernetes",
+            draining_start_time=arrow.now().for_json(),
+        )
         mock_draining_client.draining_host_ttl_cache[mock_host.instance_id] = arrow.now()
         mock_get_host_to_terminate.return_value = mock_host
         mock_draining_client.process_termination_queue(mock_mesos_client, mock_kubernetes_client)

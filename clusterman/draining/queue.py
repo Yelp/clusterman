@@ -45,6 +45,7 @@ from clusterman.draining.mesos import drain as mesos_drain
 from clusterman.draining.mesos import up
 from clusterman.interfaces.types import InstanceMetadata
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
+from clusterman.monitoring_lib import get_monitoring_client
 from clusterman.util import get_pool_name_list
 
 
@@ -59,6 +60,11 @@ EC2_TAG_GROUP_KEYS = {
     "aws:ec2spot:fleet-request-id",
     "aws:autoscaling:groupName",
 }
+SFX_EXPIRATION_COUNT = "clusterman.drainer.expiration_count"
+SFX_DRAINING_COUNT = "clusterman.drainer.draining_count"
+SFX_DUPLICATE_COUNT = "clusterman.drainer.duplicate_count"
+SFX_DRAINING_DURATION = "clusterman.drainer.draining_duration"
+SFX_TERMINATING_DURATION = "clusterman.drainer.terminating_duration"
 
 
 class TerminationReason(enum.Enum):
@@ -111,6 +117,12 @@ class DrainingClient:
                 default=DEFAULT_RESOURCE_GROUPS_CACHE_SECONDS,
             ),
         )
+        monitoring_info = {"cluster": cluster_name}
+        self.expiration_counter = get_monitoring_client().create_counter(SFX_EXPIRATION_COUNT, monitoring_info)
+        self.draining_counter = get_monitoring_client().create_counter(SFX_DRAINING_COUNT, monitoring_info)
+        self.duplicate_counter = get_monitoring_client().create_counter(SFX_DUPLICATE_COUNT, monitoring_info)
+        self.draining_timer = get_monitoring_client().create_timer(SFX_DRAINING_DURATION, monitoring_info)
+        self.terminating_timer = get_monitoring_client().create_timer(SFX_TERMINATING_DURATION, monitoring_info)
 
     def submit_instance_for_draining(
         self,
@@ -308,9 +320,22 @@ class DrainingClient:
                 except Exception as e:
                     logger.error(f"Failed to up {hostname_ip} continuing to terminate anyway: {e}")
             elif host_to_terminate.scheduler == "kubernetes":
-                logger.info(f"Kubernetes hosts to delete k8s node and terminate: {host_to_terminate}")
+                logger.info(f"Kubernetes host to delete k8s node and terminate: {host_to_terminate}")
                 try:
                     terminate_host(host_to_terminate)
+                    terminating_time_seconds = (
+                        arrow.now() - arrow.get(host_to_terminate.draining_start_time)
+                    ).total_seconds()
+                    logger.info(
+                        f"terminating took {terminating_time_seconds} seconds for {host_to_terminate.instance_id}"
+                    )
+                    self.terminating_timer.record(
+                        terminating_time_seconds * 1000,
+                        {
+                            "pool": host_to_terminate.pool,
+                            "reason": host_to_terminate.termination_reason,
+                        },
+                    )
                 except Exception as e:
                     logger.exception(f"Failed to terminate {host_to_terminate.instance_id}: {e}")
                     # we should stop here so as not to delete message from queue
@@ -348,6 +373,15 @@ class DrainingClient:
                 finally:
                     self.submit_host_for_termination(host_to_process)
             elif host_to_process.scheduler == "kubernetes":
+                self.draining_counter.count(
+                    1,
+                    {
+                        "pool": host_to_process.pool,
+                        "orphan": False if host_to_process.agent_id else True,
+                        "first_try": True if host_to_process.attempt == 1 else False,
+                        "reason": host_to_process.termination_reason,
+                    },
+                )
                 logger.info(f"Kubernetes host to drain and submit for termination: {host_to_process}")
                 spent_time = arrow.now() - arrow.get(host_to_process.draining_start_time)
                 pool_config = staticconf.NamespaceReaders(
@@ -389,8 +423,16 @@ class DrainingClient:
                         logger.info(f"Sending host to drain: {host_to_process.instance_id}")
                         self.submit_host_for_draining(host_to_process_fresh, attempt=host_to_process.attempt + 1)
                 elif spent_time.total_seconds() > draining_time_threshold_seconds:
+                    self.expiration_counter.count(
+                        1,
+                        {
+                            "pool": host_to_process.pool,
+                            "force_terminate": force_terminate,
+                            "reason": host_to_process.termination_reason,
+                        },
+                    )
+                    logger.info(f"Draining expired for: {host_to_process.instance_id}")
                     if force_terminate:  # case 1
-                        logger.info(f"Draining expired for: {host_to_process.instance_id}")
                         self.submit_host_for_termination(host_to_process, delay=0)
                     else:  # case 2
                         k8s_uncordon(kube_operator_client, host_to_process.agent_id)
@@ -412,6 +454,13 @@ class DrainingClient:
             logger.warning(f"Host: {host_to_process.hostname} already being processed, skipping...")
             self.delete_drain_messages([host_to_process])
             message_exist = True
+            self.duplicate_counter.count(
+                1,
+                {
+                    "pool": host_to_process.pool,
+                    "reason": host_to_process.termination_reason,
+                },
+            )
         return message_exist
 
     def clean_processing_hosts_cache(self) -> None:
@@ -447,9 +496,19 @@ class DrainingClient:
     ) -> bool:
         if not k8s_drain(kube_operator_client, host_to_process.agent_id, disable_eviction):
             return False
-        draining_time = arrow.now() - arrow.get(host_to_process.draining_start_time)
-        logger.info(f"draining took {draining_time} seconds for {host_to_process.instance_id}")
+        draining_time_seconds = (arrow.now() - arrow.get(host_to_process.draining_start_time)).total_seconds()
         self.submit_host_for_termination(host_to_process, delay=0)
+        logger.info(
+            f"draining took {draining_time_seconds} seconds with "
+            f"{host_to_process.attempt} attempt for {host_to_process.instance_id}"
+        )
+        self.draining_timer.record(
+            draining_time_seconds * 1000,
+            {
+                "pool": host_to_process.pool,
+                "reason": host_to_process.termination_reason,
+            },
+        )
         return True
 
     def _list_resource_group_names(self, scheduler: str, resource_group_class: Type[AWSResourceGroup]) -> Set[str]:
