@@ -97,6 +97,14 @@ class ClustermanResources(NamedTuple):
             gpus=self.gpus * scalar,
         )
 
+    def __add__(self, other) -> "ClustermanResources":
+        return ClustermanResources(
+            cpus=self.cpus + other.cpus,
+            mem=self.mem + other.mem,
+            disk=self.disk + other.disk,
+            gpus=self.gpus + other.gpus,
+        )
+
     def __lt__(self, other) -> bool:
         return self.cpus < other.cpus and self.mem < other.mem and self.disk < other.disk and self.gpus < other.gpus
 
