@@ -1,3 +1,9 @@
+clusterman (4.16.4) xenial bionic; urgency=low
+
+  * Added monitoring metrics for drainer  
+
+ -- Ilkin Mammadzada <ilkinmammadzada@yelp.com>  Thu, 03 Nov 2022 07:26:31 -0700
+
 clusterman (4.16.3) xenial bionic; urgency=low
 
   * removed whitespaces in logs
