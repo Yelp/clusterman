@@ -197,12 +197,8 @@ class KubernetesClusterConnector(ClusterConnector):
         self,
     ) -> List[Tuple[KubernetesPod, PodUnschedulableReason]]:
         unschedulable_pods = []
-        if self.ignore_pending_reason:
-            for pod in self._unschedulable_pods:
-                unschedulable_pods.append((pod, PodUnschedulableReason.InsufficientResources))
-        else:
-            for pod in self._unschedulable_pods:
-                unschedulable_pods.append((pod, self._get_pod_unschedulable_reason(pod)))
+        for pod in self._unschedulable_pods:
+            unschedulable_pods.append((pod, self._get_pod_unschedulable_reason(pod)))
         return unschedulable_pods
 
     def drain_node(self, node_name: str, disable_eviction: bool) -> bool:
