@@ -47,8 +47,8 @@ from clusterman.kubernetes.util import total_node_resources
 from clusterman.kubernetes.util import total_pod_resources
 from clusterman.migration.event import MigrationEvent
 from clusterman.migration.event_enums import MigrationStatus
+from clusterman.util import ClustermanResources
 from clusterman.util import strtobool
-
 
 logger = colorlog.getLogger(__name__)
 KUBERNETES_SCHEDULED_PHASES = {"Pending", "Running"}
@@ -76,6 +76,7 @@ class KubernetesClusterConnector(ClusterConnector):
     _excluded_pods_by_ip: Mapping[str, List[KubernetesPod]]
     _pods_by_ip: Mapping[str, List[KubernetesPod]]
     _label_selectors: List[str]
+    _unschedulable_pods_resources: ClustermanResources
 
     def __init__(self, cluster: str, pool: Optional[str], init_crd: bool = False) -> None:
         super().__init__(cluster, pool)
@@ -84,6 +85,7 @@ class KubernetesClusterConnector(ClusterConnector):
             f"clusters.{cluster}.pod_safe_to_evict_annotation",
             default="cluster-autoscaler.kubernetes.io/safe-to-evict",
         )
+        self._unschedulable_pods_resources = ClustermanResources()
         self._nodes_by_ip = {}
         self._init_crd_client = init_crd
         self._label_selectors = []
@@ -112,7 +114,12 @@ class KubernetesClusterConnector(ClusterConnector):
 
         if load_pods_info:
             logger.info("Reloading pods")
-            self._pods_by_ip, self._unschedulable_pods, self._excluded_pods_by_ip = (
+            (
+                self._pods_by_ip,
+                self._unschedulable_pods,
+                self._excluded_pods_by_ip,
+                self._unschedulable_pods_resources,
+            ) = (
                 self._get_pods_info_with_label()
                 if self.pool_config.read_bool("use_labels_for_pods", default=False)
                 else self._get_pods_info()
@@ -162,7 +169,7 @@ class KubernetesClusterConnector(ClusterConnector):
 
     def get_resource_pending(self, resource_name: str) -> float:
         return getattr(
-            allocated_node_resources([p for p, __ in self.get_unschedulable_pods()]),
+            self._unschedulable_pods_resources,
             resource_name,
         )
 
@@ -457,10 +464,13 @@ class KubernetesClusterConnector(ClusterConnector):
 
     def _get_pods_info(
         self,
-    ) -> Tuple[Mapping[str, List[KubernetesPod]], List[KubernetesPod], Mapping[str, List[KubernetesPod]],]:
+    ) -> Tuple[
+        Mapping[str, List[KubernetesPod]], List[KubernetesPod], Mapping[str, List[KubernetesPod]], ClustermanResources
+    ]:
         pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
         unschedulable_pods: List[KubernetesPod] = []
         excluded_pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
+        unschedulable_pods_resources: ClustermanResources = ClustermanResources()
 
         exclude_daemonset_pods = self.pool_config.read_bool(
             "exclude_daemonset_pods",
@@ -475,14 +485,18 @@ class KubernetesClusterConnector(ClusterConnector):
                     pods_by_ip[pod.status.host_ip].append(pod)
                 elif self._is_unschedulable(pod):
                     unschedulable_pods.append(pod)
-        return pods_by_ip, unschedulable_pods, excluded_pods_by_ip
+                    unschedulable_pods_resources += total_pod_resources(pod)
+        return pods_by_ip, unschedulable_pods, excluded_pods_by_ip, unschedulable_pods_resources
 
     def _get_pods_info_with_label(
         self,
-    ) -> Tuple[Mapping[str, List[KubernetesPod]], List[KubernetesPod], Mapping[str, List[KubernetesPod]],]:
+    ) -> Tuple[
+        Mapping[str, List[KubernetesPod]], List[KubernetesPod], Mapping[str, List[KubernetesPod]], ClustermanResources
+    ]:
         pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
         unschedulable_pods: List[KubernetesPod] = []
         excluded_pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
+        unschedulable_pods_resources: ClustermanResources = ClustermanResources()
 
         exclude_daemonset_pods = self.pool_config.read_bool(
             "exclude_daemonset_pods",
@@ -497,7 +511,8 @@ class KubernetesClusterConnector(ClusterConnector):
                 pods_by_ip[pod.status.host_ip].append(pod)
             elif self._is_unschedulable(pod):
                 unschedulable_pods.append(pod)
-        return pods_by_ip, unschedulable_pods, excluded_pods_by_ip
+                unschedulable_pods_resources += total_pod_resources(pod)
+        return pods_by_ip, unschedulable_pods, excluded_pods_by_ip, unschedulable_pods_resources
 
     def _count_batch_tasks(self, node_ip: str) -> int:
         count = 0
