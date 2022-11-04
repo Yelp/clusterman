@@ -67,7 +67,8 @@ class PoolManager:
         self.cluster = cluster
         self.pool = pool
         self.scheduler = scheduler
-        self.cluster_connector = ClusterConnector.load(self.cluster, self.pool, self.scheduler)
+        ignore_pending_reason = staticconf.read_string(f"clusters.{cluster}.ignore_pending_reason")
+        self.cluster_connector = ClusterConnector.load(self.cluster, self.pool, self.scheduler, ignore_pending_reason)
         self.pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=self.pool, scheduler=self.scheduler))
 
         self.draining_enabled = self.pool_config.read_bool("draining_enabled", default=False)

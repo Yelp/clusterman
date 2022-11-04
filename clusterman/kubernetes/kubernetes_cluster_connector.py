@@ -76,14 +76,18 @@ class KubernetesClusterConnector(ClusterConnector):
     _excluded_pods_by_ip: Mapping[str, List[KubernetesPod]]
     _pods_by_ip: Mapping[str, List[KubernetesPod]]
     _label_selectors: List[str]
+    ignore_pending_reason: bool
 
-    def __init__(self, cluster: str, pool: Optional[str], init_crd: bool = False) -> None:
+    def __init__(
+            self, cluster: str, pool: Optional[str], init_crd: bool = False, ignore_pending_reason: bool = False
+    ) -> None:
         super().__init__(cluster, pool)
         self.kubeconfig_path = staticconf.read_string(f"clusters.{cluster}.kubeconfig_path")
         self._safe_to_evict_annotation = staticconf.read_string(
             f"clusters.{cluster}.pod_safe_to_evict_annotation",
             default="cluster-autoscaler.kubernetes.io/safe-to-evict",
         )
+        self.ignore_pending_reason = ignore_pending_reason
         self._nodes_by_ip = {}
         self._init_crd_client = init_crd
         self._label_selectors = []
@@ -95,7 +99,7 @@ class KubernetesClusterConnector(ClusterConnector):
             )
             self._label_selectors.append(f"{node_label_selector}={self.pool}")
 
-    def reload_state(self, load_pods_info: bool = True) -> None:
+    def reload_state(self, load_pods_info: bool = True, ) -> None:
         """Reload information from cluster/pool
 
         :param bool load_pods_info: do not load data about pods.
@@ -194,7 +198,13 @@ class KubernetesClusterConnector(ClusterConnector):
     ) -> List[Tuple[KubernetesPod, PodUnschedulableReason]]:
         unschedulable_pods = []
         for pod in self._unschedulable_pods:
-            unschedulable_pods.append((pod, self._get_pod_unschedulable_reason(pod)))
+            unschedulable_pods.append(
+                (
+                    pod,
+                    PodUnschedulableReason.InsufficientResources
+                    if self.ignore_pending_reason else self._get_pod_unschedulable_reason(pod)
+                )
+            )
         return unschedulable_pods
 
     def drain_node(self, node_name: str, disable_eviction: bool) -> bool:
