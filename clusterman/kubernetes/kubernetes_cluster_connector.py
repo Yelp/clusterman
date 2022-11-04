@@ -79,7 +79,7 @@ class KubernetesClusterConnector(ClusterConnector):
     ignore_pending_reason: bool
 
     def __init__(
-            self, cluster: str, pool: Optional[str], init_crd: bool = False, ignore_pending_reason: bool = False
+        self, cluster: str, pool: Optional[str], init_crd: bool = False, ignore_pending_reason: bool = False
     ) -> None:
         super().__init__(cluster, pool)
         self.kubeconfig_path = staticconf.read_string(f"clusters.{cluster}.kubeconfig_path")
@@ -99,7 +99,7 @@ class KubernetesClusterConnector(ClusterConnector):
             )
             self._label_selectors.append(f"{node_label_selector}={self.pool}")
 
-    def reload_state(self, load_pods_info: bool = True, ) -> None:
+    def reload_state(self, load_pods_info: bool = True) -> None:
         """Reload information from cluster/pool
 
         :param bool load_pods_info: do not load data about pods.
