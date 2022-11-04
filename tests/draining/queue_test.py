@@ -22,7 +22,6 @@ from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
 from clusterman.draining.queue import DrainingClient
 from clusterman.draining.queue import Host
 from clusterman.draining.queue import host_from_instance_id
-from clusterman.draining.queue import terminate_host
 from clusterman.draining.queue import TerminationReason
 
 
@@ -414,7 +413,7 @@ def test_delete_terminate_message(mock_draining_client):
 
 
 def test_process_termination_queue(mock_draining_client):
-    with mock.patch("clusterman.draining.queue.terminate_host", autospec=True,) as mock_terminate, mock.patch(
+    with mock.patch.object(mock_draining_client, "terminate_host", autospec=True,) as mock_terminate, mock.patch(
         "clusterman.draining.queue.down",
         autospec=True,
     ) as mock_down, mock.patch("clusterman.draining.queue.up", autospec=True,) as mock_up, mock.patch(
@@ -869,11 +868,11 @@ def test_process_warning_queue(mock_draining_client):
         mock_delete_warning_messages.assert_called_with(mock_draining_client, [mock_host])
 
 
-def test_terminate_host():
+def test_terminate_host(mock_draining_client):
     mock_host = mock.Mock(instance_id="i123", sender="sfr", group_id="sfr123")
     mock_sfr = mock.Mock()
     with mock.patch.dict("clusterman.draining.queue.RESOURCE_GROUPS", {"sfr": mock_sfr}, clear=True):
-        terminate_host(mock_host)
+        mock_draining_client.terminate_host(mock_host)
         mock_sfr.assert_called_with("sfr123")
         mock_sfr.return_value.terminate_instances_by_id.assert_called_with(["i123"])
 
