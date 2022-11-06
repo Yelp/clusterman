@@ -77,10 +77,10 @@ class KubernetesClusterConnector(ClusterConnector):
     _pods_by_ip: Mapping[str, List[KubernetesPod]]
     _label_selectors: List[str]
     _unschedulable_pods_resources: ClustermanResources
-    ignore_pending_reason: bool
+    find_pending_reason: bool
 
     def __init__(
-        self, cluster: str, pool: Optional[str], init_crd: bool = False, ignore_pending_reason: bool = False
+        self, cluster: str, pool: Optional[str], init_crd: bool = False, find_pending_reason: bool = True
     ) -> None:
         super().__init__(cluster, pool)
         self.kubeconfig_path = staticconf.read_string(f"clusters.{cluster}.kubeconfig_path")
@@ -89,7 +89,7 @@ class KubernetesClusterConnector(ClusterConnector):
             default="cluster-autoscaler.kubernetes.io/safe-to-evict",
         )
         self._unschedulable_pods_resources = ClustermanResources()
-        self.ignore_pending_reason = ignore_pending_reason
+        self.ignore_pending_reason = find_pending_reason
         self._nodes_by_ip = {}
         self._init_crd_client = init_crd
         self._label_selectors = []
@@ -205,7 +205,14 @@ class KubernetesClusterConnector(ClusterConnector):
     ) -> List[Tuple[KubernetesPod, PodUnschedulableReason]]:
         unschedulable_pods = []
         for pod in self._unschedulable_pods:
-            unschedulable_pods.append((pod, self._get_pod_unschedulable_reason(pod)))
+            unschedulable_pods.append(
+                (
+                    pod,
+                    PodUnschedulableReason.InsufficientResources
+                    if self.ignore_pending_reason
+                    else self._get_pod_unschedulable_reason(pod)
+                )
+            )
         return unschedulable_pods
 
     def drain_node(self, node_name: str, disable_eviction: bool) -> bool:

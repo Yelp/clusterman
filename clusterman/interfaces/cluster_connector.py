@@ -91,7 +91,7 @@ class ClusterConnector(metaclass=ABCMeta):
         pass
 
     @staticmethod
-    def load(cluster: str, pool: str, scheduler: str, ignore_pending_reason: bool = False) -> "ClusterConnector":
+    def load(cluster: str, pool: str, scheduler: str, find_pending_reason: bool = True) -> "ClusterConnector":
         """Load the cluster connector for the given cluster and pool"""
         if scheduler == "mesos":
             from clusterman.mesos.mesos_cluster_connector import MesosClusterConnector
@@ -100,6 +100,6 @@ class ClusterConnector(metaclass=ABCMeta):
         elif scheduler == "kubernetes":
             from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
 
-            return KubernetesClusterConnector(cluster, pool, ignore_pending_reason=ignore_pending_reason)
+            return KubernetesClusterConnector(cluster, pool, find_pending_reason=find_pending_reason)
         else:
             raise ValueError(f"Unknown scheduler type: {scheduler}")
