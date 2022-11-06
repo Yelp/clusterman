@@ -210,7 +210,7 @@ class KubernetesClusterConnector(ClusterConnector):
                     pod,
                     self._get_pod_unschedulable_reason(pod)
                     if self.find_pending_reason
-                    else PodUnschedulableReason.InsufficientResources
+                    else PodUnschedulableReason.InsufficientResources,
                 )
             )
         return unschedulable_pods
