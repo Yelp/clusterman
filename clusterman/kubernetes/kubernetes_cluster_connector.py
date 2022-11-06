@@ -89,7 +89,7 @@ class KubernetesClusterConnector(ClusterConnector):
             default="cluster-autoscaler.kubernetes.io/safe-to-evict",
         )
         self._unschedulable_pods_resources = ClustermanResources()
-        self.ignore_pending_reason = find_pending_reason
+        self.find_pending_reason = find_pending_reason
         self._nodes_by_ip = {}
         self._init_crd_client = init_crd
         self._label_selectors = []
