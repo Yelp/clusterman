@@ -286,7 +286,9 @@ def create_k8s_autoscaler(context, prevent_scale_down_after_capacity_loss=False)
     context.mock_cluster_connector._unschedulable_pods = []
     if float(context.pending_cpus) > 0:
         context.mock_cluster_connector.get_unschedulable_pods = (
-            lambda: KubernetesClusterConnector.get_unschedulable_pods(context.mock_cluster_connector)  # noqa
+            lambda detect_reason: KubernetesClusterConnector.get_unschedulable_pods(
+                context.mock_cluster_connector, detect_reason=detect_reason
+            )  # noqa
         )
         context.mock_cluster_connector._get_pod_unschedulable_reason.side_effect = lambda pod: (
             PodUnschedulableReason.InsufficientResources
