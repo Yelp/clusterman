@@ -140,6 +140,13 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
 
         instance_weights = {}
         for instance in ec2_describe_instances(instance_ids):
+            # skip if instance already terminated
+            if instance["State"].get("Name") in ["terminated", "shutting-down"]:
+                logger.warning(
+                    f"Instance {instance['InstanceId']} already terminating or terminated, so skipping",
+                )
+                instance_ids.remove(instance["InstanceId"])
+                continue
             instance_market = get_instance_market(cast(MarketDict, instance))
             if not instance_market.az:
                 logger.warning(
