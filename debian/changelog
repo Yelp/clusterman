@@ -1,3 +1,9 @@
+clusterman (4.16.5) xenial bionic; urgency=low
+
+  * Ignored pending pod reason detection
+
+ -- Ilkin Mammadzada <ilkinmammadzada@yelp.com>  Mon, 07 Nov 2022 10:42:23 -0800
+
 clusterman (4.16.4) xenial bionic; urgency=low
 
   * Added monitoring metrics for drainer
