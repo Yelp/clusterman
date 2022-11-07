@@ -110,12 +110,14 @@ class DrainingClient:
                 default=DEFAULT_RESOURCE_GROUPS_CACHE_SECONDS,
             ),
         )
+        asg_groups_cache_ttl = staticconf.read_int(
+            f"clusters.{cluster_name}.auto_scaling_resource_groups_cache_seconds",
+            default=DEFAULT_RESOURCE_GROUPS_CACHE_SECONDS,
+        )
+        self.is_asg_cache_enabled = asg_groups_cache_ttl > 0
         self.auto_scaling_resource_groups_cache: MutableMapping[Hashable, Set[str]] = cachetools.TTLCache(
             maxsize=1,
-            ttl=staticconf.read_int(
-                f"clusters.{cluster_name}.auto_scaling_resource_groups_cache_seconds",
-                default=DEFAULT_RESOURCE_GROUPS_CACHE_SECONDS,
-            ),
+            ttl=asg_groups_cache_ttl,
         )
         monitoring_info = {"cluster": cluster_name}
         self.expiration_counter = get_monitoring_client().create_counter(SFX_EXPIRATION_COUNT, monitoring_info)
@@ -314,7 +316,7 @@ class DrainingClient:
                     down(mesos_operator_client, [hostname_ip])
                 except Exception as e:
                     logger.error(f"Failed to down {hostname_ip} continuing to terminate anyway: {e}")
-                terminate_host(host_to_terminate)
+                self.terminate_host(host_to_terminate)
                 try:
                     up(mesos_operator_client, [hostname_ip])
                 except Exception as e:
@@ -322,7 +324,7 @@ class DrainingClient:
             elif host_to_terminate.scheduler == "kubernetes":
                 logger.info(f"Kubernetes host to delete k8s node and terminate: {host_to_terminate}")
                 try:
-                    terminate_host(host_to_terminate)
+                    self.terminate_host(host_to_terminate)
                     terminating_time_seconds = (
                         arrow.now() - arrow.get(host_to_terminate.draining_start_time)
                     ).total_seconds()
@@ -342,7 +344,7 @@ class DrainingClient:
                     return message_exist
             else:
                 logger.info(f"Host to terminate immediately: {host_to_terminate}")
-                terminate_host(host_to_terminate)
+                self.terminate_host(host_to_terminate)
             self.delete_terminate_messages([host_to_terminate])
         return message_exist
 
@@ -511,31 +513,45 @@ class DrainingClient:
         )
         return True
 
-    def _list_resource_group_names(self, scheduler: str, resource_group_class: Type[AWSResourceGroup]) -> Set[str]:
-        result = set()
+    def terminate_host(self, host: Host) -> None:
+        logger.info(f"Terminating: {host.instance_id}")
+        if self.is_asg_cache_enabled and host.group_id in self.auto_scaling_resource_groups:
+            # possibly take advantage of EC2 API caching for ASGs;
+            # avoids re-listing all groups if the local ASG caching is disabled
+            resource_group = self.auto_scaling_resource_groups[host.group_id]
+            resource_group._reload_resource_group()
+        else:
+            resource_group_class = RESOURCE_GROUPS[host.sender]
+            resource_group = resource_group_class(host.group_id)
+        resource_group.terminate_instances_by_id([host.instance_id])
+
+    def _list_resource_groups(
+        self, scheduler: str, resource_group_class: Type[AWSResourceGroup]
+    ) -> Dict[str, AWSResourceGroup]:
+        result: Dict[str, AWSResourceGroup] = {}
         for pool in get_pool_name_list(self.cluster, scheduler):
             pool_config = staticconf.NamespaceReaders(POOL_NAMESPACE.format(pool=pool, scheduler=scheduler))
             for resource_group_conf in pool_config.read_list("resource_groups"):
                 if resource_group_class.FRIENDLY_NAME not in resource_group_conf:
                     continue
-                result |= set(
+                result.update(
                     resource_group_class.load(
                         cluster=self.cluster,
                         pool=pool,
                         config=list(resource_group_conf.values())[0],
-                    ).keys()
+                    ),
                 )
         return result
 
     @property
     @cachetools.cachedmethod(lambda self: self.spot_fleet_resource_groups_cache)
-    def spot_fleet_resource_groups(self) -> Set[str]:
-        return self._list_resource_group_names("mesos", SpotFleetResourceGroup)
+    def spot_fleet_resource_groups(self) -> Dict[str, AWSResourceGroup]:
+        return self._list_resource_groups("mesos", SpotFleetResourceGroup)
 
     @property
     @cachetools.cachedmethod(lambda self: self.auto_scaling_resource_groups_cache)
-    def auto_scaling_resource_groups(self) -> Set[str]:
-        return self._list_resource_group_names("kubernetes", AutoScalingResourceGroup)
+    def auto_scaling_resource_groups(self) -> Dict[str, AWSResourceGroup]:
+        return self._list_resource_groups("kubernetes", AutoScalingResourceGroup)
 
 
 def host_from_instance_id(
@@ -594,10 +610,3 @@ def host_from_instance_id(
         scheduler=scheduler,
         draining_start_time=arrow.now().for_json(),
     )
-
-
-def terminate_host(host: Host) -> None:
-    logger.info(f"Terminating: {host.instance_id}")
-    resource_group_class = RESOURCE_GROUPS[host.sender]
-    resource_group = resource_group_class(host.group_id)
-    resource_group.terminate_instances_by_id([host.instance_id])
