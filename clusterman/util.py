@@ -99,10 +99,10 @@ class ClustermanResources(NamedTuple):
 
     def __add__(self, other) -> "ClustermanResources":
         return ClustermanResources(
-            cpus=add_maybe_none(self.cpus, other.cpus),
-            mem=add_maybe_none(self.mem, other.mem),
-            disk=add_maybe_none(self.disk, other.disk),
-            gpus=add_maybe_none(self.gpus, other.gpus),
+            cpus=self.cpus + other.cpus,
+            mem=self.mem + other.mem,
+            disk=self.disk + other.disk,
+            gpus=self.gpus + other.gpus,
         )
 
     def __lt__(self, other) -> bool:

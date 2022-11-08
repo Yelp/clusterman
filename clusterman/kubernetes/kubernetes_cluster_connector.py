@@ -475,7 +475,11 @@ class KubernetesClusterConnector(ClusterConnector):
     def _get_pods_info(
         self,
     ) -> Tuple[
-        Mapping[str, List[KubernetesPod]], List[KubernetesPod], Mapping[str, List[KubernetesPod]], ClustermanResources
+        Mapping[str, List[KubernetesPod]],
+        List[KubernetesPod],
+        Mapping[str, List[KubernetesPod]],
+        ClustermanResources,
+        ClustermanResources,
     ]:
         pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
         unschedulable_pods: List[KubernetesPod] = []
@@ -498,12 +502,22 @@ class KubernetesClusterConnector(ClusterConnector):
                 elif self._is_unschedulable(pod):
                     unschedulable_pods.append(pod)
                     unschedulable_pods_resources += total_pod_resources(pod)
-        return pods_by_ip, unschedulable_pods, excluded_pods_by_ip, unschedulable_pods_resources, allocated_pods_resources
+        return (
+            pods_by_ip,
+            unschedulable_pods,
+            excluded_pods_by_ip,
+            unschedulable_pods_resources,
+            allocated_pods_resources,
+        )
 
     def _get_pods_info_with_label(
         self,
     ) -> Tuple[
-        Mapping[str, List[KubernetesPod]], List[KubernetesPod], Mapping[str, List[KubernetesPod]], ClustermanResources
+        Mapping[str, List[KubernetesPod]],
+        List[KubernetesPod],
+        Mapping[str, List[KubernetesPod]],
+        ClustermanResources,
+        ClustermanResources,
     ]:
         pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
         unschedulable_pods: List[KubernetesPod] = []
@@ -526,7 +540,13 @@ class KubernetesClusterConnector(ClusterConnector):
             elif self._is_unschedulable(pod):
                 unschedulable_pods.append(pod)
                 unschedulable_pods_resources += total_pod_resources(pod)
-        return pods_by_ip, unschedulable_pods, excluded_pods_by_ip, unschedulable_pods_resources, allocated_pods_resources
+        return (
+            pods_by_ip,
+            unschedulable_pods,
+            excluded_pods_by_ip,
+            unschedulable_pods_resources,
+            allocated_pods_resources,
+        )
 
     def _count_batch_tasks(self, node_ip: str) -> int:
         count = 0
