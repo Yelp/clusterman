@@ -58,7 +58,9 @@ class PendingPodsSignal(Signal):
         retry_on_broken_pipe: bool = True,
     ) -> Union[SignalResourceRequest, List[KubernetesPod]]:
         allocated_resources = self.cluster_connector.get_cluster_allocated_resources()
-        pending_pods = self.cluster_connector.get_unschedulable_pods()
+        pending_pods = self.cluster_connector.get_unschedulable_pods(
+            detect_reason=self.parameters.get("detect_reason", True)
+        )
 
         # Get the most recent metrics _now_ and when the boost was set (if any) and merge them
         if self.parameters.get("per_pod_resource_requests"):
