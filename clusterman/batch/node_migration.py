@@ -256,6 +256,15 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
             self.logger.info(f"Restarting worker process with label {label} (exit code: {exitcode})")
             self.migration_workers[label].restart()
 
+    def terminate_workers(self):
+        """Stop all worker processes"""
+        for proc in self.migration_workers.values():
+            proc.terminate()
+        for proc in self.migration_workers.values():
+            proc.join()
+        self.migration_workers.clear()
+        self.worker_locks.clear()
+
     def run(self):
         for pool, config in self.migration_configs.items():
             if "max_uptime" in config["trigger"]:
@@ -266,6 +275,7 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
                 self.spawn_event_worker(event)
             time.sleep(self.run_interval)
             self.monitor_workers()
+        self.terminate_workers()
 
 
 if __name__ == "__main__":
