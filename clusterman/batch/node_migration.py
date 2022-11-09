@@ -56,6 +56,7 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
     MIN_UPTIME_CHURNING_SECONDS = 60 * 60 * 24  # 1 day
     DEFAULT_MAX_WORKER_PROCESSES = 6
     DEFAULT_RUN_INTERVAL_SECONDS = 60
+    DEFAULT_TERMINATION_TIMEOUT_SECONDS = 10
 
     WORKER_LABEL_SEPARATOR = ":"
     EVENT_WORKER_LABEL_PREFIX = "event"
@@ -88,6 +89,9 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
         )
         self.available_worker_slots = staticconf.read_float(
             "batches.node_migration.max_worker_processes", self.DEFAULT_MAX_WORKER_PROCESSES
+        )
+        self.worker_termination_timeout = staticconf.read_int(
+            "batches.node_migration.worker_termination_timeout_seconds", self.DEFAULT_TERMINATION_TIMEOUT_SECONDS
         )
         for pool in get_pool_name_list(self.options.cluster, SUPPORTED_POOL_SCHEDULER):
             self.add_watcher({pool: get_pool_config_path(self.options.cluster, pool, SUPPORTED_POOL_SCHEDULER)})
@@ -258,10 +262,14 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
 
     def terminate_workers(self):
         """Stop all worker processes"""
+        self.logger.info("Terminating all worker processes")
         for proc in self.migration_workers.values():
             proc.terminate()
-        for proc in self.migration_workers.values():
-            proc.join()
+        for label, proc in self.migration_workers.items():
+            proc.join(self.worker_termination_timeout)
+            if proc.exitcode is None:
+                self.logger.warning(f"Timed out terminating worker {label}, sending kill signal")
+                proc.kill()
         self.migration_workers.clear()
         self.worker_locks.clear()
 
