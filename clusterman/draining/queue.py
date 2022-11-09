@@ -56,6 +56,7 @@ DEFAULT_FORCE_TERMINATION = False
 DEFAULT_GLOBAL_REDRAINING_DELAY_SECONDS = 15
 DEFAULT_DRAINING_TIME_THRESHOLD_SECONDS = 1800
 EC2_ASG_TAG_KEY = "aws:autoscaling:groupName"
+EC2_IDENTIFIER_TAG_KEY = "puppet:role::kube"
 EC2_TAG_GROUP_KEYS = {
     "aws:ec2spot:fleet-request-id",
     "aws:autoscaling:groupName",
@@ -600,6 +601,14 @@ def host_from_instance_id(
     except socket.error:
         logger.warning(f"Couldn't derive hostname from IP via DNS for {ip}")
         return None
+    try:
+        pool_from_ec2 = ""
+        for tag in instance_data[0]["Tags"]:
+            if tag["Key"] == EC2_IDENTIFIER_TAG_KEY:
+                pool_from_ec2 = json.loads(tag["Value"]).get("pool", "")
+    except Exception:
+        logger.warning(f"Couldn't get pool name from {EC2_IDENTIFIER_TAG_KEY} tag for {instance_id}")
+
     return Host(
         agent_id=agent_id,
         sender=sender,
@@ -608,7 +617,7 @@ def host_from_instance_id(
         hostname=hostnames[0],
         group_id=group_ids[0],
         ip=ip,
-        pool=pool if pool else "",  # getting pool information from client code temporary, pool tag will be added to EC2
+        pool=pool if pool else pool_from_ec2,  # getting pool from client and ec2 temporary, parameter will be deleted
         termination_reason=termination_reason if termination_reason else TerminationReason.SPOT_INTERRUPTION.value,
         scheduler=scheduler,
         draining_start_time=arrow.now().for_json(),
