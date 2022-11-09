@@ -358,6 +358,9 @@ class DrainingClient:
         if host_to_process and (
             host_to_process.instance_id not in self.draining_host_ttl_cache
             or host_to_process.attempt > 1  # re-draining shouldn't be avoided due to caching
+            # We may have instance in the cache for different reasons. But we have to process force draining
+            # if we receive spot interruption
+            or host_to_process.termination_reason == TerminationReason.SPOT_INTERRUPTION.value
         ):
             self.draining_host_ttl_cache[host_to_process.instance_id] = arrow.now().shift(seconds=DRAIN_CACHE_SECONDS)
             message_exist = True
