@@ -43,7 +43,7 @@ semver==2.13.0
 setuptools==49.2.1
 signalfx==1.1.1
 simplejson==3.16.0
-six==1.12.0
+six==1.15.0
 sortedcontainers==2.1.0
 sseclient-py==1.7
 typing-extensions==4.3.0
