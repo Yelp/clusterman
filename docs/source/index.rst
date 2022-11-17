@@ -35,6 +35,7 @@ and simulate how changes to autoscaling logic will impact the cost and performan
    simulator
    tools
    node_migration
+   drainer
 
 
 .. toctree::

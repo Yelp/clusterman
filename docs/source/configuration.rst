@@ -126,6 +126,11 @@ The following is an example configuration file for a particular Clusterman pool:
 
 .. code-block:: yaml
 
+    draining:
+      draining_time_threshold_seconds: 1200
+      force_terminate: true
+      redraining_delay_seconds: 60
+
     resource_groups:
       - sfr:
           tag: 'my-custom-resource-group-tag'
