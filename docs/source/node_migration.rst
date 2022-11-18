@@ -36,7 +36,10 @@ The allowed values for the migration settings are as follows:
 
   * ``rate``: rate at which nodes are selected for termination; percentage or absolute value (required).
   * ``prescaling``: if set, pool size is increased by this amount before performing node recycling; percentage or absolute value (0 by default).
-  * ``precedence``: precedence with which nodes are selected for termination; ``highest_uptime`` or ``lowest_task_count`` (uptime by default).
+  * ``precedence``: precedence with which nodes are selected for termination:
+    * ``highest_uptime``: select older nodes first (default);
+    * ``lowest_task_count``: select node with fewer running tasks first;
+    * ``az_name_alphabetical``: group nodes by availability zone, and select group in alphabetical order;
   * ``bootstrap_wait``: indicative time necessary for a node to be ready to run workloads after boot; human readable time string (3 minutes by default).
   * ``bootstrap_timeout``: maximum wait for nodes to be ready after boot; human readable time string (10 minutes by default).
 
