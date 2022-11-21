@@ -19,7 +19,9 @@ from multiprocessing import Lock
 from typing import Callable
 from typing import Collection
 from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Set
 from typing import Union
 
 import colorlog
@@ -151,6 +153,10 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
         """Check if process label is for an event worker"""
         return label.startswith(self.EVENT_WORKER_LABEL_PREFIX)
 
+    def _get_worker_lock_key(self, label: str) -> str:
+        """Extract process lock key from process label"""
+        return label.split(self.WORKER_LABEL_SEPARATOR, 1)[1]
+
     def _spawn_worker(self, label: str, routine: Callable, *args, **kwargs) -> bool:
         """Start worker process
 
@@ -167,19 +173,24 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
             # uptime workers are prioritized skipping this check
             self.logger.warning(f"Too many worker processes running already ({running_workers}), skipping")
             return False
-        lock_key = label.split(self.WORKER_LABEL_SEPARATOR, 1)[1]
-        kwargs["pool_lock"] = self.worker_locks[lock_key]
+        kwargs["pool_lock"] = self.worker_locks[self._get_worker_lock_key(label)]
         proc = RestartableDaemonProcess(target=routine, args=args, kwargs=kwargs)
         self.migration_workers[label] = proc
         proc.start()
         return True
 
-    def fetch_event_crd(self) -> Collection[MigrationEvent]:
-        """Fetch migration events from Kubernetes CRDs"""
+    def fetch_event_crd(self, statuses: List[MigrationStatus]) -> Collection[MigrationEvent]:
+        """Fetch migration events from Kubernetes CRDs
+
+        :param List[MigrationStatus] statuses: event status to look for
+        :return: collection of migration events
+        """
         self.cluster_connector.reload_client()
-        events = self.cluster_connector.list_node_migration_resources(
-            [MigrationStatus.PENDING, MigrationStatus.INPROGRESS]
-        )
+        return self.cluster_connector.list_node_migration_resources(statuses)
+
+    def fetch_events_to_process(self) -> Collection[MigrationEvent]:
+        """Fetch migration events needing to be processed"""
+        events = self.fetch_event_crd([MigrationStatus.PENDING, MigrationStatus.INPROGRESS])
         return set(events) - set(self.events_in_progress.values())
 
     def mark_event(self, event: MigrationEvent, status: MigrationStatus = MigrationStatus.COMPLETED) -> None:
@@ -260,27 +271,45 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
             self.logger.info(f"Restarting worker process with label {label} (exit code: {exitcode})")
             self.migration_workers[label].restart()
 
-    def terminate_workers(self):
-        """Stop all worker processes"""
-        self.logger.info("Terminating all worker processes")
-        for proc in self.migration_workers.values():
+    def terminate_workers(self, labels: Optional[Set[str]] = None):
+        """Stop worker processes
+
+        :param Optional[Set[str]] labels: list of process labels to select for termination (all by default)
+        """
+        self.logger.info(f"Terminating {labels or 'all'} worker processes")
+        selected_workers = [entry for entry in self.migration_workers.items() if labels is None or entry[0] in labels]
+        for _, proc in selected_workers:
             proc.terminate()
-        for label, proc in self.migration_workers.items():
+        for label, proc in selected_workers:
             proc.join(self.worker_termination_timeout)
             if proc.exitcode is None:
                 self.logger.warning(f"Timed out terminating worker {label}, sending kill signal")
                 proc.kill()
-        self.migration_workers.clear()
-        self.worker_locks.clear()
+            del self.migration_workers[label]
+            try:
+                self.worker_locks[self._get_worker_lock_key(label)].release()
+            except ValueError:
+                # may have been released already, hence raising an exception, we just want to be sure
+                pass
+
+    def handle_stopped_jobs(self):
+        """Stops workers for events requesting to do so"""
+        for event in self.fetch_event_crd([MigrationStatus.STOP]):
+            label = self._build_worker_label(event=event)
+            if label in self.events_in_progress:
+                self.terminate_workers({label})
+                del self.events_in_progress[label]
+            self.mark_event(event, MigrationStatus.SKIPPED)
 
     def run(self):
         for pool, config in self.migration_configs.items():
             if "max_uptime" in config["trigger"]:
                 self.spawn_uptime_worker(pool, config["trigger"]["max_uptime"])
         while self.running:
-            events = self.fetch_event_crd()
+            events = self.fetch_events_to_process()
             for event in events:
                 self.spawn_event_worker(event)
+            self.handle_stopped_jobs()
             time.sleep(self.run_interval)
             self.monitor_workers()
         self.terminate_workers()

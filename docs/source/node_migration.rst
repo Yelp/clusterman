@@ -61,6 +61,7 @@ Migration Event Trigger
 
 Migration trigger events are submitted as Kubernetes custom resources of type ``nodemigration``.
 They can be easily generated and submitted by using the ``clusterman migrate`` CLI sub-command and it related options.
+In case jobs for a pool need to be stopped, it is possible to use the ``clusterman migrate-stop`` utility.
 The manifest for the custom resource defintion is as follows:
 
 
