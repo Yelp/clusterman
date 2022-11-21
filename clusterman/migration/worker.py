@@ -19,6 +19,7 @@ from statistics import mean
 from typing import Callable
 from typing import cast
 from typing import Collection
+from typing import Tuple
 
 import colorlog
 
@@ -76,37 +77,45 @@ def _monitor_pool_health(
     drained: Collection[ClusterNodeMetadata],
     health_check_interval_seconds: int,
     ignore_pod_health: bool = False,
-) -> bool:
+) -> Tuple[bool, Collection[ClusterNodeMetadata]]:
     """Monitor pool health after nodes were submitted for draining
 
     :param PoolManager manager: pool manager instance
     :param float timeout: timestamp after which giving up
     :param Collection[ClusterNodeMetadata] drained: nodes which were submitted for draining
     :param bool ignore_pod_health: If set, do not check that pods can successfully be scheduled
-    :return: true if capacity is fulfilled
+    :return: tuple of health status, and nodes failing to drain
     """
+    still_to_drain = []
     draining_happened, capacity_satisfied, pods_healthy = False, False, False
     connector = cast(KubernetesClusterConnector, manager.cluster_connector)
     logger.info(f"Monitoring health for {manager.cluster}:{manager.pool}")
     while time.time() < timeout:
         manager.reload_state(load_pods_info=not ignore_pod_health)
-        draining_happened = draining_happened or not any(
-            node.agent.agent_id == connector.get_agent_metadata(node.instance.ip_address).agent_id for node in drained
+        still_to_drain = (
+            [
+                node
+                for node in drained
+                if node.agent.agent_id == connector.get_agent_metadata(node.instance.ip_address).agent_id
+            ]
+            if not draining_happened
+            else []
         )
+        draining_happened = draining_happened or not bool(still_to_drain)
         # TODO: replace these with use of walrus operator in if-statement once on py38
         capacity_satisfied = capacity_satisfied or (draining_happened and manager.is_capacity_satisfied())
         pods_healthy = pods_healthy or (
             draining_happened and (ignore_pod_health or connector.has_enough_capacity_for_pods())
         )
         if draining_happened and capacity_satisfied and pods_healthy:
-            return True
+            return True, still_to_drain
         else:
             logger.info(
                 f"Pool {manager.cluster}:{manager.pool} not healthy yet"
                 f" (drain_ok={draining_happened}, capacity_ok={capacity_satisfied}, pods_ok={pods_healthy})"
             )
         time.sleep(health_check_interval_seconds)
-    return False
+    return False, still_to_drain
 
 
 def _drain_node_selection(
@@ -128,9 +137,10 @@ def _drain_node_selection(
     job_timer = get_monitoring_client().create_timer(SFX_MIGRATION_JOB_DURATION, monitoring_info)
     node_uptime_gauge = get_monitoring_client().create_gauge(SFX_DRAINED_NODE_UPTIME, monitoring_info)
     chunk = worker_setup.rate.of(len(nodes))
-    logger.info(f"{len(selected)} nodes of {manager.cluster}:{manager.pool} will be recycled")
+    n_requeued_nodes, i, selection_size = 0, 0, len(selected)
+    logger.info(f"{selection_size} nodes of {manager.cluster}:{manager.pool} will be recycled")
     job_timer.start()
-    for i in range(0, len(selected), chunk):
+    while i < len(selected):
         start_time = time.time()
         selection_chunk = selected[i : i + chunk]
         for node in selection_chunk:
@@ -139,20 +149,28 @@ def _drain_node_selection(
             node_uptime_gauge.set(node.instance.uptime.total_seconds())
             node_drain_counter.count()
         time.sleep(worker_setup.bootstrap_wait)
-        if not _monitor_pool_health(
+        is_healthy, still_to_drain = _monitor_pool_health(
             manager=manager,
             timeout=start_time + worker_setup.bootstrap_timeout,
             drained=selection_chunk,
             health_check_interval_seconds=worker_setup.health_check_interval,
             ignore_pod_health=worker_setup.ignore_pod_health,
-        ):
-            logger.warning(
-                f"Pool {manager.cluster}:{manager.pool} did not come back"
-                " to desired capacity, stopping selection draining"
-            )
-            job_timer.stop()
-            return False
-        logger.info(f"Recycled {min(i + chunk, len(selected))} nodes out of {len(selected)} selected")
+        )
+        if not is_healthy:
+            if still_to_drain and len(still_to_drain) + n_requeued_nodes <= worker_setup.allowed_failed_drains:
+                n_requeued_nodes += len(still_to_drain)
+                selected.extend(still_to_drain)
+            else:
+                logger.warning(
+                    f"Pool {manager.cluster}:{manager.pool} did not come back"
+                    " to desired capacity, stopping selection draining"
+                )
+                job_timer.stop()
+                return False
+        logger.info(
+            f"Recycled {min(i + chunk - n_requeued_nodes, selection_size)} nodes out of {selection_size} selected"
+        )
+        i += len(selection_chunk)
     logger.info(f"Completed recycling node selection from {manager.cluster}:{manager.pool}")
     job_timer.stop()
     return True

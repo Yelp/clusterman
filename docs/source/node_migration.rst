@@ -42,6 +42,7 @@ The allowed values for the migration settings are as follows:
     * ``az_name_alphabetical``: group nodes by availability zone, and select group in alphabetical order;
   * ``bootstrap_wait``: indicative time necessary for a node to be ready to run workloads after boot; human readable time string (3 minutes by default).
   * ``bootstrap_timeout``: maximum wait for nodes to be ready after boot; human readable time string (10 minutes by default).
+  * ``allowed_failed_drains``: allow for up to this many nodes to fail draining and be requeued before aborting (3 by default)
 
 * ``disable_autoscaling``: turn off autoscaler while recycling instances (false by default).
 

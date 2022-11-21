@@ -115,6 +115,7 @@ def test_get_worker_setup(migration_batch):
         disable_autoscaling=False,
         expected_duration=7200.0,
         health_check_interval=120,
+        allowed_failed_drains=3,
     )
 
 
