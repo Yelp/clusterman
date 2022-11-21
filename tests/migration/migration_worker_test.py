@@ -62,9 +62,9 @@ def test_monitor_pool_health(mock_time):
     ]
     mock_manager.is_capacity_satisfied.side_effect = [False, True, True]
     mock_connector.has_enough_capacity_for_pods.side_effect = [False, False, True]
-    mock_connector.get_agent_metadata.side_effect = chain(
-        (AgentMetadata(agent_id=i) for i in range(3)),
-        repeat(AgentMetadata(agent_id="")),
+    mock_manager.is_node_still_in_pool.side_effect = chain(
+        (True for i in range(3)),
+        repeat(False),
     )
     mock_time.time.return_value = 0
     assert _monitor_pool_health(mock_manager, 1, drained, 120) == (True, [])

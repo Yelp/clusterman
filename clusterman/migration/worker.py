@@ -93,13 +93,7 @@ def _monitor_pool_health(
     while time.time() < timeout:
         manager.reload_state(load_pods_info=not ignore_pod_health)
         still_to_drain = (
-            [
-                node
-                for node in drained
-                if node.agent.agent_id == connector.get_agent_metadata(node.instance.ip_address).agent_id
-            ]
-            if not draining_happened
-            else []
+            [node for node in drained if manager.is_node_still_in_pool(node)] if not draining_happened else []
         )
         draining_happened = draining_happened or not bool(still_to_drain)
         # TODO: replace these with use of walrus operator in if-statement once on py38
