@@ -30,17 +30,20 @@ DEFAULT_HEALTH_CHECK_INTERVAL = "2m"
 class MigrationPrecendence(enum.Enum):
     UPTIME = "highest_uptime"
     TASK_COUNT = "lowest_task_count"
+    AZ_NAME = "az_name_alphabetical"
 
     @classmethod
     def default(cls) -> str:
         return cls.UPTIME.value
 
-    def sort_key(self, node: ClusterNodeMetadata) -> int:
+    def sort_key(self, node: ClusterNodeMetadata) -> Union[int, str]:
         """Key function to be passed to sorting routines"""
         if self == MigrationPrecendence.UPTIME:
             return -node.instance.uptime.total_seconds()
         elif self == MigrationPrecendence.TASK_COUNT:
             return node.agent.task_count
+        elif self == MigrationPrecendence.AZ_NAME:
+            return str(node.instance.market.az)
         return 0
 
 
