@@ -1,3 +1,9 @@
+clusterman (4.17.0) xenial bionic; urgency=low
+
+  * Add utility to stop node-migration jobs
+
+ -- Matteo Piano <mpiano@yelp.com>  Mon, 21 Nov 2022 04:19:14 -0800
+
 clusterman (4.16.5) xenial bionic; urgency=low
 
   * Ignored pending pod reason detection
