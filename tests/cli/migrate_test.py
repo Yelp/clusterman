@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
+from unittest.mock import call
 from unittest.mock import patch
 
 import packaging.version
 
-from clusterman.cli.migrate import main
+from clusterman.cli.migrate import main_start
+from clusterman.cli.migrate import main_stop
 from clusterman.migration.event import MigrationCondition
 from clusterman.migration.event import MigrationEvent
 from clusterman.migration.event_enums import ConditionOperator
@@ -36,7 +38,7 @@ def test_migrate_command(mock_connector, mock_time):
         condition_target="22.04",
     )
     mock_time.time.return_value = 111222333
-    main(mock_args)
+    main_start(mock_args)
     mock_connector.assert_called_once_with("mesos-test", "bar", init_crd=True)
     mock_connector.return_value.create_node_migration_resource.assert_called_once_with(
         MigrationEvent(
@@ -49,4 +51,32 @@ def test_migrate_command(mock_connector, mock_time):
             ),
         ),
         MigrationStatus.PENDING,
+    )
+
+
+@patch("clusterman.cli.migrate.KubernetesClusterConnector")
+def test_migrate_stop_command(mock_connector):
+    mock_args = argparse.Namespace(
+        cluster="mesos-test",
+        pool="bar",
+    )
+    mock_connector.return_value.list_node_migration_resources.return_value = [
+        MigrationEvent(
+            resource_name=f"mesos-test-bar-{str(i) * 8}",
+            cluster="mesos-test",
+            pool="bar",
+            label_selectors=[],
+            condition=MigrationCondition(
+                ConditionTrait.LSBRELEASE, ConditionOperator.GE, packaging.version.parse(f"2{i}.04")
+            ),
+        )
+        for i in range(1, 3)
+    ]
+    main_stop(mock_args)
+    mock_connector.assert_called_once_with("mesos-test", "bar", init_crd=True)
+    mock_connector.return_value.mark_node_migration_resource.assert_has_calls(
+        [
+            call("mesos-test-bar-11111111", MigrationStatus.STOP),
+            call("mesos-test-bar-22222222", MigrationStatus.STOP),
+        ]
     )

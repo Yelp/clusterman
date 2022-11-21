@@ -13,6 +13,7 @@
 # limitations under the License.
 from argparse import Namespace
 from collections import defaultdict
+from unittest.mock import call
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -44,7 +45,7 @@ def migration_batch():
         yield batch
 
 
-def test_fetch_event_crd(migration_batch: NodeMigration):
+def test_fetch_events_to_process(migration_batch: NodeMigration):
     migration_batch.events_in_progress = {
         "event:mesos-test:bar": MigrationEvent(
             resource_name="mesos-test-bar-220912-1",
@@ -64,7 +65,7 @@ def test_fetch_event_crd(migration_batch: NodeMigration):
         )
         for i in range(3)
     ]
-    assert migration_batch.fetch_event_crd() == {
+    assert migration_batch.fetch_events_to_process() == {
         MigrationEvent(
             resource_name=f"mesos-test-bar-220912-{i}",
             cluster="mesos-test",
@@ -92,7 +93,9 @@ def test_run(mock_time, migration_batch):
     )
     with patch.object(migration_batch, "spawn_uptime_worker") as mock_uptime_spawn, patch.object(
         migration_batch, "spawn_event_worker"
-    ) as mock_event_spawn, patch.object(migration_batch, "fetch_event_crd") as mock_fetch_event:
+    ) as mock_event_spawn, patch.object(migration_batch, "fetch_events_to_process") as mock_fetch_event, patch.object(
+        migration_batch, "handle_stopped_jobs"
+    ):
         mock_fetch_event.return_value = {mock_event}
         with pytest.raises(StopIteration):
             migration_batch.run()
@@ -245,3 +248,53 @@ def test_monitor_workers(migration_batch):
     mock_to_restart.restart.assert_called_once_with()
     assert migration_batch.migration_workers == {"foobar": mock_ok_worker, "buzz": mock_to_restart}
     assert not migration_batch.events_in_progress
+
+
+@pytest.mark.parametrize(
+    "labels",
+    (None, {"event:mesos-test:bar"}),
+)
+def test_terminate_workers(migration_batch, labels):
+    mock_workers = {
+        "event:mesos-test:bar": MagicMock(exitcode=0),
+        "event:mesos-test:foo": MagicMock(exitcode=None),
+    }
+    migration_batch.migration_workers = mock_workers.copy()
+    migration_batch.worker_locks = {
+        "mesos-test:bar": MagicMock(),
+        "mesos-test:foo": MagicMock(),
+    }
+    migration_batch.terminate_workers(labels)
+    if labels:
+        assert not (set(migration_batch.migration_workers) & labels)
+        for label in labels:
+            mock_workers[label].terminate.assert_called_once_with()
+            migration_batch.worker_locks[migration_batch._get_worker_lock_key(label)].release.assert_called_once_with()
+    else:
+        assert not migration_batch.migration_workers
+        assert all(lock.release.called for lock in migration_batch.worker_locks.values())
+        for proc in mock_workers.values():
+            proc.terminate.assert_called_once_with()
+
+
+def test_handle_stopped_jobs(migration_batch):
+    mock_events = [
+        MigrationEvent(
+            resource_name="mesos-test-bar-221121-1",
+            cluster="mesos-test",
+            pool=f"bar{i}",
+            label_selectors=[],
+            condition=MigrationCondition(ConditionTrait.KERNEL, ConditionOperator.GE, "5.15.0"),
+        )
+        for i in range(2)
+    ]
+    migration_batch.events_in_progress = {"event:mesos-test:bar0": mock_events[0], "bizzbuzz": 123}
+    with patch.object(migration_batch, "fetch_event_crd") as mock_fetch_event, patch.object(
+        migration_batch, "terminate_workers"
+    ) as mock_terminate, patch.object(migration_batch, "mark_event") as mock_mark:
+        mock_fetch_event.return_value = mock_events
+        migration_batch.handle_stopped_jobs()
+        mock_fetch_event.assert_called_once_with([MigrationStatus.STOP])
+        mock_terminate.assert_called_once_with({"event:mesos-test:bar0"})
+        assert migration_batch.events_in_progress == {"bizzbuzz": 123}
+        mock_mark.assert_has_calls([call(event, MigrationStatus.SKIPPED) for event in mock_events])
