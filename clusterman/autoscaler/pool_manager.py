@@ -583,6 +583,21 @@ class PoolManager:
             if node_metadata.agent.state not in (AgentState.ORPHANED, AgentState.UNKNOWN)
         )
 
+    def is_node_still_in_pool(self, node_metadata: ClusterNodeMetadata) -> bool:
+        """Checks if the node is still present and active in any resource group.
+        Useful to check for instance termination.
+
+        :param ClusterNodeMetadata node_metadata: node metadata wrapper
+        :return: true if still in pool
+        """
+        return (
+            # check cluster connector is still detecting node
+            node_metadata.agent.agent_id
+            == self.cluster_connector.get_agent_metadata(node_metadata.instance.ip_address).agent_id
+            # check instance ID is still in resource group
+            and node_metadata.instance.instance_id in self.resource_groups[node_metadata.instance.group_id].instance_ids
+        )
+
     def is_capacity_satisfied(self) -> bool:
         """States whether current pool capacity is considered in line with expectation"""
         return self.non_orphan_fulfilled_capacity >= self.target_capacity

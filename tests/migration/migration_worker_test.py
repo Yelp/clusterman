@@ -62,12 +62,12 @@ def test_monitor_pool_health(mock_time):
     ]
     mock_manager.is_capacity_satisfied.side_effect = [False, True, True]
     mock_connector.has_enough_capacity_for_pods.side_effect = [False, False, True]
-    mock_connector.get_agent_metadata.side_effect = chain(
-        (AgentMetadata(agent_id=i) for i in range(3)),
-        repeat(AgentMetadata(agent_id="")),
+    mock_manager.is_node_still_in_pool.side_effect = chain(
+        (True for i in range(3)),
+        repeat(False),
     )
     mock_time.time.return_value = 0
-    assert _monitor_pool_health(mock_manager, 1, drained, 120) is True
+    assert _monitor_pool_health(mock_manager, 1, drained, 120) == (True, [])
     # 1st iteration still draining some nodes
     # 2nd iteration underprovisioned capacity
     # 3rd iteration left over unscheduable pods
@@ -83,7 +83,7 @@ def test_drain_node_selection(mock_sfx, mock_monitor, mock_time):
     mock_uptime_stats_sfx = mock_sfx.create_gauge.return_value
     mock_job_duration_sfx = mock_sfx.create_timer.return_value
     mock_manager = MagicMock()
-    mock_monitor.return_value = True
+    mock_monitor.return_value = (True, [])
     mock_manager.get_node_metadatas.return_value = [
         ClusterNodeMetadata(
             AgentMetadata(agent_id=i, task_count=30 - 2 * i),
@@ -161,6 +161,93 @@ def test_drain_node_selection(mock_sfx, mock_monitor, mock_time):
 
 
 @patch("clusterman.migration.worker.time")
+@patch("clusterman.migration.worker._monitor_pool_health")
+@patch("clusterman.migration.worker.get_monitoring_client")
+def test_drain_node_selection_requeue(mock_sfx, mock_monitor, mock_time):
+    mock_manager = MagicMock()
+    mock_nodes = [
+        ClusterNodeMetadata(
+            AgentMetadata(agent_id=i, task_count=30 - 2 * i),
+            InstanceMetadata(None, None, uptime=timedelta(days=i)),
+        )
+        for i in range(6)
+    ]
+    mock_monitor.side_effect = [(True, []) if i != 0 else (False, [mock_nodes[4]]) for i in range(5)]
+    mock_manager.get_node_metadatas.return_value = mock_nodes
+    mock_time.time.side_effect = range(5)
+    worker_setup = WorkerSetup(
+        rate=PoolPortion(2),
+        prescaling=None,
+        precedence=MigrationPrecendence.TASK_COUNT,
+        bootstrap_wait=1,
+        bootstrap_timeout=2,
+        disable_autoscaling=False,
+        expected_duration=3,
+        health_check_interval=4,
+        allowed_failed_drains=3,
+    )
+    assert _drain_node_selection(mock_manager, lambda n: n.agent.agent_id > 2, worker_setup) is True
+    mock_manager.get_node_metadatas.assert_called_once_with(("running",))
+    mock_manager.submit_for_draining.assert_has_calls(
+        [
+            call(
+                ClusterNodeMetadata(
+                    AgentMetadata(agent_id=i, task_count=30 - 2 * i),
+                    InstanceMetadata(None, None, uptime=timedelta(days=i)),
+                ),
+                TerminationReason.NODE_MIGRATION,
+            )
+            for i in range(5, 2, -1)
+        ]
+        + [
+            call(
+                ClusterNodeMetadata(
+                    AgentMetadata(agent_id=4, task_count=30 - 2 * 4),
+                    InstanceMetadata(None, None, uptime=timedelta(days=4)),
+                ),
+                TerminationReason.NODE_MIGRATION,
+            )
+        ]
+    )
+    mock_monitor.assert_has_calls(
+        [
+            call(
+                manager=mock_manager,
+                timeout=2,
+                drained=[
+                    ClusterNodeMetadata(
+                        AgentMetadata(agent_id=5, task_count=20),
+                        InstanceMetadata(None, None, uptime=timedelta(days=5)),
+                    ),
+                    ClusterNodeMetadata(
+                        AgentMetadata(agent_id=4, task_count=22),
+                        InstanceMetadata(None, None, uptime=timedelta(days=4)),
+                    ),
+                ],
+                health_check_interval_seconds=4,
+                ignore_pod_health=False,
+            ),
+            call(
+                manager=mock_manager,
+                timeout=3,
+                drained=[
+                    ClusterNodeMetadata(
+                        AgentMetadata(agent_id=3, task_count=24),
+                        InstanceMetadata(None, None, uptime=timedelta(days=3)),
+                    ),
+                    ClusterNodeMetadata(
+                        AgentMetadata(agent_id=4, task_count=22),
+                        InstanceMetadata(None, None, uptime=timedelta(days=4)),
+                    ),
+                ],
+                health_check_interval_seconds=4,
+                ignore_pod_health=False,
+            ),
+        ]
+    )
+
+
+@patch("clusterman.migration.worker.time")
 @patch("clusterman.migration.worker.PoolManager")
 @patch("clusterman.migration.worker._drain_node_selection")
 def test_uptime_migration_worker(mock_drain_selection, mock_manager_class, mock_time):
@@ -180,7 +267,7 @@ def test_uptime_migration_worker(mock_drain_selection, mock_manager_class, mock_
 @patch("clusterman.migration.worker.enable_autoscaling")
 @patch("clusterman.migration.worker.disable_autoscaling")
 @patch("clusterman.migration.worker._drain_node_selection")
-@patch("clusterman.migration.worker._monitor_pool_health", lambda *_, **__: True)
+@patch("clusterman.migration.worker._monitor_pool_health", lambda *_, **__: (True, []))
 @patch("clusterman.migration.worker.limit_function_runtime", lambda f, _: f())
 def test_event_migration_worker(
     mock_drain_selection,
