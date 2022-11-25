@@ -26,6 +26,8 @@ DEFAULT_NODE_BOOT_TIMEOUT = "10m"
 DEFAULT_WORKER_TIMEOUT = "2h"
 DEFAULT_HEALTH_CHECK_INTERVAL = "2m"
 DEFAULT_ALLOWED_FAILED_DRAINS = 3
+DEFAULT_ORPHAN_CAPACITY_TOLLERANCE = 0
+MAX_ORPHAN_CAPACITY_TOLLERANCE = 0.2
 
 
 class MigrationPrecendence(enum.Enum):
@@ -87,6 +89,7 @@ class WorkerSetup(NamedTuple):
     health_check_interval: int
     ignore_pod_health: bool = False
     allowed_failed_drains: int = 0
+    orphan_capacity_tollerance: float = 0
 
     @classmethod
     def from_config(cls, config: dict) -> "WorkerSetup":
@@ -107,4 +110,8 @@ class WorkerSetup(NamedTuple):
                 config.get("health_check_interval", DEFAULT_HEALTH_CHECK_INTERVAL)
             ),
             allowed_failed_drains=strat_conf.get("allowed_failed_drains", DEFAULT_ALLOWED_FAILED_DRAINS),
+            orphan_capacity_tollerance=min(
+                float(config.get("orphan_capacity_tollerance", DEFAULT_ORPHAN_CAPACITY_TOLLERANCE)),
+                MAX_ORPHAN_CAPACITY_TOLLERANCE,
+            ),
         )

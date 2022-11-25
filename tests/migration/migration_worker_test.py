@@ -133,6 +133,7 @@ def test_drain_node_selection(mock_sfx, mock_monitor, mock_time):
                 ],
                 health_check_interval_seconds=4,
                 ignore_pod_health=False,
+                orphan_capacity_tollerance=0,
             ),
             call(
                 manager=mock_manager,
@@ -145,6 +146,7 @@ def test_drain_node_selection(mock_sfx, mock_monitor, mock_time):
                 ],
                 health_check_interval_seconds=4,
                 ignore_pod_health=False,
+                orphan_capacity_tollerance=0,
             ),
         ]
     )
@@ -226,6 +228,7 @@ def test_drain_node_selection_requeue(mock_sfx, mock_monitor, mock_time):
                 ],
                 health_check_interval_seconds=4,
                 ignore_pod_health=False,
+                orphan_capacity_tollerance=0,
             ),
             call(
                 manager=mock_manager,
@@ -242,6 +245,7 @@ def test_drain_node_selection_requeue(mock_sfx, mock_monitor, mock_time):
                 ],
                 health_check_interval_seconds=4,
                 ignore_pod_health=False,
+                orphan_capacity_tollerance=0,
             ),
         ]
     )

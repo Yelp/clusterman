@@ -598,9 +598,16 @@ class PoolManager:
             and node_metadata.instance.instance_id in self.resource_groups[node_metadata.instance.group_id].instance_ids
         )
 
-    def is_capacity_satisfied(self) -> bool:
-        """States whether current pool capacity is considered in line with expectation"""
-        return self.non_orphan_fulfilled_capacity >= self.target_capacity
+    def is_capacity_satisfied(self, orphan_capacity_tollerance: float = 0) -> bool:
+        """States whether current pool capacity is considered in line with expectation
+
+        :param float orphan_capacity_tollerance: acceptable ratio of orphan capacity to still consider check satisfied
+        """
+        target_capacity = self.target_capacity  # just saving a bit of CPU since it is a computed property
+        return self.non_orphan_fulfilled_capacity >= target_capacity or (
+            self.fulfilled_capacity >= target_capacity
+            and self.non_orphan_fulfilled_capacity * (1 + orphan_capacity_tollerance) >= target_capacity
+        )
 
     @property
     def target_capacity(self) -> float:

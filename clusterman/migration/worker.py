@@ -77,13 +77,16 @@ def _monitor_pool_health(
     drained: Collection[ClusterNodeMetadata],
     health_check_interval_seconds: int,
     ignore_pod_health: bool = False,
+    orphan_capacity_tollerance: float = 0,
 ) -> Tuple[bool, Collection[ClusterNodeMetadata]]:
     """Monitor pool health after nodes were submitted for draining
 
     :param PoolManager manager: pool manager instance
     :param float timeout: timestamp after which giving up
     :param Collection[ClusterNodeMetadata] drained: nodes which were submitted for draining
+    :param int health_check_interval_seconds: how often to iterate the check
     :param bool ignore_pod_health: If set, do not check that pods can successfully be scheduled
+    :param float orphan_capacity_tollerance: acceptable ratio of orphan capacity to still consider check satisfied
     :return: tuple of health status, and nodes failing to drain
     """
     still_to_drain = []
@@ -97,7 +100,9 @@ def _monitor_pool_health(
         )
         draining_happened = draining_happened or not bool(still_to_drain)
         # TODO: replace these with use of walrus operator in if-statement once on py38
-        capacity_satisfied = capacity_satisfied or (draining_happened and manager.is_capacity_satisfied())
+        capacity_satisfied = capacity_satisfied or (
+            draining_happened and manager.is_capacity_satisfied(orphan_capacity_tollerance)
+        )
         pods_healthy = pods_healthy or (
             draining_happened and (ignore_pod_health or connector.has_enough_capacity_for_pods())
         )
@@ -149,6 +154,7 @@ def _drain_node_selection(
             drained=selection_chunk,
             health_check_interval_seconds=worker_setup.health_check_interval,
             ignore_pod_health=worker_setup.ignore_pod_health,
+            orphan_capacity_tollerance=worker_setup.orphan_capacity_tollerance,
         )
         if not is_healthy:
             if still_to_drain and len(still_to_drain) + n_requeued_nodes <= worker_setup.allowed_failed_drains:
@@ -188,7 +194,7 @@ def uptime_migration_worker(
     try:
         while True:
             manager.reload_state(load_pods_info=not worker_setup.ignore_pod_health)
-            if manager.is_capacity_satisfied():
+            if manager.is_capacity_satisfied(worker_setup.orphan_capacity_tollerance):
                 with pool_lock:
                     _drain_node_selection(manager, node_selector, worker_setup)
             else:
@@ -236,6 +242,7 @@ def event_migration_worker(migration_event: MigrationEvent, worker_setup: Worker
             drained=[],
             health_check_interval_seconds=worker_setup.health_check_interval,
             ignore_pod_health=True,
+            orphan_capacity_tollerance=worker_setup.orphan_capacity_tollerance,
         ):
             raise NodeMigrationError(f"Pool {migration_event.cluster}:{migration_event.pool} is not healthy")
         node_selector = lambda node: node.agent.agent_id and not migration_event.condition.matches(node)  # noqa
