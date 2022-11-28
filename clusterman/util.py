@@ -18,6 +18,7 @@ import signal
 import time
 from datetime import datetime
 from enum import Enum
+from functools import partial
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -449,7 +450,8 @@ def limit_function_runtime(
     """
 
     def timeout_handler(signum, frame):
-        raise FunctionTimeoutError(f"Method {func.__name__} ran for more than {max_runtime} seconds")
+        func_name = func.func.__name__ if isinstance(func, partial) else getattr(func, "__name__", str(func))
+        raise FunctionTimeoutError(f"Method {func_name} ran for more than {max_runtime} seconds")
 
     handler = (lambda signum, frame: callback()) if callback else timeout_handler  # noqa
     signal.signal(signal.SIGALRM, handler)
