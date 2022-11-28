@@ -65,6 +65,7 @@ SFX_EXPIRATION_COUNT = "clusterman.drainer.expiration_count"
 SFX_DRAINING_COUNT = "clusterman.drainer.draining_count"
 SFX_DUPLICATE_COUNT = "clusterman.drainer.duplicate_count"
 SFX_DRAINING_DURATION = "clusterman.drainer.draining_duration"
+SFX_RECEIVING_DURATION = "clusterman.drainer.receiving_duration"
 SFX_TERMINATING_DURATION = "clusterman.drainer.terminating_duration"
 
 
@@ -125,6 +126,7 @@ class DrainingClient:
         self.draining_counter = get_monitoring_client().create_counter(SFX_DRAINING_COUNT, monitoring_info)
         self.duplicate_counter = get_monitoring_client().create_counter(SFX_DUPLICATE_COUNT, monitoring_info)
         self.draining_timer = get_monitoring_client().create_timer(SFX_DRAINING_DURATION, monitoring_info)
+        self.receiving_timer = get_monitoring_client().create_timer(SFX_RECEIVING_DURATION, monitoring_info)
         self.terminating_timer = get_monitoring_client().create_timer(SFX_TERMINATING_DURATION, monitoring_info)
 
     def submit_instance_for_draining(
@@ -326,14 +328,13 @@ class DrainingClient:
                 logger.info(f"Kubernetes host to delete k8s node and terminate: {host_to_terminate}")
                 try:
                     self.terminate_host(host_to_terminate)
-                    terminating_time_seconds = (
-                        arrow.now() - arrow.get(host_to_terminate.draining_start_time)
-                    ).total_seconds()
+                    terminating_time_milliseconds = self._get_spent_time_milliseconds(host_to_terminate)
                     logger.info(
-                        f"terminating took {terminating_time_seconds} seconds for {host_to_terminate.instance_id}"
+                        f"terminating took {terminating_time_milliseconds} "
+                        f"milliseconds for {host_to_terminate.instance_id}"
                     )
                     self.terminating_timer.record(
-                        terminating_time_seconds * 1000,
+                        terminating_time_milliseconds,
                         {
                             "pool": host_to_terminate.pool,
                             "reason": host_to_terminate.termination_reason,
@@ -379,17 +380,9 @@ class DrainingClient:
                 finally:
                     self.submit_host_for_termination(host_to_process)
             elif host_to_process.scheduler == "kubernetes":
-                self.draining_counter.count(
-                    1,
-                    {
-                        "pool": host_to_process.pool,
-                        "orphan": False if host_to_process.agent_id else True,
-                        "first_try": True if host_to_process.attempt == 1 else False,
-                        "reason": host_to_process.termination_reason,
-                    },
-                )
+                self._emit_draining_metrics(host_to_process)
                 logger.info(f"Kubernetes host to drain and submit for termination: {host_to_process}")
-                spent_time = arrow.now() - arrow.get(host_to_process.draining_start_time)
+                spent_time_milliseconds = self._get_spent_time_milliseconds(host_to_process)
                 pool_config = staticconf.NamespaceReaders(
                     POOL_NAMESPACE.format(pool=host_to_process.pool, scheduler="kubernetes")
                 )
@@ -428,7 +421,7 @@ class DrainingClient:
                     else:  # case 0c
                         logger.info(f"Sending host to drain: {host_to_process.instance_id}")
                         self.submit_host_for_draining(host_to_process_fresh, attempt=host_to_process.attempt + 1)
-                elif spent_time.total_seconds() > draining_time_threshold_seconds:
+                elif spent_time_milliseconds / 1000 > draining_time_threshold_seconds:
                     self.expiration_counter.count(
                         1,
                         {
@@ -502,20 +495,43 @@ class DrainingClient:
     ) -> bool:
         if not k8s_drain(kube_operator_client, host_to_process.agent_id, disable_eviction):
             return False
-        draining_time_seconds = (arrow.now() - arrow.get(host_to_process.draining_start_time)).total_seconds()
+        draining_time_milliseconds = self._get_spent_time_milliseconds(host_to_process)
         self.submit_host_for_termination(host_to_process, delay=0)
         logger.info(
-            f"draining took {draining_time_seconds} seconds with "
+            f"draining took {draining_time_milliseconds} milliseconds with "
             f"{host_to_process.attempt} attempt for {host_to_process.instance_id}"
         )
         self.draining_timer.record(
-            draining_time_seconds * 1000,
+            draining_time_milliseconds,
             {
                 "pool": host_to_process.pool,
                 "reason": host_to_process.termination_reason,
             },
         )
         return True
+
+    def _emit_draining_metrics(self, host: Host):
+        self.draining_counter.count(
+            1,
+            {
+                "pool": host.pool,
+                "orphan": False if host.agent_id else True,
+                "first_try": True if host.attempt == 1 else False,
+                "reason": host.termination_reason,
+            },
+        )
+        # We need to emit metrics only for first requests, because delay was added intentionally to other requests.
+        if host.attempt == 1:
+            self.receiving_timer.record(
+                self._get_spent_time_milliseconds(host),
+                {
+                    "pool": host.pool,
+                    "reason": host.termination_reason,
+                },
+            )
+
+    def _get_spent_time_milliseconds(self, host: Host):
+        return (arrow.now() - arrow.get(host.draining_start_time)).total_seconds() * 1000
 
     def terminate_host(self, host: Host) -> None:
         logger.info(f"Terminating: {host.instance_id}")
