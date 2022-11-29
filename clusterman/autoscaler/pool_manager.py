@@ -53,6 +53,7 @@ AWS_RUNNING_STATES = ("running",)
 MIN_CAPACITY_PER_GROUP = 1
 MAX_MIN_NODE_SCALEIN_UPTIME_SECONDS = 15 * 60  # 15 minutes
 SFX_RESOURCE_GROUP_MODIFICATION_FAILED_NAME = "clusterman.resource_group_modification_failed"
+SFX_KILLABLE_NODES_COUNT = "clusterman.pool_manager.killable_nodes_count"
 logger = colorlog.getLogger(__name__)
 
 
@@ -81,6 +82,8 @@ class PoolManager:
             self.pool_config.read_int("scaling_limits.min_node_scalein_uptime_seconds", default=-1),
             MAX_MIN_NODE_SCALEIN_UPTIME_SECONDS,
         )
+        monitoring_info = {"cluster": cluster, "pool": pool}
+        self.killable_nodes_counter = get_monitoring_client().create_counter(SFX_KILLABLE_NODES_COUNT, monitoring_info)
 
         if fetch_state:
             self.reload_state()
@@ -408,6 +411,7 @@ class PoolManager:
                 instance_ids=[node_metadata.instance.instance_id for node_metadata in prioritized_killable_nodes],
             )
         )
+        self.killable_nodes_counter.count(len(prioritized_killable_nodes))
 
         if not prioritized_killable_nodes:
             return {}
