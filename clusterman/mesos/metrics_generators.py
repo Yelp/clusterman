@@ -43,7 +43,7 @@ SIMPLE_METADATA = {
     "non_orphan_fulfilled_capacity": lambda manager: manager.non_orphan_fulfilled_capacity,
 }
 KUBERNETES_METRICS = {
-    "unschedulable_pods": lambda manager: len(manager.cluster_connector.get_unschedulable_pods(detect_reason=False)),
+    "unschedulable_pods": lambda manager: len(manager.cluster_connector.get_unschedulable_pods()),
     "cpus_pending": lambda manager: manager.cluster_connector.get_resource_pending("cpus"),
     "mem_pending": lambda manager: manager.cluster_connector.get_resource_pending("mem"),
     "disk_pending": lambda manager: manager.cluster_connector.get_resource_pending("disk"),

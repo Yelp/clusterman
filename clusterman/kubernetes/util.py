@@ -14,8 +14,6 @@
 import os
 import re
 import socket
-from enum import auto
-from enum import Enum
 from functools import partial
 from typing import Any
 from typing import Hashable
@@ -146,11 +144,6 @@ class ResourceParser:
     def gpus(resources):
         resources = resources or {}
         return int(resources.get("nvidia.com/gpu", 0))
-
-
-class PodUnschedulableReason(Enum):
-    InsufficientResources = auto()
-    Unknown = auto()
 
 
 def allocated_node_resources(pods: List[KubernetesPod]) -> ClustermanResources:

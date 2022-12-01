@@ -36,7 +36,6 @@ from staticconf.testing import PatchConfiguration
 from clusterman.config import POOL_NAMESPACE
 from clusterman.interfaces.types import AgentState
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
-from clusterman.kubernetes.util import PodUnschedulableReason
 from clusterman.migration.event import MigrationCondition
 from clusterman.migration.event import MigrationEvent
 from clusterman.migration.event_enums import ConditionOperator
@@ -473,16 +472,11 @@ def test_create_node_migration_resource(mock_cluster_connector_crd):
     "unschedulable,expected",
     (
         (
-            [
-                (mock.MagicMock(), PodUnschedulableReason.Unknown),
-                (mock.MagicMock(), PodUnschedulableReason.InsufficientResources),
-            ],
+            [mock.MagicMock()],
             False,
         ),
         (
-            [
-                (mock.MagicMock(), PodUnschedulableReason.Unknown),
-            ],
+            [],
             True,
         ),
     ),
