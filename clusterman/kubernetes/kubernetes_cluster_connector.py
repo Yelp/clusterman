@@ -39,7 +39,6 @@ from clusterman.kubernetes.util import ConciseCRDApi
 from clusterman.kubernetes.util import get_node_ip
 from clusterman.kubernetes.util import get_node_kernel_version
 from clusterman.kubernetes.util import get_node_lsbrelease
-from clusterman.kubernetes.util import PodUnschedulableReason
 from clusterman.kubernetes.util import total_node_resources
 from clusterman.kubernetes.util import total_pod_resources
 from clusterman.migration.event import MigrationEvent
@@ -189,20 +188,8 @@ class KubernetesClusterConnector(ClusterConnector):
             for node_ip in self._nodes_by_ip.keys()
         )
 
-    def get_unschedulable_pods(
-        self, detect_reason: Optional[bool] = True
-    ) -> List[Tuple[KubernetesPod, PodUnschedulableReason]]:
-        unschedulable_pods = []
-        for pod in self._unschedulable_pods:
-            unschedulable_pods.append(
-                (
-                    pod,
-                    self._get_pod_unschedulable_reason(pod)
-                    if detect_reason
-                    else PodUnschedulableReason.InsufficientResources,
-                )
-            )
-        return unschedulable_pods
+    def get_unschedulable_pods(self) -> List[KubernetesPod]:
+        return self._unschedulable_pods
 
     def drain_node(self, node_name: str, disable_eviction: bool) -> bool:
         try:
@@ -321,9 +308,7 @@ class KubernetesClusterConnector(ClusterConnector):
 
         :return: True if no unschedulable pods are due to resource constraints
         """
-        return not any(
-            reason == PodUnschedulableReason.InsufficientResources for _, reason in self.get_unschedulable_pods()
-        )
+        return not any(self.get_unschedulable_pods())
 
     def _evict_or_delete_pods(self, node_name: str, pods: List[KubernetesPod], disable_eviction: bool) -> bool:
         all_done = True
@@ -378,19 +363,6 @@ class KubernetesClusterConnector(ClusterConnector):
         return pod.metadata.owner_references and any(
             [owner_reference.kind == "DaemonSet" for owner_reference in pod.metadata.owner_references]
         )
-
-    def _get_pod_unschedulable_reason(self, pod: KubernetesPod) -> PodUnschedulableReason:
-        pod_resource_request = total_pod_resources(pod)
-        for node_ip, pods_on_node in self._pods_by_ip.items():
-            node = self._nodes_by_ip.get(node_ip)
-            if node:
-                available_node_resources = total_node_resources(
-                    node, self._excluded_pods_by_ip.get(node_ip, [])
-                ) - allocated_node_resources(pods_on_node)
-                if pod_resource_request <= available_node_resources:
-                    return PodUnschedulableReason.Unknown
-
-        return PodUnschedulableReason.InsufficientResources
 
     def _get_agent_metadata(self, node_ip: str) -> AgentMetadata:
         node = self._nodes_by_ip.get(node_ip)

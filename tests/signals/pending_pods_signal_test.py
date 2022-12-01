@@ -9,7 +9,6 @@ from kubernetes.client import V1PodSpec
 from kubernetes.client import V1PodStatus
 from kubernetes.client import V1ResourceRequirements
 
-from clusterman.kubernetes.util import PodUnschedulableReason
 from clusterman.signals.pending_pods_signal import _get_resource_request
 from clusterman.signals.pending_pods_signal import PendingPodsSignal
 from clusterman.util import ClustermanResources
@@ -37,49 +36,24 @@ def allocated_resources():
 @pytest.fixture
 def pending_pods():
     return [
-        (
-            V1Pod(
-                metadata=V1ObjectMeta(name="pod1"),
-                status=V1PodStatus(
-                    phase="Pending",
-                    conditions=[V1PodCondition(status="False", type="PodScheduled", reason="Unschedulable")],
-                ),
-                spec=V1PodSpec(
-                    containers=[
-                        V1Container(
-                            name="container1",
-                            resources=V1ResourceRequirements(requests={"cpu": "1.5", "memory": "150MB"}),
-                        ),
-                        V1Container(
-                            name="container1",
-                            resources=V1ResourceRequirements(requests={"cpu": "1.5", "memory": "350MB"}),
-                        ),
-                    ]
-                ),
+        V1Pod(
+            metadata=V1ObjectMeta(name="pod1"),
+            status=V1PodStatus(
+                phase="Pending",
+                conditions=[V1PodCondition(status="False", type="PodScheduled", reason="Unschedulable")],
             ),
-            PodUnschedulableReason.InsufficientResources,
-        ),
-        (
-            V1Pod(
-                metadata=V1ObjectMeta(name="pod2"),
-                status=V1PodStatus(
-                    phase="Pending",
-                    conditions=[V1PodCondition(status="False", type="PodScheduled", reason="Unschedulable")],
-                ),
-                spec=V1PodSpec(
-                    containers=[
-                        V1Container(
-                            name="container1",
-                            resources=V1ResourceRequirements(requests={"cpu": "1.5"}),
-                        ),
-                        V1Container(
-                            name="container1",
-                            resources=V1ResourceRequirements(requests={"cpu": "1.5", "mem": "300MB"}),
-                        ),
-                    ]
-                ),
+            spec=V1PodSpec(
+                containers=[
+                    V1Container(
+                        name="container1",
+                        resources=V1ResourceRequirements(requests={"cpu": "1.5", "memory": "150MB"}),
+                    ),
+                    V1Container(
+                        name="container1",
+                        resources=V1ResourceRequirements(requests={"cpu": "1.5", "memory": "350MB"}),
+                    ),
+                ]
             ),
-            PodUnschedulableReason.Unknown,
         ),
     ]
 

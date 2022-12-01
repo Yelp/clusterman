@@ -36,7 +36,6 @@ from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.aws.client import dynamodb
 from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
-from clusterman.kubernetes.util import PodUnschedulableReason
 from clusterman.signals.external_signal import ACK
 from clusterman.util import AUTOSCALER_PAUSED
 from clusterman.util import CLUSTERMAN_STATE_TABLE
@@ -286,14 +285,7 @@ def create_k8s_autoscaler(context, prevent_scale_down_after_capacity_loss=False)
     context.mock_cluster_connector._unschedulable_pods = []
     if float(context.pending_cpus) > 0:
         context.mock_cluster_connector.get_unschedulable_pods = (
-            lambda detect_reason: KubernetesClusterConnector.get_unschedulable_pods(
-                context.mock_cluster_connector, detect_reason=detect_reason
-            )  # noqa
-        )
-        context.mock_cluster_connector._get_pod_unschedulable_reason.side_effect = lambda pod: (
-            PodUnschedulableReason.InsufficientResources
-            if pod.metadata.name == "pod1"
-            else PodUnschedulableReason.Unknown
+            lambda: KubernetesClusterConnector.get_unschedulable_pods(context.mock_cluster_connector)  # noqa
         )
         context.mock_cluster_connector._unschedulable_pods = [
             V1Pod(
@@ -310,22 +302,7 @@ def create_k8s_autoscaler(context, prevent_scale_down_after_capacity_loss=False)
                         ),
                     ]
                 ),
-            ),
-            V1Pod(
-                metadata=V1ObjectMeta(name="pod2"),
-                status=V1PodStatus(
-                    phase="Pending",
-                    conditions=[V1PodCondition(status="False", type="PodScheduled", reason="Unschedulable")],
-                ),
-                spec=V1PodSpec(
-                    containers=[
-                        V1Container(
-                            name="container1",
-                            resources=V1ResourceRequirements(requests={"cpu": context.pending_cpus}),
-                        ),
-                    ]
-                ),
-            ),
+            )
         ]
 
     context.autoscaler = Autoscaler(
