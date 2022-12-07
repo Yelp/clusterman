@@ -37,8 +37,9 @@ def main_start(args: argparse.Namespace) -> None:
     condition = MigrationCondition.from_dict(
         {name.split("_", 1)[1]: val for name, val in vars(args).items() if name.startswith("condition_")},
     )
+    sanitized_resource_name = "-".join((args.cluster, args.pool, str(int(time.time())))).replace("_", "--")
     event = MigrationEvent(
-        resource_name="-".join((args.cluster, args.pool, str(int(time.time())))),
+        resource_name=sanitized_resource_name,
         cluster=args.cluster,
         pool=args.pool,
         label_selectors=args.label_selector,
