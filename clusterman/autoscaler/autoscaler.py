@@ -30,7 +30,6 @@ from clusterman.autoscaler.config import get_autoscaling_config
 from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.config import POOL_NAMESPACE
 from clusterman.exceptions import NoSignalConfiguredException
-from clusterman.exceptions import ResourceRequestError
 from clusterman.interfaces.signal import Signal
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
 from clusterman.monitoring_lib import get_monitoring_client
@@ -399,9 +398,11 @@ class Autoscaler:
 
             if resource_total == 0:
                 if resource_request_value > 0:
-                    raise ResourceRequestError(
+                    logger.warning(
                         f"Signal requested {resource_request_value} for {resource} "
-                        "but the cluster doesn't have any of that resource"
+                        "but the cluster doesn't have any of that resource - continuing "
+                        "under the assumption that the resource will be added soon (e.g., "
+                        "after a Puppet run"
                     )
                 requested_resource_usage_pcts[resource] = 0
             else:
