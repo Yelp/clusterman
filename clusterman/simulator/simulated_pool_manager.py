@@ -23,11 +23,14 @@ from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.config import POOL_NAMESPACE
 from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.interfaces.types import InstanceMetadata
+from clusterman.monitoring_lib import get_monitoring_client
 from clusterman.simulator import simulator
 from clusterman.simulator.simulated_aws_cluster import SimulatedAWSCluster
 from clusterman.simulator.simulated_cluster_connector import SimulatedClusterConnector
 from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSpotFleetResourceGroup
 from clusterman.util import read_int_or_inf
+
+SFX_KILLABLE_NODES_COUNT = "clusterman.simulated_pool_manager.killable_nodes_count"
 
 
 class SimulatedPoolManager(PoolManager):
@@ -55,6 +58,8 @@ class SimulatedPoolManager(PoolManager):
             self.pool_config.read_int("scaling_limits.min_node_scalein_uptime_seconds", default=-1),
             MAX_MIN_NODE_SCALEIN_UPTIME_SECONDS,
         )
+        monitoring_info = {"cluster": cluster, "pool": pool}
+        self.killable_nodes_counter = get_monitoring_client().create_counter(SFX_KILLABLE_NODES_COUNT, monitoring_info)
 
     def reload_state(self, **cluster_connector_kwargs) -> None:
         pass

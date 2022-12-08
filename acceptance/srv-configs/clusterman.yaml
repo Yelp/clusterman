@@ -54,3 +54,5 @@ sensu_config:
       page: false
 
 module_env_config: []
+
+monitoring_client: LogMonitoringClient
