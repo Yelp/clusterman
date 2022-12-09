@@ -402,7 +402,7 @@ class Autoscaler:
                         f"Signal requested {resource_request_value} for {resource} "
                         "but the cluster doesn't have any of that resource - continuing "
                         "under the assumption that the resource will be added soon (e.g., "
-                        "after a Puppet run"
+                        "after a Puppet run)"
                     )
                 requested_resource_usage_pcts[resource] = 0
             else:
