@@ -255,7 +255,7 @@ def test_drain_node_selection_requeue(mock_sfx, mock_monitor, mock_time):
 @patch("clusterman.migration.worker.PoolManager")
 @patch("clusterman.migration.worker._drain_node_selection")
 def test_uptime_migration_worker(mock_drain_selection, mock_manager_class, mock_time):
-    mock_setup = MagicMock()
+    mock_setup = MagicMock(max_uptime_worker_skips=0)
     mock_manager = mock_manager_class.return_value
     mock_manager.is_capacity_satisfied.side_effect = [True, False, True]
     with pytest.raises(StopIteration):  # using end of mock side-effect to get out of forever looop
@@ -264,6 +264,24 @@ def test_uptime_migration_worker(mock_drain_selection, mock_manager_class, mock_
     selector = mock_drain_selection.call_args_list[0][0][1]
     assert selector(ClusterNodeMetadata(None, InstanceMetadata(None, None, uptime=timedelta(seconds=10001)))) is True
     assert selector(ClusterNodeMetadata(None, InstanceMetadata(None, None, uptime=timedelta(seconds=9999)))) is False
+
+
+@pytest.mark.parametrize(
+    "max_skips,expected_drain_calls",
+    ((3, 1), (0, 0)),
+)
+@patch("clusterman.migration.worker.time")
+@patch("clusterman.migration.worker.PoolManager")
+@patch("clusterman.migration.worker._drain_node_selection")
+def test_uptime_migration_worker_max_skips(
+    mock_drain_selection, mock_manager_class, mock_time, max_skips, expected_drain_calls
+):
+    mock_setup = MagicMock(max_uptime_worker_skips=max_skips)
+    mock_manager = mock_manager_class.return_value
+    mock_manager.is_capacity_satisfied.side_effect = repeat(False, 5)
+    with pytest.raises(StopIteration):  # using end of mock side-effect to get out of forever looop
+        uptime_migration_worker("mesos-test", "bar", 10000, mock_setup, pool_lock=MagicMock())
+    assert mock_drain_selection.call_count == expected_drain_calls
 
 
 @patch("clusterman.migration.worker.time")

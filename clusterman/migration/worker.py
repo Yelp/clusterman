@@ -186,6 +186,7 @@ def uptime_migration_worker(
     :param int uptime_seconds: uptime threshold
     :param WorkerSetup worker_setup: migration setup
     """
+    skipped_executions = 0
     manager = PoolManager(cluster, pool, SUPPORTED_POOL_SCHEDULER, fetch_state=False)
     node_selector = lambda node: node.instance.uptime.total_seconds() > uptime_seconds  # noqa
     if not manager.draining_client:
@@ -194,10 +195,14 @@ def uptime_migration_worker(
     try:
         while True:
             manager.reload_state(load_pods_info=not worker_setup.ignore_pod_health)
-            if manager.is_capacity_satisfied(worker_setup.orphan_capacity_tollerance):
+            if (
+                worker_setup.max_uptime_worker_skips > 0 and skipped_executions > worker_setup.max_uptime_worker_skips
+            ) or manager.is_capacity_satisfied(worker_setup.orphan_capacity_tollerance):
                 with pool_lock:
                     _drain_node_selection(manager, node_selector, worker_setup)
+                skipped_executions = 0
             else:
+                skipped_executions += 1
                 logger.warning(
                     f"Pool {cluster}:{pool} is currently underprovisioned, skipping uptime migration iteration"
                 )

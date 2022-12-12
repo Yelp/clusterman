@@ -27,6 +27,7 @@ DEFAULT_WORKER_TIMEOUT = "2h"
 DEFAULT_HEALTH_CHECK_INTERVAL = "2m"
 DEFAULT_ALLOWED_FAILED_DRAINS = 3
 DEFAULT_ORPHAN_CAPACITY_TOLLERANCE = 0
+DEFAULT_MAX_UPTIME_WORKER_SKIPS = 6
 MAX_ORPHAN_CAPACITY_TOLLERANCE = 0.2
 
 
@@ -90,6 +91,7 @@ class WorkerSetup(NamedTuple):
     ignore_pod_health: bool = False
     allowed_failed_drains: int = 0
     orphan_capacity_tollerance: float = 0
+    max_uptime_worker_skips: int = 0
 
     @classmethod
     def from_config(cls, config: dict) -> "WorkerSetup":
@@ -114,4 +116,5 @@ class WorkerSetup(NamedTuple):
                 float(config.get("orphan_capacity_tollerance", DEFAULT_ORPHAN_CAPACITY_TOLLERANCE)),
                 MAX_ORPHAN_CAPACITY_TOLLERANCE,
             ),
+            max_uptime_worker_skips=config.get("max_uptime_worker_skips", DEFAULT_MAX_UPTIME_WORKER_SKIPS),
         )

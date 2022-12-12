@@ -116,6 +116,7 @@ def test_get_worker_setup(migration_batch):
         expected_duration=7200.0,
         health_check_interval=120,
         allowed_failed_drains=3,
+        max_uptime_worker_skips=6,
     )
 
 
