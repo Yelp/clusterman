@@ -48,15 +48,6 @@ Feature: make sure the autoscaler scales to the proper amount
         | 20 cpus   | 1          | 0          |     no |
         | 20 cpus   | 21         | 20         |    yes |
 
-    Scenario: requesting GPUs on a pool without GPU instances is an error
-       Given a cluster with 2 resource groups
-         And 20 target capacity
-         And 80 CPUs, 1000 MB mem, 1000 MB disk, and 0 GPUs
-         And a mesos autoscaler object
-        When the signal resource request is 1 gpus
-         And the autoscaler runs
-        Then a ResourceRequestError is raised
-
     Scenario: the autoscaler does nothing when it is paused
        Given a cluster with 2 resource groups
          And 20 target capacity
