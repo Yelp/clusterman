@@ -52,6 +52,8 @@ The allowed values for the migration settings are as follows:
 
 * ``orphan_capacity_tollerance``: acceptable ratio of orphan capacity over target capacity to still consider the pool healthy (float, 0 by default, max 0.2).
 
+* ``max_uptime_worker_skips``: maximum number of times the uptime monitoring worker can skip churning nodes due to unsatisfied pool capacity (6 by default, set to 0 to always allow skipping).
+
 * ``expected_duration``: estimated duration for migration of the whole pool; human readable time string (1 day by default).
 
 See :ref:`pool_configuration` for how an example configuration block would look like.
