@@ -52,7 +52,7 @@ def event_worker_setup():
 
 @patch("clusterman.migration.worker.time")
 def test_monitor_pool_health(mock_time):
-    mock_manager = MagicMock()
+    mock_manager = MagicMock(pool="foobar")
     mock_connector = mock_manager.cluster_connector
     drained = [
         ClusterNodeMetadata(
@@ -82,7 +82,7 @@ def test_drain_node_selection(mock_sfx, mock_monitor, mock_time):
     mock_drain_count_sfx = mock_sfx.create_counter.return_value
     mock_uptime_stats_sfx = mock_sfx.create_gauge.return_value
     mock_job_duration_sfx = mock_sfx.create_timer.return_value
-    mock_manager = MagicMock()
+    mock_manager = MagicMock(pool="foobar")
     mock_monitor.return_value = (True, [])
     mock_manager.get_node_metadatas.return_value = [
         ClusterNodeMetadata(
@@ -166,7 +166,7 @@ def test_drain_node_selection(mock_sfx, mock_monitor, mock_time):
 @patch("clusterman.migration.worker._monitor_pool_health")
 @patch("clusterman.migration.worker.get_monitoring_client")
 def test_drain_node_selection_requeue(mock_sfx, mock_monitor, mock_time):
-    mock_manager = MagicMock()
+    mock_manager = MagicMock(pool="foobar")
     mock_nodes = [
         ClusterNodeMetadata(
             AgentMetadata(agent_id=i, task_count=30 - 2 * i),

@@ -36,7 +36,7 @@ from clusterman.monitoring_lib import get_monitoring_client
 from clusterman.util import limit_function_runtime
 
 
-logger = colorlog.getLogger(__name__)
+module_logger = colorlog.getLogger(__name__)
 UPTIME_CHECK_INTERVAL_SECONDS = 60 * 60  # 1 hour
 INITIAL_POOL_HEALTH_TIMEOUT_SECONDS = 15 * 60
 SUPPORTED_POOL_SCHEDULER = "kubernetes"
@@ -90,6 +90,7 @@ def _monitor_pool_health(
     :return: tuple of health status, and nodes failing to drain
     """
     still_to_drain = []
+    logger = module_logger.getChild(manager.pool)
     draining_happened, capacity_satisfied, pods_healthy = False, False, False
     connector = cast(KubernetesClusterConnector, manager.cluster_connector)
     logger.info(f"Monitoring health for {manager.cluster}:{manager.pool}")
@@ -127,6 +128,7 @@ def _drain_node_selection(
     :param WorkerSetup worker_setup: node migration setup
     :return: true if completed
     """
+    logger = module_logger.getChild(manager.pool)
     nodes = manager.get_node_metadatas(AWS_RUNNING_STATES)
     selected = sorted(filter(selector, nodes), key=worker_setup.precedence.sort_key)
     if not selected:
@@ -187,6 +189,7 @@ def uptime_migration_worker(
     :param WorkerSetup worker_setup: migration setup
     """
     skipped_executions = 0
+    logger = module_logger.getChild(pool)
     manager = PoolManager(cluster, pool, SUPPORTED_POOL_SCHEDULER, fetch_state=False)
     node_selector = lambda node: node.instance.uptime.total_seconds() > uptime_seconds  # noqa
     if not manager.draining_client:
@@ -219,6 +222,7 @@ def event_migration_worker(migration_event: MigrationEvent, worker_setup: Worker
     :param WorkerSetup worker_setup: migration setup
     """
     pool_lock_acquired = False
+    logger = module_logger.getChild(migration_event.pool)
     manager = PoolManager(migration_event.cluster, migration_event.pool, SUPPORTED_POOL_SCHEDULER, fetch_state=False)
     connector = cast(KubernetesClusterConnector, manager.cluster_connector)
     connector.set_label_selectors(migration_event.label_selectors, add_to_existing=True)
