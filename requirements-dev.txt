@@ -1,4 +1,3 @@
-asn1crypto==1.1.0
 atomicwrites==1.3.0
 attrs==19.2.0
 aws-sam-translator==1.15.1
@@ -11,7 +10,7 @@ cffi==1.12.3
 cfgv==2.0.1
 cfn-lint==0.24.4
 coverage==4.5.4
-cryptography==2.7
+cryptography==38.0.4
 distlib==0.3.4
 docker==4.1.0
 ecdsa==0.13.3
