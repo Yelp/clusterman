@@ -33,11 +33,11 @@ from moto.autoscaling.responses import AutoScalingResponse
 from clusterman.autoscaler.autoscaler import Autoscaler
 from clusterman.autoscaler.config import AutoscalingConfig
 from clusterman.autoscaler.pool_manager import PoolManager
+from clusterman.autoscaler.toggle import AUTOSCALER_PAUSED
 from clusterman.aws.client import dynamodb
 from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
 from clusterman.signals.external_signal import ACK
-from clusterman.util import AUTOSCALER_PAUSED
 from clusterman.util import CLUSTERMAN_STATE_TABLE
 from clusterman.util import ClustermanResources
 from itests.environment import boto_patches

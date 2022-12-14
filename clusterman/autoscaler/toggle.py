@@ -14,12 +14,15 @@
 import time
 from typing import Union
 
+import arrow
 import staticconf
 
 from clusterman.aws.client import dynamodb
-from clusterman.util import AUTOSCALER_PAUSED
 from clusterman.util import CLUSTERMAN_STATE_TABLE
 from clusterman.util import parse_time_string
+
+
+AUTOSCALER_PAUSED = "autoscaler_paused"
 
 
 def disable_autoscaling(cluster: str, pool: str, scheduler: str, until: Union[str, int, float]):
@@ -57,3 +60,31 @@ def enable_autoscaling(cluster: str, pool: str, scheduler: str):
             "entity": {"S": f"{cluster}.{pool}.{scheduler}"},
         },
     )
+
+
+def autoscaling_is_paused(cluster: str, pool: str, scheduler: str, timestamp: arrow.Arrow) -> bool:
+    """Check if autoscaling is disabled
+
+    :param str cluster: name of the cluster
+    :param str pool: name of the pool
+    :param str scheduler: cluster scheduler
+    :param Arrow timestamp: threshold time
+    :return: True if paused
+    """
+    response = dynamodb.get_item(
+        TableName=CLUSTERMAN_STATE_TABLE,
+        Key={
+            "state": {"S": AUTOSCALER_PAUSED},
+            "entity": {"S": f"{cluster}.{pool}.{scheduler}"},
+        },
+        ConsistentRead=True,
+    )
+    if "Item" not in response:
+        return False
+
+    if "expiration_timestamp" in response["Item"] and timestamp.timestamp > int(
+        response["Item"]["expiration_timestamp"]["N"]
+    ):
+        return False
+
+    return True

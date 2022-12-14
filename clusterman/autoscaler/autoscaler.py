@@ -28,6 +28,7 @@ from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 from clusterman.autoscaler.config import get_autoscaling_config
 from clusterman.autoscaler.pool_manager import PoolManager
+from clusterman.autoscaler.toggle import autoscaling_is_paused
 from clusterman.config import POOL_NAMESPACE
 from clusterman.exceptions import NoSignalConfiguredException
 from clusterman.interfaces.signal import Signal
@@ -35,7 +36,6 @@ from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesCluster
 from clusterman.monitoring_lib import get_monitoring_client
 from clusterman.signals.external_signal import ExternalSignal
 from clusterman.signals.pending_pods_signal import PendingPodsSignal
-from clusterman.util import autoscaling_is_paused
 from clusterman.util import ClustermanResources
 from clusterman.util import get_cluster_dimensions
 from clusterman.util import sensu_checkin
