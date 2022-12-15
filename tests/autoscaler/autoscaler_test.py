@@ -145,9 +145,9 @@ def test_autoscaler_run(dry_run, mock_autoscaler, run_timestamp):
     mock_autoscaler.signal.evaluate.side_effect = ValueError
     resource_request = SignalResourceRequest(cpus=100000)
     mock_autoscaler.default_signal.evaluate.return_value = resource_request
-    with mock.patch(
-        "clusterman.autoscaler.autoscaler.autoscaling_is_paused",
-        return_value=False,
+    with mock.patch("clusterman.autoscaler.autoscaler.autoscaling_is_paused", return_value=False,), mock.patch(
+        "clusterman.autoscaler.autoscaler.get_capacity_offset",
+        return_value=0,
     ), pytest.raises(ValueError):
         mock_autoscaler.run(dry_run=dry_run, timestamp=run_timestamp)
 

@@ -27,6 +27,7 @@ from clusterman_metrics import METADATA
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 from clusterman.autoscaler.config import get_autoscaling_config
+from clusterman.autoscaler.offset import get_capacity_offset
 from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.autoscaler.toggle import autoscaling_is_paused
 from clusterman.config import POOL_NAMESPACE
@@ -171,7 +172,8 @@ class Autoscaler:
         if isinstance(resource_request, list):
             pass
         else:
-            new_target_capacity = self._compute_target_capacity(resource_request)
+            capacity_offset = get_capacity_offset(self.cluster, self.pool, self.scheduler, timestamp)
+            new_target_capacity = self._compute_target_capacity(resource_request) + capacity_offset
             self.target_capacity_gauge.set(new_target_capacity, {"dry_run": dry_run})
             self._emit_requested_resource_metrics(resource_request, dry_run=dry_run)
 

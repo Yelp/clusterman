@@ -25,6 +25,8 @@ from typing import Tuple
 
 import colorlog
 
+from clusterman.autoscaler.offset import remove_capacity_offset
+from clusterman.autoscaler.offset import set_capacity_offset
 from clusterman.autoscaler.pool_manager import AWS_RUNNING_STATES
 from clusterman.autoscaler.pool_manager import PoolManager
 from clusterman.autoscaler.toggle import disable_autoscaling
@@ -259,9 +261,18 @@ def event_migration_worker(migration_event: MigrationEvent, worker_setup: Worker
             nodes = manager.get_node_metadatas(AWS_RUNNING_STATES)
             offset = worker_setup.prescaling.of(len(nodes))
             logger.info(f"Applying pre-scaling of {offset} node to {migration_event.cluster}:{migration_event.pool}")
-            avg_weight = mean(node.instance.weight for node in nodes)
-            prescaled_capacity = round(manager.target_capacity + (offset * avg_weight))
-            manager.modify_target_capacity(prescaled_capacity)
+            capacity_offset = offset * mean(node.instance.weight for node in nodes)
+            if worker_setup.disable_autoscaling:
+                prescaled_capacity = round(manager.target_capacity + capacity_offset)
+                manager.modify_target_capacity(prescaled_capacity)
+            else:
+                set_capacity_offset(
+                    migration_event.cluster,
+                    migration_event.pool,
+                    SUPPORTED_POOL_SCHEDULER,
+                    time.time() + worker_setup.expected_duration,
+                    capacity_offset,
+                )
         if not _monitor_pool_health(
             manager=manager,
             timeout=time.time() + INITIAL_POOL_HEALTH_TIMEOUT_SECONDS,
@@ -283,8 +294,14 @@ def event_migration_worker(migration_event: MigrationEvent, worker_setup: Worker
     finally:
         if pool_lock_acquired:
             pool_lock.release()
-        # we do not reset the pool target capacity in case of pre-scaling as we
-        # trust the autoscaler to readjust that in a short time eventually
+        # we do not reset the pool target capacity in case of direct capacity changes
+        # as we trust the autoscaler to readjust that in a short time eventually
         if worker_setup.disable_autoscaling:
             logger.info(f"Re-enabling autoscaling for {migration_event.cluster}:{migration_event.pool}")
             enable_autoscaling(migration_event.cluster, migration_event.pool, SUPPORTED_POOL_SCHEDULER)
+        elif worker_setup.prescaling:
+            remove_capacity_offset(
+                migration_event.cluster,
+                migration_event.pool,
+                SUPPORTED_POOL_SCHEDULER,
+            )
