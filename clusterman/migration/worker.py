@@ -11,11 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import signal
 import time
 from functools import partial
 from multiprocessing import Process
 from multiprocessing.synchronize import Lock as LockBase
 from statistics import mean
+from typing import Any
 from typing import Callable
 from typing import cast
 from typing import Collection
@@ -48,10 +50,19 @@ SFX_DRAINED_NODE_UPTIME = "clusterman.node_migration.drained_node_uptime"
 
 class RestartableDaemonProcess:
     def __init__(self, target, args, kwargs) -> None:
-        self.__target = target
+        self.__target = partial(self._sigterm_wrapper, target)
         self.__args = args
         self.__kwargs = kwargs
         self._init_proc_handle()
+
+    @staticmethod
+    def _sigterm_wrapper(target: Callable, *args, **kwargs) -> Any:
+        signal.signal(signal.SIGTERM, RestartableDaemonProcess._sigterm_handler)
+        return target(*args, **kwargs)
+
+    @staticmethod
+    def _sigterm_handler(sig, frame):
+        raise JobTerminationSignal()
 
     def _init_proc_handle(self):
         self.process_handle = Process(target=self.__target, args=self.__args, kwargs=self.__kwargs)
@@ -68,6 +79,10 @@ class RestartableDaemonProcess:
 
 
 class NodeMigrationError(Exception):
+    pass
+
+
+class JobTerminationSignal(RuntimeError):
     pass
 
 
@@ -210,6 +225,8 @@ def uptime_migration_worker(
                     f"Pool {cluster}:{pool} is currently underprovisioned, skipping uptime migration iteration"
                 )
             time.sleep(UPTIME_CHECK_INTERVAL_SECONDS)
+    except JobTerminationSignal:
+        logger.warning("Received termination signal")
     except Exception as e:
         logger.error(f"Issue while running uptime worker: {e}")
         raise
@@ -258,6 +275,8 @@ def event_migration_worker(migration_event: MigrationEvent, worker_setup: Worker
         migration_routine = partial(_drain_node_selection, manager, node_selector, worker_setup)
         if not limit_function_runtime(migration_routine, worker_setup.expected_duration):
             raise NodeMigrationError(f"Failed migrating nodes for event {migration_event}")
+    except JobTerminationSignal:
+        logger.warning("Received termination signal")
     except Exception as e:
         logger.error(f"Issue while processing migration event {migration_event}: {e}")
         raise

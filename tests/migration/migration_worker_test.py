@@ -32,6 +32,7 @@ from clusterman.migration.settings import WorkerSetup
 from clusterman.migration.worker import _drain_node_selection
 from clusterman.migration.worker import _monitor_pool_health
 from clusterman.migration.worker import event_migration_worker
+from clusterman.migration.worker import JobTerminationSignal
 from clusterman.migration.worker import RestartableDaemonProcess
 from clusterman.migration.worker import uptime_migration_worker
 
@@ -358,3 +359,22 @@ def test_restartable_daemon_process():
     assert proc.is_alive()
     assert proc.process_handle is not old_handle
     proc.kill()
+
+
+def test_restartable_daemon_process_signal_handling():
+    def routine():
+        try:
+            time.sleep(10)
+            assert False
+        except JobTerminationSignal:
+            pass
+        except Exception:
+            raise
+
+    proc = RestartableDaemonProcess(routine, tuple(), {})
+    proc.start()
+    time.sleep(0.05)
+    proc.terminate()
+    proc.join(1)
+    assert not proc.is_alive()
+    assert proc.exitcode == 0
