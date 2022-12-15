@@ -37,7 +37,7 @@ from colorama import Style
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 from clusterman.aws.client import dynamodb
-from clusterman.aws.markets import EC2_INSTANCE_TYPES
+from clusterman.aws.markets import get_instance_type
 from clusterman.config import get_cluster_config_directory
 from clusterman.config import LOG_STREAM_NAME
 from clusterman.config import POOL_NAMESPACE
@@ -74,13 +74,16 @@ class ClustermanResources(NamedTuple):
 
     @staticmethod
     def from_instance_type(instance_type: str) -> "ClustermanResources":
-        resources = EC2_INSTANCE_TYPES[instance_type]
-        return ClustermanResources(
-            cpus=resources.cpus,
-            mem=resources.mem * 1024,  # AWS metadata for RAM is in GB
-            disk=(resources.disk or DEFAULT_VOLUME_SIZE_GB) * 1024,  # AWS metadata for disk is in GB
-            gpus=resources.gpus,
-        )
+        resources = get_instance_type(instance_type)
+        if resources is not None:
+            return ClustermanResources(
+                cpus=resources.cpus,
+                mem=resources.mem * 1024,  # AWS metadata for RAM is in GB
+                disk=(resources.disk or DEFAULT_VOLUME_SIZE_GB) * 1024,  # AWS metadata for disk is in GB
+                gpus=resources.gpus,
+            )
+        else:
+            return ClustermanResources()
 
     def __sub__(self, other: "ClustermanResources") -> "ClustermanResources":
         return ClustermanResources(

@@ -34,25 +34,6 @@ def cluster(simulator):
     return cluster
 
 
-@pytest.yield_fixture
-def fake_markets():
-    with mock.patch("clusterman.aws.markets.EC2_INSTANCE_TYPES") as mock_instance_types, mock.patch(
-        "clusterman.aws.markets.EC2_AZS"
-    ) as mock_azs:
-        mock_instance_types.__contains__.return_value = True
-        mock_azs.__contains__.return_value = True
-        yield
-
-
-def test_valid_market(fake_markets):
-    InstanceMarket("foo", "bar")
-
-
-def test_invalid_market():
-    with pytest.raises(ValueError):
-        InstanceMarket("foo", "bar")
-
-
 def test_modify_size(cluster):
     cluster.simulator.current_time.shift(seconds=+76)
     added_instances, removed_instances = cluster.modify_size(

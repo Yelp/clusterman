@@ -16,6 +16,7 @@ precomputed
 *.sublime-*
 virtualenv_run
 .tox
+.toxb
 *.egg-info/
 __pycache__
 version

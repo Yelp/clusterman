@@ -18,6 +18,7 @@ import pytest
 
 from clusterman.aws.markets import get_market_resources
 from clusterman.aws.markets import InstanceMarket
+from clusterman.aws.markets import InstanceResources
 from clusterman.interfaces.cluster_connector import AgentMetadata
 from clusterman.interfaces.types import AgentState
 from clusterman.interfaces.types import ClustermanResources
@@ -26,7 +27,18 @@ from clusterman.simulator.simulated_cluster_connector import SimulatedClusterCon
 from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSpotFleetResourceGroup
 
 
-TEST_MARKET = InstanceMarket("c3.4xlarge", "us-west-2a")
+
+@pytest.fixture
+def mock_instancemarket(): 
+    with mock.patch.object(InstanceMarket, "__init__", lambda x, y, z: None):
+        instance_market = InstanceMarket(None, None)
+        instance_market.instance = "c3.4xlarge"
+        instance_market.az =  "us-west-2a"
+        return instance_market
+
+
+def mock_get_market_resources():
+    return InstanceResources(16.0, 30.0, 320.0, 0)
 
 
 @pytest.fixture
@@ -35,9 +47,9 @@ def ssfrg_config():
 
 
 @pytest.fixture
-def mock_ssfrg(ssfrg_config):
+def mock_ssfrg(ssfrg_config,mock_instancemarket):
     ssfrg = SimulatedSpotFleetResourceGroup(ssfrg_config, None)
-    instances = [Instance(TEST_MARKET, arrow.get(0), join_time=arrow.get(0)) for i in range(10)]
+    instances = [Instance(mock_instancemarket, arrow.get(0), join_time=arrow.get(0)) for i in range(10)]
     ssfrg.instances = {instance.id: instance for instance in instances}
     return ssfrg
 
@@ -48,18 +60,23 @@ def mock_cluster_connector(mock_ssfrg, simulator):
     return SimulatedClusterConnector("foo", "bar", simulator)
 
 
-def test_get_agent_metadata(mock_cluster_connector):
+def test_get_agent_metadata(mock_cluster_connector,InstanceMarket_config):
     instance = list(mock_cluster_connector.simulator.aws_clusters[0].instances.values())[0]
-    mesos_resources = ClustermanResources(
-        get_market_resources(TEST_MARKET).cpus,
-        get_market_resources(TEST_MARKET).mem * 1000,
-        get_market_resources(TEST_MARKET).disk * 1000,
-    )
-    assert mock_cluster_connector.get_agent_metadata(instance.ip_address) == AgentMetadata(
-        agent_id=mock.ANY,
-        state=AgentState.IDLE,
-        total_resources=mesos_resources,
-    )
+    with mock.patch(
+        "clusterman.aws.markets.get_market_resources",
+        mock_get_market_resources,
+    ):
+        with mock.patch.object(InstanceMarket, "__init__", lambda x, y, z: InstanceMarket.super().__new__(x, y, z)):
+            mesos_resources = ClustermanResources(
+                get_market_resources(InstanceMarket_config).cpus,
+                get_market_resources(InstanceMarket_config).mem * 1000,
+                get_market_resources(InstanceMarket_config).disk * 1000,
+            )
+            assert mock_cluster_connector.get_agent_metadata(instance.ip_address) == AgentMetadata(
+                agent_id=mock.ANY,
+                state=AgentState.IDLE,
+                total_resources=mesos_resources,
+            )
 
 
 def test_get_agent_metadata_unknown(mock_cluster_connector):
@@ -68,7 +85,11 @@ def test_get_agent_metadata_unknown(mock_cluster_connector):
     )
 
 
-def test_simulated_agents(mock_cluster_connector):
-    assert mock_cluster_connector.get_resource_total("cpus") == 10 * get_market_resources(TEST_MARKET).cpus
-    assert mock_cluster_connector.get_resource_total("mem") == 10 * get_market_resources(TEST_MARKET).mem
-    assert mock_cluster_connector.get_resource_total("disk") == 10 * get_market_resources(TEST_MARKET).disk
+def test_simulated_agents(mock_cluster_connector,InstanceMarket_config):
+    with mock.patch(
+        "clusterman.aws.markets.get_market_resources",
+        mock_get_market_resources,
+    ):
+        assert mock_cluster_connector.get_resource_total("cpus") == 10 * get_market_resources(InstanceMarket_config).cpus
+        assert mock_cluster_connector.get_resource_total("mem") == 10 * get_market_resources(InstanceMarket_config).mem
+        assert mock_cluster_connector.get_resource_total("disk") == 10 * get_market_resources(InstanceMarket_config).disk
