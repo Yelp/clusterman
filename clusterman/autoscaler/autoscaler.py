@@ -28,6 +28,7 @@ from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
 from clusterman.autoscaler.config import get_autoscaling_config
 from clusterman.autoscaler.pool_manager import PoolManager
+from clusterman.autoscaler.setpoint import get_setpoint_override
 from clusterman.autoscaler.toggle import autoscaling_is_paused
 from clusterman.config import POOL_NAMESPACE
 from clusterman.exceptions import NoSignalConfiguredException
@@ -171,7 +172,8 @@ class Autoscaler:
         if isinstance(resource_request, list):
             pass
         else:
-            new_target_capacity = self._compute_target_capacity(resource_request)
+            setpoint_override = get_setpoint_override(self.cluster, self.pool, self.scheduler, timestamp)
+            new_target_capacity = self._compute_target_capacity(resource_request, setpoint_override)
             self.target_capacity_gauge.set(new_target_capacity, {"dry_run": dry_run})
             self._emit_requested_resource_metrics(resource_request, dry_run=dry_run)
 
@@ -251,7 +253,9 @@ class Autoscaler:
             )
             return self.default_signal
 
-    def _compute_target_capacity(self, resource_request: SignalResourceRequest) -> float:
+    def _compute_target_capacity(
+        self, resource_request: SignalResourceRequest, setpoint_override: Optional[float] = None
+    ) -> float:
         """Compare signal to the resources allocated and compute appropriate capacity change.
 
         :param resource_request: a resource_request object from the signal evaluation
@@ -261,11 +265,14 @@ class Autoscaler:
         cluster_total_resources = self.pool_manager.cluster_connector.get_cluster_total_resources()
         cluster_allocated_resources = self.pool_manager.cluster_connector.get_cluster_allocated_resources()
         non_orphan_fulfilled_capacity = self.pool_manager.non_orphan_fulfilled_capacity
+        setpoint_value, override_msg = (
+            (self.autoscaling_config.setpoint, "") if setpoint_override is None else (setpoint_override, " (override)")
+        )
         logger.info(f"Currently at target_capacity of {current_target_capacity}")
         logger.info(f"Currently non-orphan fulfilled capacity is {non_orphan_fulfilled_capacity}")
         logger.info(f"Current cluster total resources: {cluster_total_resources}")
         logger.info(f"Current cluster allocated resources: {cluster_allocated_resources}")
-        logger.info(f"Current setpoint: {self.autoscaling_config.setpoint}")
+        logger.info(f"Current setpoint: {setpoint_value}{override_msg}")
         # This block of code is kinda complicated logic for figuring out what happens if the cluster
         # or the resource request is empty.  There are essentially four checks, as follows:
         #
@@ -307,7 +314,7 @@ class Autoscaler:
                 )
                 logger.info(f"Success!  Historical data is {historical_weighted_resources}")
                 logger.info(f"max_weighted_capacity_request = {max_weighted_capacity_request}")
-                return max_weighted_capacity_request / self.autoscaling_config.setpoint
+                return max_weighted_capacity_request / setpoint_value
             except ValueError:
                 logger.info("No historical data found; scaling up by 1 to get some data")
                 return 1
@@ -332,7 +339,7 @@ class Autoscaler:
 
         # We want to scale the cluster so that requested / (total * scale_factor) = setpoint.
         # We already have requested/total in the form of usage_pct, so we can solve for scale_factor:
-        scale_factor = usage_pct / self.autoscaling_config.setpoint
+        scale_factor = usage_pct / setpoint_value
 
         # Because we scale by the percentage of the "most fulfilled resource" we want to make sure that the
         # target capacity change is based on what's currently present.  A simple example illustrates the point:

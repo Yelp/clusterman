@@ -145,14 +145,14 @@ def test_autoscaler_run(dry_run, mock_autoscaler, run_timestamp):
     mock_autoscaler.signal.evaluate.side_effect = ValueError
     resource_request = SignalResourceRequest(cpus=100000)
     mock_autoscaler.default_signal.evaluate.return_value = resource_request
-    with mock.patch(
-        "clusterman.autoscaler.autoscaler.autoscaling_is_paused",
-        return_value=False,
+    with mock.patch("clusterman.autoscaler.autoscaler.autoscaling_is_paused", return_value=False,), mock.patch(
+        "clusterman.autoscaler.autoscaler.get_setpoint_override",
+        return_value=None,
     ), pytest.raises(ValueError):
         mock_autoscaler.run(dry_run=dry_run, timestamp=run_timestamp)
 
     assert mock_autoscaler.target_capacity_gauge.set.call_args == mock.call(100, {"dry_run": dry_run})
-    assert mock_autoscaler._compute_target_capacity.call_args == mock.call(resource_request)
+    assert mock_autoscaler._compute_target_capacity.call_args == mock.call(resource_request, None)
     assert mock_autoscaler.pool_manager.modify_target_capacity.call_count == 1
 
     assert mock_autoscaler.resource_request_gauges["cpus"].set.call_args == mock.call(

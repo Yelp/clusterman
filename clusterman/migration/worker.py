@@ -25,6 +25,8 @@ import colorlog
 
 from clusterman.autoscaler.pool_manager import AWS_RUNNING_STATES
 from clusterman.autoscaler.pool_manager import PoolManager
+from clusterman.autoscaler.setpoint import remove_setpoint_override
+from clusterman.autoscaler.setpoint import set_setpoint_override
 from clusterman.autoscaler.toggle import disable_autoscaling
 from clusterman.autoscaler.toggle import enable_autoscaling
 from clusterman.draining.queue import TerminationReason
@@ -230,21 +232,32 @@ def event_migration_worker(migration_event: MigrationEvent, worker_setup: Worker
     try:
         pool_lock.acquire(timeout=worker_setup.expected_duration)
         pool_lock_acquired = True
-        if worker_setup.disable_autoscaling:
-            logger.info(f"Disabling autoscaling for {migration_event.cluster}:{migration_event.pool}")
-            disable_autoscaling(
+        if worker_setup.setpoint_override is not None:
+            set_setpoint_override(
                 migration_event.cluster,
                 migration_event.pool,
                 SUPPORTED_POOL_SCHEDULER,
                 time.time() + worker_setup.expected_duration,
+                worker_setup.setpoint_override,
             )
-        if worker_setup.prescaling:
-            nodes = manager.get_node_metadatas(AWS_RUNNING_STATES)
-            offset = worker_setup.prescaling.of(len(nodes))
-            logger.info(f"Applying pre-scaling of {offset} node to {migration_event.cluster}:{migration_event.pool}")
-            avg_weight = mean(node.instance.weight for node in nodes)
-            prescaled_capacity = round(manager.target_capacity + (offset * avg_weight))
-            manager.modify_target_capacity(prescaled_capacity)
+        else:
+            if worker_setup.disable_autoscaling:
+                logger.info(f"Disabling autoscaling for {migration_event.cluster}:{migration_event.pool}")
+                disable_autoscaling(
+                    migration_event.cluster,
+                    migration_event.pool,
+                    SUPPORTED_POOL_SCHEDULER,
+                    time.time() + worker_setup.expected_duration,
+                )
+            if worker_setup.prescaling:
+                nodes = manager.get_node_metadatas(AWS_RUNNING_STATES)
+                offset = worker_setup.prescaling.of(len(nodes))
+                logger.info(
+                    f"Applying pre-scaling of {offset} node to {migration_event.cluster}:{migration_event.pool}"
+                )
+                avg_weight = mean(node.instance.weight for node in nodes)
+                prescaled_capacity = round(manager.target_capacity + (offset * avg_weight))
+                manager.modify_target_capacity(prescaled_capacity)
         if not _monitor_pool_health(
             manager=manager,
             timeout=time.time() + INITIAL_POOL_HEALTH_TIMEOUT_SECONDS,
@@ -269,3 +282,9 @@ def event_migration_worker(migration_event: MigrationEvent, worker_setup: Worker
         if worker_setup.disable_autoscaling:
             logger.info(f"Re-enabling autoscaling for {migration_event.cluster}:{migration_event.pool}")
             enable_autoscaling(migration_event.cluster, migration_event.pool, SUPPORTED_POOL_SCHEDULER)
+        if worker_setup.setpoint_override is not None:
+            remove_setpoint_override(
+                migration_event.cluster,
+                migration_event.pool,
+                SUPPORTED_POOL_SCHEDULER,
+            )

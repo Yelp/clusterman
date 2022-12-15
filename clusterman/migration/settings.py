@@ -14,6 +14,7 @@
 import enum
 from typing import cast
 from typing import NamedTuple
+from typing import Optional
 from typing import Union
 
 from clusterman.interfaces.types import ClusterNodeMetadata
@@ -92,6 +93,7 @@ class WorkerSetup(NamedTuple):
     allowed_failed_drains: int = 0
     orphan_capacity_tollerance: float = 0
     max_uptime_worker_skips: int = 0
+    setpoint_override: Optional[float] = None
 
     @classmethod
     def from_config(cls, config: dict) -> "WorkerSetup":
@@ -99,6 +101,10 @@ class WorkerSetup(NamedTuple):
         churn_rate = PoolPortion(strat_conf["rate"])
         if not churn_rate:
             raise ValueError(f"Node migration rate must greater than 0: {strat_conf['rate']}")
+        if "setpoint_override" in strat_conf and ("prescaling" in strat_conf or "disable_autoscaling" in config):
+            raise ValueError(
+                "Setting 'setpoint_override' is mutually exclusive with 'prescaling' and 'disable_autoscaling'"
+            )
         return cls(
             rate=churn_rate,
             prescaling=PoolPortion(strat_conf.get("prescaling", DEFAULT_POOL_PRESCALING)),
@@ -117,4 +123,5 @@ class WorkerSetup(NamedTuple):
                 MAX_ORPHAN_CAPACITY_TOLLERANCE,
             ),
             max_uptime_worker_skips=config.get("max_uptime_worker_skips", DEFAULT_MAX_UPTIME_WORKER_SKIPS),
+            setpoint_override=strat_conf.get("setpoint_override", None),
         )
