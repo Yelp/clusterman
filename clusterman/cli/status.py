@@ -78,6 +78,8 @@ class StatusJsonObject(TypedDict):
     disabled: bool
     fulfilled_capacity: float
     target_capacity: float
+    min_capacity: float
+    max_capacity: float
     non_orphan_fulfilled_capacity: float
     resource_groups: List[ResourceGroupJsonObject]
     migrations: List[MigrationEvent]
