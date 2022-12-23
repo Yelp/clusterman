@@ -11,11 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from unittest import mock
-
 import pytest
 
-from clusterman.aws.markets import InstanceMarket
+from clusterman.simulator.simulate_aws_market import simulate_InstanceMarket
 from clusterman.simulator.simulated_aws_cluster import SimulatedAWSCluster
 
 
@@ -25,9 +23,9 @@ def cluster(simulator):
     cluster.simulator.current_time.shift(seconds=+42)
     cluster.modify_size(
         {
-            InstanceMarket("m4.4xlarge", "us-west-1a"): 4,
-            InstanceMarket("i2.8xlarge", "us-west-1a"): 2,
-            InstanceMarket("i2.8xlarge", "us-west-2a"): 1,
+            simulate_InstanceMarket("m4.4xlarge", "us-west-1a"): 4,
+            simulate_InstanceMarket("i2.8xlarge", "us-west-1a"): 2,
+            simulate_InstanceMarket("i2.8xlarge", "us-west-2a"): 1,
         }
     )
     cluster.ebs_storage += 3000
@@ -38,8 +36,8 @@ def test_modify_size(cluster):
     cluster.simulator.current_time.shift(seconds=+76)
     added_instances, removed_instances = cluster.modify_size(
         {
-            InstanceMarket("m4.4xlarge", "us-west-1a"): 1,
-            InstanceMarket("i2.8xlarge", "us-west-1a"): 4,
+            simulate_InstanceMarket("m4.4xlarge", "us-west-1a"): 1,
+            simulate_InstanceMarket("i2.8xlarge", "us-west-1a"): 4,
         }
     )
     assert len(added_instances) == 2
@@ -58,8 +56,8 @@ def test_remove_instances(cluster):
     cluster.simulator.current_time.shift(seconds=+42)
     cluster.modify_size(
         {
-            InstanceMarket("m4.4xlarge", "us-west-1a"): 1,
-            InstanceMarket("i2.8xlarge", "us-west-1a"): 1,
+            simulate_InstanceMarket("m4.4xlarge", "us-west-1a"): 1,
+            simulate_InstanceMarket("i2.8xlarge", "us-west-1a"): 1,
         }
     )
 

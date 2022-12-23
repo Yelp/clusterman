@@ -18,7 +18,6 @@ import packaging.version
 import pytest
 import semver
 
-from clusterman.aws.markets import InstanceMarket
 from clusterman.interfaces.types import AgentMetadata
 from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.interfaces.types import InstanceMetadata
@@ -26,6 +25,7 @@ from clusterman.migration.event import ConditionOperator
 from clusterman.migration.event import ConditionTrait
 from clusterman.migration.event import MigrationCondition
 from clusterman.migration.event import MigrationEvent
+from clusterman.simulator.simulate_aws_market import simulate_InstanceMarket
 
 
 @pytest.mark.parametrize(
@@ -140,6 +140,8 @@ def test_event_to_crd_body(mock_migration_event):
 def test_condition_matches(condition, result):
     node_metadata = ClusterNodeMetadata(
         agent=AgentMetadata(kernel="3.2.1", lsbrelease="20.04"),
-        instance=InstanceMetadata(market=InstanceMarket("m5.4xlarge", None), weight=None, uptime=timedelta(days=10)),
+        instance=InstanceMetadata(
+            market=simulate_InstanceMarket("m5.4xlarge", None), weight=None, uptime=timedelta(days=10)
+        ),
     )
     assert condition.matches(node_metadata) is result

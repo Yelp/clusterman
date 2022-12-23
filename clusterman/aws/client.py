@@ -77,7 +77,7 @@ def _init_session():
         _session = boto3.session.Session(
             staticconf.read_string("accessKeyId", namespace=CREDENTIALS_NAMESPACE),
             staticconf.read_string("secretAccessKey", namespace=CREDENTIALS_NAMESPACE),
-            region_name="us-east-1",
+            region_name=staticconf.read_string("aws.region"),
         )
 
 

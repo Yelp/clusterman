@@ -19,10 +19,10 @@ from moto import mock_s3
 
 from clusterman.aws.client import ec2
 from clusterman.aws.client import s3
-from clusterman.aws.markets import InstanceMarket
 from clusterman.aws.spot_fleet_resource_group import load_spot_fleets_from_s3
 from clusterman.aws.spot_fleet_resource_group import SpotFleetResourceGroup
 from clusterman.exceptions import ResourceGroupError
+from clusterman.simulator.simulate_aws_market import simulate_InstanceMarket
 
 
 @pytest.fixture
@@ -225,8 +225,8 @@ def test_instances(mock_spot_fleet_resource_group):
 
 def test_market_capacities(mock_spot_fleet_resource_group, mock_subnet):
     assert mock_spot_fleet_resource_group.market_capacities == {
-        InstanceMarket("c3.8xlarge", mock_subnet["Subnet"]["AvailabilityZone"]): 8,
-        InstanceMarket("i2.4xlarge", mock_subnet["Subnet"]["AvailabilityZone"]): 3,
+        simulate_InstanceMarket("c3.8xlarge", mock_subnet["Subnet"]["AvailabilityZone"]): 8,
+        simulate_InstanceMarket("i2.4xlarge", mock_subnet["Subnet"]["AvailabilityZone"]): 3,
     }
 
 

@@ -22,8 +22,8 @@ from clusterman.aws.aws_resource_group import AWSAPICacheStale
 from clusterman.aws.aws_resource_group import AWSResourceGroup
 from clusterman.aws.client import ec2
 from clusterman.aws.client import S3ObjectWrapper
-from clusterman.aws.markets import InstanceMarket
 from clusterman.interfaces.types import ClusterNodeMetadata
+from clusterman.simulator.simulate_aws_market import simulate_InstanceMarket
 
 
 class MockResourceGroup(AWSResourceGroup):
@@ -215,7 +215,7 @@ def test_protect_unowned_instances(mock_resource_group):
 
 
 def test_market_capacities(mock_resource_group):
-    assert mock_resource_group.market_capacities == {InstanceMarket("c3.4xlarge", "us-west-2a"): 5}
+    assert mock_resource_group.market_capacities == {simulate_InstanceMarket("c3.4xlarge", "us-west-2a"): 5}
 
 
 @pytest.mark.parametrize("is_stale", [True, False])
