@@ -17,9 +17,9 @@ from unittest import mock
 import arrow
 import pytest
 
+from clusterman.aws.markets import InstanceMarket
 from clusterman.reports.report_types import REPORT_TYPES
 from clusterman.simulator.event import Event
-from clusterman.simulator.simulate_aws_market import simulate_InstanceMarket
 from clusterman.simulator.simulated_aws_cluster import Instance
 from clusterman.simulator.simulator import SimulationMetadata
 from clusterman.simulator.simulator import Simulator
@@ -39,7 +39,7 @@ def simulator():
 
 @pytest.fixture(params=[arrow.get(1820), arrow.get(3599), arrow.get(10000)])
 def mock_instance(request):
-    market = simulate_InstanceMarket("m4.4xlarge", "us-west-1a")
+    market = InstanceMarket("m4.4xlarge", "us-west-1a")
     instance = Instance(market, arrow.get(0))
     instance.end_time = request.param
     return instance

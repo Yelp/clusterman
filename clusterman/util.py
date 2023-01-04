@@ -75,15 +75,13 @@ class ClustermanResources(NamedTuple):
     @staticmethod
     def from_instance_type(instance_type: str) -> "ClustermanResources":
         resources = get_instance_type(instance_type)
-        if resources is not None:
-            return ClustermanResources(
-                cpus=resources.cpus,
-                mem=resources.mem * 1024,  # AWS metadata for RAM is in GB
-                disk=(resources.disk or DEFAULT_VOLUME_SIZE_GB) * 1024,  # AWS metadata for disk is in GB
-                gpus=resources.gpus,
-            )
-        else:
-            return ClustermanResources()
+
+        return ClustermanResources(
+            cpus=resources.cpus,
+            mem=resources.mem * 1024,  # AWS metadata for RAM is in GB
+            disk=(resources.disk or DEFAULT_VOLUME_SIZE_GB) * 1024,  # AWS metadata for disk is in GB
+            gpus=resources.gpus,
+        )
 
     def __sub__(self, other: "ClustermanResources") -> "ClustermanResources":
         return ClustermanResources(

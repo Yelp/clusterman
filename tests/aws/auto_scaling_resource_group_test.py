@@ -22,8 +22,8 @@ from clusterman.aws.auto_scaling_resource_group import CLUSTERMAN_STALE_TAG
 from clusterman.aws.client import autoscaling
 from clusterman.aws.client import ec2
 from clusterman.aws.client import S3ObjectWrapper
+from clusterman.aws.markets import InstanceMarket
 from clusterman.exceptions import NoLaunchTemplateConfiguredError
-from clusterman.simulator.simulate_aws_market import simulate_InstanceMarket
 from clusterman.util import ClustermanResources
 from clusterman.util import DEFAULT_VOLUME_SIZE_GB
 
@@ -93,7 +93,7 @@ def mock_asrg(mock_asg_config):
 
 @pytest.mark.parametrize("instance_type", ["t2.2xlarge", "m5.large"])
 def test_market_weight(mock_asrg, instance_type):
-    market_weight = mock_asrg.market_weight(simulate_InstanceMarket(instance_type, "us-west-2a"))
+    market_weight = mock_asrg.market_weight(InstanceMarket(instance_type, "us-west-2a"))
     assert market_weight == 1.0
 
 
@@ -240,8 +240,8 @@ def test_get_options_for_instance_type(mock_asrg):
             for r in result
         ]
     )
-    assert result[0].instance.market == simulate_InstanceMarket("m5.4xlarge", "us-west-1a")
-    assert result[1].instance.market == simulate_InstanceMarket("m5.4xlarge", "us-west-2a")
+    assert result[0].instance.market == InstanceMarket("m5.4xlarge", "us-west-1a")
+    assert result[1].instance.market == InstanceMarket("m5.4xlarge", "us-west-2a")
 
 
 @pytest.mark.parametrize("stale_instances", [0, 1, 10])

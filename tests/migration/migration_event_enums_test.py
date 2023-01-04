@@ -18,12 +18,12 @@ import packaging.version
 import pytest
 import semver
 
+from clusterman.aws.markets import InstanceMarket
 from clusterman.interfaces.types import AgentMetadata
 from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.interfaces.types import InstanceMetadata
 from clusterman.migration.event_enums import ConditionOperator
 from clusterman.migration.event_enums import ConditionTrait
-from clusterman.simulator.simulate_aws_market import simulate_InstanceMarket
 
 
 @pytest.mark.parametrize(
@@ -54,8 +54,6 @@ def test_operator_apply(op: ConditionOperator, left: Any, right: Any, result: bo
 def test_trait_get_from(enum_val, expected):
     node_metadata = ClusterNodeMetadata(
         agent=AgentMetadata(kernel="3.2.1", lsbrelease="20.04"),
-        instance=InstanceMetadata(
-            market=simulate_InstanceMarket("m6a.4xlarge", None), weight=None, uptime=timedelta(days=10)
-        ),
+        instance=InstanceMetadata(market=InstanceMarket("m6a.4xlarge", None), weight=None, uptime=timedelta(days=10)),
     )
     assert enum_val.get_from(node_metadata) == expected

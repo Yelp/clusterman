@@ -61,8 +61,11 @@ def _load_instance_type_target(target: str) -> str:
     :return: list of instance types
     """
     target = target.lower()
-    if get_instance_type(target) is None:
+    try:
+        get_instance_type(target)
+    except Exception:
         raise ValueError(f"Invalid instance type: {target}")
+
     return target
 
 

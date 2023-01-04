@@ -16,20 +16,17 @@ from unittest import mock
 import arrow
 import pytest
 
+from clusterman.aws.markets import get_market_resources
+from clusterman.aws.markets import InstanceMarket
 from clusterman.interfaces.cluster_connector import AgentMetadata
 from clusterman.interfaces.types import AgentState
 from clusterman.interfaces.types import ClustermanResources
-from clusterman.simulator.simulate_aws_market import mock_get_market_resources
-from clusterman.simulator.simulate_aws_market import simulate_InstanceMarket
 from clusterman.simulator.simulated_aws_cluster import Instance
 from clusterman.simulator.simulated_cluster_connector import SimulatedClusterConnector
 from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSpotFleetResourceGroup
 
-# from clusterman.aws.markets import get_market_resources
-# from clusterman.aws.markets import InstanceMarket
 
-
-TEST_MARKET = simulate_InstanceMarket("c3.4xlarge", "us-west-2a")
+TEST_MARKET = InstanceMarket("c3.4xlarge", "us-west-2a")
 
 
 @pytest.fixture
@@ -54,9 +51,9 @@ def mock_cluster_connector(mock_ssfrg, simulator):
 def test_get_agent_metadata(mock_cluster_connector):
     instance = list(mock_cluster_connector.simulator.aws_clusters[0].instances.values())[0]
     mesos_resources = ClustermanResources(
-        mock_get_market_resources(TEST_MARKET).cpus,
-        mock_get_market_resources(TEST_MARKET).mem * 1000,
-        mock_get_market_resources(TEST_MARKET).disk * 1000,
+        get_market_resources(TEST_MARKET).cpus,
+        get_market_resources(TEST_MARKET).mem * 1000,
+        get_market_resources(TEST_MARKET).disk * 1000,
     )
     assert mock_cluster_connector.get_agent_metadata(instance.ip_address) == AgentMetadata(
         agent_id=mock.ANY,
@@ -72,6 +69,6 @@ def test_get_agent_metadata_unknown(mock_cluster_connector):
 
 
 def test_simulated_agents(mock_cluster_connector):
-    assert mock_cluster_connector.get_resource_total("cpus") == 10 * mock_get_market_resources(TEST_MARKET).cpus
-    assert mock_cluster_connector.get_resource_total("mem") == 10 * mock_get_market_resources(TEST_MARKET).mem
-    assert mock_cluster_connector.get_resource_total("disk") == 10 * mock_get_market_resources(TEST_MARKET).disk
+    assert mock_cluster_connector.get_resource_total("cpus") == 10 * get_market_resources(TEST_MARKET).cpus
+    assert mock_cluster_connector.get_resource_total("mem") == 10 * get_market_resources(TEST_MARKET).mem
+    assert mock_cluster_connector.get_resource_total("disk") == 10 * get_market_resources(TEST_MARKET).disk

@@ -18,14 +18,10 @@ from typing import Mapping
 from typing import NamedTuple
 from typing import Optional
 
-import colorlog
 import staticconf
 from mypy_extensions import TypedDict
 
 from clusterman.aws.client import ec2
-
-
-logger = colorlog.getLogger(__name__)
 
 
 class InstanceResources(NamedTuple):
@@ -64,7 +60,7 @@ class InstanceMarket(_InstanceMarket):
         return cls(*sans_brackets.split(", "))
 
 
-__EC2_INSTANCE_TYPES: Mapping[str, InstanceResources] = {
+EC2_INSTANCE_TYPES: Mapping[str, InstanceResources] = {
     "t2.nano": InstanceResources(1.0, 0.5, None, 0),
     "t2.micro": InstanceResources(1.0, 1.0, None, 0),
     "t2.small": InstanceResources(1.0, 2.0, None, 0),
@@ -385,21 +381,13 @@ EC2_AZS: List[Optional[str]] = [
 ]
 
 
-@lru_cache(maxsize=64)
-def get_instance_type(instance_type: str) -> Optional[InstanceResources]:
-    cluster_name = (os.environ.get("CMAN_CLUSTER", None),)
-    enable_dynamic_instance_types = staticconf.read_bool(
-        f"clusters.{cluster_name}.enable_dynamic_instance_types", default=False
-    )
-    if not enable_dynamic_instance_types:
-        return __EC2_INSTANCE_TYPES.get(instance_type, None)
-
+@lru_cache(maxsize=128)
+def fetch_instance_type_from_aws(instance_type: str) -> InstanceResources:
     res = {}
     try:
         res = ec2.describe_instance_types(InstanceTypes=[instance_type]).get("InstanceTypes")[0]
     except Exception as e:
-        logger.warning(f"Error occoured while describing instance type {instance_type} : {e}")
-        return None
+        raise ValueError(f"Error occoured while describing instance type {instance_type} : {e}")
 
     vcpu_count = res.get("VCpuInfo", {}).get("DefaultVCpus", 0.0) + 0.0
     mem_size = res.get("MemoryInfo", {}).get("SizeInMiB", 0.0) / 1024.0
@@ -409,7 +397,21 @@ def get_instance_type(instance_type: str) -> Optional[InstanceResources]:
     return InstanceResources(vcpu_count, mem_size, disk_size, gpu_size)
 
 
-def get_market_resources(market: InstanceMarket) -> Optional[InstanceResources]:
+def get_instance_type(instance_type: str) -> InstanceResources:
+    cluster_name = (os.environ.get("CMAN_CLUSTER", None),)
+    enable_dynamic_instance_types = staticconf.read_bool(
+        f"clusters.{cluster_name}.enable_dynamic_instance_types", default=False
+    )
+    if not enable_dynamic_instance_types:
+        if instance_type not in EC2_INSTANCE_TYPES:
+            raise ValueError(f"Invalid instance type: {instance_type}")
+        else:
+            return EC2_INSTANCE_TYPES[instance_type]
+    else:
+        return fetch_instance_type_from_aws(str)
+
+
+def get_market_resources(market: InstanceMarket) -> InstanceResources:
     return get_instance_type(market.instance)
 
 

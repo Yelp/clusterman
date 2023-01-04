@@ -17,16 +17,16 @@ from unittest import mock
 import arrow
 import pytest
 
+from clusterman.aws.markets import InstanceMarket
 from clusterman.math.piecewise import PiecewiseConstantFunction
-from clusterman.simulator.simulate_aws_market import simulate_InstanceMarket
 from clusterman.simulator.simulated_spot_fleet_resource_group import SimulatedSpotFleetResourceGroup
 
 
 MARKETS = [
-    simulate_InstanceMarket("c3.4xlarge", "us-west-1a"),
-    simulate_InstanceMarket("c3.4xlarge", "us-west-1b"),
-    simulate_InstanceMarket("i2.8xlarge", "us-west-2a"),
-    simulate_InstanceMarket("m4.4xlarge", "us-west-2b"),
+    InstanceMarket("c3.4xlarge", "us-west-1a"),
+    InstanceMarket("c3.4xlarge", "us-west-1b"),
+    InstanceMarket("i2.8xlarge", "us-west-2a"),
+    InstanceMarket("m4.4xlarge", "us-west-2b"),
 ]
 
 
@@ -74,7 +74,7 @@ def spot_prices():
 
 
 def get_fake_instance_market(spec):
-    return simulate_InstanceMarket(spec["InstanceType"], spec["SubnetId"])
+    return InstanceMarket(spec["InstanceType"], spec["SubnetId"])
 
 
 @pytest.fixture

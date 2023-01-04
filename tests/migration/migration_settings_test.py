@@ -15,12 +15,12 @@ from datetime import timedelta
 
 import pytest
 
+from clusterman.aws.markets import InstanceMarket
 from clusterman.interfaces.types import AgentMetadata
 from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.interfaces.types import InstanceMetadata
 from clusterman.migration.settings import MigrationPrecendence
 from clusterman.migration.settings import PoolPortion
-from clusterman.simulator.simulate_aws_market import simulate_InstanceMarket
 
 
 @pytest.mark.parametrize(
@@ -77,19 +77,19 @@ def test_migration_precedence(precedence, expected_agent_id_order):
         ClusterNodeMetadata(
             agent=AgentMetadata(agent_id="1", task_count=1),
             instance=InstanceMetadata(
-                market=simulate_InstanceMarket("m6a.4xlarge", "us-west-2b"), weight=None, uptime=timedelta(days=10)
+                market=InstanceMarket("m6a.4xlarge", "us-west-2b"), weight=None, uptime=timedelta(days=10)
             ),
         ),
         ClusterNodeMetadata(
             agent=AgentMetadata(agent_id="2", task_count=3),
             instance=InstanceMetadata(
-                market=simulate_InstanceMarket("m6a.4xlarge", "us-west-2a"), weight=None, uptime=timedelta(days=50)
+                market=InstanceMarket("m6a.4xlarge", "us-west-2a"), weight=None, uptime=timedelta(days=50)
             ),
         ),
         ClusterNodeMetadata(
             agent=AgentMetadata(agent_id="3", task_count=2),
             instance=InstanceMetadata(
-                market=simulate_InstanceMarket("m6a.4xlarge", "us-west-2b"), weight=None, uptime=timedelta(days=90)
+                market=InstanceMarket("m6a.4xlarge", "us-west-2b"), weight=None, uptime=timedelta(days=90)
             ),
         ),
     ]
