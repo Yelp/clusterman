@@ -78,6 +78,8 @@ class StatusJsonObject(TypedDict):
     disabled: bool
     fulfilled_capacity: float
     target_capacity: float
+    min_capacity: float
+    max_capacity: float
     non_orphan_fulfilled_capacity: float
     resource_groups: List[ResourceGroupJsonObject]
     migrations: List[MigrationEvent]
@@ -141,6 +143,8 @@ def _status_json(manager: PoolManager, get_node_metadatas: bool, get_migrations:
         "target_capacity": manager.target_capacity,
         "fulfilled_capacity": manager.fulfilled_capacity,
         "non_orphan_fulfilled_capacity": manager.non_orphan_fulfilled_capacity,
+        "min_capacity": manager.min_capacity,
+        "max_capacity": manager.max_capacity,
         "resource_groups": _get_resource_groups_json(manager.resource_groups.values(), node_metadatas),
         "migrations": (
             _get_migrations(manager.cluster, manager.pool)
@@ -251,7 +255,8 @@ def print_status(manager: PoolManager, args: argparse.Namespace) -> None:
     print(
         f'Resource groups (target capacity: {status_obj["target_capacity"]}, '
         f'fulfilled: {status_obj["fulfilled_capacity"]}, '
-        f'non-orphan: {status_obj["non_orphan_fulfilled_capacity"]}):'
+        f'non-orphan: {status_obj["non_orphan_fulfilled_capacity"]}, '
+        f'max: {status_obj["max_capacity"]}):'
     )
 
     for group in status_obj["resource_groups"]:
