@@ -51,6 +51,11 @@ def test_resource_parser_cpu():
 
 def test_resource_parser_mem():
     assert ResourceParser.mem({"memory": "1Gi"}) == 1000.0
+    assert ResourceParser.mem({"memory": "1GB"}) == 1000.0
+    assert ResourceParser.mem({"memory": "100Mi"}) == 100.0
+    assert ResourceParser.mem({"memory": "100MB"}) == 100.0
+    assert ResourceParser.mem({"memory": "100mb"}) == 100.0
+    assert ResourceParser.mem({"memory": "1000000000m"}) == 1.0
 
 
 def test_resource_parser_disk():
