@@ -15,6 +15,7 @@ import time
 from typing import Union
 
 import arrow
+import colorlog
 import staticconf
 
 from clusterman.aws.client import dynamodb
@@ -22,6 +23,7 @@ from clusterman.util import CLUSTERMAN_STATE_TABLE
 from clusterman.util import parse_time_string
 
 
+logger = colorlog.getLogger(__name__)
 AUTOSCALER_CAPACITY_OFFSET_KEY = "autoscaler_capacity_offset"
 
 
@@ -73,14 +75,18 @@ def get_capacity_offset(cluster: str, pool: str, scheduler: str, timestamp: arro
     :param Arrow timestamp: threshold time
     :return: value of capacity offset if present, or 0
     """
-    response = dynamodb.get_item(
-        TableName=CLUSTERMAN_STATE_TABLE,
-        Key={
-            "state": {"S": AUTOSCALER_CAPACITY_OFFSET_KEY},
-            "entity": {"S": f"{cluster}.{pool}.{scheduler}"},
-        },
-        ConsistentRead=True,
-    )
+    try:
+        response = dynamodb.get_item(
+            TableName=CLUSTERMAN_STATE_TABLE,
+            Key={
+                "state": {"S": AUTOSCALER_CAPACITY_OFFSET_KEY},
+                "entity": {"S": f"{cluster}.{pool}.{scheduler}"},
+            },
+            ConsistentRead=True,
+        )
+    except Exception as e:
+        logger.exception(f"Error reading capacity offset: {e}")
+        return 0
     return (
         float(response["Item"]["offset"]["N"])
         if (
