@@ -48,6 +48,7 @@ KUBERNETES_API_CACHE: MutableMapping[Hashable, Any] = TTLCache(
     maxsize=KUBERNETES_API_CACHE_SIZE, ttl=KUBERNETES_API_CACHE_TTL
 )
 VERSION_MATCH_EXPR = re.compile(r"(\W|^)(?P<release>\d+\.\d+(\.\d+)?)(\W|$)")
+MILLIBYTE_MATCH_EXPR = re.compile(r"(\d+)m$")
 logger = colorlog.getLogger(__name__)
 
 
@@ -133,7 +134,13 @@ class ResourceParser:
     @staticmethod
     def mem(resources):
         resources = resources or {}
-        return parse_size(resources.get("memory", DEFAULT_KUBERNETES_MEMORY_REQUEST)) / 1000000
+        # CLUSTERMAN-729 temporary fix while adding milli-byte support to humanfriendly
+        memory = resources.get("memory", DEFAULT_KUBERNETES_MEMORY_REQUEST)
+        result = MILLIBYTE_MATCH_EXPR.search(memory)
+        if result:
+            memory = result.group(1)
+            memory = str(int(memory) // 1000)
+        return parse_size(memory) / 1000000
 
     @staticmethod
     def disk(resources):
