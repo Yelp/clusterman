@@ -23,7 +23,7 @@ from typing import Union
 import packaging.version
 import semver
 
-from clusterman.aws.markets import EC2_INSTANCE_TYPES
+from clusterman.aws.markets import get_instance_type
 from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.migration.event_enums import ComparableConditionTarget
 from clusterman.migration.event_enums import ComparableVersion
@@ -61,8 +61,11 @@ def _load_instance_type_target(target: str) -> str:
     :return: list of instance types
     """
     target = target.lower()
-    if target not in EC2_INSTANCE_TYPES:
+    try:
+        get_instance_type(target)
+    except Exception:
         raise ValueError(f"Invalid instance type: {target}")
+
     return target
 
 

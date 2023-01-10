@@ -36,7 +36,7 @@ from colorama import Fore
 from colorama import Style
 from staticconf.config import DEFAULT as DEFAULT_NAMESPACE
 
-from clusterman.aws.markets import EC2_INSTANCE_TYPES
+from clusterman.aws.markets import get_instance_type
 from clusterman.config import get_cluster_config_directory
 from clusterman.config import LOG_STREAM_NAME
 from clusterman.config import POOL_NAMESPACE
@@ -72,7 +72,8 @@ class ClustermanResources(NamedTuple):
 
     @staticmethod
     def from_instance_type(instance_type: str) -> "ClustermanResources":
-        resources = EC2_INSTANCE_TYPES[instance_type]
+        resources = get_instance_type(instance_type)
+
         return ClustermanResources(
             cpus=resources.cpus,
             mem=resources.mem * 1024,  # AWS metadata for RAM is in GB
