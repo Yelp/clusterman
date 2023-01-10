@@ -11,12 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 from functools import lru_cache
 from typing import List
 from typing import Mapping
 from typing import NamedTuple
 from typing import Optional
 
+import staticconf
 from mypy_extensions import TypedDict
 
 from clusterman.aws.client import ec2
@@ -44,7 +46,7 @@ class InstanceMarket(_InstanceMarket):
     __slots__ = ()
 
     def __new__(cls, instance: str, az: Optional[str]):
-        if instance in EC2_INSTANCE_TYPES and az in EC2_AZS:
+        if get_instance_type(instance) is not None and az in EC2_AZS:
             return super().__new__(cls, instance, az)
         else:
             raise ValueError(f"Invalid AWS market specified: <{instance}, {az}> (choices from {EC2_AZS})")
@@ -379,8 +381,38 @@ EC2_AZS: List[Optional[str]] = [
 ]
 
 
+@lru_cache(maxsize=128)
+def fetch_instance_type_from_aws(instance_type: str) -> InstanceResources:
+    res = {}
+    try:
+        res = ec2.describe_instance_types(InstanceTypes=[instance_type]).get("InstanceTypes")[0]
+    except Exception as e:
+        raise ValueError(f"Error occoured while describing instance type {instance_type} : {e}")
+
+    vcpu_count = res.get("VCpuInfo", {}).get("DefaultVCpus", 0.0) + 0.0
+    mem_size = res.get("MemoryInfo", {}).get("SizeInMiB", 0.0) / 1024.0
+    disk_size = res.get("InstanceStorageInfo", {}).get("TotalSizeInGB", None)
+    gpu_size = res.get("GpuInfo", {}).get("Gpus", [{}])[0].get("Count", 0)
+
+    return InstanceResources(vcpu_count, mem_size, disk_size, gpu_size)
+
+
+def get_instance_type(instance_type: str) -> InstanceResources:
+    cluster_name = (os.environ.get("CMAN_CLUSTER", None),)
+    enable_dynamic_instance_types = staticconf.read_bool(
+        f"clusters.{cluster_name}.enable_dynamic_instance_types", default=False
+    )
+    if not enable_dynamic_instance_types:
+        if instance_type not in EC2_INSTANCE_TYPES:
+            raise ValueError(f"Invalid instance type: {instance_type}")
+        else:
+            return EC2_INSTANCE_TYPES[instance_type]
+    else:
+        return fetch_instance_type_from_aws(str)
+
+
 def get_market_resources(market: InstanceMarket) -> InstanceResources:
-    return EC2_INSTANCE_TYPES[market.instance]
+    return get_instance_type(market.instance)
 
 
 def get_market(instance_type: str, subnet_id: Optional[str]) -> InstanceMarket:
