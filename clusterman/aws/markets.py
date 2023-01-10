@@ -18,10 +18,13 @@ from typing import Mapping
 from typing import NamedTuple
 from typing import Optional
 
+import colorlog
 import staticconf
 from mypy_extensions import TypedDict
 
 from clusterman.aws.client import ec2
+
+logger = colorlog.getLogger(__name__)
 
 
 class InstanceResources(NamedTuple):
@@ -385,6 +388,7 @@ EC2_AZS: List[Optional[str]] = [
 def fetch_instance_type_from_aws(instance_type: str) -> InstanceResources:
     res = {}
     try:
+        logger.info(f"fetching instance-type {instance_type} details from AWS.")
         res = ec2.describe_instance_types(InstanceTypes=[instance_type]).get("InstanceTypes")[0]
     except Exception as e:
         raise ValueError(f"Error occoured while describing instance type {instance_type} : {e}")
@@ -394,10 +398,12 @@ def fetch_instance_type_from_aws(instance_type: str) -> InstanceResources:
     disk_size = res.get("InstanceStorageInfo", {}).get("TotalSizeInGB", None)
     gpu_size = res.get("GpuInfo", {}).get("Gpus", [{}])[0].get("Count", 0)
 
+    logger.info(f"located instance-type details: {vcpu_count}, {mem_size}, {disk_size}, {gpu_size}")
     return InstanceResources(vcpu_count, mem_size, disk_size, gpu_size)
 
 
 def get_instance_type(instance_type: str) -> InstanceResources:
+    logger.info(f"fetching instance type details: {instance_type}")
     cluster_name = (os.environ.get("CMAN_CLUSTER", None),)
     enable_dynamic_instance_types = staticconf.read_bool(
         f"clusters.{cluster_name}.enable_dynamic_instance_types", default=False
@@ -406,6 +412,7 @@ def get_instance_type(instance_type: str) -> InstanceResources:
         if instance_type not in EC2_INSTANCE_TYPES:
             raise ValueError(f"Invalid instance type: {instance_type}")
         else:
+            logger.info(f"located instance-type details: {EC2_INSTANCE_TYPES[instance_type]}")
             return EC2_INSTANCE_TYPES[instance_type]
     else:
         return fetch_instance_type_from_aws(str)
