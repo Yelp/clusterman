@@ -1,3 +1,9 @@
+clusterman (4.18.4) xenial bionic; urgency=low
+
+  * Added fetching instance types details from AWS API
+
+ -- Ajay Pratap Singh <ajayprataps@yelp.com>  Tue, 10 Jan 2023 01:29:05 -0800
+
 clusterman (4.18.3) xenial bionic; urgency=low
 
   * Fixed milli-byte handling temporarily in Cman side
