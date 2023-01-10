@@ -35,8 +35,10 @@ The allowed values for the migration settings are as follows:
 * ``strategy``:
 
   * ``rate``: rate at which nodes are selected for termination; percentage or absolute value (required).
-  * ``prescaling``: if set, pool size is increased by this amount before performing node recycling; percentage or absolute value (0 by default).
+  * ``prescaling``: if set, pool size (in nodes) is increased by this amount before performing node recycling; percentage or absolute value (0 by default).
+    This directly sets a capacity value for the pool if autoscaling is disabled, or applies a temporary capacity offset otherwise.
   * ``precedence``: precedence with which nodes are selected for termination:
+
     * ``highest_uptime``: select older nodes first (default);
     * ``lowest_task_count``: select node with fewer running tasks first;
     * ``az_name_alphabetical``: group nodes by availability zone, and select group in alphabetical order;

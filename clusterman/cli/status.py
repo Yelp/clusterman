@@ -34,6 +34,7 @@ from clusterman.args import add_pool_arg
 from clusterman.args import add_scheduler_arg
 from clusterman.args import subparser
 from clusterman.autoscaler.pool_manager import PoolManager
+from clusterman.autoscaler.toggle import autoscaling_is_paused
 from clusterman.aws.markets import InstanceMarket
 from clusterman.cli.util import timeout_wrapper
 from clusterman.interfaces.resource_group import ResourceGroup
@@ -44,7 +45,6 @@ from clusterman.migration.event import MigrationEvent
 from clusterman.migration.event_enums import MigrationStatus
 from clusterman.migration.worker import SUPPORTED_POOL_SCHEDULER
 from clusterman.util import any_of
-from clusterman.util import autoscaling_is_paused
 from clusterman.util import ClustermanResources
 from clusterman.util import color_conditions
 

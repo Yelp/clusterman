@@ -22,12 +22,12 @@ from clusterman.args import add_cluster_config_directory_arg
 from clusterman.args import add_pool_arg
 from clusterman.args import add_scheduler_arg
 from clusterman.args import subparser
+from clusterman.autoscaler.toggle import autoscaling_is_paused
 from clusterman.autoscaler.toggle import disable_autoscaling
 from clusterman.autoscaler.toggle import enable_autoscaling
 from clusterman.aws.client import sts
 from clusterman.cli.util import timeout_wrapper
 from clusterman.exceptions import AccountNumberMistmatchError
-from clusterman.util import autoscaling_is_paused
 from clusterman.util import parse_time_string
 
 

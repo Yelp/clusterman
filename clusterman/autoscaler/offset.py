@@ -15,6 +15,7 @@ import time
 from typing import Union
 
 import arrow
+import colorlog
 import staticconf
 
 from clusterman.aws.client import dynamodb
@@ -22,23 +23,26 @@ from clusterman.util import CLUSTERMAN_STATE_TABLE
 from clusterman.util import parse_time_string
 
 
-AUTOSCALER_PAUSED = "autoscaler_paused"
+logger = colorlog.getLogger(__name__)
+AUTOSCALER_CAPACITY_OFFSET_KEY = "autoscaler_capacity_offset"
 
 
-def disable_autoscaling(cluster: str, pool: str, scheduler: str, until: Union[str, int, float]):
-    """Disable autoscaling for a pool
+def set_capacity_offset(cluster: str, pool: str, scheduler: str, until: Union[str, int, float], value: float):
+    """Set temporary capacity offset for a pool
 
     :param str cluster: name of the cluster
     :param str pool: name of the pool
     :param str scheduler: cluster scheduler
-    :param str until: how long should it remain disabled
+    :param str until: how long should the override last
+    :param float value: offset value
     """
     expiration = parse_time_string(until).timestamp if isinstance(until, str) else int(until)
     state = {
-        "state": {"S": AUTOSCALER_PAUSED},
+        "state": {"S": AUTOSCALER_CAPACITY_OFFSET_KEY},
         "entity": {"S": f"{cluster}.{pool}.{scheduler}"},
         "timestamp": {"N": str(int(time.time()))},
         "expiration_timestamp": {"N": str(expiration)},
+        "offset": {"N": str(value)},
     }
     dynamodb.put_item(
         TableName=staticconf.read("aws.state_table", default=CLUSTERMAN_STATE_TABLE),
@@ -46,8 +50,8 @@ def disable_autoscaling(cluster: str, pool: str, scheduler: str, until: Union[st
     )
 
 
-def enable_autoscaling(cluster: str, pool: str, scheduler: str):
-    """Re-enable autoscaling for a pool
+def remove_capacity_offset(cluster: str, pool: str, scheduler: str):
+    """Remove temporary capacity offset
 
     :param str cluster: name of the cluster
     :param str pool: name of the pool
@@ -56,35 +60,41 @@ def enable_autoscaling(cluster: str, pool: str, scheduler: str):
     dynamodb.delete_item(
         TableName=staticconf.read("aws.state_table", default=CLUSTERMAN_STATE_TABLE),
         Key={
-            "state": {"S": AUTOSCALER_PAUSED},
+            "state": {"S": AUTOSCALER_CAPACITY_OFFSET_KEY},
             "entity": {"S": f"{cluster}.{pool}.{scheduler}"},
         },
     )
 
 
-def autoscaling_is_paused(cluster: str, pool: str, scheduler: str, timestamp: arrow.Arrow) -> bool:
-    """Check if autoscaling is disabled
+def get_capacity_offset(cluster: str, pool: str, scheduler: str, timestamp: arrow.Arrow) -> float:
+    """Get, if present, temporary capacity offset
 
     :param str cluster: name of the cluster
     :param str pool: name of the pool
     :param str scheduler: cluster scheduler
     :param Arrow timestamp: threshold time
-    :return: True if paused
+    :return: value of capacity offset if present, or 0
     """
-    response = dynamodb.get_item(
-        TableName=CLUSTERMAN_STATE_TABLE,
-        Key={
-            "state": {"S": AUTOSCALER_PAUSED},
-            "entity": {"S": f"{cluster}.{pool}.{scheduler}"},
-        },
-        ConsistentRead=True,
+    try:
+        response = dynamodb.get_item(
+            TableName=CLUSTERMAN_STATE_TABLE,
+            Key={
+                "state": {"S": AUTOSCALER_CAPACITY_OFFSET_KEY},
+                "entity": {"S": f"{cluster}.{pool}.{scheduler}"},
+            },
+            ConsistentRead=True,
+        )
+    except Exception as e:
+        logger.exception(f"Error reading capacity offset: {e}")
+        return 0
+    return (
+        float(response["Item"]["offset"]["N"])
+        if (
+            "Item" in response
+            and (
+                "expiration_timestamp" not in response["Item"]
+                or timestamp.timestamp <= int(response["Item"]["expiration_timestamp"]["N"])
+            )
+        )
+        else 0
     )
-    if "Item" not in response:
-        return False
-
-    if "expiration_timestamp" in response["Item"] and timestamp.timestamp > int(
-        response["Item"]["expiration_timestamp"]["N"]
-    ):
-        return False
-
-    return True
