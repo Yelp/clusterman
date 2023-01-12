@@ -83,7 +83,7 @@ class Autoscaler:
 
         logger.info(f"Initializing autoscaler engine for {self.pool} in {self.cluster}...")
 
-        gauge_dimensions = {"cluster": cluster, "pool": pool}
+        gauge_dimensions = get_cluster_dimensions(cluster=cluster, pool=pool, scheduler=scheduler)
         monitoring_client = get_monitoring_client()
         self.target_capacity_gauge = monitoring_client.create_gauge(TARGET_CAPACITY_GAUGE_NAME, gauge_dimensions)
         self.max_capacity_gauge = monitoring_client.create_gauge(MAX_CAPACITY_GAUGE_NAME, gauge_dimensions)
