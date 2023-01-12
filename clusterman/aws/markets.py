@@ -403,8 +403,7 @@ def fetch_instance_type_from_aws(instance_type: str) -> InstanceResources:
 
 
 def get_instance_type(instance_type: str) -> InstanceResources:
-    logger.info(f"fetching instance type details: {instance_type}")
-    cluster_name = (os.environ.get("CMAN_CLUSTER", None),)
+    cluster_name = os.environ.get("CMAN_CLUSTER", None)
     enable_dynamic_instance_types = staticconf.read_bool(
         f"clusters.{cluster_name}.enable_dynamic_instance_types", default=False
     )
@@ -412,7 +411,6 @@ def get_instance_type(instance_type: str) -> InstanceResources:
         if instance_type not in EC2_INSTANCE_TYPES:
             raise ValueError(f"Invalid instance type: {instance_type}")
         else:
-            logger.info(f"located instance-type details: {EC2_INSTANCE_TYPES[instance_type]}")
             return EC2_INSTANCE_TYPES[instance_type]
     else:
         return fetch_instance_type_from_aws(str)
