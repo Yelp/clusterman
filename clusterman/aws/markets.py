@@ -413,7 +413,7 @@ def get_instance_type(instance_type: str) -> InstanceResources:
         else:
             return EC2_INSTANCE_TYPES[instance_type]
     else:
-        return fetch_instance_type_from_aws(str)
+        return fetch_instance_type_from_aws(instance_type)
 
 
 def get_market_resources(market: InstanceMarket) -> InstanceResources:
