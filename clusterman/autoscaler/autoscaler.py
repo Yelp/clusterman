@@ -45,6 +45,8 @@ from clusterman.util import Status
 
 SIGNAL_LOAD_CHECK_NAME = "signal_configuration_failed"
 TARGET_CAPACITY_GAUGE_NAME = "clusterman.autoscaler.target_capacity"
+MAX_CAPACITY_GAUGE_NAME = "clusterman.autoscaler.max_capacity"
+SETPOINT_GAUGE_NAME = "clusterman.autoscaler.setpoint"
 RESOURCE_GAUGE_BASE_NAME = "clusterman.autoscaler.requested_{resource}"
 logger = colorlog.getLogger(__name__)
 
@@ -81,9 +83,11 @@ class Autoscaler:
 
         logger.info(f"Initializing autoscaler engine for {self.pool} in {self.cluster}...")
 
-        gauge_dimensions = {"cluster": cluster, "pool": pool}
+        gauge_dimensions = get_cluster_dimensions(cluster=cluster, pool=pool, scheduler=scheduler)
         monitoring_client = get_monitoring_client()
         self.target_capacity_gauge = monitoring_client.create_gauge(TARGET_CAPACITY_GAUGE_NAME, gauge_dimensions)
+        self.max_capacity_gauge = monitoring_client.create_gauge(MAX_CAPACITY_GAUGE_NAME, gauge_dimensions)
+        self.setpoint_gauge = monitoring_client.create_gauge(SETPOINT_GAUGE_NAME, gauge_dimensions)
         self.resource_request_gauges: Dict[str, Any] = {}
         for resource in SignalResourceRequest._fields:
             self.resource_request_gauges[resource] = monitoring_client.create_gauge(
@@ -175,6 +179,8 @@ class Autoscaler:
             capacity_offset = get_capacity_offset(self.cluster, self.pool, self.scheduler, timestamp)
             new_target_capacity = self._compute_target_capacity(resource_request) + capacity_offset
             self.target_capacity_gauge.set(new_target_capacity, {"dry_run": dry_run})
+            self.max_capacity_gauge.set(self.pool_manager.max_capacity, {"dry_run": dry_run})
+            self.setpoint_gauge.set(self.autoscaling_config.setpoint, {"dry_run": dry_run})
             self._emit_requested_resource_metrics(resource_request, dry_run=dry_run)
 
         try:
