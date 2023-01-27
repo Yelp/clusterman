@@ -1,3 +1,9 @@
+clusterman (4.18.5) xenial bionic; urgency=low
+
+  *  Add g4dn instance info
+
+ -- Luis Perez <luisp@yelp.com>  Fri, 27 Jan 2023 13:57:32 -0800
+
 clusterman (4.18.4) xenial bionic; urgency=low
 
   * Added fetching instance types details from AWS API
