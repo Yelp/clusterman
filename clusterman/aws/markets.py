@@ -270,7 +270,7 @@ EC2_INSTANCE_TYPES: Mapping[str, InstanceResources] = {
     "r6idn.12xlarge": InstanceResources(48.0, 384.0, 2850.0, 0),
     "r6idn.16xlarge": InstanceResources(64.0, 512.0, 3800.0, 0),
     "r6idn.24xlarge": InstanceResources(96.0, 768.0, 5700.0, 0),
-    "r6idn.32xlarge": InstanceResources(128.0, 1024.0, 7600.0, 0),    
+    "r6idn.32xlarge": InstanceResources(128.0, 1024.0, 7600.0, 0),
     "r5.large": InstanceResources(2.0, 16.0, None, 0),
     "r5.xlarge": InstanceResources(4.0, 32.0, None, 0),
     "r5.2xlarge": InstanceResources(8.0, 64.0, None, 0),
