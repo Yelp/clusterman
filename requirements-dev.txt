@@ -10,7 +10,7 @@ cffi==1.12.3
 cfgv==2.0.1
 cfn-lint==0.24.4
 coverage==4.5.4
-cryptography==38.0.4
+cryptography==39.0.1
 distlib==0.3.4
 docker==4.1.0
 ecdsa==0.13.3
