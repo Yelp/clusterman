@@ -75,6 +75,9 @@ The following is an example configuration file for the core Clusterman service a
             # How frequently the batch should check for migration triggers.
             run_interval_seconds: 60
 
+            # Maximum number of restarts for an event worker
+            max_failed_attemps: 5
+
     clusters:
         cluster-name:
             aws_region: us-west-2

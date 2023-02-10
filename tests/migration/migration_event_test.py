@@ -14,6 +14,7 @@
 from datetime import timedelta
 from typing import Type
 
+import arrow
 import packaging.version
 import pytest
 import semver
@@ -109,10 +110,13 @@ def test_event_to_string():
             ConditionOperator.IN,
             [semver.VersionInfo.parse("1.2.3"), semver.VersionInfo.parse("3.4.5")],
         ),
+        previous_attempts=3,
+        created=arrow.get("2023-02-10T11:18:17Z"),
     )
-    assert (
-        str(event)
-        == "MigrationEvent(cluster=mesos-test, pool=bar, label_selectors=[], condition=(KERNEL in 1.2.3,3.4.5))"
+    assert str(event) == (
+        "MigrationEvent(cluster=mesos-test, pool=bar,"
+        " label_selectors=[], condition=(KERNEL in 1.2.3,3.4.5),"
+        " attempts=3, created=2023-02-10T11:18:17+00:00)"
     )
 
 

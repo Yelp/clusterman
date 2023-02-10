@@ -78,6 +78,7 @@ def test_fetch_events_to_process(migration_batch: NodeMigration):
     }
     migration_batch.cluster_connector.list_node_migration_resources.assert_called_once_with(
         [MigrationStatus.PENDING, MigrationStatus.INPROGRESS],
+        5,
     )
 
 
@@ -111,7 +112,7 @@ def test_get_worker_setup(migration_batch):
         prescaling=PoolPortion(1),
         precedence=MigrationPrecendence.UPTIME,
         bootstrap_wait=180.0,
-        bootstrap_timeout=180.0,
+        bootstrap_timeout=600.0,
         disable_autoscaling=False,
         expected_duration=7200.0,
         health_check_interval=120,
@@ -128,7 +129,7 @@ def test_spawn_worker(mock_process, migration_batch):
     migration_batch.worker_locks = defaultdict(mock_lock)
     assert migration_batch._spawn_worker(worker_label, mock_routine, 1, x=2) is True
     mock_process.assert_called_once_with(
-        target=mock_routine, args=(1,), kwargs={"x": 2, "pool_lock": mock_lock.return_value}
+        target=mock_routine, args=(1,), initial_restart_count=0, kwargs={"x": 2, "pool_lock": mock_lock.return_value}
     )
     assert migration_batch.migration_workers == {worker_label: mock_process.return_value}
 
@@ -196,6 +197,7 @@ def test_spawn_event_worker(mock_worker_routine, migration_batch, event, worker_
             mock_spawn.assert_called_once_with(
                 label=f"event:{event.cluster}:{event.pool}",
                 routine=mock_worker_routine,
+                initial_restart_count=0,
                 migration_event=event,
                 worker_setup=worker_setup,
             )

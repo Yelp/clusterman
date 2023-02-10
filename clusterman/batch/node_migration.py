@@ -39,13 +39,13 @@ from clusterman.config import load_cluster_pool_config
 from clusterman.config import POOL_NAMESPACE
 from clusterman.config import setup_config
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
+from clusterman.migration.constants import SUPPORTED_POOL_SCHEDULER
 from clusterman.migration.event import load_timespan_target
 from clusterman.migration.event import MigrationEvent
 from clusterman.migration.event_enums import MigrationStatus
 from clusterman.migration.settings import WorkerSetup
 from clusterman.migration.worker import event_migration_worker
 from clusterman.migration.worker import RestartableDaemonProcess
-from clusterman.migration.worker import SUPPORTED_POOL_SCHEDULER
 from clusterman.migration.worker import uptime_migration_worker
 from clusterman.util import get_pool_name_list
 from clusterman.util import setup_logging
@@ -59,6 +59,7 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
     DEFAULT_MAX_WORKER_PROCESSES = 6
     DEFAULT_RUN_INTERVAL_SECONDS = 60
     DEFAULT_TERMINATION_TIMEOUT_SECONDS = 10
+    DEFAULT_MAX_FAILED_ATTEMPTS = 5
 
     WORKER_LABEL_SEPARATOR = ":"
     EVENT_WORKER_LABEL_PREFIX = "event"
@@ -94,6 +95,10 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
         )
         self.worker_termination_timeout = staticconf.read_int(
             "batches.node_migration.worker_termination_timeout_seconds", self.DEFAULT_TERMINATION_TIMEOUT_SECONDS
+        )
+        self.max_failed_attempts = staticconf.read_int(
+            "batches.node_migration.max_failed_attemps",
+            self.DEFAULT_MAX_FAILED_ATTEMPTS,
         )
         for pool in get_pool_name_list(self.options.cluster, SUPPORTED_POOL_SCHEDULER):
             self.add_watcher({pool: get_pool_config_path(self.options.cluster, pool, SUPPORTED_POOL_SCHEDULER)})
@@ -160,7 +165,9 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
     def _spawn_worker(self, label: str, routine: Callable, *args, **kwargs) -> bool:
         """Start worker process
 
+        :param str label: label for the worker process
         :param Callable routine: worker method
+        :param int initial_restart_count: initial number of attempts this event already had (kwargs only)
         :param *args: method positional argument
         :param **kwargs: method keyword arguments
         :return: whether the worker process was spawned
@@ -174,7 +181,10 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
             self.logger.warning(f"Too many worker processes running already ({running_workers}), skipping")
             return False
         kwargs["pool_lock"] = self.worker_locks[self._get_worker_lock_key(label)]
-        proc = RestartableDaemonProcess(target=routine, args=args, kwargs=kwargs)
+        initial_restart_count = kwargs.pop("initial_restart_count", 0)
+        proc = RestartableDaemonProcess(
+            target=routine, args=args, kwargs=kwargs, initial_restart_count=initial_restart_count
+        )
         self.migration_workers[label] = proc
         proc.start()
         return True
@@ -186,20 +196,22 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
         :return: collection of migration events
         """
         self.cluster_connector.reload_client()
-        return self.cluster_connector.list_node_migration_resources(statuses)
+        return self.cluster_connector.list_node_migration_resources(statuses, self.max_failed_attempts)
 
     def fetch_events_to_process(self) -> Collection[MigrationEvent]:
         """Fetch migration events needing to be processed"""
         events = self.fetch_event_crd([MigrationStatus.PENDING, MigrationStatus.INPROGRESS])
         return set(events) - set(self.events_in_progress.values())
 
-    def mark_event(self, event: MigrationEvent, status: MigrationStatus = MigrationStatus.COMPLETED) -> None:
+    def mark_event(
+        self, event: MigrationEvent, status: MigrationStatus = MigrationStatus.COMPLETED, attempts: Optional[int] = None
+    ) -> None:
         """Set status for CRD event resource
 
         :param MigrationEvent event: event to be marked
         :param MigrationStatus status: status to be set
         """
-        self.cluster_connector.mark_node_migration_resource(event.resource_name, status)
+        self.cluster_connector.mark_node_migration_resource(event.resource_name, status, attempts)
 
     def spawn_event_worker(self, event: MigrationEvent):
         """Start process recycling nodes in a pool accordingly to some event parameters
@@ -220,6 +232,7 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
         if self._spawn_worker(
             label=worker_label,
             routine=event_migration_worker,
+            initial_restart_count=event.previous_attempts,
             migration_event=event,
             worker_setup=worker_setup,
         ):
@@ -268,6 +281,14 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
                 self.mark_event(event, MigrationStatus.COMPLETED)
             del self.migration_workers[label]
         for label, exitcode in torestart:
+            if self._is_event_worker_label(label):
+                event = self.events_in_progress.pop(label)
+                attempts = self.migration_workers[label].restart_count + 1
+                if attempts >= self.max_failed_attempts:
+                    self.mark_event(event, MigrationStatus.FAILED, attempts)
+                    del self.migration_workers[label]
+                    continue
+                self.mark_event(event, MigrationStatus.INPROGRESS, attempts)
             self.logger.info(f"Restarting worker process with label {label} (exit code: {exitcode})")
             self.migration_workers[label].restart()
 

@@ -34,6 +34,12 @@ from clusterman.autoscaler.toggle import enable_autoscaling
 from clusterman.draining.queue import TerminationReason
 from clusterman.interfaces.types import ClusterNodeMetadata
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
+from clusterman.migration.constants import INITIAL_POOL_HEALTH_TIMEOUT_SECONDS
+from clusterman.migration.constants import SFX_DRAINED_NODE_UPTIME
+from clusterman.migration.constants import SFX_MIGRATION_JOB_DURATION
+from clusterman.migration.constants import SFX_NODE_DRAIN_COUNT
+from clusterman.migration.constants import SUPPORTED_POOL_SCHEDULER
+from clusterman.migration.constants import UPTIME_CHECK_INTERVAL_SECONDS
 from clusterman.migration.event import MigrationEvent
 from clusterman.migration.settings import WorkerSetup
 from clusterman.monitoring_lib import get_monitoring_client
@@ -41,20 +47,14 @@ from clusterman.util import limit_function_runtime
 
 
 module_logger = colorlog.getLogger(__name__)
-UPTIME_CHECK_INTERVAL_SECONDS = 60 * 60  # 1 hour
-INITIAL_POOL_HEALTH_TIMEOUT_SECONDS = 15 * 60
-SUPPORTED_POOL_SCHEDULER = "kubernetes"
-
-SFX_NODE_DRAIN_COUNT = "clusterman.node_migration.drain_count"
-SFX_MIGRATION_JOB_DURATION = "clusterman.node_migration.duration"
-SFX_DRAINED_NODE_UPTIME = "clusterman.node_migration.drained_node_uptime"
 
 
 class RestartableDaemonProcess:
-    def __init__(self, target, args, kwargs) -> None:
+    def __init__(self, target, args, kwargs, initial_restart_count: int = 0) -> None:
         self.__target = partial(self._sigterm_wrapper, target)
         self.__args = args
         self.__kwargs = kwargs
+        self.restart_count = initial_restart_count
         self._init_proc_handle()
 
     @staticmethod
@@ -75,6 +75,7 @@ class RestartableDaemonProcess:
             self.process_handle.kill()
         self._init_proc_handle()
         self.process_handle.start()
+        self.restart_count += 1
 
     def __getattr__(self, attr):
         return getattr(self.process_handle, attr)

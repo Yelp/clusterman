@@ -20,11 +20,13 @@ from typing import Optional
 from typing import Tuple
 from typing import Union
 
+import arrow
 import packaging.version
 import semver
 
 from clusterman.aws.markets import get_instance_type
 from clusterman.interfaces.types import ClusterNodeMetadata
+from clusterman.migration.constants import MIGRATION_CRD_ATTEMPTS_LABEL
 from clusterman.migration.event_enums import ComparableConditionTarget
 from clusterman.migration.event_enums import ComparableVersion
 from clusterman.migration.event_enums import CONDITION_OPERATOR_SUPPORT_MATRIX
@@ -133,6 +135,8 @@ class MigrationEvent(NamedTuple):
     pool: str
     label_selectors: List[str]
     condition: MigrationCondition
+    previous_attempts: int = 0
+    created: Optional[arrow.Arrow] = None
 
     def __hash__(self) -> int:
         """Simplified object hash since resource_name should be unique"""
@@ -141,7 +145,8 @@ class MigrationEvent(NamedTuple):
     def __str__(self) -> str:
         return (
             f"MigrationEvent(cluster={self.cluster}, pool={self.pool},"
-            f" label_selectors={self.label_selectors}, condition=({self.condition}))"
+            f" label_selectors={self.label_selectors}, condition=({self.condition}),"
+            f" attempts={self.previous_attempts}, created={self.created})"
         )
 
     def to_crd_body(self, labels: Optional[dict] = None) -> dict:
@@ -178,4 +183,6 @@ class MigrationEvent(NamedTuple):
             pool=event_data["pool"],
             label_selectors=event_data.get("label_selectors", []),
             condition=MigrationCondition.from_dict(event_data["condition"]),
+            previous_attempts=int(crd["metadata"]["labels"].get(MIGRATION_CRD_ATTEMPTS_LABEL, 0)),
+            created=arrow.get(crd["metadata"].get("creationTimestamp", None)),  # current time by default
         )
