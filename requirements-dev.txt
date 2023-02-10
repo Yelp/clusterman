@@ -19,7 +19,7 @@ filelock==3.0.12
 flake8==3.7.8
 identify==2.5.1
 ipdb==0.13.9
-ipython==7.17.0
+ipython==8.10.0
 ipython-genutils==0.2.0
 jedi==0.15.1
 Jinja2==2.10.3
