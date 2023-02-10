@@ -283,7 +283,7 @@ def event_migration_worker(migration_event: MigrationEvent, worker_setup: Worker
             orphan_capacity_tollerance=worker_setup.orphan_capacity_tollerance,
         ):
             raise NodeMigrationError(f"Pool {migration_event.cluster}:{migration_event.pool} is not healthy")
-        node_selector = lambda node: node.agent.agent_id and not migration_event.condition.matches(node)  # noqa
+        node_selector = lambda node: node.agent.agent_id and not migration_event.matches(node)  # noqa
         migration_routine = partial(_drain_node_selection, manager, node_selector, worker_setup)
         if not limit_function_runtime(migration_routine, worker_setup.expected_duration):
             raise NodeMigrationError(f"Failed migrating nodes for event {migration_event}")

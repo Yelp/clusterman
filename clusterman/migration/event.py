@@ -117,13 +117,19 @@ class MigrationCondition(NamedTuple):
             "target": self.stringify_target(),
         }
 
-    def matches(self, node: ClusterNodeMetadata) -> bool:
+    def matches(self, node: ClusterNodeMetadata, present_time: Optional[arrow.Arrow] = None) -> bool:
         """Check if condition is met for a node
 
         :param ClusterNodeMetadata node: node metadata
+        :param arrow.Arrow present_time: offset time for uptime comparisons
         :return: true if it meets the condition
         """
-        return self.operator.apply(self.trait.get_from(node), self.target)
+        target = (
+            self.target + (arrow.now() - present_time).total_seconds()
+            if present_time and self.trait == ConditionTrait.UPTIME
+            else self.target
+        )
+        return self.operator.apply(self.trait.get_from(node), target)
 
     def __str__(self) -> str:
         return f"{self.trait.name} {self.operator.value} {self.stringify_target()}"
@@ -168,6 +174,14 @@ class MigrationEvent(NamedTuple):
         if labels:
             body["metadata"]["labels"] = labels.copy()  # type: ignore
         return body
+
+    def matches(self, node: ClusterNodeMetadata) -> bool:
+        """Check if event condition is met for a node
+
+        :param ClusterNodeMetadata node: node metadata
+        :return: true if it meets the condition
+        """
+        return self.condition.matches(node, self.created)
 
     @classmethod
     def from_crd(cls, crd: dict) -> "MigrationEvent":
