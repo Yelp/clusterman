@@ -71,8 +71,8 @@ class ClustermanResources(NamedTuple):
     gpus: float = 0
 
     @staticmethod
-    def from_instance_type(instance_type: str) -> "ClustermanResources":
-        resources = get_instance_type(instance_type)
+    def from_instance_type(instance_type: str, cluster: str) -> "ClustermanResources":
+        resources = get_instance_type(instance_type, cluster)
 
         return ClustermanResources(
             cpus=resources.cpus,

@@ -417,8 +417,8 @@ def fetch_instance_type_from_aws(instance_type: str) -> InstanceResources:
     return InstanceResources(vcpu_count, mem_size, disk_size, gpu_size)
 
 
-def get_instance_type(instance_type: str) -> InstanceResources:
-    cluster_name = os.environ.get("CMAN_CLUSTER", None)
+def get_instance_type(instance_type: str, cluster: str = None) -> InstanceResources:
+    cluster_name = os.environ.get("PAASTA_CLUSTER", cluster)
     enable_dynamic_instance_types = staticconf.read_bool(
         f"clusters.{cluster_name}.enable_dynamic_instance_types", default=False
     )

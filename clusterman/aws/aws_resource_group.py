@@ -70,10 +70,11 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
 
     FRIENDLY_NAME: str
 
-    def __init__(self, group_id: str, **kwargs: Any) -> None:
+    def __init__(self, group_id: str, cluster: str, **kwargs: Any) -> None:
         self.group_id = group_id
         self._aws_api_cache_bucket = kwargs.get("aws_api_cache_bucket", None)
         self._aws_api_cache_key = kwargs.get("aws_api_cache_key", None)
+        self.cluster = cluster
 
         # Resource Groups are reloaded on every autoscaling run, so we just query
         # AWS data once and store them so we don't run into AWS request limits
@@ -273,7 +274,6 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
             identifier_tag_label = config["tag"]
         except KeyError:
             return {}
-
         resource_group_tags = cls._get_resource_group_tags(identifier_tag_label)
         matching_resource_groups = {}
 
@@ -284,7 +284,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
                 if tag_json:
                     identifier_tags = json.loads(tag_json)
                     if identifier_tags["pool"] == pool and identifier_tags["paasta_cluster"] == cluster:
-                        rg = cls(rg_id, **kwargs)
+                        rg = cls(cluster, rg_id, **kwargs)
                         matching_resource_groups[rg_id] = rg
             except Exception:
                 logger.exception(f"Could not load resource group {rg_id}; skipping...")

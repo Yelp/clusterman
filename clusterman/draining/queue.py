@@ -542,7 +542,7 @@ class DrainingClient:
             resource_group._reload_resource_group()
         else:
             resource_group_class = RESOURCE_GROUPS[host.sender]
-            resource_group = resource_group_class(host.group_id)
+            resource_group = resource_group_class(self.cluster, host.group_id)
         resource_group.terminate_instances_by_id([host.instance_id])
 
     def _list_resource_groups(
@@ -556,9 +556,9 @@ class DrainingClient:
                     continue
                 result.update(
                     resource_group_class.load(
-                        cluster=self.cluster,
                         pool=pool,
                         config=list(resource_group_conf.values())[0],
+                        cluster=self.cluster,
                     ),
                 )
         return result

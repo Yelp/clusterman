@@ -115,9 +115,7 @@ def test_load_spot_fleets_from_s3():
         "clusterman.aws.spot_fleet_resource_group.SpotFleetResourceGroup",
     ):
         sfrgs = load_spot_fleets_from_s3(
-            bucket="fake-clusterman-sfrs",
-            prefix="fake-region",
-            pool="my-pool",
+            bucket="fake-clusterman-sfrs", prefix="fake-region", cluster="fake-cluster", pool="my-pool"
         )
         assert len(sfrgs) == 2
         assert {sfr_id for sfr_id in sfrgs} == {"sfr-1", "sfr-2"}

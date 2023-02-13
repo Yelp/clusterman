@@ -153,6 +153,7 @@ class AutoScalingResourceGroup(AWSResourceGroup):
             options.extend(
                 self._get_options_for_instance_type(
                     override["InstanceType"],
+                    self.cluster,
                     float(override["WeightedCapacity"]),
                 )
             )
@@ -161,7 +162,7 @@ class AutoScalingResourceGroup(AWSResourceGroup):
         if not options:
             options.extend(
                 self._get_options_for_instance_type(
-                    self._launch_template_config["LaunchTemplateData"]["InstanceType"],
+                    self._launch_template_config["LaunchTemplateData"]["InstanceType"], self.cluster
                 )
             )
 
@@ -234,6 +235,7 @@ class AutoScalingResourceGroup(AWSResourceGroup):
     def _get_options_for_instance_type(
         self,
         instance_type: str,
+        cluster: str,
         weight: Optional[float] = None,
     ) -> List[ClusterNodeMetadata]:
         """Generate a list of possible ClusterNode types that could be added to this ASG,
@@ -246,7 +248,7 @@ class AutoScalingResourceGroup(AWSResourceGroup):
             weight = weight or self.market_weight(instance_market)
             options.append(
                 ClusterNodeMetadata(
-                    agent=AgentMetadata(total_resources=ClustermanResources.from_instance_type(instance_type)),
+                    agent=AgentMetadata(total_resources=ClustermanResources.from_instance_type(instance_type, cluster)),
                     instance=InstanceMetadata(market=instance_market, weight=weight),
                 )
             )

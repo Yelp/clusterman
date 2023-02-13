@@ -164,6 +164,7 @@ class SpotFleetResourceGroup(AWSResourceGroup):
             s3_resource_groups = load_spot_fleets_from_s3(
                 config["s3"]["bucket"],
                 config["s3"]["prefix"],
+                cluster,
                 pool=pool,
             )
             logger.info(f"SFRs loaded from s3: {list(s3_resource_groups)}")
@@ -213,7 +214,9 @@ class SpotFleetResourceGroup(AWSResourceGroup):
         raise NotImplementedError()
 
 
-def load_spot_fleets_from_s3(bucket: str, prefix: str, pool: str = None) -> Mapping[str, SpotFleetResourceGroup]:
+def load_spot_fleets_from_s3(
+    bucket: str, prefix: str, cluster: str, pool: str = None
+) -> Mapping[str, SpotFleetResourceGroup]:
     prefix = prefix.rstrip("/") + "/"
     object_list = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
     spot_fleets = {}
@@ -226,6 +229,6 @@ def load_spot_fleets_from_s3(bucket: str, prefix: str, pool: str = None) -> Mapp
             if pool and resource["pool"] != pool:
                 continue
 
-            spot_fleets[resource["id"]] = SpotFleetResourceGroup(resource["id"])
+            spot_fleets[resource["id"]] = SpotFleetResourceGroup(cluster, resource["id"])
 
     return spot_fleets
