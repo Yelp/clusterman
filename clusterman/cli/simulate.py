@@ -108,7 +108,7 @@ def _populate_cluster_size_events(simulator, start_time, end_time):
         market_data = {}
         for market_str, value in data.items():
             market = InstanceMarket.parse(market_str)
-            weight = get_market_resources(market).cpus // staticconf.read_int("cpus_per_weight")
+            weight = get_market_resources(market, cluster="local-dev").cpus // staticconf.read_int("cpus_per_weight")
             market_data[market] = int(value) // weight
         simulator.markets |= set(market_data.keys())
         use_join_delay = i != 0  # Want to start the cluster out at the expected capacity

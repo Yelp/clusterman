@@ -29,7 +29,7 @@ class Instance:
         self.start_time = start_time
         self.join_time = join_time
         self.end_time = None
-        self.resources = get_market_resources(self.market)
+        self.resources = get_market_resources(self.market, cluster="local-dev")
         self.bid_price = bid_price
 
         Instance.ip += 1

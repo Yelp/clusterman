@@ -229,6 +229,6 @@ def load_spot_fleets_from_s3(
             if pool and resource["pool"] != pool:
                 continue
 
-            spot_fleets[resource["id"]] = SpotFleetResourceGroup(cluster, resource["id"])
+            spot_fleets[resource["id"]] = SpotFleetResourceGroup(resource["id"], cluster)
 
     return spot_fleets

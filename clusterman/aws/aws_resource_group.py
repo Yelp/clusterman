@@ -284,7 +284,7 @@ class AWSResourceGroup(ResourceGroup, metaclass=ABCMeta):
                 if tag_json:
                     identifier_tags = json.loads(tag_json)
                     if identifier_tags["pool"] == pool and identifier_tags["paasta_cluster"] == cluster:
-                        rg = cls(cluster, rg_id, **kwargs)
+                        rg = cls(rg_id, cluster, **kwargs)
                         matching_resource_groups[rg_id] = rg
             except Exception:
                 logger.exception(f"Could not load resource group {rg_id}; skipping...")
