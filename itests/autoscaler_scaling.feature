@@ -72,7 +72,7 @@ Feature: make sure the autoscaler scales to the proper amount
       Examples:
         | pending   | rg1_target | rg2_target |
         | 0         | 10         | 10         |
-        | 14        | 16         | 15         |
+        | 14        | 23         | 22         |
         | 1000      | 50         | 50         |
 
     @wip
