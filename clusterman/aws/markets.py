@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
 from functools import lru_cache
 from typing import List
 from typing import Mapping
@@ -19,7 +18,6 @@ from typing import NamedTuple
 from typing import Optional
 
 import colorlog
-import staticconf
 from mypy_extensions import TypedDict
 
 from clusterman.aws.client import ec2
@@ -418,15 +416,8 @@ def fetch_instance_type_from_aws(instance_type: str) -> InstanceResources:
 
 
 def get_instance_type(instance_type: str) -> InstanceResources:
-    cluster_name = os.environ.get("CMAN_CLUSTER", None)
-    enable_dynamic_instance_types = staticconf.read_bool(
-        f"clusters.{cluster_name}.enable_dynamic_instance_types", default=False
-    )
-    if not enable_dynamic_instance_types:
-        if instance_type not in EC2_INSTANCE_TYPES:
-            raise ValueError(f"Invalid instance type: {instance_type}")
-        else:
-            return EC2_INSTANCE_TYPES[instance_type]
+    if instance_type in EC2_INSTANCE_TYPES:
+        return EC2_INSTANCE_TYPES[instance_type]
     else:
         return fetch_instance_type_from_aws(instance_type)
 
