@@ -36,3 +36,4 @@ package/itest/bionic/*
 acceptance/.local*
 sftp-config.json
 .idea
+.vscode
