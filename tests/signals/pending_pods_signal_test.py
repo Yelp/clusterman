@@ -70,7 +70,7 @@ def test_get_resource_request_no_pending_pods(allocated_resources):
 def test_get_resource_request_only_pending_pods(pending_pods):
     assert _get_resource_request(ClustermanResources(), pending_pods) == SignalResourceRequest(
         cpus=15,
-        mem=1000,
+        mem=2500,
         disk=0,
         gpus=0,
     )
@@ -79,7 +79,7 @@ def test_get_resource_request_only_pending_pods(pending_pods):
 def test_get_resource_request_pending_pods_and_metrics(allocated_resources, pending_pods):
     assert _get_resource_request(allocated_resources, pending_pods) == SignalResourceRequest(
         cpus=165,
-        mem=2000,
+        mem=3500,
         disk=500,
         gpus=0,
     )
