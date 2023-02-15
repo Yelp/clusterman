@@ -52,6 +52,8 @@ class PendingPodsSignal(Signal):
         """Given a list of metrics, construct a resource request based on the most recent
         data for allocated and pending pods"""
 
+        multiplier = self.parameters.get("pending_pods_multiplier", 2)
+
         resource_request = SignalResourceRequest()
         pending_pods = pending_pods or []
         if pending_pods:
@@ -59,6 +61,7 @@ class PendingPodsSignal(Signal):
                 # This is a temporary measure to try to improve scaling behaviour when Clusterman thinks
                 # there are enough resources but no single box can hold a new pod.  The goal is to replace
                 # this with a more intelligent solution in the future.
-                resource_request += total_pod_resources(pod) * 5
+                resource_request += total_pod_resources(pod) * multiplier
+            logger.info(f"Pending pods adding resource request: {resource_request} (multiplier {multiplier})")
 
         return resource_request + allocated_resources
