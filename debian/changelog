@@ -1,3 +1,10 @@
+clusterman (4.18.8) xenial bionic; urgency=low
+
+  * Make pending pods signal multipler configurable
+  * Revert default multipler to 2 (from 5)
+
+ -- Tomas Doran <tdoran@yelp.com>  Wed, 15 Feb 2023 07:14:00 -0800
+
 clusterman (4.18.7) xenial bionic; urgency=low
 
   * Make pending pods signal much more aggressive
