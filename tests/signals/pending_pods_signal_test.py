@@ -60,6 +60,7 @@ def pending_pods():
     ]
 
 
+# Just the existing resources, no pending pods
 def test_get_resource_request_no_pending_pods(allocated_resources, pending_pods_signal):
     assert pending_pods_signal._get_resource_request(allocated_resources) == SignalResourceRequest(
         cpus=150,
@@ -69,19 +70,32 @@ def test_get_resource_request_no_pending_pods(allocated_resources, pending_pods_
     )
 
 
+# Just the increase from pending pods (2 pods with 1.5 CPU = 3 x default multiplier 2), with no existing resources
 def test_get_resource_request_only_pending_pods(pending_pods, pending_pods_signal):
     assert pending_pods_signal._get_resource_request(ClustermanResources(), pending_pods) == SignalResourceRequest(
-        cpus=15,
-        mem=2500,
+        cpus=6,
+        mem=1000,
         disk=0,
         gpus=0,
     )
 
 
+# Existing resources AND pending pods, so sum of both
 def test_get_resource_request_pending_pods_and_metrics(allocated_resources, pending_pods, pending_pods_signal):
     assert pending_pods_signal._get_resource_request(allocated_resources, pending_pods) == SignalResourceRequest(
-        cpus=165,
-        mem=3500,
+        cpus=156,
+        mem=2000,
         disk=500,
+        gpus=0,
+    )
+
+
+# Increase from pending pods but higher multipler
+def test_get_resource_request_only_pending_pods_custom_multipler(pending_pods, pending_pods_signal):
+    pending_pods_signal.parameters["pending_pods_multiplier"] = 20
+    assert pending_pods_signal._get_resource_request(ClustermanResources(), pending_pods) == SignalResourceRequest(
+        cpus=60,
+        mem=10000,
+        disk=0,
         gpus=0,
     )
