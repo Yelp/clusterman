@@ -16,25 +16,6 @@ from clusterman.util import SignalResourceRequest
 logger = colorlog.getLogger(__name__)
 
 
-def _get_resource_request(
-    allocated_resources: ClustermanResources,
-    pending_pods: Optional[List[KubernetesPod]] = None,
-) -> SignalResourceRequest:
-    """Given a list of metrics, construct a resource request based on the most recent
-    data for allocated and pending pods"""
-
-    resource_request = SignalResourceRequest()
-    pending_pods = pending_pods or []
-    if pending_pods:
-        for pod in pending_pods:
-            # This is a temporary measure to try to improve scaling behaviour when Clusterman thinks
-            # there are enough resources but no single box can hold a new pod.  The goal is to replace
-            # this with a more intelligent solution in the future.
-            resource_request += total_pod_resources(pod) * 5
-
-    return resource_request + allocated_resources
-
-
 class PendingPodsSignal(Signal):
     def __init__(
         self,
@@ -61,4 +42,26 @@ class PendingPodsSignal(Signal):
         if self.parameters.get("per_pod_resource_requests"):
             return pending_pods
         else:
-            return _get_resource_request(allocated_resources, pending_pods)
+            return self._get_resource_request(allocated_resources, pending_pods)
+
+    def _get_resource_request(
+        self,
+        allocated_resources: ClustermanResources,
+        pending_pods: Optional[List[KubernetesPod]] = None,
+    ) -> SignalResourceRequest:
+        """Given a list of metrics, construct a resource request based on the most recent
+        data for allocated and pending pods"""
+
+        multiplier = self.parameters.get("pending_pods_multiplier", 2)
+
+        resource_request = SignalResourceRequest()
+        pending_pods = pending_pods or []
+        if pending_pods:
+            for pod in pending_pods:
+                # This is a temporary measure to try to improve scaling behaviour when Clusterman thinks
+                # there are enough resources but no single box can hold a new pod.  The goal is to replace
+                # this with a more intelligent solution in the future.
+                resource_request += total_pod_resources(pod) * multiplier
+            logger.info(f"Pending pods adding resource request: {resource_request} (multiplier {multiplier})")
+
+        return resource_request + allocated_resources
