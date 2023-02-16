@@ -53,6 +53,7 @@ logger = colorlog.getLogger(__name__)
 DRAIN_CACHE_SECONDS = 1800
 DEFAULT_RESOURCE_GROUPS_CACHE_SECONDS = 0
 DEFAULT_FORCE_TERMINATION = False
+DEFAULT_PROCESS_SPOT_WARNINGS = True
 DEFAULT_GLOBAL_REDRAINING_DELAY_SECONDS = 15
 DEFAULT_DRAINING_TIME_THRESHOLD_SECONDS = 1800
 EC2_ASG_TAG_KEY = "aws:autoscaling:groupName"
@@ -477,9 +478,21 @@ class DrainingClient:
             message_exist = True
             logger.info(f"Processing spot warning for {host_to_process.hostname}")
 
+            pool_config = staticconf.NamespaceReaders(
+                POOL_NAMESPACE.format(pool=host_to_process.pool, scheduler="kubernetes")
+            )
+            process_spot_warnings = pool_config.read_bool(
+                "draining.process_spot_warnings", DEFAULT_PROCESS_SPOT_WARNINGS
+            )
+
+            if not process_spot_warnings:
+                logger.info(
+                    f"Ignoring warned host because of {host_to_process.pool} "
+                    f"pool configuration: {host_to_process.hostname}"
+                )
             # we should definitely ignore termination warnings that aren't from this
             # cluster or maybe not even paasta instances...
-            if (
+            elif (
                 host_to_process.group_id in self.spot_fleet_resource_groups
                 or host_to_process.group_id in self.auto_scaling_resource_groups
             ):
