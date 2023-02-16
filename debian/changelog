@@ -1,3 +1,9 @@
+clusterman (4.19.0) xenial bionic; urgency=low
+
+  * Make spot instance warning processing configurable
+
+ -- Ilkin Mammadzada <ilkinmammadzada@yelp.com>  Thu, 16 Feb 2023 02:52:34 -0800
+
 clusterman (4.18.8) xenial bionic; urgency=low
 
   * Make pending pods signal multipler configurable
