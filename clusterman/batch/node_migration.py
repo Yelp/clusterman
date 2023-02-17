@@ -15,6 +15,7 @@ import argparse
 import logging
 import time
 from collections import defaultdict
+from functools import lru_cache
 from multiprocessing import Lock
 from typing import Callable
 from typing import Collection
@@ -24,6 +25,7 @@ from typing import Optional
 from typing import Set
 from typing import Union
 
+import arrow
 import colorlog
 import staticconf
 from yelp_batch.batch import batch_command_line_arguments
@@ -59,7 +61,7 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
     DEFAULT_MAX_WORKER_PROCESSES = 6
     DEFAULT_RUN_INTERVAL_SECONDS = 60
     DEFAULT_TERMINATION_TIMEOUT_SECONDS = 10
-    DEFAULT_MAX_FAILED_ATTEMPTS = 5
+    DEFAULT_FAILED_ATTEMPTS_MARGIN = 5
 
     WORKER_LABEL_SEPARATOR = ":"
     EVENT_WORKER_LABEL_PREFIX = "event"
@@ -82,9 +84,9 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
         self._silence_unneeded_logging()
         self.logger = colorlog.getLogger(__name__)
         self.migration_workers: Dict[str, RestartableDaemonProcess] = {}
-        self.migration_configs = {}
-        self.events_in_progress = {}
-        self.pools_accepting_events = set()
+        self.migration_configs: Dict[str, dict] = {}
+        self.events_in_progress: Dict[str, MigrationEvent] = {}
+        self.pools_accepting_events: Set[str] = set()
         self.worker_locks = defaultdict(Lock)
         self.cluster_connector = KubernetesClusterConnector(self.options.cluster, None, init_crd=True)
         self.run_interval = staticconf.read_int(
@@ -96,9 +98,9 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
         self.worker_termination_timeout = staticconf.read_int(
             "batches.node_migration.worker_termination_timeout_seconds", self.DEFAULT_TERMINATION_TIMEOUT_SECONDS
         )
-        self.max_failed_attempts = staticconf.read_int(
-            "batches.node_migration.max_failed_attemps",
-            self.DEFAULT_MAX_FAILED_ATTEMPTS,
+        self.failed_attemps_margin = staticconf.read_int(
+            "batches.node_migration.failed_attemps_margin",
+            self.DEFAULT_FAILED_ATTEMPTS_MARGIN,
         )
         for pool in get_pool_name_list(self.options.cluster, SUPPORTED_POOL_SCHEDULER):
             self.add_watcher({pool: get_pool_config_path(self.options.cluster, pool, SUPPORTED_POOL_SCHEDULER)})
@@ -126,6 +128,7 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
         for module in modules_to_silence:
             colorlog.getLogger(module).setLevel(logging.WARNING)
 
+    @lru_cache()
     def _get_worker_setup(self, pool: str) -> Optional[WorkerSetup]:
         """Build worker setup for
 
@@ -189,6 +192,23 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
         proc.start()
         return True
 
+    def _is_event_past_adjusted_time_estimate(self, event: MigrationEvent) -> bool:
+        """Check if duration of migration event job is higher than its time estimate
+        multiplied by the margin for failed attempts
+
+        :param MigrationEvent event: migration event to be checked
+        :return: boolean check outcome
+        """
+        worker_settings = self._get_worker_setup(event.pool)
+        return (
+            # let check pass if some information is missing
+            not (event.created and worker_settings)
+            or (
+                (arrow.now() - event.created).total_seconds()
+                > (self.failed_attemps_margin * worker_settings.expected_duration)
+            )
+        )
+
     def fetch_event_crd(self, statuses: List[MigrationStatus]) -> Collection[MigrationEvent]:
         """Fetch migration events from Kubernetes CRDs
 
@@ -196,7 +216,7 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
         :return: collection of migration events
         """
         self.cluster_connector.reload_client()
-        return self.cluster_connector.list_node_migration_resources(statuses, self.max_failed_attempts)
+        return self.cluster_connector.list_node_migration_resources(statuses, self.failed_attemps_margin)
 
     def fetch_events_to_process(self) -> Collection[MigrationEvent]:
         """Fetch migration events needing to be processed"""
@@ -282,11 +302,14 @@ class NodeMigration(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin):
             del self.migration_workers[label]
         for label, exitcode in torestart:
             if self._is_event_worker_label(label):
-                event = self.events_in_progress.pop(label)
+                event = self.events_in_progress[label]
                 attempts = self.migration_workers[label].restart_count + 1
-                if attempts >= self.max_failed_attempts:
+                # for job to be marked as failed, both the number of attempts and the multiplied
+                # time estimate for it should be surpassed.
+                if attempts >= self.failed_attemps_margin and self._is_event_past_adjusted_time_estimate(event):
                     self.mark_event(event, MigrationStatus.FAILED, attempts)
                     del self.migration_workers[label]
+                    del self.events_in_progress[label]
                     continue
                 self.mark_event(event, MigrationStatus.INPROGRESS, attempts)
             self.logger.info(f"Restarting worker process with label {label} (exit code: {exitcode})")
