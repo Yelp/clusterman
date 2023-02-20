@@ -86,7 +86,7 @@ def run_simulator(context, hours, per_second_billing):
         for join_time, market_counts in context.market_counts:
             context.simulator.add_event(
                 ModifyClusterSizeEvent(
-                    arrow.get(join_time),
+                    arrow.get(int(join_time)),
                     market_counts,
                     use_join_delay=getattr(context, "use_join_delay", True),
                 )
