@@ -13,6 +13,7 @@
 # limitations under the License.
 from unittest import mock
 
+import arrow
 import pytest
 from kubernetes.client import V1Container
 from kubernetes.client import V1NodeStatus
@@ -384,13 +385,16 @@ def test_pod_belongs_to_daemonset(mock_cluster_connector, running_pod_1, daemons
 
 
 def test_list_node_migration_resources(mock_cluster_connector_crd):
+    mock_timestamp = "2023-02-10T11:18:17Z"
     mock_cluster_connector_crd._migration_crd_api.list_cluster_custom_object.return_value = {
         "items": [
             {
                 "metadata": {
+                    "creationTimestamp": mock_timestamp,
                     "name": f"mesos-test-bar-220912-{i}",
                     "labels": {
                         "clusterman.yelp.com/migration_status": "pending",
+                        "clusterman.yelp.com/attempts": "1",
                     },
                 },
                 "spec": {
@@ -407,7 +411,8 @@ def test_list_node_migration_resources(mock_cluster_connector_crd):
         ]
     }
     assert mock_cluster_connector_crd.list_node_migration_resources(
-        [MigrationStatus.PENDING, MigrationStatus.INPROGRESS]
+        [MigrationStatus.PENDING, MigrationStatus.INPROGRESS],
+        3,
     ) == {
         MigrationEvent(
             resource_name=f"mesos-test-bar-220912-{i}",
@@ -415,11 +420,17 @@ def test_list_node_migration_resources(mock_cluster_connector_crd):
             pool="bar",
             label_selectors=[],
             condition=MigrationCondition(ConditionTrait.UPTIME, ConditionOperator.LT, (90 + i) * 24 * 60 * 60),
+            previous_attempts=1,
+            created=arrow.get(mock_timestamp),
         )
         for i in range(3)
     }
     mock_cluster_connector_crd._migration_crd_api.list_cluster_custom_object.assert_called_once_with(
-        label_selector="clusterman.yelp.com/migration_status in (pending,inprogress),clusterman.com/pool=bar",
+        label_selector=(
+            "clusterman.yelp.com/migration_status in (pending,inprogress)"
+            ",clusterman.com/pool=bar"
+            ",clusterman.yelp.com/attempts in (0,1,2)"
+        )
     )
 
 
@@ -455,6 +466,7 @@ def test_create_node_migration_resource(mock_cluster_connector_crd):
                 "name": "mesos-test-bar-111222333",
                 "labels": {
                     "clusterman.yelp.com/migration_status": "pending",
+                    "clusterman.yelp.com/attempts": "0",
                     "clusterman.com/pool": "bar",
                 },
             },

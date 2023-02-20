@@ -75,6 +75,12 @@ The following is an example configuration file for the core Clusterman service a
             # How frequently the batch should check for migration triggers.
             run_interval_seconds: 60
 
+            # Number of failed attempts tollerated for event workers.
+            # Job is marked as failed once this number of attempts is surpassed,
+            # and timespan from event creation is higher than this many times
+            # the estimated migration time for the pool.
+            failed_attemps_margin: 5
+
     clusters:
         cluster-name:
             aws_region: us-west-2

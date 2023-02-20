@@ -17,18 +17,16 @@ from typing import NamedTuple
 from typing import Union
 
 from clusterman.interfaces.types import ClusterNodeMetadata
+from clusterman.migration.constants import DEFAULT_ALLOWED_FAILED_DRAINS
+from clusterman.migration.constants import DEFAULT_HEALTH_CHECK_INTERVAL
+from clusterman.migration.constants import DEFAULT_MAX_UPTIME_WORKER_SKIPS
+from clusterman.migration.constants import DEFAULT_NODE_BOOT_TIMEOUT
+from clusterman.migration.constants import DEFAULT_NODE_BOOT_WAIT
+from clusterman.migration.constants import DEFAULT_ORPHAN_CAPACITY_TOLLERANCE
+from clusterman.migration.constants import DEFAULT_POOL_PRESCALING
+from clusterman.migration.constants import DEFAULT_WORKER_TIMEOUT
+from clusterman.migration.constants import MAX_ORPHAN_CAPACITY_TOLLERANCE
 from clusterman.util import parse_time_interval_seconds
-
-
-DEFAULT_POOL_PRESCALING = 0
-DEFAULT_NODE_BOOT_WAIT = "3m"
-DEFAULT_NODE_BOOT_TIMEOUT = "10m"
-DEFAULT_WORKER_TIMEOUT = "2h"
-DEFAULT_HEALTH_CHECK_INTERVAL = "2m"
-DEFAULT_ALLOWED_FAILED_DRAINS = 3
-DEFAULT_ORPHAN_CAPACITY_TOLLERANCE = 0
-DEFAULT_MAX_UPTIME_WORKER_SKIPS = 6
-MAX_ORPHAN_CAPACITY_TOLLERANCE = 0.2
 
 
 class MigrationPrecendence(enum.Enum):
@@ -104,7 +102,9 @@ class WorkerSetup(NamedTuple):
             prescaling=PoolPortion(strat_conf.get("prescaling", DEFAULT_POOL_PRESCALING)),
             precedence=MigrationPrecendence(strat_conf.get("precedence", MigrationPrecendence.default())),
             bootstrap_wait=parse_time_interval_seconds(strat_conf.get("bootstrap_wait", DEFAULT_NODE_BOOT_WAIT)),
-            bootstrap_timeout=parse_time_interval_seconds(strat_conf.get("bootstrap_timeout", DEFAULT_NODE_BOOT_WAIT)),
+            bootstrap_timeout=parse_time_interval_seconds(
+                strat_conf.get("bootstrap_timeout", DEFAULT_NODE_BOOT_TIMEOUT)
+            ),
             disable_autoscaling=config.get("disable_autoscaling", False),
             expected_duration=parse_time_interval_seconds(config.get("expected_duration", DEFAULT_WORKER_TIMEOUT)),
             ignore_pod_health=config.get("ignore_pod_health", False),

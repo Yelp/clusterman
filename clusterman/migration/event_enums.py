@@ -33,6 +33,7 @@ class MigrationStatus(enum.Enum):
     COMPLETED = "completed"
     SKIPPED = "skipped"
     STOP = "stop"
+    FAILED = "failed"
 
 
 class ConditionTrait(enum.Enum):

@@ -14,6 +14,7 @@
 from datetime import timedelta
 from typing import Type
 
+import arrow
 import packaging.version
 import pytest
 import semver
@@ -109,10 +110,13 @@ def test_event_to_string():
             ConditionOperator.IN,
             [semver.VersionInfo.parse("1.2.3"), semver.VersionInfo.parse("3.4.5")],
         ),
+        previous_attempts=3,
+        created=arrow.get("2023-02-10T11:18:17Z"),
     )
-    assert (
-        str(event)
-        == "MigrationEvent(cluster=mesos-test, pool=bar, label_selectors=[], condition=(KERNEL in 1.2.3,3.4.5))"
+    assert str(event) == (
+        "MigrationEvent(cluster=mesos-test, pool=bar,"
+        " label_selectors=[], condition=(KERNEL in 1.2.3,3.4.5),"
+        " attempts=3, created=2023-02-10T11:18:17+00:00)"
     )
 
 
@@ -143,3 +147,30 @@ def test_condition_matches(condition, result):
         instance=InstanceMetadata(market=InstanceMarket("m5.4xlarge", None), weight=None, uptime=timedelta(days=10)),
     )
     assert condition.matches(node_metadata) is result
+
+
+@pytest.mark.parametrize(
+    "condition,current_time,result",
+    (
+        # instance younger than 1337s, 10d instance doesn't match
+        (MigrationCondition(ConditionTrait.UPTIME, ConditionOperator.LT, 1337), None, False),
+        # instance younger than 15d, checked with no delay, 10d instance matches
+        (
+            MigrationCondition(ConditionTrait.UPTIME, ConditionOperator.LT, timedelta(days=15).total_seconds()),
+            arrow.now(),
+            True,
+        ),
+        # instance younger than 5d, but checked with 7d delay, 10d instance matches as at check creation is what 3d old
+        (
+            MigrationCondition(ConditionTrait.UPTIME, ConditionOperator.LT, timedelta(days=5).total_seconds()),
+            arrow.now() - timedelta(days=7),
+            True,
+        ),
+    ),
+)
+def test_condition_matches_uptime_offset(condition, current_time, result):
+    node_metadata = ClusterNodeMetadata(
+        agent=AgentMetadata(kernel="3.2.1", lsbrelease="20.04"),
+        instance=InstanceMetadata(market=InstanceMarket("m5.4xlarge", None), weight=None, uptime=timedelta(days=10)),
+    )
+    assert condition.matches(node_metadata, current_time) is result

@@ -20,11 +20,13 @@ from typing import Optional
 from typing import Tuple
 from typing import Union
 
+import arrow
 import packaging.version
 import semver
 
 from clusterman.aws.markets import get_instance_type
 from clusterman.interfaces.types import ClusterNodeMetadata
+from clusterman.migration.constants import MIGRATION_CRD_ATTEMPTS_LABEL
 from clusterman.migration.event_enums import ComparableConditionTarget
 from clusterman.migration.event_enums import ComparableVersion
 from clusterman.migration.event_enums import CONDITION_OPERATOR_SUPPORT_MATRIX
@@ -115,13 +117,19 @@ class MigrationCondition(NamedTuple):
             "target": self.stringify_target(),
         }
 
-    def matches(self, node: ClusterNodeMetadata) -> bool:
+    def matches(self, node: ClusterNodeMetadata, present_time: Optional[arrow.Arrow] = None) -> bool:
         """Check if condition is met for a node
 
         :param ClusterNodeMetadata node: node metadata
+        :param arrow.Arrow present_time: offset time for uptime comparisons
         :return: true if it meets the condition
         """
-        return self.operator.apply(self.trait.get_from(node), self.target)
+        target = (
+            self.target + (arrow.now() - present_time).total_seconds()
+            if present_time and self.trait == ConditionTrait.UPTIME
+            else self.target
+        )
+        return self.operator.apply(self.trait.get_from(node), target)
 
     def __str__(self) -> str:
         return f"{self.trait.name} {self.operator.value} {self.stringify_target()}"
@@ -133,6 +141,8 @@ class MigrationEvent(NamedTuple):
     pool: str
     label_selectors: List[str]
     condition: MigrationCondition
+    previous_attempts: int = 0
+    created: Optional[arrow.Arrow] = None
 
     def __hash__(self) -> int:
         """Simplified object hash since resource_name should be unique"""
@@ -141,7 +151,8 @@ class MigrationEvent(NamedTuple):
     def __str__(self) -> str:
         return (
             f"MigrationEvent(cluster={self.cluster}, pool={self.pool},"
-            f" label_selectors={self.label_selectors}, condition=({self.condition}))"
+            f" label_selectors={self.label_selectors}, condition=({self.condition}),"
+            f" attempts={self.previous_attempts}, created={self.created})"
         )
 
     def to_crd_body(self, labels: Optional[dict] = None) -> dict:
@@ -164,6 +175,14 @@ class MigrationEvent(NamedTuple):
             body["metadata"]["labels"] = labels.copy()  # type: ignore
         return body
 
+    def matches(self, node: ClusterNodeMetadata) -> bool:
+        """Check if event condition is met for a node
+
+        :param ClusterNodeMetadata node: node metadata
+        :return: true if it meets the condition
+        """
+        return self.condition.matches(node, self.created)
+
     @classmethod
     def from_crd(cls, crd: dict) -> "MigrationEvent":
         """Load migration trigger event into class instance
@@ -178,4 +197,6 @@ class MigrationEvent(NamedTuple):
             pool=event_data["pool"],
             label_selectors=event_data.get("label_selectors", []),
             condition=MigrationCondition.from_dict(event_data["condition"]),
+            previous_attempts=int(crd["metadata"]["labels"].get(MIGRATION_CRD_ATTEMPTS_LABEL, 0)),
+            created=arrow.get(crd["metadata"].get("creationTimestamp", None)),  # current time by default
         )

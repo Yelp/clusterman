@@ -41,19 +41,21 @@ from clusterman.kubernetes.util import get_node_kernel_version
 from clusterman.kubernetes.util import get_node_lsbrelease
 from clusterman.kubernetes.util import total_node_resources
 from clusterman.kubernetes.util import total_pod_resources
+from clusterman.migration.constants import MIGRATION_CRD_ATTEMPTS_LABEL
+from clusterman.migration.constants import MIGRATION_CRD_GROUP
+from clusterman.migration.constants import MIGRATION_CRD_KIND
+from clusterman.migration.constants import MIGRATION_CRD_PLURAL
+from clusterman.migration.constants import MIGRATION_CRD_STATUS_LABEL
+from clusterman.migration.constants import MIGRATION_CRD_VERSION
 from clusterman.migration.event import MigrationEvent
 from clusterman.migration.event_enums import MigrationStatus
 from clusterman.util import ClustermanResources
 from clusterman.util import strtobool
 
+
 logger = colorlog.getLogger(__name__)
 KUBERNETES_SCHEDULED_PHASES = {"Pending", "Running"}
 CLUSTERMAN_TERMINATION_TAINT_KEY = "clusterman.yelp.com/terminating"
-MIGRATION_CRD_GROUP = "clusterman.yelp.com"
-MIGRATION_CRD_VERSION = "v1"
-MIGRATION_CRD_PLURAL = "nodemigrations"
-MIGRATION_CRD_KIND = "NodeMigration"
-MIGRATION_CRD_STATUS_LABEL = "clusterman.yelp.com/migration_status"
 NOT_FOUND_STATUS = 404
 # we don't want to block on eviction/deletion as we're potentially evicting/deleting a ton of pods
 # AND there's a delay before we go ahead and terminate
@@ -247,10 +249,13 @@ class KubernetesClusterConnector(ClusterConnector):
             logger.warning(f"Failed to uncordon {node_name}: {e.status} - {e.reason}")
             return False
 
-    def list_node_migration_resources(self, statuses: List[MigrationStatus]) -> Set[MigrationEvent]:
+    def list_node_migration_resources(
+        self, statuses: List[MigrationStatus], max_attempts: Optional[int] = None
+    ) -> Set[MigrationEvent]:
         """Fetch node migration event resource from k8s CRD
 
         :param List[MigrationStatus] statuses: event status to look for
+        :param Optional[int] max_attempts: max number of attempts done on event
         :return: collection of migration events
         """
         assert self._migration_crd_api, "CRD client was not initialized"
@@ -259,29 +264,32 @@ class KubernetesClusterConnector(ClusterConnector):
             label_selector = f"{MIGRATION_CRD_STATUS_LABEL} in ({label_filter})"
             if self.pool:
                 label_selector += f",{self.pool_label_key}={self.pool}"
+            if max_attempts is not None:
+                attemps_filter = ",".join(map(str, range(max_attempts)))
+                label_selector += f",{MIGRATION_CRD_ATTEMPTS_LABEL} in ({attemps_filter})"
             resources = self._migration_crd_api.list_cluster_custom_object(label_selector=label_selector)
             return set(map(MigrationEvent.from_crd, resources.get("items", [])))
         except Exception as e:
             logger.error(f"Failed fetching migration events: {e}")
         return set()
 
-    def mark_node_migration_resource(self, event_name: str, status: MigrationStatus) -> None:
+    def mark_node_migration_resource(
+        self, event_name: str, status: MigrationStatus, attempts: Optional[int] = None
+    ) -> None:
         """Set status for migration event resource
 
         :param str event_name: name of the resource CRD
-        :status MigrationStatus status: status to be set
+        :param MigrationStatus status: status to be set
+        :param Optional[int] attempts: number of failed attempts to complete migration
         """
         assert self._migration_crd_api, "CRD client was not initialized"
+        labels = {MIGRATION_CRD_STATUS_LABEL: status.value}
+        if attempts is not None:
+            labels[MIGRATION_CRD_ATTEMPTS_LABEL] = str(attempts)
         try:
             self._migration_crd_api.patch_cluster_custom_object(
                 name=event_name,
-                body={
-                    "metadata": {
-                        "labels": {
-                            MIGRATION_CRD_STATUS_LABEL: status.value,
-                        }
-                    }
-                },
+                body={"metadata": {"labels": labels}},
             )
         except Exception as e:
             logger.error(f"Failed updating migration event status: {e}")
@@ -296,7 +304,13 @@ class KubernetesClusterConnector(ClusterConnector):
         """
         assert self._migration_crd_api, "CRD client was not initialized"
         try:
-            body = event.to_crd_body(labels={MIGRATION_CRD_STATUS_LABEL: status.value, self.pool_label_key: event.pool})
+            body = event.to_crd_body(
+                labels={
+                    MIGRATION_CRD_STATUS_LABEL: status.value,
+                    MIGRATION_CRD_ATTEMPTS_LABEL: "0",
+                    self.pool_label_key: event.pool,
+                },
+            )
             body["apiVersion"] = f"{MIGRATION_CRD_GROUP}/{MIGRATION_CRD_VERSION}"
             body["kind"] = MIGRATION_CRD_KIND
             self._migration_crd_api.create_cluster_custom_object(body=body)
