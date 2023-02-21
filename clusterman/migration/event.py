@@ -198,5 +198,5 @@ class MigrationEvent(NamedTuple):
             label_selectors=event_data.get("label_selectors", []),
             condition=MigrationCondition.from_dict(event_data["condition"]),
             previous_attempts=int(crd["metadata"]["labels"].get(MIGRATION_CRD_ATTEMPTS_LABEL, 0)),
-            created=arrow.get(crd["metadata"].get("creationTimestamp", None)),  # current time by default
+            created=arrow.get(crd["metadata"].get("creationTimestamp", arrow.now())),
         )
