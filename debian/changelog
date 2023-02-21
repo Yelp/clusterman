@@ -1,3 +1,9 @@
+clusterman (4.19.2) xenial bionic; urgency=low
+
+  * Update arrow to relatively newer version
+
+ -- Matteo Piano <mpiano@yelp.com>  Tue, 21 Feb 2023 03:42:37 -0800
+
 clusterman (4.19.1) xenial bionic; urgency=low
 
   * Add failed attempts information to migration CRD labels
