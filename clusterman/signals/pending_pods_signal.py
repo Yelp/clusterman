@@ -7,6 +7,7 @@ import colorlog
 from clusterman_metrics import ClustermanMetricsBotoClient
 from kubernetes.client.models.v1_pod import V1Pod as KubernetesPod
 
+from clusterman.autoscaler.config import get_autoscaling_config
 from clusterman.interfaces.signal import Signal
 from clusterman.kubernetes.kubernetes_cluster_connector import KubernetesClusterConnector
 from clusterman.kubernetes.util import total_pod_resources
@@ -29,6 +30,7 @@ class PendingPodsSignal(Signal):
     ) -> None:
         super().__init__(self.__class__.__name__, cluster, pool, scheduler, app, config_namespace)
         self.cluster_connector = cluster_connector
+        self.config_namespace = config_namespace
 
     def evaluate(
         self,
@@ -41,6 +43,15 @@ class PendingPodsSignal(Signal):
         # Get the most recent metrics _now_ and when the boost was set (if any) and merge them
         if self.parameters.get("per_pod_resource_requests"):
             return pending_pods
+        elif self.parameters.get("v2", True):
+            total_resources = self.cluster_connector.get_cluster_total_resources()
+            autoscaling_config = get_autoscaling_config(self.config_namespace)
+            return self._get_resource_request_v2(
+                allocated_resources,
+                total_resources,
+                autoscaling_config.target_capacity_margin,
+                pending_pods,
+            )
         else:
             return self._get_resource_request(allocated_resources, pending_pods)
 
@@ -65,3 +76,30 @@ class PendingPodsSignal(Signal):
             logger.info(f"Pending pods adding resource request: {resource_request} (multiplier {multiplier})")
 
         return resource_request + allocated_resources
+
+    def _get_resource_request_v2(
+        self,
+        allocated_resources: ClustermanResources,
+        total_resources: ClustermanResources,
+        target_capacity_margin: float,
+        pending_pods: Optional[List[KubernetesPod]] = None,
+    ) -> SignalResourceRequest:
+        """Given a list of metrics, construct a resource request based on the most recent
+        data for allocated and pending pods"""
+
+        multiplier = self.parameters.get("pending_pods_multiplier", 2)
+
+        resource_request = SignalResourceRequest()
+        pending_pods = pending_pods or []
+
+        if len(pending_pods) > 0:
+            for pod in pending_pods:
+                resource_request += total_pod_resources(pod) * multiplier
+            min_resources_to_bump = SignalResourceRequest(*total_resources * target_capacity_margin)
+
+            # We want to be sure that clusterman will bump capacity if there is any pendings pods
+            resources_to_add = max(min_resources_to_bump, resource_request)
+
+            return resources_to_add + total_resources
+        else:
+            return allocated_resources
