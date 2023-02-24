@@ -130,7 +130,7 @@ class KubernetesClusterConnector(ClusterConnector):
             self._pods_by_ip, self._unschedulable_pods, self._excluded_pods = (
                 dict.fromkeys(self._nodes_by_ip, []),
                 [],
-                {},
+                [],
             )
 
     def reload_client(self) -> None:
