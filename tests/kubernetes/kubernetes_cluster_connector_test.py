@@ -384,9 +384,8 @@ def mock_cluster_connector_crd(mock_cluster_connector):
 )
 def test_get_agent_metadata(mock_cluster_connector, ip_address, expected_state):
     with PatchConfiguration(
-            {"exclude_daemonset_pods": True},
-            namespace=POOL_NAMESPACE.format(pool=mock_cluster_connector.pool,
-                                            scheduler=mock_cluster_connector.SCHEDULER),
+        {"exclude_daemonset_pods": True},
+        namespace=POOL_NAMESPACE.format(pool=mock_cluster_connector.pool, scheduler=mock_cluster_connector.SCHEDULER),
     ):
         mock_cluster_connector.reload_state()
         agent_metadata = mock_cluster_connector.get_agent_metadata(ip_address)
@@ -420,9 +419,7 @@ def test_allocation_with_excluded_pods(mock_cluster_connector, daemonset_pod_1, 
         "clusterman.kubernetes.kubernetes_cluster_connector.KubernetesClusterConnector._list_all_pods_on_node",
         autospec=True,
     ) as mock_list_all_pods_on_node:
-        mock_list_all_pods_on_node.return_value = [
-            daemonset_pod_1
-        ]
+        mock_list_all_pods_on_node.return_value = [daemonset_pod_1]
         mock_cluster_connector.reload_state()
         assert daemonset_pod_1 not in mock_cluster_connector._pods_by_ip["10.10.10.1"]
         assert daemonset_pod_2 not in mock_cluster_connector._pods_by_ip["10.10.10.2"]

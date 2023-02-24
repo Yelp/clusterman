@@ -415,12 +415,7 @@ class KubernetesClusterConnector(ClusterConnector):
 
     def _get_pods_info_with_label(
         self,
-    ) -> Tuple[
-        Mapping[str, List[KubernetesPod]],
-        List[KubernetesPod],
-        ClustermanResources,
-        ClustermanResources,
-    ]:
+    ) -> Tuple[Mapping[str, List[KubernetesPod]], List[KubernetesPod], ClustermanResources, ClustermanResources,]:
         pods_by_ip: Mapping[str, List[KubernetesPod]] = defaultdict(list)
         unschedulable_pods: List[KubernetesPod] = []
 
@@ -451,7 +446,7 @@ class KubernetesClusterConnector(ClusterConnector):
         )
 
     def _get_excluded_pods(self) -> List[KubernetesPod]:
-        excluded_pods: List[KubernetesPod]= []
+        excluded_pods: List[KubernetesPod] = []
 
         exclude_daemonset_pods = self.pool_config.read_bool(
             "exclude_daemonset_pods",
@@ -468,7 +463,6 @@ class KubernetesClusterConnector(ClusterConnector):
                 excluded_pods.append(pod)
 
         return excluded_pods
-
 
     def _count_batch_tasks(self, node_ip: str) -> int:
         count = 0
