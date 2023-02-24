@@ -87,9 +87,15 @@ class PendingPodsSignal(Signal):
         """Given a list of metrics, construct a resource request based on the most recent
         data for allocated and pending pods"""
 
+        multiplier = self.parameters.get("pending_pods_multiplier", 2)
+
+        resource_request = SignalResourceRequest()
         pending_pods = pending_pods or []
 
         if len(pending_pods) > 0:
-            return total_resources * (1 + target_capacity_margin)
+            for pod in pending_pods:
+                resource_request += total_pod_resources(pod) * multiplier
+        # may need to cast to SignalResourceRequest
+            return total_resources + max(total_resources*target_capacity_margin, resource_request)
         else:
             return allocated_resources
