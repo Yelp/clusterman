@@ -21,7 +21,7 @@ from clusterman.util import limit_function_runtime
 
 
 logger = colorlog.getLogger(__name__)
-TIMEOUT_TIME_SECONDS = 10
+TIMEOUT_TIME_SECONDS = 15
 
 
 def timeout_wrapper(main):
