@@ -426,10 +426,18 @@ class KubernetesClusterConnector(ClusterConnector):
 
         unschedulable_pods_resources: ClustermanResources = ClustermanResources()
         allocated_pods_resources: ClustermanResources = ClustermanResources()
+
+        exclude_daemonset_pods = self.pool_config.read_bool(
+            "exclude_daemonset_pods",
+            default=staticconf.read_bool("exclude_daemonset_pods", default=False),
+        )
         label_selector = f"{self.pool_label_key}={self.pool}"
 
         for pod in self._core_api.list_pod_for_all_namespaces(label_selector=label_selector).items:
-            if pod.status.phase == "Running" or self._is_recently_scheduled(pod):
+            if exclude_daemonset_pods and self._pod_belongs_to_daemonset(pod):
+                # In the current situation, this will never be reached. Because daemonsets don't have pool label
+                continue
+            elif pod.status.phase == "Running" or self._is_recently_scheduled(pod):
                 pods_by_ip[pod.status.host_ip].append(pod)
                 allocated_pods_resources += total_pod_resources(pod)
             elif self._is_unschedulable(pod):
