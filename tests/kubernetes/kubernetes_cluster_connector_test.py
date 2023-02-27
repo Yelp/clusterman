@@ -156,7 +156,30 @@ def pending_pod():
 
 
 @pytest.fixture
-def daemonset_pod():
+def daemonset_pod_1():
+    return V1Pod(
+        metadata=V1ObjectMeta(
+            name="daemonset_pod",
+            annotations=dict(),
+            owner_references=[V1OwnerReference(kind="DaemonSet", api_version="foo", name="daemonset", uid="bar")],
+        ),
+        status=V1PodStatus(
+            phase="Running",
+            host_ip="10.10.10.1",
+        ),
+        spec=V1PodSpec(
+            containers=[
+                V1Container(
+                    name="container1",
+                    resources=V1ResourceRequirements(requests={"cpu": "1.5"}),
+                )
+            ],
+        ),
+    )
+
+
+@pytest.fixture
+def daemonset_pod_2():
     return V1Pod(
         metadata=V1ObjectMeta(
             name="daemonset_pod",
@@ -166,6 +189,29 @@ def daemonset_pod():
         status=V1PodStatus(
             phase="Running",
             host_ip="10.10.10.2",
+        ),
+        spec=V1PodSpec(
+            containers=[
+                V1Container(
+                    name="container1",
+                    resources=V1ResourceRequirements(requests={"cpu": "1.5"}),
+                )
+            ],
+        ),
+    )
+
+
+@pytest.fixture
+def daemonset_pod_3():
+    return V1Pod(
+        metadata=V1ObjectMeta(
+            name="daemonset_pod",
+            annotations=dict(),
+            owner_references=[V1OwnerReference(kind="DaemonSet", api_version="foo", name="daemonset", uid="bar")],
+        ),
+        status=V1PodStatus(
+            phase="Running",
+            host_ip="10.10.10.3",
         ),
         spec=V1PodSpec(
             containers=[
@@ -269,7 +315,9 @@ def mock_cluster_connector(
     unevictable_pod,
     unschedulable_pod,
     pending_pod,
-    daemonset_pod,
+    daemonset_pod_1,
+    daemonset_pod_2,
+    daemonset_pod_3,
 ):
     with mock.patch("clusterman.kubernetes.kubernetes_cluster_connector.kubernetes",), mock.patch(
         "clusterman.kubernetes.kubernetes_cluster_connector.CachedCoreV1Api",
@@ -309,7 +357,9 @@ def mock_cluster_connector(
             unevictable_pod,
             unschedulable_pod,
             pending_pod,
-            daemonset_pod,
+            daemonset_pod_1,
+            daemonset_pod_2,
+            daemonset_pod_3,
         ]
         mock_cluster_connector = KubernetesClusterConnector("kubernetes-test", "bar")
         mock_cluster_connector.reload_state()
@@ -333,9 +383,14 @@ def mock_cluster_connector_crd(mock_cluster_connector):
     ],
 )
 def test_get_agent_metadata(mock_cluster_connector, ip_address, expected_state):
-    agent_metadata = mock_cluster_connector.get_agent_metadata(ip_address)
-    assert agent_metadata.is_safe_to_kill == (ip_address != "10.10.10.2")
-    assert agent_metadata.state == expected_state
+    with PatchConfiguration(
+        {"exclude_daemonset_pods": True},
+        namespace=POOL_NAMESPACE.format(pool=mock_cluster_connector.pool, scheduler=mock_cluster_connector.SCHEDULER),
+    ):
+        mock_cluster_connector.reload_state()
+        agent_metadata = mock_cluster_connector.get_agent_metadata(ip_address)
+        assert agent_metadata.is_safe_to_kill == (ip_address != "10.10.10.2")
+        assert agent_metadata.state == expected_state
 
 
 def test_get_nodes_by_ip(mock_cluster_connector):
@@ -353,17 +408,23 @@ def test_reload_state_no_pods(mock_cluster_connector):
 
 
 def test_allocation(mock_cluster_connector):
-    assert mock_cluster_connector.get_resource_allocation("cpus") == 7.5
+    assert mock_cluster_connector.get_resource_allocation("cpus") == 10.5
 
 
-def test_allocation_with_excluded_pods(mock_cluster_connector, daemonset_pod):
+def test_allocation_with_excluded_pods(mock_cluster_connector, daemonset_pod_1, daemonset_pod_2, daemonset_pod_3):
     with PatchConfiguration(
         {"exclude_daemonset_pods": True},
         namespace=POOL_NAMESPACE.format(pool=mock_cluster_connector.pool, scheduler=mock_cluster_connector.SCHEDULER),
-    ):
+    ), mock.patch(
+        "clusterman.kubernetes.kubernetes_cluster_connector.KubernetesClusterConnector._list_all_pods_on_node",
+        autospec=True,
+    ) as mock_list_all_pods_on_node:
+        mock_list_all_pods_on_node.return_value = [daemonset_pod_1]
         mock_cluster_connector.reload_state()
-        assert daemonset_pod not in mock_cluster_connector._pods_by_ip["10.10.10.2"]
-        assert mock_cluster_connector.get_resource_total("cpus") == 10
+        assert daemonset_pod_1 not in mock_cluster_connector._pods_by_ip["10.10.10.1"]
+        assert daemonset_pod_2 not in mock_cluster_connector._pods_by_ip["10.10.10.2"]
+        assert daemonset_pod_3 not in mock_cluster_connector._pods_by_ip["10.10.10.3"]
+        assert mock_cluster_connector.get_resource_total("cpus") == 7
         assert mock_cluster_connector.get_resource_allocation("cpus") == 6
 
 
@@ -379,9 +440,9 @@ def test_pending_cpus(mock_cluster_connector):
     assert mock_cluster_connector.get_resource_pending("cpus") == 1.5
 
 
-def test_pod_belongs_to_daemonset(mock_cluster_connector, running_pod_1, daemonset_pod):
+def test_pod_belongs_to_daemonset(mock_cluster_connector, running_pod_1, daemonset_pod_1):
     assert not mock_cluster_connector._pod_belongs_to_daemonset(running_pod_1)
-    assert mock_cluster_connector._pod_belongs_to_daemonset(daemonset_pod)
+    assert mock_cluster_connector._pod_belongs_to_daemonset(daemonset_pod_1)
 
 
 def test_list_node_migration_resources(mock_cluster_connector_crd):
