@@ -1,3 +1,9 @@
+clusterman (4.19.3) xenial bionic; urgency=low
+
+  * Re-implemented excluded resource (daemonset) logic
+
+ -- Ilkin Mammadzada <ilkinmammadzada@yelp.com>  Mon, 27 Feb 2023 01:37:57 -0800
+
 clusterman (4.19.2) xenial bionic; urgency=low
 
   * Update arrow to relatively newer version
