@@ -43,7 +43,7 @@ class PendingPodsSignal(Signal):
         # Get the most recent metrics _now_ and when the boost was set (if any) and merge them
         if self.parameters.get("per_pod_resource_requests"):
             return pending_pods
-        elif self.parameters.get("v2", True):
+        elif self.parameters.get("v2", False):
             total_resources = self.cluster_connector.get_cluster_total_resources()
             autoscaling_config = get_autoscaling_config(self.config_namespace)
             return self._get_resource_request_v2(
