@@ -102,4 +102,4 @@ class PendingPodsSignal(Signal):
 
             return resources_to_add + total_resources
         else:
-            return allocated_resources
+            return SignalResourceRequest(*allocated_resources)
