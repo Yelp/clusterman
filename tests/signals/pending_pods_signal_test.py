@@ -123,6 +123,7 @@ def test_get_resource_request_v2_no_pending_pods(
         target_capacity_margin,
     ) == SignalResourceRequest(cpus=150, mem=300000, disk=500000, gpus=0)
 
+
 def test_get_resource_request_v2_pending_pods_and_metrics(
     allocated_resources,
     total_resources,
@@ -136,6 +137,7 @@ def test_get_resource_request_v2_pending_pods_and_metrics(
         target_capacity_margin,
         pending_pods,
     ) == SignalResourceRequest(cpus=206, mem=360000, disk=750000, gpus=0)
+
 
 def test_get_resource_request_v2_pending_pods_and_metrics_bigger_margin(
     allocated_resources,
