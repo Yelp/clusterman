@@ -95,7 +95,11 @@ class PendingPodsSignal(Signal):
         if len(pending_pods) > 0:
             for pod in pending_pods:
                 resource_request += total_pod_resources(pod) * multiplier
-        # may need to cast to SignalResourceRequest
-            return total_resources + max(total_resources*target_capacity_margin, resource_request)
+            min_resources_to_bump = SignalResourceRequest(*total_resources * target_capacity_margin)
+
+            # We want to be sure that clusterman will bump capacity if there is any pendings pods
+            resources_to_add = max(min_resources_to_bump, resource_request)
+
+            return resources_to_add + total_resources
         else:
             return allocated_resources
