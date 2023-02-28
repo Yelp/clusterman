@@ -34,13 +34,16 @@ def pending_pods_signal():
 def allocated_resources():
     return ClustermanResources(cpus=150, mem=300000, disk=500000, gpus=0)
 
+
 @pytest.fixture
 def total_resources():
     return ClustermanResources(cpus=200, mem=350000, disk=750000, gpus=0)
 
+
 @pytest.fixture
 def target_capacity_margin():
     return 0.02
+
 
 @pytest.fixture
 def pending_pods():
@@ -106,6 +109,7 @@ def test_get_resource_request_only_pending_pods_custom_multipler(pending_pods, p
         disk=0,
         gpus=0,
     )
+
 
 def test_get_resource_request_v2_no_pending_pods(
     allocated_resources,
