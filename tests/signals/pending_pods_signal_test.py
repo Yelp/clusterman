@@ -32,8 +32,15 @@ def pending_pods_signal():
 
 @pytest.fixture
 def allocated_resources():
-    return ClustermanResources(cpus=150, mem=1000, disk=500, gpus=0)
+    return ClustermanResources(cpus=150, mem=300000, disk=500000, gpus=0)
 
+@pytest.fixture
+def total_resources():
+    return ClustermanResources(cpus=200, mem=350000, disk=750000, gpus=0)
+
+@pytest.fixture
+def target_capacity_margin():
+    return 0.02
 
 @pytest.fixture
 def pending_pods():
@@ -48,11 +55,11 @@ def pending_pods():
                 containers=[
                     V1Container(
                         name="container1",
-                        resources=V1ResourceRequirements(requests={"cpu": "1.5", "memory": "150MB"}),
+                        resources=V1ResourceRequirements(requests={"cpu": "1.5", "memory": "1500MB"}),
                     ),
                     V1Container(
                         name="container1",
-                        resources=V1ResourceRequirements(requests={"cpu": "1.5", "memory": "350MB"}),
+                        resources=V1ResourceRequirements(requests={"cpu": "1.5", "memory": "3500MB"}),
                     ),
                 ]
             ),
@@ -64,8 +71,8 @@ def pending_pods():
 def test_get_resource_request_no_pending_pods(allocated_resources, pending_pods_signal):
     assert pending_pods_signal._get_resource_request(allocated_resources) == SignalResourceRequest(
         cpus=150,
-        mem=1000,
-        disk=500,
+        mem=300000,
+        disk=500000,
         gpus=0,
     )
 
@@ -74,7 +81,7 @@ def test_get_resource_request_no_pending_pods(allocated_resources, pending_pods_
 def test_get_resource_request_only_pending_pods(pending_pods, pending_pods_signal):
     assert pending_pods_signal._get_resource_request(ClustermanResources(), pending_pods) == SignalResourceRequest(
         cpus=6,
-        mem=1000,
+        mem=10000,
         disk=0,
         gpus=0,
     )
@@ -84,8 +91,8 @@ def test_get_resource_request_only_pending_pods(pending_pods, pending_pods_signa
 def test_get_resource_request_pending_pods_and_metrics(allocated_resources, pending_pods, pending_pods_signal):
     assert pending_pods_signal._get_resource_request(allocated_resources, pending_pods) == SignalResourceRequest(
         cpus=156,
-        mem=2000,
-        disk=500,
+        mem=310000,
+        disk=500000,
         gpus=0,
     )
 
@@ -95,7 +102,46 @@ def test_get_resource_request_only_pending_pods_custom_multipler(pending_pods, p
     pending_pods_signal.parameters["pending_pods_multiplier"] = 20
     assert pending_pods_signal._get_resource_request(ClustermanResources(), pending_pods) == SignalResourceRequest(
         cpus=60,
-        mem=10000,
+        mem=100000,
         disk=0,
         gpus=0,
     )
+
+def test_get_resource_request_v2_no_pending_pods(
+    allocated_resources,
+    total_resources,
+    target_capacity_margin,
+    pending_pods_signal,
+):
+    assert pending_pods_signal._get_resource_request_v2(
+        allocated_resources,
+        total_resources,
+        target_capacity_margin,
+    ) == SignalResourceRequest(cpus=150, mem=300000, disk=500000, gpus=0)
+
+def test_get_resource_request_v2_pending_pods_and_metrics(
+    allocated_resources,
+    total_resources,
+    target_capacity_margin,
+    pending_pods,
+    pending_pods_signal,
+):
+    assert pending_pods_signal._get_resource_request_v2(
+        allocated_resources,
+        total_resources,
+        target_capacity_margin,
+        pending_pods
+    ) == SignalResourceRequest(cpus=206, mem=360000, disk=750000, gpus=0)
+
+def test_get_resource_request_v2_pending_pods_and_metrics_bigger_margin(
+    allocated_resources,
+    total_resources,
+    pending_pods,
+    pending_pods_signal,
+):
+    assert pending_pods_signal._get_resource_request_v2(
+        allocated_resources,
+        total_resources,
+        0.05,
+        pending_pods
+    ) == SignalResourceRequest(cpus=210, mem=367500, disk=787500, gpus=0)
