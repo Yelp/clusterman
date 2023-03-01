@@ -1,3 +1,9 @@
+clusterman (4.19.4) xenial bionic; urgency=low
+
+  * Implemented new version of the pending pods signal
+
+ -- Ilkin Mammadzada <ilkinmammadzada@yelp.com>  Wed, 01 Mar 2023 02:03:15 -0800
+
 clusterman (4.19.3) xenial bionic; urgency=low
 
   * Re-implemented excluded resource (daemonset) logic
