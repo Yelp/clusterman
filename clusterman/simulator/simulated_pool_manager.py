@@ -58,6 +58,9 @@ class SimulatedPoolManager(PoolManager):
             self.pool_config.read_int("scaling_limits.min_node_scalein_uptime_seconds", default=-1),
             MAX_MIN_NODE_SCALEIN_UPTIME_SECONDS,
         )
+        self.killable_nodes_prioritizing_v2 = self.pool_config.read_bool(
+            "autoscaling.killable_nodes_prioritizing_v2", default=False
+        )
         monitoring_info = {"cluster": cluster, "pool": pool}
         self.killable_nodes_counter = get_monitoring_client().create_counter(SFX_KILLABLE_NODES_COUNT, monitoring_info)
 

@@ -82,6 +82,9 @@ class PoolManager:
             self.pool_config.read_int("scaling_limits.min_node_scalein_uptime_seconds", default=-1),
             MAX_MIN_NODE_SCALEIN_UPTIME_SECONDS,
         )
+        self.killable_nodes_prioritizing_v2 = self.pool_config.read_bool(
+            "autoscaling.killable_nodes_prioritizing_v2", default=False
+        )
         monitoring_info = {"cluster": cluster, "pool": pool}
         self.killable_nodes_counter = get_monitoring_client().create_counter(SFX_KILLABLE_NODES_COUNT, monitoring_info)
 
@@ -575,9 +578,22 @@ class PoolManager:
                 node_metadata.agent.task_count,
             )
 
+        def sort_key_v2(
+            node_metadata: ClusterNodeMetadata,
+        ) -> Tuple[int, int, int, int, int, int, float]:
+            return (
+                0 if node_metadata.agent.is_draining else 1,
+                0 if node_metadata.agent.state == AgentState.ORPHANED else 1,
+                0 if node_metadata.instance.is_stale else 1,
+                0 if node_metadata.instance.uptime.total_seconds() > self.min_node_scalein_uptime else 1,
+                0 if node_metadata.agent.state == AgentState.IDLE else 1,
+                node_metadata.agent.batch_task_count,
+                node_metadata.agent.priority,
+            )
+
         return sorted(
             killable_nodes,
-            key=sort_key,
+            key=sort_key_v2 if self.killable_nodes_prioritizing_v2 else sort_key,
         )
 
     def _calculate_non_orphan_fulfilled_capacity(self) -> float:
