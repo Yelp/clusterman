@@ -501,7 +501,7 @@ class KubernetesClusterConnector(ClusterConnector):
 
     def get_node_priority(self, node_id: str) -> float:
         pods = self._pods_by_ip[node_id]
-        if not pods or len(pods) == 0:
+        if not pods:
             return 0.0
         max_requested_resource = max([self.get_pod_resources_score(pod) for pod in pods])
         # nodes have bigger pods = higher priority = lower possibility for choosing termination
