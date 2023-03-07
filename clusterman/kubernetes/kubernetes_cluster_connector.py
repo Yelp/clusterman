@@ -383,6 +383,7 @@ class KubernetesClusterConnector(ClusterConnector):
             is_safe_to_kill=self._is_node_safe_to_kill(node_ip),
             is_draining=self._is_node_draining(node),
             batch_task_count=self._count_batch_tasks(node_ip),
+            priority=self.get_node_priority(node_ip),
             state=(AgentState.RUNNING if self._pods_by_ip[node_ip] else AgentState.IDLE),
             task_count=len(self._pods_by_ip[node_ip]),
             total_resources=total_node_resources(node, self._excluded_pods),
@@ -497,6 +498,20 @@ class KubernetesClusterConnector(ClusterConnector):
             if condition.type == "PodScheduled" and condition.reason == "Unschedulable":
                 return True
         return False
+
+    def get_node_priority(self, node_id: str) -> float:
+        pods = self._pods_by_ip[node_id]
+        if not pods:
+            return 0.0
+        max_requested_resource = max([self.get_pod_resources_score(pod) for pod in pods])
+        # nodes have bigger pods = higher priority = lower possibility for choosing termination
+        return max_requested_resource
+
+    def get_pod_resources_score(self, pod: KubernetesPod) -> float:
+        resource = total_pod_resources(pod)
+        cpus = getattr(resource, "cpus") * 2
+        mem = getattr(resource, "mem") / 1000
+        return cpus + mem
 
     @property
     def pool_label_key(self):
