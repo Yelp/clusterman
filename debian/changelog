@@ -1,3 +1,9 @@
+clusterman (4.19.5) xenial bionic; urgency=low
+
+  * Implemented new version of the sorting killable nodes
+
+ -- Ilkin Mammadzada <ilkinmammadzada@yelp.com>  Tue, 07 Mar 2023 04:09:31 -0800
+
 clusterman (4.19.4) xenial bionic; urgency=low
 
   * Implemented new version of the pending pods signal
