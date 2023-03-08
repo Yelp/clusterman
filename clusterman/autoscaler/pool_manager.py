@@ -466,7 +466,9 @@ class PoolManager:
                     )
                     continue
 
-            logger.info(f"marking {instance_id} for termination")
+            logger.info(f"marking {instance_id} ({node_metadata.agent.agent_id}) with "
+                        f"{node_metadata.agent.priority} priority and "
+                        f"{node_metadata.agent.task_count} pods for termination")
             marked_nodes[group_id].append(node_metadata)
             rem_group_capacities[group_id] -= instance_weight
             curr_capacity -= instance_weight
