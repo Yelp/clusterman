@@ -583,7 +583,7 @@ class PoolManager:
 
         def sort_key_v2(
             node_metadata: ClusterNodeMetadata,
-        ) -> Tuple[int, int, int, int, int, int, float]:
+        ) -> Tuple[int, int, int, int, int, int, float, int]:
             return (
                 0 if node_metadata.agent.is_draining else 1,
                 0 if node_metadata.agent.state == AgentState.ORPHANED else 1,
@@ -592,6 +592,7 @@ class PoolManager:
                 0 if node_metadata.agent.state == AgentState.IDLE else 1,
                 node_metadata.agent.batch_task_count,
                 node_metadata.agent.priority,
+                node_metadata.agent.task_count,
             )
 
         return sorted(
