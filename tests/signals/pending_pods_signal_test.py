@@ -1,3 +1,4 @@
+import datetime
 from unittest import mock
 
 import pytest
@@ -49,7 +50,10 @@ def target_capacity_margin():
 def pending_pods():
     return [
         V1Pod(
-            metadata=V1ObjectMeta(name="pod1"),
+            metadata=V1ObjectMeta(
+                name="pod1",
+                creation_timestamp=datetime.datetime(2023, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc),
+            ),
             status=V1PodStatus(
                 phase="Pending",
                 conditions=[V1PodCondition(status="False", type="PodScheduled", reason="Unschedulable")],

@@ -1,3 +1,4 @@
+import sys
 from typing import List
 from typing import Optional
 from typing import Union
@@ -91,9 +92,10 @@ class PendingPodsSignal(Signal):
 
         resource_request = SignalResourceRequest()
         pending_pods = pending_pods or []
+        filtered_pending_pods = [pod for pod in pending_pods if not self._ignore_peding_pod(pod)]
 
-        if len(pending_pods) > 0:
-            for pod in pending_pods:
+        if len(filtered_pending_pods) > 0:
+            for pod in filtered_pending_pods:
                 resource_request += total_pod_resources(pod) * multiplier
             min_resources_to_bump = SignalResourceRequest(*total_resources * target_capacity_margin)
 
@@ -103,3 +105,9 @@ class PendingPodsSignal(Signal):
             return resources_to_add + total_resources
         else:
             return SignalResourceRequest(*allocated_resources)
+
+    def _ignore_peding_pod(self, pod: KubernetesPod) -> bool:
+        pending_pods_max_scheduling_seconds = self.parameters.get("pending_pods_max_scheduling_seconds", sys.maxsize)
+        if (arrow.now() - pod.metadata.creation_timestamp).total_seconds() > pending_pods_max_scheduling_seconds:
+            return True
+        return False
