@@ -94,6 +94,10 @@ class PendingPodsSignal(Signal):
         pending_pods = pending_pods or []
         filtered_pending_pods = [pod for pod in pending_pods if not self._ignore_peding_pod(pod)]
 
+        ignored_pending_pods_count = len(pending_pods) - len(filtered_pending_pods)
+        if ignored_pending_pods_count > 0:
+            logger.info(f"Ignoring {ignored_pending_pods_count} Pending pods due to max_scheduling_seconds")
+
         if len(filtered_pending_pods) > 0:
             for pod in filtered_pending_pods:
                 resource_request += total_pod_resources(pod) * multiplier
