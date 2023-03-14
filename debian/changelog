@@ -1,3 +1,9 @@
+clusterman (4.19.6) xenial bionic; urgency=low
+
+  * Ignoring long waited pending pods
+
+ -- Ilkin Mammadzada <ilkinmammadzada@yelp.com>  Tue, 14 Mar 2023 00:12:13 -0700
+
 clusterman (4.19.5) xenial bionic; urgency=low
 
   * Implemented new version of the sorting killable nodes
