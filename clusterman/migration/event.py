@@ -148,6 +148,13 @@ class MigrationEvent(NamedTuple):
         """Simplified object hash since resource_name should be unique"""
         return cast(Tuple[str, str, str], self[:3]).__hash__()
 
+    def __eq__(self, other: object) -> bool:
+        """On the same line of __hash__ above"""
+        return (
+            isinstance(other, MigrationEvent)
+            and cast(Tuple[str, str, str], self)[:3] == cast(Tuple[str, str, str], other)[:3]
+        )
+
     def __str__(self) -> str:
         return (
             f"MigrationEvent(cluster={self.cluster}, pool={self.pool},"
