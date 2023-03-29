@@ -174,3 +174,22 @@ def test_condition_matches_uptime_offset(condition, current_time, result):
         instance=InstanceMetadata(market=InstanceMarket("m5.4xlarge", None), weight=None, uptime=timedelta(days=10)),
     )
     assert condition.matches(node_metadata, current_time) is result
+
+
+def test_migration_event_equality():
+    event1 = MigrationEvent(
+        resource_name="mesos-test-bar-111222333",
+        cluster="mesos-test",
+        pool="bar",
+        label_selectors=[],
+        condition=MigrationCondition(
+            ConditionTrait.KERNEL,
+            ConditionOperator.IN,
+            [semver.VersionInfo.parse("1.2.3"), semver.VersionInfo.parse("3.4.5")],
+        ),
+        previous_attempts=0,
+        created=arrow.get("2023-02-10T11:18:17Z"),
+    )
+    event2 = MigrationEvent(**{**event1._asdict(), "previous_attempts": 1})
+    assert event2 in {event1}
+    assert event2 == event1
