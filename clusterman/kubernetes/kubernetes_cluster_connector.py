@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
+import os
 from collections import defaultdict
 from typing import List
 from typing import Mapping
@@ -79,7 +80,11 @@ class KubernetesClusterConnector(ClusterConnector):
 
     def __init__(self, cluster: str, pool: Optional[str], init_crd: bool = False) -> None:
         super().__init__(cluster, pool)
-        self.kubeconfig_path = staticconf.read_string(f"clusters.{cluster}.kubeconfig_path")
+
+        # we'll always prefer a kubeconfig path passed in as an envvar as this is the only way
+        # for our yelp-internal CLI wrappers to pass in a different kubeconfig without needing
+        # to plumb through a whole mountain of files
+        self.kubeconfig_path = os.getenv("KUBECONFIG") or staticconf.read_string(f"clusters.{cluster}.kubeconfig_path")
         self._safe_to_evict_annotation = staticconf.read_string(
             f"clusters.{cluster}.pod_safe_to_evict_annotation",
             default="cluster-autoscaler.kubernetes.io/safe-to-evict",

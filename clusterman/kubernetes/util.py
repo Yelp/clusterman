@@ -60,7 +60,7 @@ class KubeApiClientWrapper:
         :param Type client_class: k8s client class to initialize
         """
         try:
-            kubernetes.config.load_kube_config(kubeconfig_path)
+            kubernetes.config.load_kube_config(kubeconfig_path, context=os.getenv("KUBECONTEXT"))
         except TypeError:
             error_msg = "Could not load KUBECONFIG; is this running on Kubernetes master?"
             if "yelpcorp" in socket.getfqdn():
