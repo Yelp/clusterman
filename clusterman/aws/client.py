@@ -29,6 +29,7 @@ from mypy_extensions import TypedDict
 from retry import retry
 
 from clusterman.config import CREDENTIALS_NAMESPACE
+from clusterman.exceptions import InvalidConfigurationError
 
 logger = colorlog.getLogger(__name__)
 _session = None
@@ -74,11 +75,21 @@ def _init_session():
     global _session
 
     if not _session:
-        _session = boto3.session.Session(
-            staticconf.read_string("accessKeyId", namespace=CREDENTIALS_NAMESPACE),
-            staticconf.read_string("secretAccessKey", namespace=CREDENTIALS_NAMESPACE),
-            region_name=staticconf.read_string("aws.region"),
-        )
+        # when running clusterman's CLI, we want to use folks' personal AWS creds
+        # so that we don't need to distribute service user creds (and since we can't
+        # use Pod Identity outside of k8s :p)
+        if os.getenv("AWS_PROFILE"):
+            if os.getenv("AWS_REGION") is None:
+                raise InvalidConfigurationError("Setting AWS_REGION is required if setting a specific AWS profile")
+            _session = boto3.session.Session(
+                region_name=os.getenv("AWS_REGION"),
+            )
+        else:
+            _session = boto3.session.Session(
+                staticconf.read_string("accessKeyId", namespace=CREDENTIALS_NAMESPACE),
+                staticconf.read_string("secretAccessKey", namespace=CREDENTIALS_NAMESPACE),
+                region_name=staticconf.read_string("aws.region"),
+            )
 
 
 def get_main_module_name() -> str:

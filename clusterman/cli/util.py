@@ -21,16 +21,15 @@ from clusterman.util import limit_function_runtime
 
 
 logger = colorlog.getLogger(__name__)
-TIMEOUT_TIME_SECONDS = 15
+TIMEOUT_TIME_SECONDS = 5
 
 
 def timeout_wrapper(main):
     def wrapper(args: argparse.Namespace):
-        # After 10s, prints a warning message if the command is running from the wrong place
         def timeout_handler():
-            warning_string = "This command is taking a long time to run; are you running from the right account?"
+            warning_string = "This command is taking a long time to run; you're likely targetting a large pool/cluster."
             if "yelpcorp" in socket.getfqdn():
-                warning_string += "\nHINT: try ssh'ing to adhoc-prod or another box in the right account."
+                warning_string += "\nIf this command hasn't returned in several minutes, reach out to #clusterman"
             logger.warning(warning_string)
 
         limit_function_runtime(partial(main, args), TIMEOUT_TIME_SECONDS, timeout_handler)
