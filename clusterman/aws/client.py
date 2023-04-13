@@ -29,7 +29,6 @@ from mypy_extensions import TypedDict
 from retry import retry
 
 from clusterman.config import CREDENTIALS_NAMESPACE
-from clusterman.exceptions import InvalidConfigurationError
 
 logger = colorlog.getLogger(__name__)
 _session = None
@@ -75,14 +74,25 @@ def _init_session():
     global _session
 
     if not _session:
-        # when running clusterman's CLI, we want to use folks' personal AWS creds
-        # so that we don't need to distribute service user creds (and since we can't
-        # use Pod Identity outside of k8s :p)
-        if os.getenv("AWS_PROFILE"):
-            if os.getenv("AWS_REGION") is None:
-                raise InvalidConfigurationError("Setting AWS_REGION is required if setting a specific AWS profile")
+        if (
+            # when running clusterman's CLI, we want to use folks' personal AWS creds
+            # so that we don't need to distribute service user creds (and since we can't
+            # use Pod Identity outside of k8s :p)
+            os.getenv("AWS_PROFILE")
+            # but, if we are in k8s and have pod identiy available, we create the session
+            # in exactly the same way
+            or os.getenv("AWS_WEB_IDENTITY_TOKEN_FILE")
+        ):
             _session = boto3.session.Session(
-                region_name=os.getenv("AWS_REGION"),
+                region_name=staticconf.read_string("aws.region"),
+            )
+        # this should only be used when running clusterman in paasta using pod identity
+        elif os.getenv("AWS_WEB_IDENTITY_TOKEN_FILE"):
+            _session = boto3.session.Session(
+                # unfortunately, it doesn't seem like the pod identity webhook lets us magically
+                # obviate the region name we're targetting (for clients that are region-aware) so
+                # we'll continue reading this value from soaconfigs
+                region_name=staticconf.read_string("aws.region"),
             )
         else:
             _session = boto3.session.Session(

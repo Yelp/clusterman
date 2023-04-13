@@ -77,7 +77,3 @@ class SignalConnectionError(ClustermanSignalError):
 
 class SimulationError(ClustermanException):
     pass
-
-
-class InvalidConfigurationError(ClustermanException):
-    pass
