@@ -1,3 +1,9 @@
+clusterman (4.21.0) xenial bionic; urgency=low
+
+  * Allow overriding AWS_PROFILE + support AWS Pod Identity
+
+ -- Luis Perez <luisp@yelp.com>  Thu, 13 Apr 2023 12:01:57 -0700
+
 clusterman (4.20.0) xenial bionic; urgency=low
 
   * Allow setting a kubeconfig/kubecontext override
