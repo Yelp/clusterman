@@ -74,11 +74,24 @@ def _init_session():
     global _session
 
     if not _session:
-        _session = boto3.session.Session(
-            staticconf.read_string("accessKeyId", namespace=CREDENTIALS_NAMESPACE),
-            staticconf.read_string("secretAccessKey", namespace=CREDENTIALS_NAMESPACE),
-            region_name=staticconf.read_string("aws.region"),
-        )
+        if (
+            # when running clusterman's CLI, we want to use folks' personal AWS creds
+            # so that we don't need to distribute service user creds (and since we can't
+            # use Pod Identity outside of k8s :p)
+            os.getenv("AWS_PROFILE")
+            # but, if we are in k8s and have pod identiy available, we create the session
+            # in exactly the same way
+            or os.getenv("AWS_WEB_IDENTITY_TOKEN_FILE")
+        ):
+            _session = boto3.session.Session(
+                region_name=staticconf.read_string("aws.region"),
+            )
+        else:
+            _session = boto3.session.Session(
+                staticconf.read_string("accessKeyId", namespace=CREDENTIALS_NAMESPACE),
+                staticconf.read_string("secretAccessKey", namespace=CREDENTIALS_NAMESPACE),
+                region_name=staticconf.read_string("aws.region"),
+            )
 
 
 def get_main_module_name() -> str:

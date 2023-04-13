@@ -27,16 +27,7 @@ def main(argv=None):
     setup_logging(args.log_level)
     setup_config(args)
 
-    try:
-        args.entrypoint(args)
-    except Exception as e:
-        print(f"Exception of type {e.__class__.__name__} occured")
-
-        if e.args:
-            for arg in e.args:
-                print(arg)
-
-        exit(1)
+    args.entrypoint(args)
 
 
 if __name__ == "__main__":
