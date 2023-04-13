@@ -86,14 +86,6 @@ def _init_session():
             _session = boto3.session.Session(
                 region_name=staticconf.read_string("aws.region"),
             )
-        # this should only be used when running clusterman in paasta using pod identity
-        elif os.getenv("AWS_WEB_IDENTITY_TOKEN_FILE"):
-            _session = boto3.session.Session(
-                # unfortunately, it doesn't seem like the pod identity webhook lets us magically
-                # obviate the region name we're targetting (for clients that are region-aware) so
-                # we'll continue reading this value from soaconfigs
-                region_name=staticconf.read_string("aws.region"),
-            )
         else:
             _session = boto3.session.Session(
                 staticconf.read_string("accessKeyId", namespace=CREDENTIALS_NAMESPACE),
