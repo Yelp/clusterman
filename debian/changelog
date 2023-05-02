@@ -1,3 +1,9 @@
+clusterman (4.21.1) xenial bionic; urgency=low
+
+  * Fix numpy warnings in CLI
+
+ -- Luis Perez <luisp@yelp.com>  Tue, 02 May 2023 07:22:24 -0700
+
 clusterman (4.21.0) xenial bionic; urgency=low
 
   * Allow overriding AWS_PROFILE + support AWS Pod Identity
