@@ -120,6 +120,7 @@ def setup_configurations(context):
                 {"name": "cost", "type": APP_METRICS, "minute_range": 30},
             ],
         },
+        "alert_on_max_capacity": True,
     }
     kube_pool_config = {
         "resource_groups": [
@@ -142,6 +143,7 @@ def setup_configurations(context):
             "internal": True,
             "period_minutes": 7,
         },
+        "alert_on_max_capacity": True,
     }
     with staticconf.testing.MockConfiguration(
         boto_config, namespace=CREDENTIALS_NAMESPACE

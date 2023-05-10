@@ -27,3 +27,5 @@ autoscale_signal:
     - name: disk_allocated
       type: system_metrics
       minute_range: 10
+
+alert_on_max_capacity: false

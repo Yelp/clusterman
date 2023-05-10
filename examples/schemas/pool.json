@@ -63,7 +63,8 @@
             },
             "additionalProperties": false
         },
-        "sensu_config": {"$ref": "definitions.json#sensu_config"}
+        "sensu_config": {"$ref": "definitions.json#sensu_config"},
+        "alert_on_max_capacity": {"type": "boolean"}
     },
     "additionalProperties": false
 }
