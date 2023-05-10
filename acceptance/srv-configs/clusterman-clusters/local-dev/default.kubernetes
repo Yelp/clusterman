@@ -19,3 +19,5 @@ autoscale_signal:
 autoscaling:
   prevent_scale_down_after_capacity_loss: true
   instance_loss_threshold: 3
+
+alert_on_max_capacity: false

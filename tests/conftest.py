@@ -144,6 +144,7 @@ def clusterman_pool_config():
                 {"name": "cost", "type": APP_METRICS, "minute_range": 30},
             ],
         },
+        "alert_on_max_capacity": True,
     }
     with staticconf.testing.MockConfiguration(config, namespace="bar.mesos_config"):
         yield
@@ -200,6 +201,7 @@ def clusterman_k8s_pool_config():
             },
             "disable_autoscaling": False,
         },
+        "alert_on_max_capacity": False,
     }
     with staticconf.testing.MockConfiguration(config, namespace="bar.kubernetes_config"):
         yield

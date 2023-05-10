@@ -179,7 +179,10 @@ class Autoscaler:
             capacity_offset = get_capacity_offset(self.cluster, self.pool, self.scheduler, timestamp)
             new_target_capacity = self._compute_target_capacity(resource_request) + capacity_offset
             self.target_capacity_gauge.set(new_target_capacity, {"dry_run": dry_run})
-            self.max_capacity_gauge.set(self.pool_manager.max_capacity, {"dry_run": dry_run})
+            self.max_capacity_gauge.set(
+                self.pool_manager.max_capacity,
+                {"dry_run": dry_run, "alert_on_max_capacity": self.pool_manager.alert_on_max_capacity},
+            )
             self.setpoint_gauge.set(self.autoscaling_config.setpoint, {"dry_run": dry_run})
             self._emit_requested_resource_metrics(resource_request, dry_run=dry_run)
 
