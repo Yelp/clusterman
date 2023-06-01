@@ -17,10 +17,10 @@ RUN     apt-get update \
             lsb-release \
             make \
             openssh-client \
-            python-pip \
-            python3.7-dev \
             python3-pip \
-            python-setuptools \
+            python3.8-dev \
+            python3-pip \
+            python3-setuptools \
             virtualenv \
         && apt-get clean
 

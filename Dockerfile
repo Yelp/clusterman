@@ -1,6 +1,6 @@
 # This is an example Dockerfile to run your service in PaaSTA!
 # It satisfies the PaaSTA contract.
-FROM    docker-dev.yelpcorp.com/bionic_yelp:latest
+FROM    docker-dev.yelpcorp.com/jammy_yelp:latest
 
 # python and uwsgi deps
 RUN     apt-get update \
@@ -8,16 +8,16 @@ RUN     apt-get update \
             awscli \
             git \
             libatlas-base-dev \
-            libpython3.7 \
+            libpython3.8 \
             libxml2 \
             libyaml-0-2 \
             lsb-release \
             make \
             openssh-client \
-            python3.7 \
-            python3.7-distutils \
-            python-pip \
-            python-setuptools \
+            python3.8 \
+            python3.8-distutils \
+            python3-pip \
+            python3-setuptools \
             stdin2scribe \
             tox \
             virtualenv \

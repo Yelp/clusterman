@@ -13,7 +13,7 @@ overrides:
     globalEnvVars:
       PAASTA_ENV: YELP
 host:
-  os_release: bionic
+  os_release: jammy
   min_cpu: 0.5
   min_memory: 1
   max_cpu: 6
