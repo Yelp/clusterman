@@ -10,7 +10,7 @@ repos:
             exclude: ^itests/environment.py$
           - id: name-tests-test
           - id: check-added-large-files
-            exclude: ^(\.activate\.sh|.*clusterman_signals_acceptance\.tar\.gz)$
+            exclude: ^(\.activate\.sh|.*clusterman_signals_.*\.tar\.gz)$
           - id: check-byte-order-marker
           - id: fix-encoding-pragma
             args: [--remove]
@@ -34,7 +34,7 @@ repos:
           - id: black
             args:
                 - --target-version
-                - py37
+                - py38
     - repo: https://github.com/PyCQA/flake8
       rev: 4.0.1
       hooks:
