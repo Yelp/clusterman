@@ -23,14 +23,12 @@ endif
 
 ifeq ($(PAASTA_ENV),YELP)
 	export DOCKER_REGISTRY ?= docker-dev.yelpcorp.com
-	export XENIAL_IMAGE_NAME ?= xenial_pkgbuild
 	export BIONIC_IMAGE_NAME ?= bionic_pkgbuild
 	export JAMMY_IMAGE_NAME ?= jammy_pkgbuild
 else
 	export PIP_INDEX_URL ?= https://pypi.python.org/simple
 	export NPM_CONFIG_REGISTRY ?= https://registry.npmjs.org
 	export DOCKER_REGISTRY ?= docker.io
-	export XENIAL_IMAGE_NAME ?= ubuntu:xenial
 	export BIONIC_IMAGE_NAME ?= ubuntu:bionic
 	export JAMMY_IMAGE_NAME ?= ubuntu:jammy
 endif
@@ -141,10 +139,10 @@ itest_%-external: dist
 	make -C package $@
 
 .PHONY:
-package: itest_xenial itest_bionic itest_jammy
+package: itest_bionic itest_jammy
 
 .PHONY:
-package-external: itest_xenial-external itest_bionic-external itest_jammy-external
+package-external: itest_bionic-external itest_jammy-external
 
 .PHONY:
 example: export EXAMPLE=true

@@ -43,18 +43,12 @@ apt-get install -y --force-yes python3.7 python3-pip python3-yaml
 # we also install python3-distutils here to avoid issues on newer ubuntus
 # where disutils isn't included with python (and even though clusterman depends on it, the right
 # version isn't installed in this itest container)
-if  [ "${DISTRIB_CODENAME}" != "xenial" ]; then
 apt-get install -y --force-yes python3.7-distutils
-fi
 
 apt-get install -y --force-yes ./dist/${DISTRIB_CODENAME}/clusterman_${PACKAGE_VERSION}_amd64.deb
 
 # Sometimes our acceptance tests run in parallel on the same box, so we need to use different CIDR ranges
-if [ "${DISTRIB_CODENAME}" = "xenial" ]; then
-    CIDR_BLOCK="10.0.0.0/24"
-else
-    CIDR_BLOCK="10.1.0.0/24"
-fi
+CIDR_BLOCK="10.1.0.0/24"
 
 export ACCEPTANCE_ROOT=/itest
 python3.7 -m pip install boto3 simplejson pyyaml
