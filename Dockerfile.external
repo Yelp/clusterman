@@ -25,6 +25,7 @@ RUN     apt-get update && apt-get upgrade -y \
             virtualenv \
             software-properties-common \
         && add-apt-repository ppa:deadsnakes/ppa \
+        && apt-cache policy python3.8 \
         && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             python3.8 \
         && apt-get clean
