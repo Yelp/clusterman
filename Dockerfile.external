@@ -18,12 +18,6 @@ RUN     apt-get update && apt-get upgrade -y \
             lsb-release \
             make \
             openssh-client \
-            python3.8-dev \
-            python3-distutils \
-            python3-apt \
-            python3-pip \
-            python3-setuptools \
-            virtualenv \
             software-properties-common \
             gpg \
             gpg-agent \
@@ -31,6 +25,12 @@ RUN     apt-get update && apt-get upgrade -y \
         && apt-cache policy python3.8 \
         && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             python3.8 \
+            python3.8-dev \
+            python3-distutils \
+            python3-apt \
+            python3-pip \
+            python3-setuptools \
+            virtualenv \
         && apt-get clean
 
 RUN     /usr/bin/pip3 install setuptools supervisor tox==3.24.4
