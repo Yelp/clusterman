@@ -21,7 +21,7 @@ RUN     apt-get -yq update && apt-get install -yq --no-install-recommends \
             # needed for numpy
             libatlas3-base \
             libyaml-dev \
-            python3.7 \
+            python3.8 \
             python3-pip \
-            python3.7-distutils
+            python3.8-distutils
 WORKDIR /work
