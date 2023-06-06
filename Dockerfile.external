@@ -20,6 +20,7 @@ RUN     apt-get update && apt-get upgrade -y \
             openssh-client \
             python3.8-dev \
             python3-distutils \
+            python3-apt \
             python3-pip \
             python3-setuptools \
             virtualenv \
