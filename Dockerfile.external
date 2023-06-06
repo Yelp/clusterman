@@ -12,13 +12,14 @@ RUN     apt-get update \
             g++ \
             git \
             libatlas-base-dev \
+            libpython3.8 \
             libxml2 \
             libyaml-0-2 \
             lsb-release \
             make \
             openssh-client \
-            python3-pip \
             python3.8-dev \
+            python3.8-distutils \
             python3-pip \
             python3-setuptools \
             virtualenv \
