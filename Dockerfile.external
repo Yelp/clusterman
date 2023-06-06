@@ -25,7 +25,7 @@ RUN     apt-get update \
             virtualenv \
         && apt-get clean
 
-RUN     /usr/bin/pip install setuptools supervisor tox==3.24.4
+RUN     /usr/bin/pip3 install setuptools supervisor tox==3.24.4
 COPY    tox.ini requirements.txt requirements-bootstrap.txt /code/
 
 RUN     mkdir /home/nobody
