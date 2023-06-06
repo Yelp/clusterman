@@ -6,7 +6,7 @@ ARG IMAGE_NAME
 FROM ${DOCKER_REGISTRY}/${IMAGE_NAME}
 
 # python and uwsgi deps
-RUN     apt-get update \
+RUN     apt-get update && apt-get upgrade -y \
         && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             awscli \
             g++ \
@@ -23,6 +23,8 @@ RUN     apt-get update \
             python3-pip \
             python3-setuptools \
             virtualenv \
+            software-properties-common \
+            python3.8 \
         && apt-get clean
 
 RUN     /usr/bin/pip3 install setuptools supervisor tox==3.24.4
