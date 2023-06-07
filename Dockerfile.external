@@ -25,6 +25,7 @@ RUN     apt-get update && apt-get upgrade -y \
         && apt-cache policy python3.8 \
         && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             python3.8 \
+            libtiff-dev \
             libfreetype-dev \
             libfreetype6 \
             libfreetype6-dev \
