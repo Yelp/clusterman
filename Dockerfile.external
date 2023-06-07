@@ -7,7 +7,7 @@ FROM ${DOCKER_REGISTRY}/${IMAGE_NAME}
 
 # python and uwsgi deps
 RUN     apt-get update && apt-get upgrade -y \
-        && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+       && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             awscli \
             g++ \
             git \
