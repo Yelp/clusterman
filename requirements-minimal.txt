@@ -10,7 +10,7 @@ kubernetes
 matplotlib==3.7
 mypy-extensions
 numpy>=1.20.3
-packaging
+packaging==23.1
 parsedatetime
 PyStaticConfiguration
 PyYAML>=5.4
