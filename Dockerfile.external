@@ -26,7 +26,7 @@ RUN     apt-get update && apt-get upgrade -y \
         && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             python3.8 \
             python3.8-dev \
-            python3-distutils \
+            python3.8-distutils \
             python3-apt \
             python3-pip \
             python3-setuptools \
