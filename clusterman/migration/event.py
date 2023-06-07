@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Any
 from typing import Callable
 from typing import cast
 from typing import Dict
@@ -71,7 +72,7 @@ def _load_instance_type_target(target: str) -> str:
     return target
 
 
-CONDITION_TARGET_LOADERS: Dict[ConditionTrait, Callable[[str], Union[str, int, List[str]]]] = {
+CONDITION_TARGET_LOADERS: Dict[ConditionTrait, Callable[[str], Union[Any, str, int, List[str]]]] = {
     ConditionTrait.KERNEL: semver.VersionInfo.parse,
     ConditionTrait.LSBRELEASE: _load_lsbrelease_version_target,
     ConditionTrait.UPTIME: load_timespan_target,
