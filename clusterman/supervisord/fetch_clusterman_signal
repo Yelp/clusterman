@@ -8,7 +8,7 @@ source /etc/lsb-release  # gives us DISTRIB_CODENAME
 
 SIGNAL_DIR=${2:-.}
 VERSIONS=(${CMAN_VERSIONS_TO_FETCH})
-version="clusterman_signals_cic-clusterman_signals-3.8"
+version="clusterman_signals_cic-clusterman_signals-prodenv"
 mkdir -p ${SIGNAL_DIR}/${version}
 cd ${SIGNAL_DIR}/${version}
 aws ${AWS_ENDPOINT_URL_ARGS} s3 cp "s3://${CMAN_SIGNALS_BUCKET}/${DISTRIB_CODENAME}/${version}.tar.gz" .
