@@ -11,5 +11,6 @@ VERSIONS=(${CMAN_VERSIONS_TO_FETCH})
 version="clusterman_signals_cic-clusterman_signals-prodenv"
 mkdir -p ${SIGNAL_DIR}/${version}
 cd ${SIGNAL_DIR}/${version}
+aws ${AWS_ENDPOINT_URL_ARGS} s3 ls "s3://yelp-clusterman-signals/jammy/" --region us-west-2
 aws ${AWS_ENDPOINT_URL_ARGS} s3 cp "s3://yelp-clusterman-signals/${DISTRIB_CODENAME}/${version}.tar.gz" --region us-west-2 .
 tar -xzf "${version}.tar.gz"
