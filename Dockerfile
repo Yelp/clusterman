@@ -5,7 +5,7 @@ FROM    docker-dev.yelpcorp.com/bionic_yelp:latest
 # python and uwsgi deps
 RUN     apt-get update \
         && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            awscli \
+            aws-cli \
             git \
             libatlas-base-dev \
             libpython3.7 \
