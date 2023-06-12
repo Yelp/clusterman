@@ -9,6 +9,7 @@ RUN     apt-get -yq update && apt-get install -yq --no-install-recommends \
             gcc \
             gdebi-core \
             libfreetype6 \
+            libatlas-base-dev \
             libatlas3-base \
             libwebp-dev \
             libwebpmux3 \
