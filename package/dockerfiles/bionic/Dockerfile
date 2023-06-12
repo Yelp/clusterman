@@ -10,6 +10,8 @@ RUN     apt-get -yq update && apt-get install -yq --no-install-recommends \
             gdebi-core \
             libfreetype6 \
             libatlas3-base \
+            libwebp-dev \
+            libwebpmux3 \
             libyaml-dev \
             python3.8 \
             python3-pip \

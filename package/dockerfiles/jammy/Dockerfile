@@ -19,6 +19,8 @@ RUN     apt-get -yq update && DEBIAN_FRONTEND=noninteractive apt-get install -yq
             gdebi-core \
             libfreetype6 \
             # needed for numpy
+            libwebp-dev \
+            libwebpmux3 \
             libatlas3-base \
             libyaml-dev \
             python3.8 \

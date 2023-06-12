@@ -7,7 +7,7 @@ colorama
 humanfriendly
 jsonpickle
 kubernetes
-matplotlib==3.7
+matplotlib==3.4.2
 mypy-extensions
 numpy>=1.20.3
 packaging==23.1
