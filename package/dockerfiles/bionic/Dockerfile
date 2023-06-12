@@ -11,6 +11,11 @@ RUN     apt-get -yq update && apt-get install -yq --no-install-recommends \
             libfreetype6 \
             libatlas-base-dev \
             libatlas3-base \
+            libxau-dev \
+            libpng-dev \
+            libbrotli-dev \
+            liblzma-dev \
+            libjpeg-dev \
             libwebp-dev \
             libwebpmux3 \
             libyaml-dev \
