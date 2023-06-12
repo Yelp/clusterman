@@ -184,4 +184,5 @@ debug:
 
 .PHONY:
 upgrade-requirements:
+	upgrade-requirements --python python3.7
 	upgrade-requirements --python python3.8
