@@ -27,7 +27,7 @@ RUN     apt-get -yq update && apt-get install -yq --no-install-recommends \
             libwebp-dev \
             libwebpmux3 \
             libyaml-dev \
-            python3.8 \
+            python3.8-dev \
             python3-pip \
             python3.8-distutils
 RUN ldconfig
