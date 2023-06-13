@@ -45,4 +45,4 @@ override_dh_install:
 	$(YELP_DH_INSTALL)
 
 override_dh_shlibdeps:
-	dh_shlibdeps --exclude matplotlib --exclude numpy
+	dh_shlibdeps -X site-packages/Pillow.libs --exclude matplotlib --exclude numpy
