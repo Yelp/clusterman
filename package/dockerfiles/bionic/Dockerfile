@@ -30,6 +30,8 @@ RUN     apt-get -yq update && apt-get install -yq --no-install-recommends \
             python3.8-dev \
             python3-pip \
             python3.8-distutils
+RUN pip3 install --upgrade pip
+RUN pip3 install --upgrade pillow
 RUN ldconfig
 
 WORKDIR /work
