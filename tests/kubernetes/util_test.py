@@ -5,6 +5,7 @@ from unittest import mock
 import pytest
 from kubernetes.client.models.v1_node_selector_requirement import V1NodeSelectorRequirement
 from kubernetes.client.models.v1_node_selector_term import V1NodeSelectorTerm
+from kubernetes.config.config_exception import ConfigException
 
 from clusterman.kubernetes.util import CachedCoreV1Api
 from clusterman.kubernetes.util import ConciseCRDApi
@@ -21,9 +22,9 @@ def mock_cached_core_v1_api():
 
 
 def test_cached_corev1_api_no_kubeconfig(caplog):
-    with pytest.raises(TypeError):
+    with pytest.raises(ConfigException):
         CachedCoreV1Api("/foo/bar/admin.conf")
-        assert "Could not load KUBECONFIG" in caplog.text
+        assert "Invalid kube-config file" in caplog.text
 
 
 def test_cached_corev1_api_caches_non_cached_function(mock_cached_core_v1_api):
