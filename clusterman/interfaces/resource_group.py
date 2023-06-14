@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from abc import ABCMeta
-from abc import abstractclassmethod
 from abc import abstractmethod
 from abc import abstractproperty
 from typing import Any
@@ -152,7 +151,7 @@ class ResourceGroup(metaclass=ABCMeta):
         """Whether this ResourceGroup is stale."""
         pass
 
-    @abstractclassmethod
+    @abstractmethod
     def load(cls, cluster: str, pool: str, config: Any) -> Mapping[str, "ResourceGroup"]:  # pragma: no cover
         """Load a list of corresponding resource groups
 

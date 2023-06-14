@@ -156,13 +156,13 @@ def test_condition_matches(condition, result):
         (MigrationCondition(ConditionTrait.UPTIME, ConditionOperator.LT, 1337), None, False),
         # instance younger than 15d, checked with no delay, 10d instance matches
         (
-            MigrationCondition(ConditionTrait.UPTIME, ConditionOperator.LT, timedelta(days=15).total_seconds()),
+            MigrationCondition(ConditionTrait.UPTIME, ConditionOperator.LT, 3600 * 24 * 15),
             arrow.now(),
             True,
         ),
         # instance younger than 5d, but checked with 7d delay, 10d instance matches as at check creation is what 3d old
         (
-            MigrationCondition(ConditionTrait.UPTIME, ConditionOperator.LT, timedelta(days=5).total_seconds()),
+            MigrationCondition(ConditionTrait.UPTIME, ConditionOperator.LT, 3600 * 24 * 5),
             arrow.now() - timedelta(days=7),
             True,
         ),

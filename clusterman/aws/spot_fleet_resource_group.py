@@ -14,6 +14,7 @@
 from typing import Any
 from typing import Iterable
 from typing import Mapping
+from typing import Optional
 from typing import Sequence
 
 import botocore
@@ -213,7 +214,9 @@ class SpotFleetResourceGroup(AWSResourceGroup):
         raise NotImplementedError()
 
 
-def load_spot_fleets_from_s3(bucket: str, prefix: str, pool: str = None) -> Mapping[str, SpotFleetResourceGroup]:
+def load_spot_fleets_from_s3(
+    bucket: str, prefix: str, pool: Optional[str] = None
+) -> Mapping[str, SpotFleetResourceGroup]:
     prefix = prefix.rstrip("/") + "/"
     object_list = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
     spot_fleets = {}

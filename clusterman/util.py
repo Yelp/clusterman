@@ -355,7 +355,7 @@ def sensu_checkin(
     pysensu_yelp.send_event(**sensu_config)
 
 
-def splay_event_time(frequency: int, key: str, timestamp: float = None) -> float:
+def splay_event_time(frequency: int, key: str, timestamp: float = 0) -> float:
     """Return the length of time until the next event should trigger based on the given frequency;
     randomly splay out the 'initial' start time based on some key, to prevent events with the same
     frequency from all triggering at once

@@ -27,7 +27,7 @@ from kubernetes.client import V1PodCondition
 from kubernetes.client import V1PodSpec
 from kubernetes.client import V1PodStatus
 from kubernetes.client import V1ResourceRequirements
-from moto import mock_dynamodb2
+from moto import mock_dynamodb
 from moto.autoscaling.responses import AutoScalingResponse
 
 from clusterman.autoscaler.autoscaler import Autoscaler
@@ -106,7 +106,7 @@ def autoscaler_patches(context):
         "clusterman.signals.external_signal.ExternalSignal._connect_to_signal_process",
     ), mock.patch(
         "clusterman.signals.external_signal.get_metrics_for_signal",
-    ) as mock_metrics, mock_dynamodb2():
+    ) as mock_metrics, mock_dynamodb():
         dynamodb.create_table(
             TableName=CLUSTERMAN_STATE_TABLE,
             KeySchema=[
