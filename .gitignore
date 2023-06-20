@@ -32,6 +32,7 @@ package/itest/run_instance.py
 package/itest/trusty/*
 package/itest/xenial/*
 package/itest/bionic/*
+package/itest/jammy/*
 /completions/[a-zA-Z]*
 acceptance/.local*
 sftp-config.json
