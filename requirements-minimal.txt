@@ -7,10 +7,10 @@ colorama
 humanfriendly
 jsonpickle
 kubernetes
-matplotlib>=3.4.2
+matplotlib>=3.1.1
 mypy-extensions
-numpy>=1.20.3
-packaging>=23.1
+numpy>=1.16
+packaging
 parsedatetime
 PyStaticConfiguration
 PyYAML>=5.4

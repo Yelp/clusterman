@@ -8,9 +8,13 @@ endif
 # Use the dpkg version comparison algorithm (which is easily in reach) to compare the build
 # system version to the version from which python3-distutils is required (18.04 and higher),
 # and conditionally populate a substitution variable which is referenced in the control file.
-# On bionic, where Ubuntu's python3.8 is used, this is a virtual package for python3-distutils
-# (in bionic-updates). On jammy, this is a real package providing distutils for python3.8 from deadsnakes.
-extra_substvars = -VbionicOrLater:Depends="python3.8-distutils"
+# On bionic, where Ubuntu's python3.7 is used, this is a virtual package for python3-distutils
+# (in bionic-updates). On jammy, this is a real package providing distutils for python3.7 from deadsnakes.
+ifeq ($(shell (. /etc/os-release && dpkg --compare-versions $$VERSION_ID "ge" "18.04" && echo yes || echo no)),yes)
+    extra_substvars = -VbionicOrLater:Depends="python3.7-distutils"
+else
+    extra_substvars = -VbionicOrLater:Depends=""
+endif
 
 # and then do the same thing for awscli - of which we used to have a patched version called aws-cli pre-jammy.
 # once jammy boxes are the oldest things we install clusterman on, we can get rid of this and just include this
@@ -34,14 +38,11 @@ override_dh_gencontrol:
 	dh_gencontrol -- $(extra_substvars)
 
 override_dh_virtualenv:
-	dh_virtualenv --python python3.8 $(YELP_DH_VIRTUALENV)
+	dh_virtualenv --python python3.7 $(YELP_DH_VIRTUALENV)
 
 override_dh_install:
 	dh_install
 	$(YELP_DH_INSTALL)
 
 override_dh_shlibdeps:
-	dh_shlibdeps -X site-packages/Pillow.libs --exclude matplotlib --exclude numpy --dpkg-shlibdeps-params=--ignore-missing-info
-
-override_dh_strip:
-	dh_strip -X site-packages/Pillow.libs
+	dh_shlibdeps --exclude matplotlib --exclude numpy

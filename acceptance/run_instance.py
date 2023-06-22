@@ -1,4 +1,4 @@
-#!/usr/bin/python3.8
+#!/usr/bin/python3.7
 # Copyright 2019 Yelp Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");

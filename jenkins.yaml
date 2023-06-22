@@ -9,11 +9,11 @@ overrides:
     globalEnvVars:
       PAASTA_ENV: YELP
   debian:
-    platforms: [bionic, jammy]
+    platforms: [xenial, bionic, jammy]
     globalEnvVars:
       PAASTA_ENV: YELP
 host:
-  os_release: jammy
+  os_release: bionic
   min_cpu: 0.5
   min_memory: 1
   max_cpu: 6

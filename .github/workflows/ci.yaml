@@ -11,7 +11,7 @@ jobs:
   tox:
     env:
       PIP_INDEX_URL: https://pypi.python.org/simple
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
       matrix:
@@ -25,10 +25,10 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-python@v2
         with:
-          python-version: 3.7
-      - uses: actions/setup-python@v3
+          python-version: 3.6
+      - uses: actions/setup-python@v2
         with:
-          python-version: 3.8
+          python-version: 3.7
       - uses: actions/setup-go@v2
         with:
           go-version: '1.17.3'
