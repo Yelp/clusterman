@@ -47,4 +47,3 @@ system_metrics:
     cpus_allocated|cluster=local-dev,pool=default.mesos: *capacity
     mem_allocated|cluster=local-dev,pool=default.mesos: *capacity
     disk_allocated|cluster=local-dev,pool=default.mesos: *capacity
-    gpus_allocated|cluster=local-dev,pool=default.mesos: *capacity
