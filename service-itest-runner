@@ -13,11 +13,7 @@ docker inspect --type=image "${IMAGE_NAME}" > /dev/null || \
 DISTRIB_CODENAME=$(docker run -t "${IMAGE_NAME}" lsb_release -cs | tr -d '\n\r')
 
 # Sometimes our acceptance tests run in parallel on the same box, so we need to use different CIDR ranges
-if [ "${DISTRIB_CODENAME}" = "xenial" ]; then
-    CIDR_BLOCK="10.0.0.0/24"
-else
-    CIDR_BLOCK="10.1.0.0/24"
-fi
+CIDR_BLOCK="10.1.0.0/24"
 
 if [ "${EXTRA_VOLUME_MOUNTS}" ]; then
     EXTRA_FLAGS="-v ${EXTRA_VOLUME_MOUNTS}"
