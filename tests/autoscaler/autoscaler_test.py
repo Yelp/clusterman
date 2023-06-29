@@ -92,7 +92,10 @@ def mock_autoscaler():
         "alert_on_max_capacity",
         namespace=POOL_NAMESPACE.format(pool="bar", scheduler="mesos"),
     )
-    mock_autoscaler.pool_manager.pool_owner = "compute_infra"
+    mock_autoscaler.pool_manager.pool_owner = staticconf.read_string(
+        "pool_owner",
+        namespace=POOL_NAMESPACE.format(pool="bar", scheduler="mesos"),
+    )
     mock_autoscaler.pool_manager.non_orphan_fulfilled_capacity = 0
 
     mock_autoscaler.target_capacity_gauge = mock.Mock(spec=GaugeProtocol)
