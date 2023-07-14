@@ -25,7 +25,7 @@ numpy==1.21.6
 oauthlib==3.1.0
 packaging==19.2
 parsedatetime==2.4
-protobuf==3.10.0
+protobuf==3.18.3
 py==1.8.0
 pyasn1==0.4.7
 pyasn1-modules==0.2.7
