@@ -5,7 +5,7 @@ Build-Depends:
 
 Package: clusterman
 Depends:
-    python3.7,
+    python3.8,
 # unfortunately needed for numpy to work
     libatlas3-base,
 # needed so that we can grab signals from s3
