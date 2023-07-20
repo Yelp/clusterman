@@ -51,6 +51,7 @@ def sensu_alert_triage(fail=False):
         def wrapper(self):
             msg = ""
             service_failed = False
+            signal_failed = False
             error = None
             try:
                 fn(self)
@@ -58,12 +59,13 @@ def sensu_alert_triage(fail=False):
                 msg = str(e)
                 logger.exception(f"Autoscaler signal failed: {msg}")
                 error = e
+                signal_failed = True
             except Exception as e:
                 msg = str(e)
                 logger.exception(f"Autoscaler service failed: {msg}")
                 error = e
                 service_failed = True
-            self._do_sensu_checkins(service_failed, msg)
+            self._do_sensu_checkins(service_failed, msg, signal_failed)
             if fail and error:
                 raise AutoscalerError from error
 
@@ -142,7 +144,7 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
             except (PoolConnectionError, EndpointConnectionError) as e:
                 logger.exception(f"Encountered a connection error: {e}")
 
-    def _do_sensu_checkins(self, service_failed, msg):
+    def _do_sensu_checkins(self, service_failed, msg, signal_failed):
         check_every = (
             "{minutes}m".format(minutes=int(self.autoscaler.run_frequency // 60))
             if self.autoscaler
@@ -169,6 +171,9 @@ class AutoscalerBatch(BatchDaemon, BatchLoggingMixin, BatchRunningSentinelMixin)
 
         if service_failed:
             sensu_args["output"] = f"FAILED: clusterman autoscaler failed ({msg})"
+            sensu_args["status"] = Status.CRITICAL
+        elif signal_failed:
+            sensu_args["output"] = f"FAILED: clusterman signal failed ({msg})"
             sensu_args["status"] = Status.CRITICAL
         else:
             sensu_args["output"] = "OK: clusterman autoscaler is fine"
