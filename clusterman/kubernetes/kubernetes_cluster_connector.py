@@ -24,8 +24,8 @@ import arrow
 import colorlog
 import kubernetes
 import staticconf
-from kubernetes.client import V1Eviction
 from kubernetes.client import V1DeleteOptions
+from kubernetes.client import V1Eviction
 from kubernetes.client import V1ObjectMeta
 from kubernetes.client.models.v1_node import V1Node as KubernetesNode
 from kubernetes.client.models.v1_pod import V1Pod as KubernetesPod
