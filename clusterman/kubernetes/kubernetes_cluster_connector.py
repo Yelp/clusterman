@@ -24,7 +24,7 @@ import arrow
 import colorlog
 import kubernetes
 import staticconf
-from kubernetes.client import V1beta1Eviction
+from kubernetes.client import V1Eviction
 from kubernetes.client import V1DeleteOptions
 from kubernetes.client import V1ObjectMeta
 from kubernetes.client.models.v1_node import V1Node as KubernetesNode
@@ -356,7 +356,7 @@ class KubernetesClusterConnector(ClusterConnector):
         self._core_api.create_namespaced_pod_eviction(
             name=pod.metadata.name,
             namespace=pod.metadata.namespace,
-            body=V1beta1Eviction(
+            body=V1Eviction(
                 metadata=V1ObjectMeta(
                     name=pod.metadata.name,
                     namespace=pod.metadata.namespace,
