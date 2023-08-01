@@ -29,13 +29,15 @@ COPY    tox.ini requirements.txt requirements-bootstrap.txt extra-requirements-y
 RUN     cd code && tox -e virtualenv_run
 RUN     cd code && virtualenv_run/bin/pip3 install -rextra-requirements-yelp.txt
 
-RUN     mkdir /home/nobody
+RUN     mkdir /home/nobody  \
+        && chown nobody /home/nobody
 ENV     HOME /home/nobody
 
 # Code is COPY'ed here after the pip install above, so that code changes do not
 # break the preceding cache layer.
 COPY    . /code
 RUN     chown nobody /code
+
 
 # This is needed so that we can pass PaaSTA itests on Jenkins; for some reason (probably aufs-related?)
 # root can't modify the contents of /code on Jenkins, even though it works locally.  Root needs to
