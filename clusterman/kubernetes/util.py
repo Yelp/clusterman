@@ -60,7 +60,18 @@ class KubeApiClientWrapper:
         :param Type client_class: k8s client class to initialize
         """
         try:
-            kubernetes.config.load_kube_config(kubeconfig_path, context=os.getenv("KUBECONTEXT"))
+            """
+            https://kubernetes.io/docs/concepts/containers/container-environment/#container-environment
+            Every pod in k8s get some default enviornment variable injected, Including KUBERNETES_SERVICE_HOST
+            which points to K8s service. We are using this variable to distinguise between when cluterman is started in
+            a pod vs when it's started on host. For clusterman services running inside a k8s cluster, We priiotise using
+            K8s Service account since that let us avoid creating any kubeconfig in advance.
+            For clusterman CLI invokation we continue using provided KUBECONFIG file
+            """
+            if os.getenv("KUBERNETES_SERVICE_HOST"):
+                kubernetes.config.load_incluster_config()
+            else:
+                kubernetes.config.load_kube_config(kubeconfig_path, context=os.getenv("KUBECONTEXT"))
         except TypeError:
             error_msg = "Could not load KUBECONFIG; is this running on Kubernetes master?"
             if "yelpcorp" in socket.getfqdn():
