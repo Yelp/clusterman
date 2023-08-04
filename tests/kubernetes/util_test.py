@@ -20,12 +20,6 @@ def mock_cached_core_v1_api():
         yield CachedCoreV1Api("/foo/bar/admin.conf")
 
 
-@pytest.fixture
-def mock_load_incluster_config():
-    with mock.patch("clusterman.kubernetes.util.kubernetes.config.load_incluster_config") as mock_load_incluster_config:
-        yield mock_load_incluster_config
-
-
 def test_cached_corev1_api_no_kubeconfig(caplog):
     with pytest.raises(TypeError):
         CachedCoreV1Api("/foo/bar/admin.conf")
