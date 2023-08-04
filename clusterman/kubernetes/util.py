@@ -62,7 +62,7 @@ class KubeApiClientWrapper:
         try:
             """
             https://kubernetes.io/docs/concepts/containers/container-environment/#container-environment
-            Every pod in k8s get some default enviornment variable injected, Including KUBERNETES_SERVICE_HOST
+            Every pod in k8s gets some default environment variable injected, including KUBERNETES_SERVICE_HOST
             which points to K8s service. We are using this variable to distinguise between when cluterman is started in
             a pod vs when it's started on host. For clusterman instances running inside a k8s cluster, we prioritise using
             K8s Service account since that let us avoid creating any kubeconfig in advance.
