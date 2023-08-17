@@ -83,7 +83,7 @@ class KubeApiClientWrapper:
                 logger.error(error_msg)
                 raise
 
-            self._client = client_class()
+            KubeApiClientWrapper._client = client_class()
 
     def __getattr__(self, attr):
         return getattr(self._client, attr)

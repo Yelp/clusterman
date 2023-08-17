@@ -42,6 +42,16 @@ def test_cached_corev1_api_use_load_kubeconfig_config_when_running_as_cli():
         assert mock_load_kube_config.called
 
 
+def test_client_initialization_happen_only_once():
+    with mock.patch.dict(os.environ, {"KUBERNETES_SERVICE_HOST": "ABC"}):
+        with mock.patch(
+            "clusterman.kubernetes.util.kubernetes.config.load_incluster_config"
+        ) as mock_load_incluster_config:
+            _ = CachedCoreV1Api("/foo/bar/admin.conf")
+            _ = CachedCoreV1Api("/foo/bar/admin1.conf")
+            assert mock_load_incluster_config.call_count == 1
+
+
 def test_cached_corev1_api_caches_non_cached_function(mock_cached_core_v1_api):
     mock_cached_core_v1_api.list_namespace()
     assert mock_cached_core_v1_api._client.list_namespace.call_count == 1
