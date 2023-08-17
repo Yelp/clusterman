@@ -30,6 +30,7 @@ from kubernetes.client.models.v1_node import V1Node as KubernetesNode
 from kubernetes.client.models.v1_node_selector_requirement import V1NodeSelectorRequirement
 from kubernetes.client.models.v1_node_selector_term import V1NodeSelectorTerm
 from kubernetes.client.models.v1_pod import V1Pod as KubernetesPod
+from kubernetes.config.config_exception import ConfigException
 
 from clusterman.util import ClustermanResources
 
@@ -72,7 +73,7 @@ class KubeApiClientWrapper:
                 kubernetes.config.load_incluster_config()
             else:
                 kubernetes.config.load_kube_config(kubeconfig_path, context=os.getenv("KUBECONTEXT"))
-        except TypeError:
+        except (TypeError, ConfigException):
             error_msg = "Could not load KUBECONFIG; is this running on Kubernetes master?"
             if "yelpcorp" in socket.getfqdn():
                 error_msg += "\nHint: try using the clusterman-k8s-<clustername> wrapper script!"

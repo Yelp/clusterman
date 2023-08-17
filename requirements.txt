@@ -16,7 +16,7 @@ idna==2.8
 jmespath==0.9.4
 jsonpickle==1.4.2
 kiwisolver==1.1.0
-kubernetes==10.0.1
+kubernetes==24.2.0
 matplotlib==3.4.2
 mypy-extensions==0.4.3
 numpy==1.21.6
