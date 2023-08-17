@@ -54,33 +54,36 @@ logger = colorlog.getLogger(__name__)
 
 
 class KubeApiClientWrapper:
+    _client = None
+
     def __init__(self, kubeconfig_path: str, client_class: Type) -> None:
         """Init k8s API client
 
         :param str kubeconfig_path: k8s configuration path
         :param Type client_class: k8s client class to initialize
         """
-        try:
-            """
-            https://kubernetes.io/docs/concepts/containers/container-environment/#container-environment
-            Every pod in k8s gets some default environment variable injected, including KUBERNETES_SERVICE_HOST
-            which points to default kuberbetes service. We are using this variable to distinguise between
-            when cluterman is started in a pod vs when it's started on host. For clusterman instances running inside
-            a k8s cluster, we prioritise using K8s Service account since that let us avoid creating any kubeconfig
-            in advance. For clusterman CLI invocation we continue using provided KUBECONFIG file
-            """
-            if os.getenv("KUBERNETES_SERVICE_HOST"):
-                kubernetes.config.load_incluster_config()
-            else:
-                kubernetes.config.load_kube_config(kubeconfig_path, context=os.getenv("KUBECONTEXT"))
-        except (TypeError, ConfigException):
-            error_msg = "Could not load KUBECONFIG; is this running on Kubernetes master?"
-            if "yelpcorp" in socket.getfqdn():
-                error_msg += "\nHint: try using the clusterman-k8s-<clustername> wrapper script!"
-            logger.error(error_msg)
-            raise
+        if self._client is None:
+            try:
+                """
+                https://kubernetes.io/docs/concepts/containers/container-environment/#container-environment
+                Every pod in k8s gets some default environment variable injected, including KUBERNETES_SERVICE_HOST
+                which points to default kuberbetes service. We are using this variable to distinguise between
+                when cluterman is started in a pod vs when it's started on host. For clusterman instances running inside
+                a k8s cluster, we prioritise using K8s Service account since that let us avoid creating any kubeconfig
+                in advance. For clusterman CLI invocation we continue using provided KUBECONFIG file
+                """
+                if os.getenv("KUBERNETES_SERVICE_HOST"):
+                    kubernetes.config.load_incluster_config()
+                else:
+                    kubernetes.config.load_kube_config(kubeconfig_path, context=os.getenv("KUBECONTEXT"))
+            except (TypeError, ConfigException):
+                error_msg = "Could not load KUBECONFIG; is this running on Kubernetes master?"
+                if "yelpcorp" in socket.getfqdn():
+                    error_msg += "\nHint: try using the clusterman-k8s-<clustername> wrapper script!"
+                logger.error(error_msg)
+                raise
 
-        self._client = client_class()
+            self._client = client_class()
 
     def __getattr__(self, attr):
         return getattr(self._client, attr)
