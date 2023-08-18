@@ -53,48 +53,75 @@ MILLIBYTE_MATCH_EXPR = re.compile(r"(\d+)m$")
 logger = colorlog.getLogger(__name__)
 
 
-class KubeApiClientWrapper:
-    def __init__(self, kubeconfig_path: str, client_class: Type) -> None:
-        """Init k8s API client
+# class KubeApiClientWrapper:
 
-        :param str kubeconfig_path: k8s configuration path
-        :param Type client_class: k8s client class to initialize
-        """
-        try:
-            """
-            https://kubernetes.io/docs/concepts/containers/container-environment/#container-environment
-            Every pod in k8s gets some default environment variable injected, including KUBERNETES_SERVICE_HOST
-            which points to default kuberbetes service. We are using this variable to distinguise between
-            when cluterman is started in a pod vs when it's started on host. For clusterman instances running inside
-            a k8s cluster, we prioritise using K8s Service account since that let us avoid creating any kubeconfig
-            in advance. For clusterman CLI invocation we continue using provided KUBECONFIG file
-            """
-            if os.getenv("KUBERNETES_SERVICE_HOST"):
-                kubernetes.config.load_incluster_config()
-            else:
-                kubernetes.config.load_kube_config(kubeconfig_path, context=os.getenv("KUBECONTEXT"))
-        except (TypeError, ConfigException):
-            error_msg = "Could not load KUBECONFIG; is this running on Kubernetes master?"
-            if "yelpcorp" in socket.getfqdn():
-                error_msg += "\nHint: try using the clusterman-k8s-<clustername> wrapper script!"
-            logger.error(error_msg)
-            raise
+#     _client = None
 
-        self._client = client_class()
+#     def __init__(self, kubeconfig_path: str, client_class: Type) -> None:
+#         """Init k8s API client
 
-    def __getattr__(self, attr):
-        return getattr(self._client, attr)
+#         :param str kubeconfig_path: k8s configuration path
+#         :param Type client_class: k8s client class to initialize
+#         """
+
+#         # By making client a class variable we are avoiding re-creating kubernetes
+#         # client object multiple times ( due to call to reload_state which calls reload_client in return)
+#         if self._client is None:
+#             try:
+#                 """
+#                 https://kubernetes.io/docs/concepts/containers/container-environment/#container-environment
+#                 Every pod in k8s gets some default environment variable injected, including KUBERNETES_SERVICE_HOST
+#                 which points to default kuberbetes service. We are using this variable to distinguise between
+#                 when cluterman is started in a pod vs when it's started on host. For clusterman instances running
+#                inside a k8s cluster, we prioritise using K8s Service account since that let us avoid creating
+#                any kubeconfig  in advance. For clusterman CLI invocation we continue using provided KUBECONFIG file
+#                 """
+#                 if os.getenv("KUBERNETES_SERVICE_HOST"):
+#                     kubernetes.config.load_incluster_config()
+#                 else:
+#                     kubernetes.config.load_kube_config(kubeconfig_path, context=os.getenv("KUBECONTEXT"))
+#             except (TypeError, ConfigException):
+#                 error_msg = "Could not load KUBECONFIG; is this running on Kubernetes master?"
+#                 if "yelpcorp" in socket.getfqdn():
+#                     error_msg += "\nHint: try using the clusterman-k8s-<clustername> wrapper script!"
+#                 logger.error(error_msg)
+#                 raise
+
+#             KubeApiClientWrapper._client = client_class()
+
+#     def __getattr__(self, attr):
+#         return getattr(self._client, attr)
 
 
-class CachedCoreV1Api(KubeApiClientWrapper):
+def load_kube_client(kubeconfig_path: str, client_class: Type):
+    try:
+        print("load_kube_config is called with client_type: ", client_class)
+        if os.getenv("KUBERNETES_SERVICE_HOST"):
+            kubernetes.config.load_incluster_config()
+        else:
+            kubernetes.config.load_kube_config(kubeconfig_path, context=os.getenv("KUBECONTEXT"))
+    except (TypeError, ConfigException):
+        error_msg = "Could not load KUBECONFIG; is this running on Kubernetes master?"
+        if "yelpcorp" in socket.getfqdn():
+            error_msg += "\nHint: try using the clusterman-k8s-<clustername> wrapper script!"
+        logger.error(error_msg)
+        raise
+
+    return client_class()
+
+
+class CachedCoreV1Api:
     CACHED_FUNCTION_CALLS = {"list_node", "list_pod_for_all_namespaces"}
+    _client = None
 
     def __init__(self, kubeconfig_path: str):
-        super().__init__(kubeconfig_path, kubernetes.client.CoreV1Api)
+        if CachedCoreV1Api._client is None:
+            CachedCoreV1Api._client = load_kube_client(kubeconfig_path, kubernetes.client.CoreV1Api)
+            print(CachedCoreV1Api._client)
 
     def __getattr__(self, attr):
         global KUBERNETES_API_CACHE
-        func = getattr(self._client, attr)
+        func = getattr(CachedCoreV1Api._client, attr)
 
         if os.environ.get("KUBE_CACHE_ENABLED", "") and attr in self.CACHED_FUNCTION_CALLS:
 
@@ -117,16 +144,21 @@ class CachedCoreV1Api(KubeApiClientWrapper):
         return func
 
 
-class ConciseCRDApi(KubeApiClientWrapper):
+class ConciseCRDApi:
+    _client = None
+
     def __init__(self, kubeconfig_path: str, group: str, version: str, plural: str) -> None:
-        super().__init__(kubeconfig_path, kubernetes.client.CustomObjectsApi)
+        if ConciseCRDApi._client is None:
+            ConciseCRDApi._client = load_kube_client(kubeconfig_path, kubernetes.client.CustomObjectsApi)
+            print(type(ConciseCRDApi._client))
+
         self.group = group
         self.version = version
         self.plural = plural
 
     def __getattr__(self, attr):
         return partial(
-            getattr(self._client, attr),
+            getattr(ConciseCRDApi._client, attr),
             group=self.group,
             version=self.version,
             plural=self.plural,
