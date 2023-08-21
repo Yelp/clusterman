@@ -163,18 +163,20 @@ def test_autoscaler_run(dry_run, mock_autoscaler, run_timestamp):
     ), pytest.raises(ValueError):
         mock_autoscaler.run(dry_run=dry_run, timestamp=run_timestamp)
 
-    assert mock_autoscaler.target_capacity_gauge.set.call_args == mock.call(100, {"dry_run": dry_run})
+    assert mock_autoscaler.target_capacity_gauge.set.call_args == mock.call(100, {"dry_run": dry_run,
+        "alert_on_max_capacity": True, "pool_owner": "compute_infra"})
     assert mock_autoscaler.max_capacity_gauge.set.call_args == mock.call(
         mock_autoscaler.pool_manager.max_capacity,
         {"dry_run": dry_run, "alert_on_max_capacity": True, "pool_owner": "compute_infra"},
     )
-    assert mock_autoscaler.setpoint_gauge.set.call_args == mock.call(0.7, {"dry_run": dry_run})
+    assert mock_autoscaler.setpoint_gauge.set.call_args == mock.call(0.7, {"dry_run": dry_run,
+        "alert_on_max_capacity": True, "pool_owner": "compute_infra"})
     assert mock_autoscaler._compute_target_capacity.call_args == mock.call(resource_request)
     assert mock_autoscaler.pool_manager.modify_target_capacity.call_count == 1
 
     assert mock_autoscaler.resource_request_gauges["cpus"].set.call_args == mock.call(
         resource_request.cpus,
-        {"dry_run": dry_run},
+        {"dry_run": dry_run, "alert_on_max_capacity": True, "pool_owner": "compute_infra"},
     )
     assert mock_autoscaler.resource_request_gauges["mem"].set.call_count == 0
     assert mock_autoscaler.resource_request_gauges["disk"].set.call_count == 0
