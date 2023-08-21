@@ -1,3 +1,9 @@
+clusterman (4.22.2) bionic jammy; urgency=low
+
+  * Upgrading python to 3.8 and clusterman to ubuntu jammy
+
+ -- Wilmer Bandres <wilmerrafael@yelp.com>  Fri, 16 Jun 2023 06:37:17 -0700
+
 clusterman (4.21.1) xenial bionic; urgency=low
 
   * Fix numpy warnings in CLI

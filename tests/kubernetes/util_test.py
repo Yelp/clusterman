@@ -5,6 +5,7 @@ from unittest import mock
 import pytest
 from kubernetes.client.models.v1_node_selector_requirement import V1NodeSelectorRequirement
 from kubernetes.client.models.v1_node_selector_term import V1NodeSelectorTerm
+from kubernetes.config import ConfigException
 
 from clusterman.kubernetes.util import CachedCoreV1Api
 from clusterman.kubernetes.util import ConciseCRDApi
@@ -21,9 +22,24 @@ def mock_cached_core_v1_api():
 
 
 def test_cached_corev1_api_no_kubeconfig(caplog):
-    with pytest.raises(TypeError):
+    with pytest.raises(ConfigException):
         CachedCoreV1Api("/foo/bar/admin.conf")
         assert "Could not load KUBECONFIG" in caplog.text
+
+
+def test_cached_corev1_api_use_load_incluster_config_when_running_in_pod():
+    with mock.patch.dict(os.environ, {"KUBERNETES_SERVICE_HOST": "ABC"}):
+        with mock.patch(
+            "clusterman.kubernetes.util.kubernetes.config.load_incluster_config"
+        ) as mock_load_incluster_config:
+            _ = CachedCoreV1Api("/foo/bar/admin.conf")
+            assert mock_load_incluster_config.called
+
+
+def test_cached_corev1_api_use_load_kubeconfig_config_when_running_as_cli():
+    with mock.patch("clusterman.kubernetes.util.kubernetes.config.load_kube_config") as mock_load_kube_config:
+        _ = CachedCoreV1Api("/foo/bar/admin.conf")
+        assert mock_load_kube_config.called
 
 
 def test_cached_corev1_api_caches_non_cached_function(mock_cached_core_v1_api):

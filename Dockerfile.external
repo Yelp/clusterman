@@ -6,35 +6,49 @@ ARG IMAGE_NAME
 FROM ${DOCKER_REGISTRY}/${IMAGE_NAME}
 
 # python and uwsgi deps
-RUN     apt-get update \
-        && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+RUN     apt-get update && apt-get upgrade -y \
+       && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             awscli \
             g++ \
             git \
             libatlas-base-dev \
+            libpython3.8 \
             libxml2 \
             libyaml-0-2 \
             lsb-release \
             make \
             openssh-client \
-            python-pip \
-            python3.7-dev \
+            software-properties-common \
+            gpg \
+            gpg-agent \
+        && add-apt-repository ppa:deadsnakes/ppa \
+        && apt-cache policy python3.8 \
+        && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            python3.8 \
+            libtiff-dev \
+            libfreetype-dev \
+            libfreetype6 \
+            libfreetype6-dev \
+            python3.8-dev \
+            python3.8-distutils \
+            python3-apt \
             python3-pip \
-            python-setuptools \
+            python3-setuptools \
             virtualenv \
         && apt-get clean
 
-RUN     /usr/bin/pip install setuptools supervisor tox
+RUN     /usr/bin/pip3 install setuptools supervisor tox==3.24.4
 COPY    tox.ini requirements.txt requirements-bootstrap.txt /code/
 
-RUN     mkdir /home/nobody
+RUN     mkdir /home/nobody  \
+        && chown nobody /home/nobody
 ENV     HOME /home/nobody
 
 # Code is COPY'ed here after the pip install above, so that code changes do not
 # break the preceding cache layer.
 COPY    . /code
 RUN     chown nobody /code
-RUN     cd code && tox -e virtualenv_run && virtualenv_run/bin/pip install -eexamples/clusterman_metrics
+RUN     cd code && tox -e virtualenv_run && virtualenv_run/bin/pip3 install -eexamples/clusterman_metrics
 
 RUN     ln -s /code/clusterman/supervisord/fetch_clusterman_signal /usr/bin/fetch_clusterman_signal
 RUN     ln -s /code/clusterman/supervisord/run_clusterman_signal /usr/bin/run_clusterman_signal

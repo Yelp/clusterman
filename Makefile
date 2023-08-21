@@ -23,14 +23,12 @@ endif
 
 ifeq ($(PAASTA_ENV),YELP)
 	export DOCKER_REGISTRY ?= docker-dev.yelpcorp.com
-	export XENIAL_IMAGE_NAME ?= xenial_pkgbuild
 	export BIONIC_IMAGE_NAME ?= bionic_pkgbuild
 	export JAMMY_IMAGE_NAME ?= jammy_pkgbuild
 else
 	export PIP_INDEX_URL ?= https://pypi.python.org/simple
 	export NPM_CONFIG_REGISTRY ?= https://registry.npmjs.org
 	export DOCKER_REGISTRY ?= docker.io
-	export XENIAL_IMAGE_NAME ?= ubuntu:xenial
 	export BIONIC_IMAGE_NAME ?= ubuntu:bionic
 	export JAMMY_IMAGE_NAME ?= ubuntu:jammy
 endif
@@ -63,7 +61,7 @@ test-external: clean-cache
 .PHONY: itest
 itest: export EXTRA_VOLUME_MOUNTS=/nail/etc/services/services.yaml:/nail/etc/services/services.yaml:ro
 itest: cook-image
-	COMPOSE_PROJECT_NAME=clusterman_bionic tox -e acceptance
+	COMPOSE_PROJECT_NAME=clusterman_jammy tox -e acceptance
 	./service-itest-runner clusterman.batch.spot_price_collector "--aws-region=us-west-1 "
 	./service-itest-runner clusterman.batch.cluster_metrics_collector "--cluster=local-dev"
 	./service-itest-runner clusterman.batch.autoscaler_bootstrap "" clusterman.batch.autoscaler
@@ -71,7 +69,7 @@ itest: cook-image
 
 .PHONY: itest-external
 itest-external: cook-image-external
-	COMPOSE_PROJECT_NAME=clusterman_bionic tox -e acceptance
+	COMPOSE_PROJECT_NAME=clusterman_jammy tox -e acceptance
 	./service-itest-runner examples.batch.spot_price_collector "--aws-region=us-west-1 --env-config-path=acceptance/srv-configs/clusterman-external.yaml"
 	./service-itest-runner examples.batch.cluster_metrics_collector "--cluster=local-dev --env-config-path=acceptance/srv-configs/clusterman-external.yaml"
 	./service-itest-runner examples.batch.autoscaler_bootstrap "--env-config-path=acceptance/srv-configs/clusterman-external.yaml" examples.batch.autoscaler
@@ -80,12 +78,12 @@ itest-external: cook-image-external
 .PHONY: cook-image
 cook-image:
 	git rev-parse HEAD > version
-	docker build --build-arg DOCKER_REGISTRY=${DOCKER_REGISTRY} --build-arg IMAGE_NAME=${BIONIC_IMAGE_NAME} -t $(DOCKER_TAG) .
+	docker build --build-arg DOCKER_REGISTRY=${DOCKER_REGISTRY} --build-arg IMAGE_NAME=${JAMMY_IMAGE_NAME} -t $(DOCKER_TAG) .
 
 .PHONY: cook-image-external
 cook-image-external:
 	git rev-parse HEAD > version
-	docker build --build-arg DOCKER_REGISTRY=${DOCKER_REGISTRY} --build-arg IMAGE_NAME=${BIONIC_IMAGE_NAME} -t $(DOCKER_TAG) -f Dockerfile.external .
+	docker build --build-arg DOCKER_REGISTRY=${DOCKER_REGISTRY} --build-arg IMAGE_NAME=${JAMMY_IMAGE_NAME} -t $(DOCKER_TAG) -f Dockerfile.external .
 
 .PHONY: completions
 completions:
@@ -117,9 +115,9 @@ version-bump:
 		echo "package version unchanged; aborting"; \
 		false; \
 	elif [ ! -f debian/changelog ]; then \
-		dch -v $${PACKAGE_VERSION} --create --package=$(PKG_NAME) -D "xenial bionic" -u low ${ARGS}; \
+		dch -v $${PACKAGE_VERSION} --create --package=$(PKG_NAME) -D "bionic jammy" -u low ${ARGS}; \
 	else \
-		dch -v $${PACKAGE_VERSION} -D "xenial bionic" -u low ${ARGS}; \
+		dch -v $${PACKAGE_VERSION} -D "bionic jammy" -u low ${ARGS}; \
 	fi; \
 	git add debian/changelog ${PKG_NAME}/__init__.py; \
 	set +e; git commit -m "Bump to version $${PACKAGE_VERSION}"; \
@@ -141,14 +139,14 @@ itest_%-external: dist
 	make -C package $@
 
 .PHONY:
-package: itest_xenial itest_bionic
+package: itest_bionic itest_jammy
 
 .PHONY:
-package-external: itest_xenial-external itest_bionic-external
+package-external: itest_bionic-external itest_jammy-external
 
 .PHONY:
 example: export EXAMPLE=true
-example: itest_bionic-external
+example: itest_jammy-external
 
 .PHONY:
 clean: clean-cache
@@ -186,4 +184,4 @@ debug:
 
 .PHONY:
 upgrade-requirements:
-	upgrade-requirements --python python3.7
+	upgrade-requirements --python python3.8
