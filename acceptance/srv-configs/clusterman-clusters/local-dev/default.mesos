@@ -30,4 +30,3 @@ autoscale_signal:
 
 alert_on_max_capacity: false
 pool_owner: compute_infra
-
