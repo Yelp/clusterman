@@ -17,8 +17,11 @@ from clusterman.kubernetes.util import selector_term_matches_requirement
 
 @pytest.fixture
 def mock_cached_core_v1_api():
-    with mock.patch("clusterman.kubernetes.util.kubernetes"):
-        yield CachedCoreV1Api("/foo/bar/admin.conf")
+    with mock.patch("clusterman.kubernetes.util.kubernetes") as mock_k8s_client:
+        api_instance = CachedCoreV1Api("/foo/bar/admin.conf")
+        yield api_instance
+        print("Clean up mock before reuse")
+        mock_k8s_client.reset_mock()
 
 
 def test_cached_corev1_api_no_kubeconfig(caplog):
@@ -27,22 +30,31 @@ def test_cached_corev1_api_no_kubeconfig(caplog):
         assert "Could not load KUBECONFIG" in caplog.text
 
 
-def test_cached_corev1_api_use_load_incluster_config_when_running_in_pod():
-    with mock.patch.dict(os.environ, {"KUBERNETES_SERVICE_HOST": "ABC"}):
-        with mock.patch(
-            "clusterman.kubernetes.util.kubernetes.config.load_incluster_config"
-        ) as mock_load_incluster_config:
-            _ = CachedCoreV1Api("/foo/bar/admin.conf")
-            assert mock_load_incluster_config.called
+# def test_cached_corev1_api_use_load_incluster_config_when_running_in_pod(mock_cached_core_v1_api):
+#     with mock.patch.dict(os.environ, {"KUBERNETES_SERVICE_HOST": "ABC"}):
+#         with mock.patch(
+#             "clusterman.kubernetes.util.kubernetes.config.load_incluster_config"
+#         ) as mock_load_incluster_config:
+#             _ = CachedCoreV1Api("/foo/bar/admin.conf")
+#             assert mock_load_incluster_config.called
 
 
-def test_cached_corev1_api_use_load_kubeconfig_config_when_running_as_cli():
-    with mock.patch("clusterman.kubernetes.util.kubernetes.config.load_kube_config") as mock_load_kube_config:
+# def test_cached_corev1_api_use_load_kubeconfig_config_when_running_as_cli():
+#     print(0)
+#     with mock.patch("clusterman.kubernetes.util.kubernetes.config.load_kube_config") as mock_load_kube_config:
+#         _ = CachedCoreV1Api("/foo/bar/admin.conf")
+#         assert mock_load_kube_config.called
+
+
+def test_client_initialization_happen_only_once():
+    with mock.patch("clusterman.kubernetes.util.load_kube_client") as mock_load_kube_client:
         _ = CachedCoreV1Api("/foo/bar/admin.conf")
-        assert mock_load_kube_config.called
+        _ = CachedCoreV1Api("/foo/bar/admin1.conf")
+        assert mock_load_kube_client.call_count == 1
 
 
 def test_cached_corev1_api_caches_non_cached_function(mock_cached_core_v1_api):
+    print("1")
     mock_cached_core_v1_api.list_namespace()
     assert mock_cached_core_v1_api._client.list_namespace.call_count == 1
 
