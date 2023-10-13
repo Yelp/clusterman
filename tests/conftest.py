@@ -145,6 +145,7 @@ def clusterman_pool_config():
             ],
         },
         "alert_on_max_capacity": True,
+        "pool_owner": "compute_infra",
     }
     with staticconf.testing.MockConfiguration(config, namespace="bar.mesos_config"):
         yield
@@ -202,6 +203,7 @@ def clusterman_k8s_pool_config():
             "disable_autoscaling": False,
         },
         "alert_on_max_capacity": False,
+        "pool_owner": "foo",
     }
     with staticconf.testing.MockConfiguration(config, namespace="bar.kubernetes_config"):
         yield

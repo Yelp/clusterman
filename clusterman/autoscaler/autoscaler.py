@@ -178,12 +178,9 @@ class Autoscaler:
         else:
             capacity_offset = get_capacity_offset(self.cluster, self.pool, self.scheduler, timestamp)
             new_target_capacity = self._compute_target_capacity(resource_request) + capacity_offset
-            self.target_capacity_gauge.set(new_target_capacity, {"dry_run": dry_run})
-            self.max_capacity_gauge.set(
-                self.pool_manager.max_capacity,
-                {"dry_run": dry_run, "alert_on_max_capacity": self.pool_manager.alert_on_max_capacity},
-            )
-            self.setpoint_gauge.set(self.autoscaling_config.setpoint, {"dry_run": dry_run})
+            self.target_capacity_gauge.set(new_target_capacity, self.add_metric_labels(dry_run))
+            self.max_capacity_gauge.set(self.pool_manager.max_capacity, self.add_metric_labels(dry_run))
+            self.setpoint_gauge.set(self.autoscaling_config.setpoint, self.add_metric_labels(dry_run))
             self._emit_requested_resource_metrics(resource_request, dry_run=dry_run)
 
         try:
@@ -202,7 +199,14 @@ class Autoscaler:
     def _emit_requested_resource_metrics(self, resource_request: SignalResourceRequest, dry_run: bool) -> None:
         for resource_type, resource_gauge in self.resource_request_gauges.items():
             if getattr(resource_request, resource_type) is not None:
-                resource_gauge.set(getattr(resource_request, resource_type), {"dry_run": dry_run})
+                resource_gauge.set(getattr(resource_request, resource_type), self.add_metric_labels(dry_run))
+
+    def add_metric_labels(self, dry_run):
+        return {
+            "dry_run": dry_run,
+            "alert_on_max_capacity": self.pool_manager.alert_on_max_capacity,
+            "team": self.pool_manager.pool_owner,
+        }
 
     def _get_signal_for_app(self, app: str) -> Signal:
         """Load the signal object to use for autoscaling for a particular app

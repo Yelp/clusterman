@@ -86,6 +86,7 @@ class PoolManager:
             "autoscaling.killable_nodes_prioritizing_v2", default=False
         )
         self.alert_on_max_capacity = self.pool_config.read_bool("alert_on_max_capacity", default=True)
+        self.pool_owner = self.pool_config.read_string("pool_owner", default="compute_infra")
         monitoring_info = {"cluster": cluster, "pool": pool}
         self.killable_nodes_counter = get_monitoring_client().create_counter(SFX_KILLABLE_NODES_COUNT, monitoring_info)
 
