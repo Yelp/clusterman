@@ -121,7 +121,6 @@ def setup_configurations(context):
             ],
         },
         "alert_on_max_capacity": True,
-        "pool_owner": "compute_infra",
     }
     kube_pool_config = {
         "resource_groups": [
@@ -145,7 +144,6 @@ def setup_configurations(context):
             "period_minutes": 7,
         },
         "alert_on_max_capacity": True,
-        "pool_owner": "compute_infra",
     }
     with staticconf.testing.MockConfiguration(
         boto_config, namespace=CREDENTIALS_NAMESPACE

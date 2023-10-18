@@ -59,7 +59,6 @@ class SimulatedPoolManager(PoolManager):
             MAX_MIN_NODE_SCALEIN_UPTIME_SECONDS,
         )
         self.alert_on_max_capacity = self.pool_config.read_bool("alert_on_max_capacity", default=True)
-        self.pool_owner = self.pool_config.read_string("pool_owner", default="compute_infra")
         self.killable_nodes_prioritizing_v2 = self.pool_config.read_bool(
             "autoscaling.killable_nodes_prioritizing_v2", default=False
         )
