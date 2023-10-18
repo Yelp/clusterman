@@ -29,4 +29,3 @@ autoscale_signal:
       minute_range: 10
 
 alert_on_max_capacity: false
-pool_owner: compute_infra
