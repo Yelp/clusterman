@@ -6,7 +6,7 @@ import pytest
 from kubernetes.client.models.v1_node_selector_requirement import V1NodeSelectorRequirement
 from kubernetes.client.models.v1_node_selector_term import V1NodeSelectorTerm
 
-from clusterman.kubernetes.util import CachedCoreV1Api
+from clusterman.kubernetes.util import CachedCoreV1Api, KubeApiClientWrapper
 from clusterman.kubernetes.util import ConciseCRDApi
 from clusterman.kubernetes.util import get_node_kernel_version
 from clusterman.kubernetes.util import get_node_lsbrelease
@@ -16,6 +16,8 @@ from clusterman.kubernetes.util import selector_term_matches_requirement
 
 @pytest.fixture
 def mock_cached_core_v1_api():
+    # Make sure we always reset the client before each test
+    KubeApiClientWrapper._client = None
     with mock.patch("clusterman.kubernetes.util.kubernetes"):
         yield CachedCoreV1Api("/foo/bar/admin.conf")
 
