@@ -64,7 +64,8 @@
             "additionalProperties": false
         },
         "sensu_config": {"$ref": "definitions.json#sensu_config"},
-        "alert_on_max_capacity": {"type": "boolean"}
+        "alert_on_max_capacity": {"type": "boolean"},
+        "pool_owner": {"type": "string"}
     },
     "additionalProperties": false
 }
