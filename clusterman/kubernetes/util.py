@@ -30,7 +30,6 @@ from kubernetes.client.models.v1_node import V1Node as KubernetesNode
 from kubernetes.client.models.v1_node_selector_requirement import V1NodeSelectorRequirement
 from kubernetes.client.models.v1_node_selector_term import V1NodeSelectorTerm
 from kubernetes.client.models.v1_pod import V1Pod as KubernetesPod
-from kubernetes.config.config_exception import ConfigException
 
 from clusterman.util import ClustermanResources
 
@@ -63,7 +62,6 @@ class KubeApiClientWrapper:
         :param str kubeconfig_path: k8s configuration path
         :param Type client_class: k8s client class to initialize
         """
-
         # By making client a class variable we are avoiding re-creating kubernetes
         # client object multiple times ( due to call to reload_state which calls reload_client in return)
         if self._client is None:
