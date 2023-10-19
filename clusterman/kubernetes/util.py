@@ -54,7 +54,8 @@ logger = colorlog.getLogger(__name__)
 
 
 class KubeApiClientWrapper:
-
+    # CLUSTERMAN-812: By making client a class variable we are avoiding re-creating kubernetes
+    # client object multiple times ( due to call to reload_state which calls reload_client in return)
     _client = None
 
     def __init__(self, kubeconfig_path: str, client_class: Type) -> None:
@@ -63,8 +64,6 @@ class KubeApiClientWrapper:
         :param str kubeconfig_path: k8s configuration path
         :param Type client_class: k8s client class to initialize
         """
-        # By making client a class variable we are avoiding re-creating kubernetes
-        # client object multiple times ( due to call to reload_state which calls reload_client in return)
         if self._client is None:
             try:
                 """
