@@ -30,6 +30,7 @@ from kubernetes.client.models.v1_node import V1Node as KubernetesNode
 from kubernetes.client.models.v1_node_selector_requirement import V1NodeSelectorRequirement
 from kubernetes.client.models.v1_node_selector_term import V1NodeSelectorTerm
 from kubernetes.client.models.v1_pod import V1Pod as KubernetesPod
+from kubernetes.config.config_exception import ConfigException
 
 from clusterman.util import ClustermanResources
 
