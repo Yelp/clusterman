@@ -99,6 +99,8 @@ class KubernetesClusterConnector(ClusterConnector):
             node_label_selector = self.pool_config.read_string("node_label_key", default="clusterman.com/pool")
             self._label_selectors.append(f"{node_label_selector}={self.pool}")
 
+        self.reload_client()
+
     def reload_state(self, load_pods_info: bool = True) -> None:
         """Reload information from cluster/pool
 
@@ -106,8 +108,6 @@ class KubernetesClusterConnector(ClusterConnector):
                                     NOTE: all resouce utilization metrics won't be available when setting this
         """
         logger.info("Reloading nodes")
-
-        self.reload_client()
 
         # store the previous _nodes_by_ip for use in get_removed_nodes_before_last_reload()
         self._prev_nodes_by_ip = copy.deepcopy(self._nodes_by_ip)
