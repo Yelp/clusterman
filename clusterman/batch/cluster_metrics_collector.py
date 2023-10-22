@@ -27,6 +27,7 @@ from typing import Union
 
 import colorlog
 import staticconf
+from botocore.exceptions import ClientError
 from clusterman_metrics import ClustermanMetricsBotoClient
 from clusterman_metrics import generate_key_with_dimensions
 from clusterman_metrics import METADATA
@@ -131,6 +132,9 @@ class ClusterMetricsCollector(BatchDaemon, BatchLoggingMixin, BatchRunningSentin
                 try:
                     logger.info(f"Loading resource groups for {pool}.{scheduler} on {self.options.cluster}")
                     self.pool_managers[f"{pool}.{scheduler}"] = PoolManager(self.options.cluster, pool, scheduler)
+                except ClientError as error:
+                    logger.exception(error)
+                    raise
                 except Exception as e:
                     logger.exception(e)
                     continue
