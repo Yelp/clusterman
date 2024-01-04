@@ -8,7 +8,6 @@ colorama==0.4.1
 colorlog==4.0.2
 cycler==0.10.0
 decorator==4.4.0
-docutils==0.15.2
 future==0.18.0
 google-auth==1.6.3
 humanfriendly==4.18
